@@ -1,0 +1,24 @@
+:root {
+  --ui: 'Figtree', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: #d8c3a2;
+  color: #2a231d;
+  font-family: var(--ui);
+}
+
+#app {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 24px;
+  font-weight: 500;
+}
