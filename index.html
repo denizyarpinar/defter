@@ -9,7 +9,26 @@
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=Figtree:wght@400;500;600;700&family=Caveat:wght@500;600&family=JetBrains+Mono:wght@400;500&display=swap" />
   </head>
   <body>
-    <div id="app"></div>
+    <div id="app" data-mode="day" data-view="room">
+      <div id="stage"></div>
+      <div id="loading">Oda hazırlanıyor…</div>
+
+      <header class="bar">
+        <div class="brand">Defter</div>
+        <nav class="crumb" id="crumb" aria-label="Konum"></nav>
+        <div class="spacer"></div>
+        <div class="seg" id="modeSeg" role="group" aria-label="Işık modu">
+          <button data-mode="auto" title="18:00'den sonra akşam modu">Otomatik</button>
+          <button data-mode="day">Gündüz</button>
+          <button data-mode="night">Akşam</button>
+        </div>
+        <button class="pill" id="custBtn">Özelleştir</button>
+      </header>
+
+      <div class="hint" id="hint">Kitaplığa dokun, yakından bak</div>
+
+      <div id="toast" role="status" aria-live="polite"></div>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

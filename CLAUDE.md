@@ -17,7 +17,7 @@ Bu dosya Claude Code'un her oturumda okuduğu proje kurallarıdır. Değiştirme
 
 ## Teknoloji
 - Vite + TypeScript (framework yok, düz DOM). Paket yöneticisi: npm.
-- 3D: three.js (npm paketi). Renk yönetimi: `renderer.outputColorSpace = SRGBColorSpace`, ACES tone mapping, PCFSoft gölgeler.
+- 3D: three.js (npm paketi). Renk yönetimi: `renderer.outputColorSpace = SRGBColorSpace`, ACES tone mapping, PCF gölgeler (yumuşak; PCFSoftShadowMap yeni sürümlerde kaldırıldı).
 - Google girişi: Google Identity Services (token client, tarayıcıda). Sunucu yok, client secret yok.
 - Drive: Drive REST API v3, `fetch` ile. Kapsam (scope): `https://www.googleapis.com/auth/drive`.
 - Yayın: Vercel (statik site). Ortam değişkeni: `VITE_GOOGLE_CLIENT_ID`.
