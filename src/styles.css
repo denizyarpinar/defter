@@ -96,6 +96,31 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 #login .err { font-size: 13px; opacity: 1; color: #9b2c1c; background: rgba(178, 58, 42, .1); border-radius: 10px; padding: 8px 10px; text-align: left }
 #app[data-mode="night"] #login .err { color: #f4b4a6; background: rgba(240, 120, 100, .15) }
 
+/* ---------- Drive: loading, save state, "not found" card ---------- */
+.libload, .save {
+  position: fixed; left: 50%; transform: translateX(-50%); z-index: 25; font-size: 13px; font-weight: 500;
+  background: var(--chrome); color: var(--chromeFg); border: 1px solid var(--chromeLine); border-radius: 999px; padding: 7px 14px;
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); box-shadow: 0 6px 18px rgba(0, 0, 0, .12);
+}
+.libload { top: calc(env(safe-area-inset-top, 0px) + 62px) }
+.save { bottom: calc(env(safe-area-inset-bottom, 0px) + 62px); display: flex; align-items: center; gap: 10px; max-width: calc(100vw - 32px); transition: opacity .3s }
+.save.fade { opacity: 0 }
+.save.error { border-radius: 14px; background: #fbe9e4; color: #8a2a18; border-color: rgba(178, 58, 42, .35) }
+.save.error .ibtn { color: #8a2a18; border-color: rgba(178, 58, 42, .45); white-space: nowrap }
+.overlay {
+  position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; padding: 16px;
+  background: rgba(40, 28, 16, .18); backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
+}
+.overlay .card {
+  width: min(440px, 100%); box-sizing: border-box; padding: 24px; background: var(--chrome); color: var(--chromeFg);
+  border: 1px solid var(--chromeLine); border-radius: 18px; box-shadow: 0 20px 50px rgba(0, 0, 0, .2);
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); font-size: 14px; line-height: 1.5;
+}
+.overlay .card > b { font: 600 22px var(--serif) }
+.overlay .card p { margin: 10px 0 6px }
+.overlay .card ol { margin: 0 0 16px; padding-left: 20px }
+.overlay .row { display: flex; gap: 8px; flex-wrap: wrap }
+
 /* ---------- side panel ---------- */
 #panel {
   position: fixed; right: 12px; top: calc(env(safe-area-inset-top, 0px) + 62px); bottom: 12px; width: min(340px, calc(100vw - 24px)); z-index: 30;

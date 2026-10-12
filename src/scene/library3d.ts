@@ -71,7 +71,8 @@ export class Library3D {
   }
 
   buildBooks(): void {
-    for (const [id, g] of this.groups) if (!this.away.has(id)) { disposeGroup(g); this.groups.delete(id); }
+    for (const [id, g] of this.groups) { disposeGroup(g); this.groups.delete(id); }
+    this.away.clear();
     for (const id of this.data.books.keys()) if (!this.groups.has(id)) this.addBook(id);
     this.layout(true);
   }
@@ -172,8 +173,8 @@ export class Library3D {
     this.layout();
   }
 
-  // Drop: returns the new shelf name when the book changed shelf (for a toast).
-  endDrag(): { title: string; shelf: string } | null {
+  // Drop: null = dropped outside (nothing changed); otherwise where it went.
+  endDrag(): { title: string; shelf: string; changedShelf: boolean } | null {
     if (!this.drag) return null;
     const id = this.drag.id; this.drag = null;
     const { library, books } = this.data;
@@ -191,7 +192,7 @@ export class Library3D {
     }
     moveBook(library, books, id, target, at);
     this.layout();
-    return fromShelf !== target ? { title: books.get(id)!.baslik, shelf: library.raflar[target].ad } : null;
+    return { title: books.get(id)!.baslik, shelf: library.raflar[target].ad, changedShelf: fromShelf !== target };
   }
 
   get dragging(): boolean {

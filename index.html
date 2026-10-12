@@ -45,6 +45,30 @@
 
       <div class="hint" id="hint">Kitaplığa dokun, yakından bak</div>
 
+      <div class="libload" id="libLoading" role="status" hidden>Kitaplık yükleniyor…</div>
+
+      <div class="save" id="saveState" role="status" aria-live="polite" hidden>
+        <span id="saveText"></span>
+        <button class="ibtn" id="saveRetry" hidden>Tekrar dene</button>
+      </div>
+
+      <div class="overlay" id="notFound" hidden>
+        <div class="card" role="dialog" aria-labelledby="nfTitle">
+          <b id="nfTitle">Kitaplık klasörü bulunamadı</b>
+          <p>Drive'ında çöpte olmayan bir <strong>Kitaplık</strong> klasörü arıyorum. Şunu yap:</p>
+          <ol>
+            <li>drive.google.com'da <strong>Drive'ım</strong>'ı aç (ana dizin).</li>
+            <li><strong>Yeni → Klasör</strong> ile adı tam olarak <strong>Kitaplık</strong> olan bir klasör oluştur.</li>
+            <li>İçine <strong>kitaplar</strong> adlı bir klasör aç; her kitap onun içinde bir klasör olacak.</li>
+            <li>Buraya dönüp <strong>Tekrar dene</strong>'ye bas.</li>
+          </ol>
+          <div class="row">
+            <button class="ibtn solid" id="nfRetry">Tekrar dene</button>
+            <button class="ibtn" id="nfSample">Örnek kitaplıkla devam et</button>
+          </div>
+        </div>
+      </div>
+
       <aside id="panel" hidden aria-label="Özelleştir"></aside>
 
       <div id="reader" hidden>

@@ -1,6 +1,8 @@
 import './styles.css';
 import { AuthError, prepareAuth, signIn, signOut } from './drive/auth';
 import { getUserName, setSessionExpiredHandler } from './drive/drive';
+import { LibraryNotFound, loadDriveLibrary } from './drive/driveLibrary';
+import { DriveSaver } from './drive/save';
 import { daysSinceOpened, shelfOf } from './model/library';
 import { loadLocalLibrary } from './model/localSource';
 import type { ModeKey } from './model/types';
@@ -8,7 +10,8 @@ import { createRoomScene, type LibraryData, type RoomScene, type View } from './
 import { canvas, drawWood, noise } from './scene/textures';
 import { updateHint } from './ui/hint';
 import { initPanel } from './ui/panel';
-import { initReader, isReaderOpen, openReader } from './ui/reader';
+import { hideSaveState, initNotFound, initSaveState, setLibraryLoading, setNotFound, showSaveError, showSaved, showSaving } from './ui/driveStatus';
+import { closeReader, initReader, isReaderOpen, openReader } from './ui/reader';
 import { hideLogin, initLogin, setLoginBusy, setLoginError, showLogin } from './ui/login';
 import { initTopBar, initUserBox, updateCrumb, updateModeButtons, updateUserBox, type LightMode } from './ui/topBar';
 import { toast } from './ui/toast';
@@ -25,6 +28,7 @@ let mode: LightMode = 'auto';
 let scene: RoomScene | null = null;
 let view: View = 'room';
 let openTitle: string | null = null;
+let saver: DriveSaver | null = null;   // set while the library comes from Drive
 
 const isEvening = () => { const h = new Date().getHours(); return h >= 18 || h < 6; };
 const effectiveMode = (): 'day' | 'night' => mode === 'auto' ? (isEvening() ? 'night' : 'day') : mode;
@@ -47,14 +51,61 @@ function updateChrome(): void {
 initTopBar({
   onModeChange: m => {
     mode = m;
-    if (data) data.library.oda.mod = MODE_TO_DATA[m];   // in memory; saved to Drive in task 1.5
+    if (data) data.library.oda.mod = MODE_TO_DATA[m];
+    saver?.libraryChanged();
     applyMode();
     if (m === 'auto') toast(isEvening() ? 'Otomatik: saat 18:00\'i geçti, oda akşam modunda.' : 'Otomatik: oda 18:00\'de akşam moduna geçecek.');
   },
   onGoRoom: () => scene?.setView('room')
 });
 
-// ---- Google sign-in (task 1.4). The library still comes from public/ornek until Drive reading is added. ----
+// ---- library source: sample (public/ornek) or Drive ----
+
+const offline = "Drive'a bağlanılamadı. İnternet bağlantını kontrol et ve tekrar dene.";
+const errorText = (e: unknown) => e instanceof TypeError || !(e instanceof Error) ? offline : e.message;
+
+// Put new data into the shared holder and rebuild the room.
+async function useData(next: { library: LibraryData['library']; books: LibraryData['books'] }, newSaver: DriveSaver | null): Promise<void> {
+  await ready;
+  if (!data || !scene) return;
+  if (isReaderOpen()) { closeReader(); await new Promise(r => setTimeout(r, 1900)); }   // let the book fly home first
+  data.library = next.library;
+  data.books = next.books;
+  saver = newSaver;
+  hideSaveState();
+  scene.reload();
+  if (location.hash !== '#aksam') { mode = MODE_FROM_DATA[data.library.oda.mod]; applyMode(); }
+}
+
+async function loadFromDrive(): Promise<void> {
+  await ready;
+  setNotFound(false);
+  setLibraryLoading(true);
+  try {
+    const r = await loadDriveLibrary();
+    // the saver reads from the shared holder, whose contents useData replaces
+    await useData(r, new DriveSaver(r.loc, data!, { saving: showSaving, saved: showSaved, failed: showSaveError }));
+    if (r.warnings.length) toast(r.warnings[0]);
+  } catch (e) {
+    if (e instanceof LibraryNotFound) setNotFound(true);
+    else toast(errorText(e));
+  } finally {
+    setLibraryLoading(false);
+  }
+}
+
+async function useSample(): Promise<void> {
+  try { await useData(await loadLocalLibrary(), null); } catch { toast('Örnek kitaplık yüklenemedi. Sayfayı yenile.'); }
+}
+
+initNotFound({
+  onRetry: loadFromDrive,
+  onSample: () => { setNotFound(false); void useSample(); }
+});
+initSaveState();
+addEventListener('beforeunload', e => { if (saver?.hasUnsaved) e.preventDefault(); });
+
+// ---- Google sign-in ----
 
 async function googleSignIn(): Promise<void> {
   showLogin();
@@ -65,10 +116,11 @@ async function googleSignIn(): Promise<void> {
     hideLogin();
     updateUserBox({ kind: 'user', name });
     toast(`Hoş geldin, ${name}.`);
+    // signing in again after the session expired: the Drive library is already here
+    if (!saver) await loadFromDrive();
   } catch (e) {
     // our errors carry a Turkish message; a failed fetch (TypeError) means no connection
-    const offline = 'Drive\'a bağlanılamadı. İnternet bağlantını kontrol et ve tekrar dene.';
-    showLogin(e instanceof TypeError || !(e instanceof Error) ? offline : e.message);
+    showLogin(errorText(e));
   }
 }
 
@@ -78,7 +130,10 @@ initLogin({
 });
 initUserBox({
   onSignIn: googleSignIn,
-  onSignOut: () => { signOut(); updateUserBox({ kind: 'none' }); showLogin(); }
+  onSignOut: () => {
+    signOut(); updateUserBox({ kind: 'none' }); showLogin();
+    if (saver) void useSample();   // don't leave the Drive library on screen
+  }
 });
 setSessionExpiredHandler(() => {
   updateUserBox({ kind: 'none' });
@@ -101,6 +156,8 @@ function readerTextures(): void {
   const paperURL = canvas(256, 256, (g, w, h) => { g.fillStyle = '#fbf7ef'; g.fillRect(0, 0, w, h); noise(g, w, h, 9, 3); }).toDataURL();
   app.style.setProperty('--paperImg', `url(${paperURL})`);
 }
+
+let ready: Promise<void>;
 
 async function boot(): Promise<void> {
   try {
@@ -138,13 +195,14 @@ async function boot(): Promise<void> {
       setTimeout(() => { if (isReaderOpen()) scene?.setPaused(true); }, 400);
     },
     onBookClosed: () => { openTitle = null; updateChrome(); },
+    onLibraryChanged: () => saver?.libraryChanged(),
     onToast: toast
   });
 
   initPanel(d, {
-    shelvesChanged: () => scene?.shelvesChanged(),
-    bookChanged: id => scene?.refreshBook(id),
-    roomChanged: () => scene?.applyRoom(d.library.oda)
+    shelvesChanged: () => { scene?.shelvesChanged(); saver?.libraryChanged(); },
+    bookChanged: id => { scene?.refreshBook(id); saver?.coverChanged(id); },
+    roomChanged: () => { scene?.applyRoom(d.library.oda); saver?.libraryChanged(); }
   });
   readerTextures();
 
@@ -157,4 +215,4 @@ async function boot(): Promise<void> {
   loading.hidden = true;
 }
 
-boot();
+ready = boot();

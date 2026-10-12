@@ -22,6 +22,7 @@ export interface RoomScene {
   refreshBook(id: string): void;    // cover changed
   closeBook(): void;                // reader closed: fly the book back
   setPaused(p: boolean): void;      // reader covers the scene
+  reload(): void;                   // data was replaced (e.g. Drive library loaded)
 }
 
 export interface RoomSceneOptions {
@@ -31,6 +32,7 @@ export interface RoomSceneOptions {
   onBookOpening: (id: string) => void;   // tapped, flying to the desk
   onBookOnDesk: (id: string) => void;    // landed: show the reader
   onBookClosed: (id: string) => void;    // back on its shelf
+  onLibraryChanged: () => void;          // books moved by drag & drop
   onToast: (msg: string) => void;
 }
 
@@ -97,7 +99,10 @@ export function createRoomScene(host: HTMLElement, opts: RoomSceneOptions): Room
     if (p.drag) {
       const pileBefore = lib3d.hasPile;
       const moved = lib3d.endDrag();
-      if (moved) opts.onToast(`“${moved.title}” → ${moved.shelf} rafına taşındı`);
+      if (moved) {
+        if (moved.changedShelf) opts.onToast(`“${moved.title}” → ${moved.shelf} rafına taşındı`);
+        opts.onLibraryChanged();
+      }
       if (pileBefore !== lib3d.hasPile) setView('shelf');   // pile appeared/disappeared: refit
       return;
     }
@@ -141,6 +146,13 @@ export function createRoomScene(host: HTMLElement, opts: RoomSceneOptions): Room
         opts.onBookClosed(id);
       });
     },
-    setPaused: p => { frame.paused = p; if (!p) requestRender(); }
+    setPaused: p => { frame.paused = p; if (!p) requestRender(); },
+    reload: () => {
+      openId = null;
+      applyRoom(opts.data.library.oda);
+      lib3d.buildCase();
+      lib3d.buildBooks();
+      if (rig.view !== 'room') setView('shelf', true);
+    }
   };
 }
