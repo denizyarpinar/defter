@@ -19,6 +19,21 @@ export function initTopBar(h: TopBarHandlers): void {
   });
 }
 
+// Right side of the bar: "<name> · Çıkış" when signed in, "Giriş yap" in sample mode.
+export function initUserBox(h: { onSignIn: () => void; onSignOut: () => void }): void {
+  document.querySelector('#signInBtn')!.addEventListener('click', h.onSignIn);
+  document.querySelector('#signOutBtn')!.addEventListener('click', h.onSignOut);
+}
+
+export function updateUserBox(state: { kind: 'none' } | { kind: 'sample' } | { kind: 'user'; name: string }): void {
+  const box = document.querySelector<HTMLElement>('#userBox')!;
+  box.hidden = state.kind === 'none';
+  document.querySelector<HTMLElement>('#signInBtn')!.hidden = state.kind !== 'sample';
+  document.querySelector<HTMLElement>('#userName')!.hidden = state.kind !== 'user';
+  document.querySelector<HTMLElement>('#signOutBtn')!.hidden = state.kind !== 'user';
+  document.querySelector<HTMLElement>('#userName')!.textContent = state.kind === 'user' ? state.name : '';
+}
+
 export function updateModeButtons(mode: LightMode): void {
   document.querySelectorAll<HTMLButtonElement>('#modeSeg button').forEach(b => b.classList.toggle('on', b.dataset.mode === mode));
 }

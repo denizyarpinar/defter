@@ -1,4 +1,6 @@
 import './styles.css';
+import { AuthError, prepareAuth, signIn, signOut } from './drive/auth';
+import { getUserName, setSessionExpiredHandler } from './drive/drive';
 import { daysSinceOpened, shelfOf } from './model/library';
 import { loadLocalLibrary } from './model/localSource';
 import type { ModeKey } from './model/types';
@@ -7,7 +9,8 @@ import { canvas, drawWood, noise } from './scene/textures';
 import { updateHint } from './ui/hint';
 import { initPanel } from './ui/panel';
 import { initReader, isReaderOpen, openReader } from './ui/reader';
-import { initTopBar, updateCrumb, updateModeButtons, type LightMode } from './ui/topBar';
+import { hideLogin, initLogin, setLoginBusy, setLoginError, showLogin } from './ui/login';
+import { initTopBar, initUserBox, updateCrumb, updateModeButtons, updateUserBox, type LightMode } from './ui/topBar';
 import { toast } from './ui/toast';
 
 const app = document.querySelector<HTMLElement>('#app')!;
@@ -50,6 +53,41 @@ initTopBar({
   },
   onGoRoom: () => scene?.setView('room')
 });
+
+// ---- Google sign-in (task 1.4). The library still comes from public/ornek until Drive reading is added. ----
+
+async function googleSignIn(): Promise<void> {
+  showLogin();
+  setLoginBusy(true);
+  try {
+    await signIn();
+    const name = await getUserName();
+    hideLogin();
+    updateUserBox({ kind: 'user', name });
+    toast(`Hoş geldin, ${name}.`);
+  } catch (e) {
+    // our errors carry a Turkish message; a failed fetch (TypeError) means no connection
+    const offline = 'Drive\'a bağlanılamadı. İnternet bağlantını kontrol et ve tekrar dene.';
+    showLogin(e instanceof TypeError || !(e instanceof Error) ? offline : e.message);
+  }
+}
+
+initLogin({
+  onGoogle: googleSignIn,
+  onSample: () => { hideLogin(); updateUserBox({ kind: 'sample' }); }
+});
+initUserBox({
+  onSignIn: googleSignIn,
+  onSignOut: () => { signOut(); updateUserBox({ kind: 'none' }); showLogin(); }
+});
+setSessionExpiredHandler(() => {
+  updateUserBox({ kind: 'none' });
+  showLogin('Oturumun süresi doldu. Devam etmek için tekrar Google ile giriş yap.');
+});
+
+// First visit: the card is shown over the room. Load Google's script now so the popup opens right on the click.
+showLogin();
+prepareAuth().catch((e: unknown) => { if (e instanceof AuthError) setLoginError(e.message); });
 
 initReader(() => {
   scene?.setPaused(false);
