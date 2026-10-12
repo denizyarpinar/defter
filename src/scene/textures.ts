@@ -257,6 +257,7 @@ export function createSky(): Sky {
   return { texture, draw };
 }
 
+// Abstract landscape poster (arches, sun, hills) in the room's palette.
 export function abstractCanvas(): HTMLCanvasElement {
   return canvas(600, 416, (g, w, h) => {
     g.fillStyle = '#f4ede2'; g.fillRect(0, 0, w, h);

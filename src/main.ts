@@ -32,6 +32,7 @@ let scene: RoomScene | null = null;
 let view: View = 'room';
 let openTitle: string | null = null;
 let saver: DriveSaver | null = null;   // set while the library comes from Drive
+let ownerName: string | null = null;    // signed-in user (title page: "<ad>'in kitaplığından")
 
 const isEvening = () => { const h = new Date().getHours(); return h >= 18 || h < 6; };
 const effectiveMode = (): 'day' | 'night' => mode === 'auto' ? (isEvening() ? 'night' : 'day') : mode;
@@ -122,6 +123,7 @@ async function googleSignIn(chooseAccount = false): Promise<void> {
     rememberUser(user);              // name + e-mail only; the token stays in memory
     setAccountHint(user.email);
     hideLogin();
+    ownerName = user.name;
     updateUserBox({ kind: 'user', name: user.name });
     toast(`Hoş geldin, ${user.name}.`);
     // signing in again after the session expired: the Drive library is already here
@@ -141,6 +143,7 @@ initUserBox({
   onSignIn: () => googleSignIn(),
   onSignOut: () => {
     signOut(); rememberUser(null); setAccountHint(undefined); setRememberedName(null);
+    ownerName = null;
     updateUserBox({ kind: 'none' }); showLogin();
     if (saver) void useSample();   // don't leave the Drive library on screen
   }
@@ -154,7 +157,9 @@ setSessionExpiredHandler(() => {
 // Google's script is loaded now so the popup opens right on the tap.
 setRememberedName(rememberedUser()?.name ?? null);
 setAccountHint(rememberedUser()?.email);
-showLogin();
+// ?demo (portfolio link): skip the card and open the sample library right away
+if (new URLSearchParams(location.search).has('demo')) updateUserBox({ kind: 'sample' });
+else showLogin();
 prepareAuth().catch((e: unknown) => { if (e instanceof AuthError) setLoginError(e.message); });
 
 initReader(() => {
@@ -203,7 +208,7 @@ async function boot(): Promise<void> {
     onBookOnDesk: id => {
       const b = d.books.get(id)!;
       const shelf = shelfOf(d.library, id);
-      openReader(b, { shelfName: shelf >= 0 ? d.library.raflar[shelf].ad : null, daysSinceOpened: daysSinceOpened(b) });
+      openReader(b, { shelfName: shelf >= 0 ? d.library.raflar[shelf].ad : null, daysSinceOpened: daysSinceOpened(b), owner: saver ? ownerName : null });
       b.sonAcilis = new Date().toISOString();   // in memory only in phase 1
       setTimeout(() => { if (isReaderOpen()) scene?.setPaused(true); }, 400);
     },

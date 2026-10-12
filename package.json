@@ -2,6 +2,11 @@
   "name": "defter",
   "private": true,
   "version": "0.0.0",
+  "description": "Google Drive notes (PDFs, notebook photos, AI summaries) as books in a 3D study room.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/denizyarpinar/defter.git"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",

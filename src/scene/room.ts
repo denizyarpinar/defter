@@ -1,7 +1,7 @@
 import { BoxGeometry, CircleGeometry, CylinderGeometry, DoubleSide, ExtrudeGeometry, Group, Mesh, MeshBasicMaterial, Path, PlaneGeometry, Shape, SphereGeometry, TorusGeometry, Vector3, type Object3D, type Scene } from 'three';
 import { add, boxAt, cylBetween, leafGeo } from './geometry';
 import { M, std } from './materials';
-import { artCanvas, canvas, clothNoise, createSky, abstractCanvas, tex, type Sky } from './textures';
+import { abstractCanvas, artCanvas, canvas, clothNoise, createSky, tex, type Sky } from './textures';
 import { D, H, P, U, W, mulberry } from './units';
 
 export interface RoomRefs {

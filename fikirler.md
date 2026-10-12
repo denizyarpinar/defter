@@ -6,6 +6,7 @@ Yol haritasında henüz yeri olmayan fikirler. Faz 1 bitince birlikte bakıp ön
 - **Masada to-do / plan:** Masanın üstünde not kâğıdı ya da ajanda. Dokununca günün yapılacakları açılır. Drive'da tek bir `plan.json` olarak saklanabilir.
 - **Ders programı:** Duvardaki "WiSe 2026/27" posteri zaten bir ders programı gibi görünüyor. Gerçek programı gösterebilir; dokununca büyür.
 - **İngilizce dil seçeneği:** Uygulama şimdi Türkçe. Herkese açık paylaşmadan önce İngilizce seçeneği gelecek. Arayüz metinleri tek bir dosyada toplanırsa (ör. `src/ui/i18n.ts`) yeni dil eklemek kolaylaşır.
+- **Açılışta kitaplık daha hızlı gelsin:** Uygulama kapatılıp açılınca kitapların en son hali Drive'dan 2–3 saniyede geliyor. Olası çözümler: son kitaplığı cihazda saklayıp hemen göstermek ve Drive'dan gelince güncellemek; Drive isteklerini azaltmak (her kitap için ayrı ayrı sormak yerine toplu sorgu).
 
 ## Claude'un önerileri
 - **Çalışma zamanlayıcısı (pomodoro):** Masa lambası yanınca çalışma süresi başlar, molada lamba söner. Hangi kitapta ne kadar çalışıldığı kaydedilir.

@@ -1,0 +1,30 @@
+{
+  "surum": 1,
+  "baslik": "Lineer Cebir",
+  "sirt": "Lineer Cebir",
+  "kod": "LC",
+  "ders": "Matematik",
+  "kapak": {
+    "renk": "#e0453a",
+    "stil": "kumas"
+  },
+  "sonAcilis": null,
+  "kurdele": null,
+  "bolumler": [
+    {
+      "baslik": "Vektörler ve matrisler",
+      "durum": "calisildi",
+      "kaynaklar": [
+        { "tur": "pdf", "dosya": "bolum-1.pdf" }
+      ]
+    },
+    {
+      "baslik": "Lineer denklem sistemleri",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        { "tur": "pdf", "dosya": "bolum-2.pdf" },
+        { "tur": "defter", "dosya": "defter/bolum-2.jpg" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "surum": 1,
+  "baslik": "Programlamaya Giriş",
+  "sirt": "Programlama",
+  "kod": "PRG",
+  "ders": "Bilgisayar Bilimi",
+  "kapak": {
+    "renk": "#24476b",
+    "stil": "kumas"
+  },
+  "sonAcilis": null,
+  "kurdele": null,
+  "bolumler": [
+    {
+      "baslik": "Değişkenler ve veri tipleri",
+      "durum": "calisildi",
+      "kaynaklar": [
+        { "tur": "pdf", "dosya": "hafta-01.pdf" },
+        { "tur": "defter", "dosya": "defter/hafta-01.jpg" }
+      ]
+    },
+    {
+      "baslik": "Koşullar ve döngüler",
+      "durum": "tekrar",
+      "kaynaklar": [
+        { "tur": "pdf", "dosya": "hafta-02.pdf" },
+        { "tur": "claude", "dosya": "hafta-02-ozet.pdf" }
+      ]
+    },
+    {
+      "baslik": "Metotlar",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        { "tur": "pdf", "dosya": "hafta-03.pdf" },
+        { "tur": "link", "dosya": "https://example.com/alistirma-3" }
+      ]
+    }
+  ]
+}

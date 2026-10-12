@@ -21,12 +21,23 @@ const ST: Record<ChapterStatus, [cls: string, label: string]> = {
 export interface ReaderContext {
   shelfName: string | null;     // null = "Yeni gelenler"
   daysSinceOpened: number | null;
+  owner: string | null;         // null = sample library
+}
+
+// Turkish genitive with apostrophe: Deniz'in, Ayşe'nin, Umut'un, Gül'ün.
+function genitive(name: string): string {
+  const first = name.trim().split(/\s+/)[0] || name;
+  const lower = first.toLocaleLowerCase('tr-TR');
+  const vowels = [...lower].filter(c => 'aeıioöuü'.includes(c));
+  const last = vowels.at(-1) ?? 'e';
+  const v = 'aı'.includes(last) ? 'ı' : 'ei'.includes(last) ? 'i' : 'ou'.includes(last) ? 'u' : 'ü';
+  return `${first}'${'aeıioöuü'.includes(lower.at(-1)!) ? 'n' : ''}${v}n`;
 }
 
 const $ = <T extends HTMLElement>(s: string) => document.querySelector<T>(s)!;
 
 let book: Book | null = null;
-let ctx: ReaderContext = { shelfName: null, daysSinceOpened: null };
+let ctx: ReaderContext = { shelfName: null, daysSinceOpened: null, owner: null };
 let idx = 0, pw = 0, single = false, busy = false;
 let onClose: () => void = () => {};
 const PAGES = ['title', 'toc'] as const;
@@ -132,7 +143,7 @@ function renderPage(i: number, side: 'l' | 'r'): HTMLElement {
       <dl class="meta"><dt>Ders / alan</dt><dd>${esc(b.ders || '—')}</dd><dt>Bölüm</dt><dd>${b.bolumler.length}</dd>
       <dt>Kaynak</dt><dd>${total} dosya</dd><dt>Son açılış</dt><dd>${lastOpenedText(ctx.daysSinceOpened)}</dd></dl>
       ${b.kurdele !== null ? `<button class="go" data-ribbon>Kaldığın yer: s. ${esc(String(b.kurdele))} →</button>` : ''}
-      <div class="exl">Deniz'in kitaplığından</div>`;
+      <div class="exl">${ctx.owner ? esc(genitive(ctx.owner)) + ' kitaplığından' : 'Örnek kitaplıktan'}</div>`;
   } else {
     let html = '<div class="src">Kitap · içindekiler</div><h2>İçindekiler</h2>';
     if (!b.bolumler.length) {
