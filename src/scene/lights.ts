@@ -1,6 +1,6 @@
 import { BackSide, BoxGeometry, DirectionalLight, DoubleSide, HemisphereLight, Mesh, MeshBasicMaterial, PlaneGeometry, PMREMGenerator, PointLight, Scene, ShaderChunk, SpotLight, Vector3, type Texture, type WebGLRenderer } from 'three';
 import { requestRender } from './frame';
-import { ENV_MATS, M } from './materials';
+import { M, setEnvIntensity } from './materials';
 import type { RoomRefs } from './room';
 import { tween } from './tween';
 import { DESK_SPOT } from './units';
@@ -77,7 +77,7 @@ export function setLighting(L: Lights, renderer: WebGLRenderer, refs: RoomRefs, 
     L.key.intensity = (0.45 * (1 - k) + 0.1 * k) * LEGACY; L.key.color.setRGB(1 - .45 * k, .96 - .3 * k, .92);
     L.spot.intensity = 5 * k * LEGACY; L.glow.intensity = 1.6 * k * LEGACY; L.room.intensity = 1.1 * k * LEGACY;
     M.bulb.emissiveIntensity = 3 * k;
-    for (const m of ENV_MATS) m.envMapIntensity = 0.55 - 0.4 * k;
+    setEnvIntensity(0.55 - 0.4 * k);
     renderer.toneMappingExposure = 0.86 - 0.01 * k;
     refs.contact.material.opacity = 1 - .4 * k;
     refs.sky.draw(k, to === 0);

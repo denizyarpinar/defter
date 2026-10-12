@@ -35,7 +35,7 @@ export function startLoop(stage: Stage): void {
     requestAnimationFrame(loop);
     const active = hasTweens();
     runTweens(now);
-    if (!active && !frame.dirty) return;
+    if (!active && (!frame.dirty || frame.paused)) return;
     stage.renderer.render(stage.scene, stage.camera);
     frame.dirty = false;
   };

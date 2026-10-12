@@ -1,0 +1,45 @@
+{
+  "surum": 1,
+  "baslik": "Programmiergrundlagen",
+  "sirt": "Grundlagen",
+  "kod": "PG",
+  "ders": "Üni · WiSe 2026/27",
+  "kapak": {
+    "renk": "#24476b",
+    "stil": "kumas"
+  },
+  "sonAcilis": null,
+  "kurdele": null,
+  "bolumler": [
+    {
+      "baslik": "Organisation & Einführung",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "PG_VL01.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Variablen & Datentypen",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "PG_VL02.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Kontrollstrukturen",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "PG_VL03.pdf"
+        }
+      ]
+    }
+  ]
+}

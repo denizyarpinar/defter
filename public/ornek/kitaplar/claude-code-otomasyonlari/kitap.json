@@ -1,0 +1,25 @@
+{
+  "surum": 1,
+  "baslik": "Claude Code Otomasyonları",
+  "sirt": "Claude Code",
+  "kod": "AI",
+  "ders": "Yapay zekâ",
+  "kapak": {
+    "renk": "#2f5d50",
+    "stil": "kumas"
+  },
+  "sonAcilis": null,
+  "kurdele": null,
+  "bolumler": [
+    {
+      "baslik": "Java kitap özet sistemi",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "claude",
+          "dosya": "java_ozet_kurallari.pdf"
+        }
+      ]
+    }
+  ]
+}

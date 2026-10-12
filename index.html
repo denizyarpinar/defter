@@ -22,10 +22,27 @@
           <button data-mode="day">Gündüz</button>
           <button data-mode="night">Akşam</button>
         </div>
-        <button class="pill" id="custBtn">Özelleştir</button>
+        <button class="pill" id="custBtn" aria-expanded="false" aria-controls="panel">Özelleştir</button>
       </header>
 
       <div class="hint" id="hint">Kitaplığa dokun, yakından bak</div>
+
+      <aside id="panel" hidden aria-label="Özelleştir"></aside>
+
+      <div id="reader" hidden>
+        <div class="r-top">
+          <button class="rb" id="rClose">← <span class="lbl">Kitaplığa dön</span></button>
+          <div class="r-title"><b id="rBook">Kitap</b><span id="rChap"></span></div>
+        </div>
+        <div class="r-body">
+          <div id="spreadWrap"><div id="spread"></div></div>
+        </div>
+        <div class="r-bottom">
+          <button class="arrow" id="prev" aria-label="Önceki sayfa">‹</button>
+          <span class="pno" id="pno"></span>
+          <button class="arrow" id="next" aria-label="Sonraki sayfa">›</button>
+        </div>
+      </div>
 
       <div id="toast" role="status" aria-live="polite"></div>
     </div>

@@ -1,0 +1,11 @@
+{
+  "surum": 1,
+  "raflar": [
+    { "id": "ai",   "ad": "Yapay Zekâ",   "kitaplar": ["claude-code-otomasyonlari"] },
+    { "id": "uni",  "ad": "Üni Dersleri", "kitaplar": ["programmiergrundlagen", "mathematik-1"] },
+    { "id": "java", "ad": "Java",         "kitaplar": ["java-habelitz"] },
+    { "id": "r4",   "ad": "Raf 4",        "kitaplar": [] },
+    { "id": "r5",   "ad": "Raf 5",        "kitaplar": [] }
+  ],
+  "oda": { "duvar": "#efe6d8", "zemin": "mese", "mod": "otomatik" }
+}

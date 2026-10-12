@@ -1,0 +1,25 @@
+{
+  "surum": 1,
+  "baslik": "Java – Habelitz",
+  "sirt": "Habelitz",
+  "kod": "JV",
+  "ders": "Java",
+  "kapak": {
+    "renk": "#7b3f2a",
+    "stil": "deri"
+  },
+  "sonAcilis": null,
+  "kurdele": null,
+  "bolumler": [
+    {
+      "baslik": "Kapitel 1 · Einstieg",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "Habelitz_K1.pdf"
+        }
+      ]
+    }
+  ]
+}

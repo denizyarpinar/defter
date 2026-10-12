@@ -11,6 +11,8 @@ export const W = 1000, D = 800, H = 600;
 export const BX = 300, BW = 380, BD = 72, SH = 88, BASE = 26, TOP = 16;
 
 export const DESK_SPOT = P(78, 412, 146);
+// "Yeni gelenler" pile: on the floor, left of the bookcase.
+export const PILE_X = 232, PILE_Y = 40;
 
 export function mulberry(a: number): () => number {
   return function () {
@@ -29,4 +31,10 @@ export function hexRgb(h: string): [number, number, number] {
 export function mixHex(a: string, b: string, k: number): string {
   const A = hexRgb(a), B = hexRgb(b);
   return `rgb(${A.map((v, i) => Math.round(v + (B[i] - v) * k)).join(',')})`;
+}
+
+// Light text on dark colours, dark text on light ones.
+export function isDark(h: string): boolean {
+  const [r, g, b] = hexRgb(h);
+  return (0.299 * r + 0.587 * g + 0.114 * b) < 150;
 }

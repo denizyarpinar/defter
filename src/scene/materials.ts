@@ -1,9 +1,14 @@
-import { Color, DoubleSide, MeshStandardMaterial, type MeshStandardMaterialParameters, type Texture } from 'three';
-import type { RoomLook } from '../model/sampleData';
+import { Color, DoubleSide, MeshStandardMaterial, type Material, type MeshStandardMaterialParameters, type Object3D, type Texture } from 'three';
+import type { FloorKey, Room } from '../model/types';
 import { clothNoise, floorTex, pagesTex, plasterTex, woodTex } from './textures';
 
 // Materials that take the environment reflection; their envMapIntensity follows day/evening.
 export const ENV_MATS: MeshStandardMaterial[] = [];
+let envIntensity = 0.55;
+export function setEnvIntensity(v: number): void {
+  envIntensity = v;
+  for (const m of ENV_MATS) m.envMapIntensity = v;
+}
 
 let envMap: Texture | null = null;
 export function setEnvMap(t: Texture): void {
@@ -13,20 +18,50 @@ export function setEnvMap(t: Texture): void {
 // The env map is set on each material: with only scene.environment, new three.js versions
 // ignores material.envMapIntensity, and the prototype dims it in the evening.
 export function std(o: MeshStandardMaterialParameters): MeshStandardMaterial {
-  const m = new MeshStandardMaterial({ envMap, ...o });
+  const m = new MeshStandardMaterial({ envMap, envMapIntensity: envIntensity, ...o });
   ENV_MATS.push(m);
   return m;
 }
 
+// Materials/textures made for one object (a book, a plate) are "owned" and freed with it.
+const ownedMats = new WeakSet<Material>(), ownedTex = new WeakSet<Texture>();
+export function own<T extends Material>(m: T, ...maps: Texture[]): T {
+  ownedMats.add(m);
+  for (const t of maps) ownedTex.add(t);
+  return m;
+}
+
+// Remove a group from the scene and free its GPU memory (shared materials stay).
+export function disposeGroup(g: Object3D): void {
+  g.traverse(o => {
+    const mesh = o as Partial<{ isMesh: boolean; geometry: { dispose(): void }; material: Material | Material[] }>;
+    if (!mesh.isMesh) return;
+    mesh.geometry!.dispose();
+    const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material!];
+    for (const m of mats) {
+      if (!ownedMats.has(m)) continue;
+      const sm = m as MeshStandardMaterial;
+      for (const t of [sm.map, sm.bumpMap]) if (t && ownedTex.has(t)) t.dispose();
+      m.dispose();
+      const i = ENV_MATS.indexOf(sm); if (i >= 0) ENV_MATS.splice(i, 1);
+    }
+  });
+  g.removeFromParent();
+}
+
+export const FLOOR_COLORS: Record<FloorKey, [string, string]> = {
+  mese: ['#d9a46a', '#c48d55'], ceviz: ['#9a6a45', '#7f5536'], acik: ['#e6cfae', '#d6b98f']
+};
+
 export type Materials = ReturnType<typeof createMaterials>;
 export let M: Materials;
 
-function createMaterials(room: RoomLook) {
+function createMaterials(room: Room) {
   return {
-    wall: std({ color: new Color(room.wall), map: plasterTex(), roughness: .95 }),
+    wall: std({ color: new Color(room.duvar), map: plasterTex(), roughness: .95 }),
     white: std({ color: 0xf3efe8, roughness: .6 }),
     frame: std({ color: 0xf7f4ef, roughness: .45 }),
-    floor: std({ color: 0xd6ae86, map: floorTex(room.floor[0], room.floor[1]), roughness: .55, metalness: 0 }),
+    floor: std({ color: 0xd6ae86, map: floorTex(...FLOOR_COLORS[room.zemin]), roughness: .55, metalness: 0 }),
     slab: std({ color: 0xb5895f, map: woodTex('oak'), roughness: .7 }),
     walnutH: std({ map: woodTex('walnut'), roughness: .55 }),
     walnutV: std({ map: woodTex('walnut', true), roughness: .55 }),
@@ -50,6 +85,15 @@ function createMaterials(room: RoomLook) {
   };
 }
 
-export function makeMaterials(room: RoomLook): void {
+export function makeMaterials(room: Room): void {
   M = createMaterials(room);
+  floorCache[room.zemin] = M.floor.map!;
+}
+
+// Wall colour and floor planks from kitaplik.json → oda.
+const floorCache: Partial<Record<FloorKey, Texture>> = {};
+export function applyRoom(room: Room): void {
+  M.wall.color.set(room.duvar);
+  M.floor.map = floorCache[room.zemin] ??= floorTex(...FLOOR_COLORS[room.zemin]);
+  M.floor.needsUpdate = true;
 }
