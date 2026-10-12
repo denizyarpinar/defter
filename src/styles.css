@@ -26,10 +26,16 @@
   --chrome: rgba(22, 28, 46, .82); --chromeFg: #efe7da; --chromeLine: rgba(255, 255, 255, .12);
 }
 [hidden] { display: none !important }
-html, body { height: 100% }
+/* iPad/iPhone: no rubber-band scrolling, no double-tap zoom, no long-press menu */
+html, body { height: 100%; overscroll-behavior: none }
 body {
   margin: 0; background: #d8c3a2; font-family: var(--ui); color: var(--chromeFg); overflow: hidden;
   -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation; -webkit-touch-callout: none; -webkit-text-size-adjust: 100%; text-size-adjust: 100%;
+}
+/* iOS zooms into text fields smaller than 16px */
+@media (pointer: coarse) {
+  input, select, textarea { font-size: 16px !important }
 }
 #app { position: fixed; inset: 0; background: radial-gradient(120% 90% at 50% 40%, var(--stageA), var(--stageB)); transition: background .8s }
 button { font: inherit; color: inherit; cursor: pointer }
@@ -162,7 +168,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 .r-title b { display: block; font: 600 20px var(--serif) }
 .r-title span { font-size: 12.5px; opacity: .75 }
 .r-body { flex: 1; position: relative; min-height: 0 }
-#spreadWrap { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; perspective: 2400px }
+#spreadWrap { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; perspective: 2400px; touch-action: none }
 #spread { position: relative; transform-style: preserve-3d; transition: transform .9s cubic-bezier(.62, 0, .24, 1) }
 #spread::before {
   content: ''; position: absolute; inset: -7px -9px; border-radius: 6px;

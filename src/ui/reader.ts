@@ -51,6 +51,15 @@ export function initReader(close: () => void): void {
     if (e.key === 'ArrowLeft') flipTo(idx - 1);
   });
   addEventListener('resize', () => { if (book) renderAll(); });
+  // swipe left/right to turn the page (as in the prototype)
+  let swipe: { x: number; y: number } | null = null;
+  $('#spreadWrap').addEventListener('pointerdown', e => { swipe = { x: e.clientX, y: e.clientY }; });
+  addEventListener('pointerup', e => {
+    if (!swipe || !book) { swipe = null; return; }
+    const dx = e.clientX - swipe.x, dy = e.clientY - swipe.y;
+    swipe = null;
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.3) flipTo(idx + (dx < 0 ? 1 : -1));
+  });
 }
 
 export const isReaderOpen = () => book !== null;

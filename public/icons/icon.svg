@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="38%" r="75%">
+      <stop offset="0" stop-color="#f3e7d2"/>
+      <stop offset="1" stop-color="#d8c3a2"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <!-- three books on a shelf -->
+  <rect x="142" y="150" width="72" height="222" rx="6" fill="#24476b"/>
+  <rect x="220" y="172" width="64" height="200" rx="6" fill="#b5523b"/>
+  <rect x="290" y="136" width="80" height="236" rx="6" fill="#6b3a2a"/>
+  <g fill="#dcbb6e">
+    <rect x="142" y="172" width="72" height="7"/><rect x="142" y="340" width="72" height="7"/>
+    <rect x="220" y="192" width="64" height="6"/><rect x="220" y="342" width="64" height="6"/>
+    <rect x="290" y="160" width="80" height="7"/><rect x="290" y="340" width="80" height="7"/>
+    <rect x="316" y="214" width="28" height="96" rx="3" opacity=".55"/>
+  </g>
+  <rect x="112" y="372" width="288" height="24" rx="5" fill="#5e3a26"/>
+</svg>

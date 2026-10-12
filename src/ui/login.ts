@@ -1,15 +1,27 @@
 // Sign-in card over the room: "Google ile giriş yap" + "Örnek kitaplıkla dene".
+// After a reload it offers one tap: "<ad> olarak devam et".
 
 export interface LoginHandlers {
   onGoogle: () => void;
+  onOtherAccount: () => void;
   onSample: () => void;
 }
 
 const $ = <T extends HTMLElement>(s: string) => document.querySelector<T>(s)!;
+let label = 'Google ile giriş yap';
 
 export function initLogin(h: LoginHandlers): void {
   $('#loginGoogle').addEventListener('click', h.onGoogle);
+  $('#loginOther').addEventListener('click', e => { e.preventDefault(); h.onOtherAccount(); });
   $('#loginSample').addEventListener('click', e => { e.preventDefault(); h.onSample(); });
+}
+
+// name = remembered user (one-tap mode), null = first visit / signed out.
+export function setRememberedName(name: string | null): void {
+  label = name ? `${name} olarak devam et` : 'Google ile giriş yap';
+  $('#loginText').textContent = name ? 'Tekrar hoş geldin. Kitaplığın Drive\'dan yüklenecek.' : 'Drive\'daki notların, çalışma odandaki kitaplıkta.';
+  $('#loginOther').hidden = !name;
+  setLoginBusy(false);
 }
 
 export function showLogin(message?: string): void {
@@ -25,7 +37,7 @@ export function hideLogin(): void {
 export function setLoginBusy(busy: boolean): void {
   const b = $<HTMLButtonElement>('#loginGoogle');
   b.disabled = busy;
-  b.querySelector('span')!.textContent = busy ? 'Bağlanıyor…' : 'Google ile giriş yap';
+  b.querySelector('span')!.textContent = busy ? 'Bağlanıyor…' : label;
 }
 
 export function setLoginError(msg: string | null): void {

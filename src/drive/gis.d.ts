@@ -23,7 +23,7 @@ declare namespace google.accounts.oauth2 {
   }
 
   interface TokenClient {
-    requestAccessToken(overrides?: { prompt?: '' | 'none' | 'consent' | 'select_account' }): void;
+    requestAccessToken(overrides?: { prompt?: '' | 'none' | 'consent' | 'select_account'; login_hint?: string }): void;
   }
 
   function initTokenClient(config: TokenClientConfig): TokenClient;

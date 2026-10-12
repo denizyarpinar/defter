@@ -16,9 +16,14 @@ export function setSessionExpiredHandler(fn: () => void): void {
   onExpired = fn;
 }
 
+let hint: string | undefined;
+export function setAccountHint(email: string | undefined): void {
+  hint = email;
+}
+
 async function freshToken(): Promise<string> {
   try {
-    return await signIn();
+    return await signIn({ hint });
   } catch {
     dropToken();
     onExpired();
@@ -40,13 +45,14 @@ export async function driveFetch(path: string, init: RequestInit = {}): Promise<
   return res;
 }
 
-// Name of the signed-in user (no extra permission needed).
-export async function getUserName(): Promise<string> {
+// Name and e-mail of the signed-in user (no extra permission needed).
+export async function getUser(): Promise<{ name: string; email: string }> {
   const res = await driveFetch('about?fields=user(displayName,emailAddress)');
   if (res.status === 403) throw new Error('Drive erişimi reddedildi. Google Drive API projede açık olmayabilir: Google Cloud → APIs & Services → Library → Google Drive API → Enable.');
   if (!res.ok) throw new Error(`Drive'dan bilgi alınamadı (hata ${res.status}). Biraz sonra tekrar dene.`);
   const j = await res.json() as { user?: { displayName?: string; emailAddress?: string } };
-  return j.user?.displayName || j.user?.emailAddress || 'Google hesabı';
+  const email = j.user?.emailAddress ?? '';
+  return { name: j.user?.displayName || email || 'Google hesabı', email };
 }
 
 // ---- files ----

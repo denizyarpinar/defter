@@ -1,6 +1,6 @@
 import './styles.css';
-import { AuthError, prepareAuth, signIn, signOut } from './drive/auth';
-import { getUserName, setSessionExpiredHandler } from './drive/drive';
+import { AuthError, prepareAuth, rememberUser, rememberedUser, signIn, signOut } from './drive/auth';
+import { getUser, setAccountHint, setSessionExpiredHandler } from './drive/drive';
 import { LibraryNotFound, loadDriveLibrary } from './drive/driveLibrary';
 import { DriveSaver } from './drive/save';
 import { daysSinceOpened, shelfOf } from './model/library';
@@ -12,13 +12,16 @@ import { updateHint } from './ui/hint';
 import { initPanel } from './ui/panel';
 import { hideSaveState, initNotFound, initSaveState, setLibraryLoading, setNotFound, showSaveError, showSaved, showSaving } from './ui/driveStatus';
 import { closeReader, initReader, isReaderOpen, openReader } from './ui/reader';
-import { hideLogin, initLogin, setLoginBusy, setLoginError, showLogin } from './ui/login';
+import { hideLogin, initLogin, setLoginBusy, setLoginError, setRememberedName, showLogin } from './ui/login';
 import { initTopBar, initUserBox, updateCrumb, updateModeButtons, updateUserBox, type LightMode } from './ui/topBar';
 import { toast } from './ui/toast';
 
 const app = document.querySelector<HTMLElement>('#app')!;
 const stageEl = document.querySelector<HTMLElement>('#stage')!;
 const loading = document.querySelector<HTMLElement>('#loading')!;
+
+// Safari: two-finger pinch would zoom the whole page (the viewport tag alone doesn't stop it).
+for (const ev of ['gesturestart', 'gesturechange']) document.addEventListener(ev, e => e.preventDefault(), { passive: false });
 
 const MODE_FROM_DATA: Record<ModeKey, LightMode> = { otomatik: 'auto', gunduz: 'day', aksam: 'night' };
 const MODE_TO_DATA: Record<LightMode, ModeKey> = { auto: 'otomatik', day: 'gunduz', night: 'aksam' };
@@ -38,6 +41,7 @@ function applyMode(instant = false): void {
   const changed = app.dataset.mode !== m;
   app.dataset.mode = m;
   document.body.style.background = m === 'night' ? '#0e1527' : '#d8c3a2';
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', m === 'night' ? '#0e1527' : '#d8c3a2');
   updateModeButtons(mode);
   if (scene && (changed || instant)) scene.setNight(m === 'night', instant);
 }
@@ -107,15 +111,19 @@ addEventListener('beforeunload', e => { if (saver?.hasUnsaved) e.preventDefault(
 
 // ---- Google sign-in ----
 
-async function googleSignIn(): Promise<void> {
+// chooseAccount: "Başka bir hesapla giriş yap" (ignore the remembered account)
+async function googleSignIn(chooseAccount = false): Promise<void> {
   showLogin();
   setLoginBusy(true);
   try {
-    await signIn();
-    const name = await getUserName();
+    const remembered = chooseAccount ? null : rememberedUser();
+    await signIn({ hint: remembered?.email, chooseAccount });
+    const user = await getUser();
+    rememberUser(user);              // name + e-mail only; the token stays in memory
+    setAccountHint(user.email);
     hideLogin();
-    updateUserBox({ kind: 'user', name });
-    toast(`Hoş geldin, ${name}.`);
+    updateUserBox({ kind: 'user', name: user.name });
+    toast(`Hoş geldin, ${user.name}.`);
     // signing in again after the session expired: the Drive library is already here
     if (!saver) await loadFromDrive();
   } catch (e) {
@@ -125,13 +133,15 @@ async function googleSignIn(): Promise<void> {
 }
 
 initLogin({
-  onGoogle: googleSignIn,
+  onGoogle: () => googleSignIn(),
+  onOtherAccount: () => googleSignIn(true),
   onSample: () => { hideLogin(); updateUserBox({ kind: 'sample' }); }
 });
 initUserBox({
-  onSignIn: googleSignIn,
+  onSignIn: () => googleSignIn(),
   onSignOut: () => {
-    signOut(); updateUserBox({ kind: 'none' }); showLogin();
+    signOut(); rememberUser(null); setAccountHint(undefined); setRememberedName(null);
+    updateUserBox({ kind: 'none' }); showLogin();
     if (saver) void useSample();   // don't leave the Drive library on screen
   }
 });
@@ -140,7 +150,10 @@ setSessionExpiredHandler(() => {
   showLogin('Oturumun süresi doldu. Devam etmek için tekrar Google ile giriş yap.');
 });
 
-// First visit: the card is shown over the room. Load Google's script now so the popup opens right on the click.
+// The card is shown over the room: first visit "Google ile giriş yap", after a reload "<ad> olarak devam et".
+// Google's script is loaded now so the popup opens right on the tap.
+setRememberedName(rememberedUser()?.name ?? null);
+setAccountHint(rememberedUser()?.email);
 showLogin();
 prepareAuth().catch((e: unknown) => { if (e instanceof AuthError) setLoginError(e.message); });
 

@@ -70,13 +70,32 @@ export async function prepareAuth(): Promise<void> {
 }
 
 // Opens the Google popup (first time: account + permission; later usually closes by itself).
-export async function signIn(): Promise<string> {
+// hint: e-mail of the remembered account; chooseAccount: show Google's account list.
+export async function signIn(opts: { hint?: string; chooseAccount?: boolean } = {}): Promise<string> {
   await prepareAuth();
   pending?.reject(new AuthError('unknown'));
   return new Promise<string>((resolve, reject) => {
     pending = { resolve, reject };
-    client!.requestAccessToken({ prompt: '' });
+    client!.requestAccessToken({ prompt: opts.chooseAccount ? 'select_account' : '', ...(opts.hint ? { login_hint: opts.hint } : {}) });
   });
+}
+
+// "Signed in before" (name + e-mail only, never the token) so a reload can offer one-tap "continue".
+export interface RememberedUser { name: string; email: string }
+const REMEMBER_KEY = 'defter.giris';
+
+export function rememberUser(u: RememberedUser | null): void {
+  try {
+    if (u) localStorage.setItem(REMEMBER_KEY, JSON.stringify(u));
+    else localStorage.removeItem(REMEMBER_KEY);
+  } catch { /* storage blocked: just no one-tap */ }
+}
+
+export function rememberedUser(): RememberedUser | null {
+  try {
+    const u = JSON.parse(localStorage.getItem(REMEMBER_KEY) ?? 'null') as Partial<RememberedUser> | null;
+    return u && typeof u.name === 'string' && typeof u.email === 'string' ? { name: u.name, email: u.email } : null;
+  } catch { return null; }
 }
 
 // Token if it is still valid for at least a minute, else null.
