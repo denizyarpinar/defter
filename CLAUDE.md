@@ -79,3 +79,36 @@ Kitaplık/
 - Faz 4 Kalem: çizimleri PDF'e kaydetme (MVP)
 - Faz 5 Defter ve ekleme: fotoğraf notu, dönüştürme, özelleştirme
 - Faz 6 Akıllı özellikler: OCR, arama, quiz/özet
+
+## Faz 2 — Görsel kalite kuralları
+
+### Blender
+- Blender yolu: C:\Program Files\Blender Foundation\Blender 5.2\blender.exe
+- Blender'ı her zaman arka planda çalıştır: blender.exe -b <dosya.blend> -P <script.py>. Arayüz açma.
+- Bake gibi 10 dakikadan uzun sürebilecek komutları arka planda çalıştır ve ilerlemeyi blender/out/ altındaki bir log dosyasına yaz.
+- Ekran kartı: NVIDIA GeForce RTX 4070 Laptop GPU (8 GB), ayrıca Intel Iris Xe var. Cycles her zaman OptiX ile NVIDIA üzerinde çalışır.
+- Blender işleri sadece blender/ klasöründe yapılır. Script'ler (build_room.py, bake.py) ve CREDITS.md commit edilir; blender/assets/, blender/out/, *.blend ve *.blend1 .gitignore'da.
+- Blender Z-yukarı, three.js Y-yukarı çalışır. glTF dışa aktarırken +Y Up açık kalsın. 1 Blender birimi = 1 metre; three.js'teki oda ölçüleriyle birebir eşleşmeli.
+
+### Modeller
+- Sadece Poly Haven (CC0) modelleri ve dokuları kullanılır. Kullanılan her asset blender/CREDITS.md'ye yazılır: ad, https://polyhaven.com/a/<id> linki, lisans CC0.
+- Poly Haven API'sine istek atarken User-Agent başlığına "Defter" yaz.
+- Model seçimini Deniz onaylamadan indirme.
+
+### Işık ve fırınlama
+- Fırınlanan: duvarlar, zemin, tavan, pencere, sabit mobilya (masa, sandalye, bitki, lamba, halı). Fırınlanmayan: kitaplık, kitaplar, açık kitap; bunlar three.js'te canlı kalır.
+- Lightmap'te sadece ışık olur, renk olmaz: Cycles Diffuse bake, Direct + Indirect açık, Color kapalı. Böylece duvar/zemin rengi (kitaplik.json'daki oda alanı) değişince yeniden bake gerekmez.
+- Lightmap'ler ikinci UV kanalına yazılır (UV2; glTF'te TEXCOORD_1). Tek atlas, 2048 px, kenar payı (margin) en az 8 px.
+- İki lightmap var: lightmap_gunduz ve lightmap_aksam. 18:00–06:00 akşam kuralı aynı kalır; geçiş iki lightmap arasında yumuşak karışımla olur.
+- Lightmap'ler 0–1 aralığına sığdırılıp PNG olarak kaydedilir. Kullanılan ölçek çarpanı public/models/lightmap.json'a yazılır ve three.js bunu lightMapIntensity olarak kullanır.
+
+### Performans bütçesi
+- oda.glb en fazla 25 MB (hedef 15 MB). Dokular en fazla 2048 px. Toplam üçgen sayısı en fazla 300 bin.
+- Sıkıştırma: gltf-transform optimize, --compress meshopt, --texture-compress webp. KTX2 için Windows'a ek program gerekir; şimdilik kullanma.
+- iPad Safari'de oda görünümünde en az 30 fps.
+
+### Kod
+- Eski prosedürel oda kodu silinmez. glb yüklenemezse (hata ya da 15 sn zaman aşımı) otomatik olarak ona dönülür. Adrese ?oda=eski eklenince eski oda zorla gösterilir.
+- Veri modeline dokunma. kitaplik.json'daki oda.duvar / oda.zemin / oda.mod alanları aynı anlamda kullanılır.
+- Her görevin sonunda npm run build hatasız olmalı; raf görünümü, kitap açma, sürükle-bırak ve akşam modu bozulmamış olmalı.
+- Faz 2 işleri faz-2 dalında yapılır. main'e birleştirme ancak Deniz onay verince.
