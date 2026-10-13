@@ -88,7 +88,7 @@ Kitaplık/
 - Bake gibi 10 dakikadan uzun sürebilecek komutları arka planda çalıştır ve ilerlemeyi blender/out/ altındaki bir log dosyasına yaz.
 - Ekran kartı: NVIDIA GeForce RTX 4070 Laptop GPU (8 GB), ayrıca Intel Iris Xe var. Cycles her zaman OptiX ile NVIDIA üzerinde çalışır.
 - Blender işleri sadece blender/ klasöründe yapılır. Script'ler (build_room.py, bake.py) ve CREDITS.md commit edilir; blender/assets/, blender/out/, *.blend ve *.blend1 .gitignore'da.
-- Blender Z-yukarı, three.js Y-yukarı çalışır. glTF dışa aktarırken +Y Up açık kalsın. 1 Blender birimi = 1 metre; three.js'teki oda ölçüleriyle birebir eşleşmeli.
+- Blender Z-yukarı, three.js Y-yukarı çalışır. glTF dışa aktarırken +Y Up açık kalsın. Oda three.js'teki ölçüsüyle aynı kalır; Poly Haven modelleri 1,9467 ile büyütülür.
 
 ### Modeller
 - Sadece Poly Haven (CC0) modelleri ve dokuları kullanılır. Kullanılan her asset blender/CREDITS.md'ye yazılır: ad, https://polyhaven.com/a/<id> linki, lisans CC0.
