@@ -5,6 +5,7 @@ import { abstractCanvas, artCanvas, canvas, clothNoise, createSky, tex, type Sky
 import { D, H, P, U, W, mulberry } from './units';
 
 export interface RoomRefs {
+  group: Group;          // everything below; exported for Blender (?export=oda)
   contact: Mesh<PlaneGeometry, MeshBasicMaterial>;
   sky: Sky;
   hourHand: Group;
@@ -13,7 +14,9 @@ export interface RoomRefs {
 }
 
 export function buildRoom(scene: Scene): RoomRefs {
-  const R = new Group(); scene.add(R);
+  const R = new Group(); R.name = 'Oda'; scene.add(R);
+  // "canli" = stays live in the app (own texture/light), not baked in Blender
+  const live = (o: Object3D, name: string) => { o.name = name; o.userData.defter = 'canli'; };
 
   // soft contact shadow under the diorama
   const contact = new Mesh(new PlaneGeometry(14, 12), new MeshBasicMaterial({
@@ -24,7 +27,7 @@ export function buildRoom(scene: Scene): RoomRefs {
     })),
     transparent: true, depthWrite: false
   }));
-  contact.rotation.x = -Math.PI / 2; contact.position.set(5.4, -0.26, 4.4); R.add(contact);
+  contact.rotation.x = -Math.PI / 2; contact.position.set(5.4, -0.26, 4.4); contact.name = 'TemasGolgesi'; R.add(contact);
 
   // floor slab + planks
   boxAt(0, 0, -24, W, D, 23.6, M.slab, R);
@@ -50,11 +53,11 @@ export function buildRoom(scene: Scene): RoomRefs {
   boxAt(735, fz - 4, 190, ft, 8, 290, M.frame, R); boxAt(955 - ft, fz - 4, 190, ft, 8, 290, M.frame, R);
   boxAt(735 + 220 / 3 - 2, fz - 3, 190, 4, 6, 290, M.frame, R); boxAt(735 + 440 / 3 - 2, fz - 3, 190, 4, 6, 290, M.frame, R);
   boxAt(735, fz - 3, 330, 220, 6, 4, M.frame, R);
-  const gl = new Mesh(new PlaneGeometry(2.2, 2.9), M.glass); gl.position.set(8.45, 3.35, -0.1); R.add(gl);
+  const gl = new Mesh(new PlaneGeometry(2.2, 2.9), M.glass); gl.name = 'Cam'; gl.position.set(8.45, 3.35, -0.1); R.add(gl);
   boxAt(725, -2, 182, 240, 16, 8, M.frame, R, 1.5);
   const sky = createSky();
   const skyMesh = new Mesh(new PlaneGeometry(2.65, 3.4), new MeshBasicMaterial({ map: sky.texture, toneMapped: false }));
-  skyMesh.position.set(8.33, 3.35, -0.3); R.add(skyMesh);
+  skyMesh.position.set(8.33, 3.35, -0.3); live(skyMesh, 'Gokyuzu'); R.add(skyMesh);
 
   // wall clock (real time)
   const cg = new Group(); cg.position.copy(P(160, 2.5, 440)); R.add(cg);
@@ -123,7 +126,7 @@ export function buildRoom(scene: Scene): RoomRefs {
   const shade = new Mesh(new CylinderGeometry(0.035, 0.12, 0.17, 32, 1, true), std({ color: 0x1f1d1b, roughness: .4, metalness: .5, side: DoubleSide }));
   shade.position.copy(head).add(new Vector3(0, -0.06, 0)); add(shade, R);
   const bulb = new Mesh(new SphereGeometry(0.04, 16, 12), M.bulb);
-  bulb.position.copy(head).add(new Vector3(0, -0.1, 0)); R.add(bulb);
+  bulb.position.copy(head).add(new Vector3(0, -0.1, 0)); live(bulb, 'Ampul'); R.add(bulb);
   const lampHead = head.clone().add(new Vector3(0, -0.1, 0));
 
   // chair
@@ -156,7 +159,7 @@ export function buildRoom(scene: Scene): RoomRefs {
   potPlant(R, 923, 83, 0, 1.25, 'big');
   potPlant(R, 67, 67, 0, 1, 'snake');
 
-  return { contact, sky, hourHand, minuteHand, lampHead };
+  return { group: R, contact, sky, hourHand, minuteHand, lampHead };
 }
 
 export function potPlant(R: Object3D, x: number, y: number, z: number, s: number, kind: 'small' | 'big' | 'snake'): void {

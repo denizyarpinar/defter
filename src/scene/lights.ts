@@ -66,6 +66,7 @@ export function buildLights(scene: Scene, refs: RoomRefs): Lights {
 const TRANSITION_MS = 2500;
 
 let nightK = 0;
+export const currentNightK = () => nightK;
 
 // Day ↔ evening blend; k = 0 day, 1 evening.
 export function setLighting(L: Lights, renderer: WebGLRenderer, refs: RoomRefs, night: boolean, instant: boolean): void {

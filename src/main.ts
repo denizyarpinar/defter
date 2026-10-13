@@ -217,6 +217,13 @@ async function boot(): Promise<void> {
     onToast: toast
   });
 
+  // dev only: ?export=oda downloads the room for Blender (Faz 2)
+  if (import.meta.env.DEV && new URLSearchParams(location.search).get('export') === 'oda') {
+    scene.exportRoom()
+      .then(() => toast('oda-kaynak.glb indirildi. blender/assets/ klasörüne taşı.'))
+      .catch(() => toast('Oda dışa aktarılamadı. Konsoldaki hataya bak.'));
+  }
+
   initPanel(d, {
     shelvesChanged: () => { scene?.shelvesChanged(); saver?.libraryChanged(); },
     bookChanged: id => { scene?.refreshBook(id); saver?.coverChanged(id); },

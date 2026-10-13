@@ -3,7 +3,7 @@ import type { Room } from '../model/types';
 import { CameraRig, type View } from './camera';
 import { frame, requestRender } from './frame';
 import { Library3D, type LibraryData } from './library3d';
-import { buildLights, makeEnv, setLighting, useLegacyLightFalloff } from './lights';
+import { buildLights, currentNightK, makeEnv, setLighting, useLegacyLightFalloff } from './lights';
 import { applyRoom, makeMaterials, setEnvMap } from './materials';
 import { buildRoom, setClock } from './room';
 import { createStage, resizeStage, startLoop } from './renderer';
@@ -23,6 +23,7 @@ export interface RoomScene {
   closeBook(): void;                // reader closed: fly the book back
   setPaused(p: boolean): void;      // reader covers the scene
   reload(): void;                   // data was replaced (e.g. Drive library loaded)
+  exportRoom(): Promise<void>;      // dev: download the room as oda-kaynak.glb
 }
 
 export interface RoomSceneOptions {
@@ -147,6 +148,12 @@ export function createRoomScene(host: HTMLElement, opts: RoomSceneOptions): Room
       });
     },
     setPaused: p => { frame.paused = p; if (!p) requestRender(); },
+    exportRoom: async () => {
+      if (!import.meta.env.DEV) return;   // removed from the production build
+      const { exportRoom } = await import('./exportRoom');
+      await exportRoom(refs, currentNightK());
+      requestRender();
+    },
     reload: () => {
       openId = null;
       applyRoom(opts.data.library.oda);
