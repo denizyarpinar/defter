@@ -1,0 +1,20 @@
+{
+  "surum": 1,
+  "carpan": {
+    "gunduz": 3.215634,
+    "aksam": 8.0
+  },
+  "renk": "srgb",
+  "boyut": 2048,
+  "uv": 1,
+  "gunduz": "lightmap_gunduz.png",
+  "aksam": "lightmap_aksam.png",
+  "sample": {
+    "gunduz": 256,
+    "aksam": 512
+  },
+  "bakeSuresiSn": {
+    "gunduz": 204,
+    "aksam": 202
+  }
+}
