@@ -11,10 +11,10 @@
   "aksam": "lightmap_aksam.png",
   "sample": {
     "gunduz": 256,
-    "aksam": 512
+    "aksam": 2048
   },
   "bakeSuresiSn": {
     "gunduz": 204,
-    "aksam": 202
+    "aksam": 237
   }
 }

@@ -16,7 +16,9 @@ Steps:
 Run (from the project folder, in the background):
   "C:\\Program Files\\Blender Foundation\\Blender 5.2\\blender.exe" -b blender/oda.blend -P blender/bake.py
 Progress: blender/out/bake.log
-Optional: -- --gunduz 256 --aksam 512   (samples per bake; these are the defaults)
+Optional: -- --gunduz 256 --aksam 2048   (samples per bake; these are the defaults)
+Only one map again (the other map, its scale and oda.glb stay as they are; same Lightmap UVs):
+  blender.exe -b blender/out/oda-bake.blend -P blender/bake.py -- --sadece aksam
 Then compress (keep names, hierarchy, geometry and the unused-by-materials TEXCOORD_1):
   npx @gltf-transform/cli optimize public/models/oda.glb public/models/oda.glb --compress meshopt
       --texture-compress webp --texture-size 2048 --join false --flatten false --simplify false
@@ -42,7 +44,9 @@ os.makedirs(MODELS, exist_ok=True)
 
 _args = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
 SAMPLES = {name: int(_args[_args.index(f"--{name}") + 1]) if f"--{name}" in _args else default
-           for name, default in (("gunduz", 256), ("aksam", 512))}
+           for name, default in (("gunduz", 256), ("aksam", 2048))}
+ONLY = _args[_args.index("--sadece") + 1] if "--sadece" in _args else None   # "gunduz" or "aksam"
+STATES = [(n, e) for n, e in (("gunduz", False), ("aksam", True)) if ONLY in (None, n)]
 SIZE = 2048
 MARGIN_PX = 8                      # rule: at least 8 px; every one of ~3200 islands pays it, 16 px left the atlas 2% full
 LM_UV = "Lightmap"
@@ -477,15 +481,24 @@ def check_render(name, evening, shadow_objs):
     day.hide_render = night.hide_render = True
     set_world(evening)
     scene.cycles.samples = 64
-    scene.render.filepath = os.path.join(OUT, f"kontrol-{name}.png")
+    path = os.path.join(OUT, f"kontrol-{name}.png")
+    tmp = os.path.join(OUT, f"kontrol-{name}.tmp.png")
+    scene.render.filepath = tmp                    # the final file may be open (locked) in an image viewer
     t = time.time()
     bpy.ops.render.render(write_still=True)
-    log(f"Kontrol resmi: blender/out/kontrol-{name}.png ({time.time() - t:.0f} sn)")
+    for _ in range(10):
+        try:
+            os.replace(tmp, path)
+            log(f"Kontrol resmi: blender/out/kontrol-{name}.png ({time.time() - t:.0f} sn)")
+            return
+        except PermissionError:
+            time.sleep(1)
+    log(f"Kontrol resmi: kontrol-{name}.png açık/kilitli, sonuç blender/out/kontrol-{name}.tmp.png olarak kaldı")
 
 
 # ---------------------------------------------------------------- main
 def main():
-    log(f"Blender {bpy.app.version_string}, sample: gündüz {SAMPLES['gunduz']}, akşam {SAMPLES['aksam']}")
+    log(f"Blender {bpy.app.version_string}, sample: " + ", ".join(f"{n} {SAMPLES[n]}" for n, _ in STATES))
     if bpy.context.object and bpy.context.object.mode != "OBJECT":
         bpy.ops.object.mode_set(mode="OBJECT")
     setup_device()
@@ -493,7 +506,13 @@ def main():
     log(f"Masa lambası kaynağı: {lamp.shadow_soft_size:.2f} → {LAMP_RADIUS:.2f} m")
     lamp.shadow_soft_size = LAMP_RADIUS
 
-    shadow = build_shadow_case()
+    if ONLY:
+        shadow = bpy.data.collections.get("Sadece_Golge")
+        if not shadow:
+            raise SystemExit("--sadece için blender/out/oda-bake.blend açılmalı (önce tam bake gerekir).")
+        log(f"Sadece {ONLY}: UV'ler ve oda.glb aynı kalır")
+    else:
+        shadow = build_shadow_case()
     shadow_objs = set(shadow.objects)
     live = [o for o in scene.objects if o.get("defter") == "canli"]
     meshes = [o for o in scene.objects if o.type == "MESH"]
@@ -504,7 +523,8 @@ def main():
     for o in baked:                                  # lightmap UVs must not be shared between objects
         if o.data.users > 1:
             o.data = o.data.copy()
-    make_lightmap_uvs(baked)
+    if not ONLY:
+        make_lightmap_uvs(baked)
     mats = baked_materials(baked)
     shared = [m.name for m in mats if any(m.name in [s.material.name for s in o.material_slots if s.material] for o in live)]
     if shared:
@@ -512,27 +532,36 @@ def main():
     log(f"Bake hedefi: {len(mats)} malzeme, tek {SIZE}×{SIZE} resim")
 
     results = {}
-    for name, evening in (("gunduz", False), ("aksam", True)):
+    for name, evening in STATES:
         results[name] = bake(name, evening, baked, mats)
 
     # Own scale per map (the app multiplies each lightmap by its own scale before blending day and evening).
-    scales = {}
+    json_path = os.path.join(MODELS, "lightmap.json")
+    old = {}
+    if ONLY:
+        with open(json_path, encoding="utf-8") as f:
+            old = json.load(f)
+    scales = dict(old.get("carpan", {}))
+    samples = {**old.get("sample", {}), **{n: SAMPLES[n] for n in results}}
+    times = {**old.get("bakeSuresiSn", {}), **{n: round(r[2]) for n, r in results.items()}}
     for name, (_, px, _) in results.items():
         v = px[:, :, :3].max(axis=2)[px[:, :, 3] > 0]
         scales[name] = min(float(v.max()), HDR_CAP)
         log(f"Çarpan {name}: {scales[name]:.4f} (en büyük değer {float(v.max()):.2f}, ortanca {float(np.median(v)):.3f})")
-    pngs = {name: save_png(name, px, scales[name]) for name, (_, px, _) in results.items()}
-    with open(os.path.join(MODELS, "lightmap.json"), "w", encoding="utf-8") as f:
+    pngs = {name: os.path.join(MODELS, f"lightmap_{name}.png") for name in ("gunduz", "aksam")}
+    for name, (_, px, _) in results.items():
+        save_png(name, px, scales[name])
+    with open(json_path, "w", encoding="utf-8") as f:
         json.dump({
             "surum": 1,
-            "carpan": {name: round(v, 6) for name, v in scales.items()},
+            "carpan": {name: round(scales[name], 6) for name in ("gunduz", "aksam")},
             "renk": "srgb",
             "boyut": SIZE,
             "uv": 1,
             "gunduz": "lightmap_gunduz.png",
             "aksam": "lightmap_aksam.png",
-            "sample": SAMPLES,
-            "bakeSuresiSn": {name: round(r[2]) for name, r in results.items()},
+            "sample": {name: samples[name] for name in ("gunduz", "aksam")},
+            "bakeSuresiSn": {name: times[name] for name in ("gunduz", "aksam")},
         }, f, ensure_ascii=False, indent=2)
         f.write("\n")
     log("Kaydedildi: public/models/lightmap.json")
@@ -541,10 +570,11 @@ def main():
     remove_bake_nodes(mats)
     for img in [r[0] for r in results.values()]:
         bpy.data.images.remove(img)
-    export_objs = [o for o in scene.objects if o.type in ("MESH", "EMPTY") and o not in shadow_objs]
-    export_glb(export_objs)
-    bpy.ops.wm.save_as_mainfile(filepath=os.path.join(OUT, "oda-bake.blend"), copy=True)
-    log("Kaydedildi: blender/out/oda-bake.blend")
+    if not ONLY:
+        export_objs = [o for o in scene.objects if o.type in ("MESH", "EMPTY") and o not in shadow_objs]
+        export_glb(export_objs)
+        bpy.ops.wm.save_as_mainfile(filepath=os.path.join(OUT, "oda-bake.blend"), copy=True)
+        log("Kaydedildi: blender/out/oda-bake.blend")
 
     # Check renders from the preview camera (materials are changed only after the export and the save).
     nodes = make_check_materials(mats, load_png(pngs["gunduz"]), scales["gunduz"])
