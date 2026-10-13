@@ -5,7 +5,7 @@ import type { RoomRefs } from './room';
 // Only the room group: the bookcase, books, lights and camera are not in it.
 // The fake contact shadow is left out (Blender computes real shadows); the window sky is exported in its day state.
 export async function exportRoom(refs: RoomRefs, nightK: number): Promise<void> {
-  refs.contact.visible = false;
+  if (refs.contact) refs.contact.visible = false;
   refs.sky.draw(0);
   try {
     const glb = await new GLTFExporter().parseAsync(refs.group, { binary: true, onlyVisible: true });
@@ -16,7 +16,7 @@ export async function exportRoom(refs: RoomRefs, nightK: number): Promise<void> 
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 10_000);
   } finally {
-    refs.contact.visible = true;
+    if (refs.contact) refs.contact.visible = true;
     refs.sky.draw(nightK);
   }
 }

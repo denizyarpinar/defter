@@ -63,13 +63,14 @@ export function buildLights(scene: Scene, refs: RoomRefs): Lights {
 }
 
 // Day ↔ evening transition (the prototype used 800 ms; longer so the sunset is visible).
+// The baked room passes its own, shorter duration (Faz 2.4: 1.5 s).
 const TRANSITION_MS = 2500;
 
 let nightK = 0;
 export const currentNightK = () => nightK;
 
 // Day ↔ evening blend; k = 0 day, 1 evening.
-export function setLighting(L: Lights, renderer: WebGLRenderer, refs: RoomRefs, night: boolean, instant: boolean): void {
+export function setLighting(L: Lights, renderer: WebGLRenderer, refs: RoomRefs, night: boolean, instant: boolean, durationMs = TRANSITION_MS): void {
   const from = nightK, to = night ? 1 : 0;
   const apply = (k: number) => {
     nightK = k;
@@ -80,12 +81,13 @@ export function setLighting(L: Lights, renderer: WebGLRenderer, refs: RoomRefs, 
     M.bulb.emissiveIntensity = 3 * k;
     setEnvIntensity(0.55 - 0.4 * k);
     renderer.toneMappingExposure = 0.86 - 0.01 * k;
-    refs.contact.material.opacity = 1 - .4 * k;
+    if (refs.contact) refs.contact.material.opacity = 1 - .4 * k;
+    refs.lightmapBlend?.(k);
     refs.sky.draw(k, to === 0);
     requestRender();
   };
   if (instant) apply(to);
-  else tween(TRANSITION_MS, k => apply(from + (to - from) * k), undefined, 'light');
+  else tween(durationMs, k => apply(from + (to - from) * k), undefined, 'light');
 }
 
 // Soft studio-like reflections for the PBR materials.

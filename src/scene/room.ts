@@ -6,11 +6,26 @@ import { D, H, P, U, W, mulberry } from './units';
 
 export interface RoomRefs {
   group: Group;          // everything below; exported for Blender (?export=oda)
-  contact: Mesh<PlaneGeometry, MeshBasicMaterial>;
+  contact: Mesh<PlaneGeometry, MeshBasicMaterial> | null;   // fake contact shadow (old room only)
   sky: Sky;
   hourHand: Group;
   minuteHand: Group;
   lampHead: Vector3;
+  lightmapBlend?: (k: number) => void;   // baked room: day ↔ evening lightmap mix
+}
+
+// Wall clock centre (back wall).
+export const CLOCK_POS = P(160, 2.5, 440);
+
+// Hour and minute hands (pivot groups) on a clock group; setClock() turns them.
+export function addClockHands(cg: Object3D): { hourHand: Group; minuteHand: Group } {
+  const hand = (len: number, wd: number) => {
+    const pg = new Group();
+    const m = new Mesh(new BoxGeometry(wd, len, 0.006), M.black); m.position.y = len / 2 - 0.02; pg.add(m);
+    pg.position.z = 0.032; cg.add(pg);
+    return pg;
+  };
+  return { hourHand: hand(0.16, 0.018), minuteHand: hand(0.24, 0.011) };
 }
 
 export function buildRoom(scene: Scene): RoomRefs {
@@ -60,7 +75,7 @@ export function buildRoom(scene: Scene): RoomRefs {
   skyMesh.position.set(8.33, 3.35, -0.3); live(skyMesh, 'Gokyuzu'); R.add(skyMesh);
 
   // wall clock (real time)
-  const cg = new Group(); cg.position.copy(P(160, 2.5, 440)); R.add(cg);
+  const cg = new Group(); cg.position.copy(CLOCK_POS); R.add(cg);
   const rim = new Mesh(new CylinderGeometry(0.32, 0.32, 0.05, 48), M.black); rim.rotation.x = Math.PI / 2; add(rim, cg);
   const face = new Mesh(new CircleGeometry(0.29, 48), std({
     map: tex(canvas(256, 256, (g, w, h) => {
@@ -72,13 +87,7 @@ export function buildRoom(scene: Scene): RoomRefs {
     roughness: .4
   }));
   face.position.z = 0.026; cg.add(face);
-  const hand = (len: number, wd: number) => {
-    const pg = new Group();
-    const m = new Mesh(new BoxGeometry(wd, len, 0.006), M.black); m.position.y = len / 2 - 0.02; pg.add(m);
-    pg.position.z = 0.032; cg.add(pg);
-    return pg;
-  };
-  const hourHand = hand(0.16, 0.018), minuteHand = hand(0.24, 0.011);
+  const { hourHand, minuteHand } = addClockHands(cg);
 
   // posters on left wall (facing +x)
   const poster = (yc: number, zc: number, w: number, h: number, c: HTMLCanvasElement) => {

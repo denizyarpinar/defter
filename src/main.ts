@@ -15,6 +15,7 @@ import { closeReader, initReader, isReaderOpen, openReader } from './ui/reader';
 import { hideLogin, initLogin, setLoginBusy, setLoginError, setRememberedName, showLogin } from './ui/login';
 import { initTopBar, initUserBox, updateCrumb, updateModeButtons, updateUserBox, type LightMode } from './ui/topBar';
 import { toast } from './ui/toast';
+import { initDevToggle } from './ui/devToggle';
 
 const app = document.querySelector<HTMLElement>('#app')!;
 const stageEl = document.querySelector<HTMLElement>('#stage')!;
@@ -200,7 +201,8 @@ async function boot(): Promise<void> {
     ]);
   } catch { /* fonts are optional */ }
 
-  scene = createRoomScene(stageEl, {
+  loading.textContent = 'Oda yükleniyor…';
+  scene = await createRoomScene(stageEl, {
     data: d,
     night: effectiveMode() === 'night',
     onViewChange: v => { view = v; updateChrome(); },
@@ -223,6 +225,8 @@ async function boot(): Promise<void> {
       .then(() => toast('oda-kaynak.glb indirildi. blender/assets/ klasörüne taşı.'))
       .catch(() => toast('Oda dışa aktarılamadı. Konsoldaki hataya bak.'));
   }
+
+  initDevToggle(() => scene?.night ?? false, night => scene?.setNight(night));
 
   initPanel(d, {
     shelvesChanged: () => { scene?.shelvesChanged(); saver?.libraryChanged(); },

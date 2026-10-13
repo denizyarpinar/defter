@@ -92,8 +92,9 @@ export function makeMaterials(room: Room): void {
 
 // Wall colour and floor planks from kitaplik.json → oda.
 const floorCache: Partial<Record<FloorKey, Texture>> = {};
+export const floorTexture = (key: FloorKey): Texture => floorCache[key] ??= floorTex(...FLOOR_COLORS[key]);
 export function applyRoom(room: Room): void {
   M.wall.color.set(room.duvar);
-  M.floor.map = floorCache[room.zemin] ??= floorTex(...FLOOR_COLORS[room.zemin]);
+  M.floor.map = floorTexture(room.zemin);
   M.floor.needsUpdate = true;
 }
