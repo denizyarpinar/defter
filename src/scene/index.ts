@@ -43,6 +43,8 @@ export interface RoomSceneOptions {
 const BAKED_TIMEOUT_MS = 15_000;
 // Day ↔ evening in the baked room: lightmap mix, sky and bulb together.
 const BAKED_TRANSITION_MS = 1500;
+// The book's flight to the desk takes 1150 ms; its contact shadow (300 ms fade) starts this much later.
+const DESK_SHADOW_DELAY_MS = 850;
 
 // New baked room, or the old procedural one: forced with ?oda=eski (and ?export=oda, which exports
 // the old room for Blender), or as a fallback when oda.glb fails or takes longer than 15 s.
@@ -155,7 +157,12 @@ export async function createRoomScene(host: HTMLElement, opts: RoomSceneOptions)
   function openBook(id: string): void {
     openId = id;
     opts.onBookOpening(id);
-    lib3d.flyToDesk(id, () => opts.onBookOnDesk(id), () => setView('desk', false, 1150));
+    lib3d.flyToDesk(id, () => opts.onBookOnDesk(id), () => {
+      setView('desk', false, 1150);
+      // the reader covers the desk once the book lands, so the shadow fades in while it comes down
+      const dims = lib3d.groups.get(id)?.userData.dims as { h: number; d: number } | undefined;
+      setTimeout(() => { if (openId === id) refs.deskShadow?.(true, dims?.h, dims?.d); }, DESK_SHADOW_DELAY_MS);
+    });
   }
 
   rig.intro();
@@ -174,6 +181,7 @@ export async function createRoomScene(host: HTMLElement, opts: RoomSceneOptions)
     refreshBook: id => lib3d.refreshBook(id),
     closeBook: () => {
       const id = openId; if (!id) return;
+      refs.deskShadow?.(false);
       setView('shelf', false, 1100);
       lib3d.flyHome(id, () => {
         openId = null;
@@ -190,6 +198,7 @@ export async function createRoomScene(host: HTMLElement, opts: RoomSceneOptions)
     },
     reload: () => {
       openId = null;
+      refs.deskShadow?.(false);
       applyRoom(opts.data.library.oda);
       baked?.applyRoom(opts.data.library.oda);
       lib3d.buildCase();

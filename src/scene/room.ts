@@ -11,7 +11,8 @@ export interface RoomRefs {
   hourHand: Group;
   minuteHand: Group;
   lampHead: Vector3;
-  lightmapBlend?: (k: number) => void;   // baked room: day ↔ evening lightmap mix
+  lightmapBlend?: (mix: number, dim: number) => void;   // baked room: evening lightmap share, overall brightness
+  deskShadow?: (on: boolean, w?: number, d?: number) => void;   // baked room: soft shadow under the book on the desk (w × d plan units)
 }
 
 // Wall clock centre (back wall).

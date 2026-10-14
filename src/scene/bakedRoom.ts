@@ -1,10 +1,13 @@
-import { Box3, Group, Mesh, MeshBasicMaterial, SRGBColorSpace, Texture, Vector3, type Material, type MeshStandardMaterial, type Scene } from 'three';
+import { Box3, Group, Mesh, MeshBasicMaterial, PlaneGeometry, SRGBColorSpace, Texture, Vector3, type Material, type MeshStandardMaterial, type Scene } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import type { Room } from '../model/types';
 import { M, floorTexture } from './materials';
 import { CLOCK_POS, addClockHands, type RoomRefs } from './room';
-import { createSky } from './textures';
+import { canvas, createSky, tex } from './textures';
+import { requestRender } from './frame';
+import { tween } from './tween';
+import { DESK_SPOT, U } from './units';
 
 // Faz 2.4: the room baked in Blender (public/models/oda.glb + two lightmaps, see blender/bake.py).
 // Baked parts become MeshBasicMaterial: colour × lightmap only, so the live lights (which now
@@ -51,7 +54,8 @@ export async function loadBakedRoom(scene: Scene, room: Room, signal: AbortSigna
     uLightMapAksam: { value: lmNight },
     uCarpanGunduz: { value: info.carpan.gunduz },
     uCarpanAksam: { value: info.carpan.aksam },
-    uKarisim: { value: 0 }
+    uKarisim: { value: 0 },
+    uKoyulas: { value: 1 }
   };
   const baked = new Map<Material, MeshBasicMaterial>();
   const bakedMat = (src: MeshStandardMaterial): MeshBasicMaterial => {
@@ -67,10 +71,10 @@ export async function loadBakedRoom(scene: Scene, room: Room, signal: AbortSigna
       shader.fragmentShader = shader.fragmentShader
         .replace('#include <lightmap_pars_fragment>', `#include <lightmap_pars_fragment>
 uniform sampler2D uLightMapAksam;
-uniform float uCarpanGunduz, uCarpanAksam, uKarisim;`)
+uniform float uCarpanGunduz, uCarpanAksam, uKarisim, uKoyulas;`)
         .replace('vec4 lightMapTexel = texture2D( lightMap, vLightMapUv );', `vec4 lightMapTexel = mix(
 			texture2D( lightMap, vLightMapUv ) * uCarpanGunduz,
-			texture2D( uLightMapAksam, vLightMapUv ) * uCarpanAksam, uKarisim );`);
+			texture2D( uLightMapAksam, vLightMapUv ) * uCarpanAksam, uKarisim ) * uKoyulas;`);
     };
     m.customProgramCacheKey = () => 'defter-lightmap';
     baked.set(src, m);
@@ -110,6 +114,8 @@ uniform float uCarpanGunduz, uCarpanAksam, uKarisim;`)
   const cg = new Group(); cg.position.copy(CLOCK_POS); R.add(cg);
   const hands = addClockHands(cg);
 
+  const desk = deskShadow(R);
+
   const applyRoom = (r: Room) => {
     for (const m of walls) m.color.set(r.duvar);
     for (const m of floors) { m.map = floorTexture(r.zemin); m.needsUpdate = true; }
@@ -120,13 +126,45 @@ uniform float uCarpanGunduz, uCarpanAksam, uKarisim;`)
   return {
     refs: {
       group: R, contact: null, sky, ...hands, lampHead: bulbPos,
-      lightmapBlend: k => { uniforms.uKarisim.value = k; }
+      lightmapBlend: (mix, dim) => { uniforms.uKarisim.value = mix; uniforms.uKoyulas.value = dim; },
+      deskShadow: desk
     },
     applyRoom
   };
 }
 
 const near = (a: number, b: number) => Math.abs(a - b) < 1e-3;
+
+// The desk is baked (MeshBasic, no live shadows), so the open book gets a soft fake contact shadow.
+// Same yaw as the book on the desk (library3d.ts flyToDesk); fades in when it lands, out when it leaves.
+const DESK_SHADOW_FADE_MS = 300;
+function deskShadow(R: Group): (on: boolean, w?: number, d?: number) => void {
+  const mat = new MeshBasicMaterial({
+    map: tex(canvas(256, 256, (g, w, h) => {
+      // soft rectangle: dark under the book, fading out past its edges
+      const r = (x: number, y: number) => Math.max(Math.abs(x - w / 2) / (w / 2), Math.abs(y - h / 2) / (h / 2));
+      const img = g.createImageData(w, h);
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        const k = Math.min(1, Math.max(0, (1 - r(x + .5, y + .5)) / 0.35));
+        img.data.set([40, 25, 10, Math.round(255 * 0.5 * k * k * (3 - 2 * k))], (y * w + x) * 4);
+      }
+      g.putImageData(img, 0, 0);
+    })),
+    transparent: true, depthWrite: false, opacity: 0
+  });
+  const m = new Mesh(new PlaneGeometry(1, 1), mat);
+  m.name = 'MasaGolgesi';
+  m.rotation.set(-Math.PI / 2, 0, 0.1);   // flat on the desk, turned like the book
+  m.position.copy(DESK_SPOT).add(new Vector3(0, 0.001, 0));
+  m.visible = false;
+  R.add(m);
+  return (on, w, d) => {
+    if (on && w && d) m.scale.set(w * U * 1.18, d * U * 1.22, 1);
+    const from = mat.opacity, to = on ? 1 : 0;
+    m.visible = true;
+    tween(DESK_SHADOW_FADE_MS, k => { mat.opacity = from + (to - from) * k; }, () => { m.visible = on; requestRender(); }, 'deskShadow');
+  };
+}
 
 // Lightmap PNG (sRGB-encoded light, 0–1) on the second UV set; glTF UVs need flipY = false.
 async function lightmapTexture(blob: Blob): Promise<Texture> {

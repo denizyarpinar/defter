@@ -1,12 +1,12 @@
 import { Euler, Plane, Quaternion, Vector3, type Group, type Ray, type Raycaster, type Scene } from 'three';
 import { moveBook, newArrivals, shelfBooks, shelfOf } from '../model/library';
 import type { Book, Library } from '../model/types';
-import { buildCase, caseHeight, decorate, shelfBottom } from './bookcase';
+import { bookScale, buildCase, caseHeight, decorate, shelfBottom, shelfPitch } from './bookcase';
 import { BOOK_DEPTH, bookDims, makeBook } from './books';
 import { requestRender } from './frame';
 import { disposeGroup } from './materials';
 import { tween } from './tween';
-import { BASE, BD, BW, BX, DESK_SPOT, P, PILE_X, PILE_Y, SH, U } from './units';
+import { BASE, BD, BW, BX, DESK_SPOT, P, PILE_X, PILE_Y, U } from './units';
 
 export interface LibraryData {
   library: Library;
@@ -18,18 +18,20 @@ interface Home {
   quat: Quaternion;
   shelf: number;        // -1 = "Yeni gelenler" pile
   x: number;            // left edge (plan units), for ordering on a shelf
-  t: number;            // thickness (plan units)
+  t: number;            // thickness (plan units, scaled)
+  s: number;            // book scale: < 1 on close-set shelves (6 shelves), 1 in the pile
 }
 
 // Dragged books move on this plane, just in front of the shelves.
 const DRAG_Z = (BD - 31) * U + 0.35;
 
-function animTo(g: Group, toPos: Vector3, toQ: Quaternion, dur: number, arc = 0, done?: () => void): void {
-  const fp = g.position.clone(), fq = g.quaternion.clone();
+function animTo(g: Group, toPos: Vector3, toQ: Quaternion, dur: number, arc = 0, done?: () => void, toS = g.scale.x): void {
+  const fp = g.position.clone(), fq = g.quaternion.clone(), fs = g.scale.x;
   tween(dur, k => {
     g.position.lerpVectors(fp, toPos, k);
     if (arc) g.position.y += Math.sin(Math.PI * k) * arc;
     g.quaternion.slerpQuaternions(fq, toQ, k);
+    g.scale.setScalar(fs + (toS - fs) * k);
   }, done, 'b:' + g.userData.bookId);
 }
 
@@ -87,10 +89,10 @@ export class Library3D {
   // Rebuild one book (cover colour/style changed, or dust after opening), keeping its place.
   refreshBook(id: string): void {
     const old = this.groups.get(id); if (!old) return;
-    const p = old.position.clone(), q = old.quaternion.clone();
+    const p = old.position.clone(), q = old.quaternion.clone(), s = old.scale.x;
     disposeGroup(old);
     const g = this.addBook(id);
-    g.position.copy(p); g.quaternion.copy(q);
+    g.position.copy(p); g.quaternion.copy(q); g.scale.setScalar(s);
     requestRender();
   }
 
@@ -105,12 +107,13 @@ export class Library3D {
   layout(instant = false): void {
     const { library, books } = this.data;
     this.home.clear();
+    const s = bookScale(library.raflar.length);
     library.raflar.forEach((_, idx) => {
       const z = shelfBottom(idx, library.raflar.length);
       let x = BX + 14 + 9;
       for (const id of shelfBooks(library, books, idx)) {
-        const { t, h } = bookDims(books.get(id)!);
-        this.home.set(id, { pos: P(x + t / 2, BD - BOOK_DEPTH - 4 + 27, z + h / 2 + 0.2), quat: new Quaternion(), shelf: idx, x, t });
+        const d = bookDims(books.get(id)!), t = d.t * s, h = d.h * s;
+        this.home.set(id, { pos: P(x + t / 2, BD - 4 - BOOK_DEPTH / 2 * s, z + h / 2 + 0.2), quat: new Quaternion(), shelf: idx, x, t, s });
         x += t + 1.2;
       }
     });
@@ -120,14 +123,14 @@ export class Library3D {
       const { t } = bookDims(books.get(id)!);
       const pos = P(PILE_X + jitter(id, 1) * 8, PILE_Y + jitter(id, 2) * 6, zTop + t / 2);
       const quat = new Quaternion().setFromEuler(new Euler(0, jitter(id, 3) * .24, Math.PI / 2, 'YXZ'));
-      this.home.set(id, { pos, quat, shelf: -1, x: 0, t });
+      this.home.set(id, { pos, quat, shelf: -1, x: 0, t, s: 1 });
       zTop += t;
     }
     for (const [id, hm] of this.home) {
       const g = this.groups.get(id);
       if (!g || this.away.has(id) || this.drag?.id === id) continue;
-      if (instant) { g.position.copy(hm.pos); g.quaternion.copy(hm.quat); }
-      else animTo(g, hm.pos, hm.quat, 450);
+      if (instant) { g.position.copy(hm.pos); g.quaternion.copy(hm.quat); g.scale.setScalar(hm.s); }
+      else animTo(g, hm.pos, hm.quat, 450, 0, undefined, hm.s);
     }
     // decorations follow which shelves are empty
     const lib = this.data.library;
@@ -184,7 +187,7 @@ export class Library3D {
     const inside = xc > BX - 20 && xc < BX + BW + 20 && zc > BASE - 20 && zc < caseHeight(n) + 10;
     if (!inside) { this.layout(); return null; }   // dropped outside the bookcase: back to where it was
     const fromShelf = shelfOf(library, id);
-    const target = n - 1 - Math.max(0, Math.min(n - 1, Math.floor((zc - BASE) / SH)));
+    const target = n - 1 - Math.max(0, Math.min(n - 1, Math.floor((zc - BASE) / shelfPitch(n))));
     let at = 0;
     for (const other of shelfBooks(library, books, target)) {
       const hm = this.home.get(other);
@@ -209,7 +212,7 @@ export class Library3D {
       const { t } = g.userData.dims as { t: number };
       const q = new Quaternion().setFromEuler(new Euler(0, 0.1, Math.PI / 2, 'YXZ'));
       startDeskView();
-      animTo(g, DESK_SPOT.clone().add(new Vector3(0, t * U / 2 + 0.002, 0)), q, 1150, 0.5);
+      animTo(g, DESK_SPOT.clone().add(new Vector3(0, t * U / 2 + 0.002, 0)), q, 1150, 0.5, undefined, 1);   // full size on the desk
       setTimeout(onDesk, 1180);
     });
   }
@@ -221,6 +224,6 @@ export class Library3D {
     const out = hm.pos.clone().add(new Vector3(0, 0.03, 0.55));
     animTo(g, out, hm.quat, 1100, 0.5, () => {
       animTo(g, hm.pos, hm.quat, 380, 0, () => { this.away.delete(id); done(); });
-    });
+    }, hm.s);   // back to its shelf size on the way
   }
 }

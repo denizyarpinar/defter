@@ -8,10 +8,21 @@ import { BASE, BD, BW, BX, P, SH, TOP, U, mulberry } from './units';
 // Name plate self-glow (emissive), see buildCase.
 const PLATE_GLOW = 0.35;
 
-// Total bookcase height (plan units) for n shelves.
-export const caseHeight = (n: number) => BASE + n * SH - 8 + TOP;
+// The outer size is always that of a 5-shelf bookcase: the baked lightmap has its shadow
+// (blender/bake.py, SHELVES = 5). More or fewer shelves only change the shelf spacing.
+const REF_SHELVES = 5;
+const CASE_H = BASE + REF_SHELVES * SH - 8 + TOP;
+// Tallest book (books.ts bookDims) plus headroom; on narrower shelves the books are drawn smaller.
+const TALLEST_BOOK = 74, HEADROOM = 4;
+
+// Total bookcase height (plan units); the same for any shelf count.
+export const caseHeight = (_n: number) => CASE_H;
+// Distance between shelf bottoms for n shelves.
+export const shelfPitch = (n: number) => REF_SHELVES * SH / n;
 // Bottom of shelf idx (idx 0 = top shelf).
-export const shelfBottom = (idx: number, n: number) => BASE + (n - 1 - idx) * SH;
+export const shelfBottom = (idx: number, n: number) => BASE + (n - 1 - idx) * shelfPitch(n);
+// Book size on the shelves: 1, or smaller when the shelves are too close for the tallest book (6 shelves).
+export const bookScale = (n: number) => Math.min(1, (shelfPitch(n) - 8 - HEADROOM) / TALLEST_BOOK);
 
 export interface CaseShelf {
   name: string;
@@ -35,7 +46,7 @@ export function buildCase(scene: Scene, shelves: CaseShelf[]): Group {
   boxAt(BX, 0, 0, 14, BD, h - TOP, M.walnutV, C, 1);
   boxAt(BX + BW - 14, 0, 0, 14, BD, h - TOP, M.walnutV, C, 1);
   boxAt(BX + 10, 0, 0, BW - 20, BD, BASE, M.walnutH, C, 1);
-  for (let i = 1; i < n; i++) boxAt(BX + 14, 2, BASE + i * SH - 8, BW - 28, BD - 2, 8, M.walnutH, C, .8);
+  for (let i = 1; i < n; i++) boxAt(BX + 14, 2, BASE + i * shelfPitch(n) - 8, BW - 28, BD - 2, 8, M.walnutH, C, .8);
   boxAt(BX - 7, -3, h - TOP, BW + 14, BD + 8, TOP, M.walnutH, C, 2);
   boxAt(BX - 3, -1, h - TOP - 4, BW + 6, BD + 4, 4, M.walnutH, C, .8);
 
