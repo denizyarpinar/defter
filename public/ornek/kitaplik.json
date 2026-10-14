@@ -1,11 +1,11 @@
 {
   "surum": 1,
   "raflar": [
-    { "id": "ai",      "ad": "Yapay Zekâ", "kitaplar": ["claude-code-otomasyonlari", "machine-learning-basics", "artificial-intelligence", "natural-language-processing", "probability-statistics"] },
-    { "id": "dersler", "ad": "Dersler",    "kitaplar": ["programlamaya-giris", "lineer-cebir", "discrete-mathematics", "calculus-1", "numerical-methods"] },
-    { "id": "java",    "ad": "Java",       "kitaplar": ["java-habelitz", "data-structures", "algorithms", "object-oriented-programming", "concurrency"] },
-    { "id": "r4",      "ad": "Sistemler",  "kitaplar": ["computer-architecture", "operating-systems", "computer-networks", "databases", "cryptography"] },
-    { "id": "r5",      "ad": "Yazılım",    "kitaplar": ["software-engineering", "compilers", "web-development", "functional-programming"] }
+    { "id": "ai",      "ad": "Yapay Zekâ", "kitaplar": ["claude-code-otomasyonlari", "machine-learning-basics", "artificial-intelligence", "natural-language-processing", "probability-statistics", "computer-vision"] },
+    { "id": "dersler", "ad": "Dersler",    "kitaplar": ["programlamaya-giris", "lineer-cebir", "discrete-mathematics", "calculus-1", "numerical-methods", "number-theory"] },
+    { "id": "java",    "ad": "Java",       "kitaplar": ["java-habelitz", "data-structures", "algorithms", "object-oriented-programming", "concurrency", "java-collections"] },
+    { "id": "r4",      "ad": "Sistemler",  "kitaplar": ["computer-architecture", "operating-systems", "computer-networks", "databases", "cryptography", "distributed-systems"] },
+    { "id": "r5",      "ad": "Yazılım",    "kitaplar": ["software-engineering", "compilers", "web-development", "functional-programming", "software-testing", "human-computer-interaction"] }
   ],
   "oda": { "duvar": "#efe6d8", "zemin": "mese", "mod": "otomatik" }
 }

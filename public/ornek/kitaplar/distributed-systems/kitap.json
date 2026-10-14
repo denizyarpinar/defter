@@ -1,0 +1,60 @@
+{
+  "surum": 1,
+  "baslik": "Distributed Systems",
+  "sirt": "Distributed Systems",
+  "kod": "DIS",
+  "ders": "Computer Systems",
+  "dil": "en",
+  "kapak": {
+    "renk": "#35505e",
+    "stil": "kumas"
+  },
+  "sonAcilis": null,
+  "kurdele": null,
+  "bolumler": [
+    {
+      "baslik": "Communication",
+      "durum": "calisildi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "dis-01-communication.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Time and clocks",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "dis-02-clocks.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Replication",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "dis-03-replication.pdf"
+        },
+        {
+          "tur": "defter",
+          "dosya": "defter/dis-03.jpg"
+        }
+      ]
+    },
+    {
+      "baslik": "Consensus",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "dis-04-consensus.pdf"
+        }
+      ]
+    }
+  ]
+}

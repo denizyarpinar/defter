@@ -1,0 +1,60 @@
+{
+  "surum": 1,
+  "baslik": "Elementary Number Theory",
+  "sirt": "Number Theory",
+  "kod": "NT",
+  "ders": "Mathematics",
+  "dil": "en",
+  "kapak": {
+    "renk": "#7d5a3c",
+    "stil": "deri"
+  },
+  "sonAcilis": null,
+  "kurdele": null,
+  "bolumler": [
+    {
+      "baslik": "Divisibility",
+      "durum": "calisildi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "nt-01-divisibility.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Prime numbers",
+      "durum": "tekrar",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "nt-02-primes.pdf"
+        },
+        {
+          "tur": "defter",
+          "dosya": "defter/nt-02.jpg"
+        }
+      ]
+    },
+    {
+      "baslik": "Congruences",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "nt-03-congruences.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Euler's theorem",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "nt-04-euler.pdf"
+        }
+      ]
+    }
+  ]
+}

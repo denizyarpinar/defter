@@ -1,0 +1,60 @@
+{
+  "surum": 1,
+  "baslik": "Computer Vision",
+  "sirt": "Computer Vision",
+  "kod": "CV",
+  "ders": "Artificial Intelligence",
+  "dil": "en",
+  "kapak": {
+    "renk": "#3b6e8f",
+    "stil": "kumas"
+  },
+  "sonAcilis": null,
+  "kurdele": null,
+  "bolumler": [
+    {
+      "baslik": "Images and filters",
+      "durum": "calisildi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "cv-01-filters.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Feature detection",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "cv-02-features.pdf"
+        },
+        {
+          "tur": "defter",
+          "dosya": "defter/cv-02.jpg"
+        }
+      ]
+    },
+    {
+      "baslik": "Convolutional networks",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "cv-03-cnn.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Object detection",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "cv-04-detection.pdf"
+        }
+      ]
+    }
+  ]
+}

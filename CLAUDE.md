@@ -55,7 +55,8 @@ Kitaplık/
     *.pdf, defter/*.jpg    ← kaynak dosyalar
 ```
 - `kitaplik.json`: `{ surum, raflar: [{ id, ad, kitaplar: [kitapId] }], oda: { duvar, zemin, mod } }`
-- `kitap.json`: `{ surum, baslik, sirt, kod, ders, kapak: { renk, stil: "kumas"|"deri" }, sonAcilis, kurdele, bolumler: [{ baslik, durum: "okunmadi"|"calisildi"|"tekrar", kaynaklar: [{ tur: "pdf"|"defter"|"claude"|"link", dosya, sayfalar? }] }] }`
+- `kitap.json`: `{ surum, baslik, sirt, kod, ders, dil?, kapak: { renk, stil: "kumas"|"deri" }, sonAcilis, kurdele, bolumler: [{ baslik, durum: "okunmadi"|"calisildi"|"tekrar", kaynaklar: [{ tur: "pdf"|"defter"|"claude"|"link", dosya, sayfalar? }] }] }`
+- `dil` isteğe bağlıdır. `"en"` ise sırt ve kapak yazıları İngilizce kurala göre büyük harfe çevrilir (i → I). Yoksa ya da başka bir dilse Türkçe kural geçerlidir (i → İ). Dil başlıktan tahmin edilmez.
 - `kitap.json` yoksa kitap yine görünür (klasör adıyla, gri kapak).
 - Hiçbir rafta olmayan kitaplar "Yeni gelenler" yığınında görünür.
 - Bilinmeyen alanları silme; okurken koru, yazarken geri yaz.

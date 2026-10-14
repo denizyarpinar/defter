@@ -1,0 +1,60 @@
+{
+  "surum": 1,
+  "baslik": "Human-Computer Interaction",
+  "sirt": "Human-Computer Int.",
+  "kod": "HCI",
+  "ders": "Software Engineering",
+  "dil": "en",
+  "kapak": {
+    "renk": "#b06a4f",
+    "stil": "kumas"
+  },
+  "sonAcilis": null,
+  "kurdele": null,
+  "bolumler": [
+    {
+      "baslik": "Users and tasks",
+      "durum": "calisildi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "hci-01-users.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Prototyping",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "hci-02-prototyping.pdf"
+        },
+        {
+          "tur": "defter",
+          "dosya": "defter/hci-02.jpg"
+        }
+      ]
+    },
+    {
+      "baslik": "Usability testing",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "hci-03-usability.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Visual design",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "hci-04-visual.pdf"
+        }
+      ]
+    }
+  ]
+}

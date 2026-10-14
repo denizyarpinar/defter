@@ -1,0 +1,60 @@
+{
+  "surum": 1,
+  "baslik": "Java Collections and Streams",
+  "sirt": "Collections & Streams",
+  "kod": "JCS",
+  "ders": "Java",
+  "dil": "en",
+  "kapak": {
+    "renk": "#a0452e",
+    "stil": "kumas"
+  },
+  "sonAcilis": null,
+  "kurdele": null,
+  "bolumler": [
+    {
+      "baslik": "Lists, sets and maps",
+      "durum": "calisildi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "jcs-01-collections.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Generics",
+      "durum": "tekrar",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "jcs-02-generics.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Lambdas",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "jcs-03-lambdas.pdf"
+        },
+        {
+          "tur": "claude",
+          "dosya": "jcs-03-summary.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Streams",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "jcs-04-streams.pdf"
+        }
+      ]
+    }
+  ]
+}

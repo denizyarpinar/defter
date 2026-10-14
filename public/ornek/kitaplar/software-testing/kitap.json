@@ -1,0 +1,60 @@
+{
+  "surum": 1,
+  "baslik": "Software Testing",
+  "sirt": "Software Testing",
+  "kod": "TST",
+  "ders": "Software Engineering",
+  "dil": "en",
+  "kapak": {
+    "renk": "#4e7a46",
+    "stil": "kumas"
+  },
+  "sonAcilis": null,
+  "kurdele": null,
+  "bolumler": [
+    {
+      "baslik": "Unit tests",
+      "durum": "calisildi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "tst-01-unit.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Test design",
+      "durum": "tekrar",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "tst-02-design.pdf"
+        },
+        {
+          "tur": "claude",
+          "dosya": "tst-02-checklist.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Integration tests",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "tst-03-integration.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Coverage",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "tst-04-coverage.pdf"
+        }
+      ]
+    }
+  ]
+}
