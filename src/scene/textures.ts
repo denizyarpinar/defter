@@ -293,63 +293,68 @@ export interface PlateMaps {
   bumpMap: Texture;
 }
 
-// Brushed brass name plate (86×14 cm) with engraved, black-filled serif letters and two screws.
-// Same layout drawn twice: colour map + bump map (dark = engraved deeper).
-export const PLATE_W = 0.86, PLATE_H = 0.14;
+// Brushed brass name plate (112×18 cm) with engraved, black-filled sans-serif capitals and two screws.
+// Same layout drawn twice: colour map + bump map (dark = engraved deeper, half resolution).
+export const PLATE_W = 1.12, PLATE_H = 0.18;
 export function plateTex(text: string): PlateMaps {
-  const w = 1024, h = Math.round(w * PLATE_H / PLATE_W), label = text.toLocaleUpperCase('tr-TR');
-  const sr = 9, screwX = [26, w - 26], cy = h / 2;
+  // sharp up close: 1024 px per device pixel (pixel ratio max 2), and at least 256 px high
+  const W = Math.max(1600, Math.round(1024 * Math.min(devicePixelRatio || 1, 2)));
+  const label = text.toLocaleUpperCase('tr-TR');
 
-  // big, bold letters that fill the plate; shrink only if the name is long
-  const fit = (g: CanvasRenderingContext2D) => {
-    let fs = 116;
-    const set = () => {
-      g.font = `700 ${fs}px "Cormorant Garamond", Georgia, serif`;
-      g.letterSpacing = `${Math.round(fs * .05)}px`;
-    };
-    set();
-    while (g.measureText(label).width > w - 110 && fs > 40) { fs -= 2; set(); }
-    g.textAlign = 'center'; g.textBaseline = 'middle';
-  };
-  const ty = cy + 8;   // optical centre for caps
-
-  const screw = (g: CanvasRenderingContext2D, x: number, face: boolean) => {
+  // Layout in "plate pixels" of a 1024-wide plate, scaled by k for each canvas.
+  const draw = (g: CanvasRenderingContext2D, w: number, h: number, face: boolean) => {
+    const k = w / 1024, cy = h / 2, sr = 9 * k, screwX = [26 * k, w - 26 * k];
     if (face) {
-      const sg = g.createRadialGradient(x - 2, cy - 2, 1, x, cy, sr);
-      sg.addColorStop(0, '#f6e6b4'); sg.addColorStop(.6, '#b8914c'); sg.addColorStop(1, '#6e5124');
-      g.fillStyle = sg;
-    } else g.fillStyle = '#ddd';
-    g.beginPath(); g.arc(x, cy, sr, 0, 7); g.fill();
-    g.strokeStyle = face ? 'rgba(50,32,8,.85)' : '#000'; g.lineWidth = 2.5;
-    g.beginPath(); g.moveTo(x - 6, cy + 3); g.lineTo(x + 6, cy - 3); g.stroke();
+      const gr = g.createLinearGradient(0, 0, 0, h);
+      gr.addColorStop(0, '#fbeab8'); gr.addColorStop(.5, '#e6c784'); gr.addColorStop(1, '#c9a35c');
+      g.fillStyle = gr; g.fillRect(0, 0, w, h);
+      // brushed metal: fine horizontal streaks (subtle, so they don't fight the letters)
+      const r = mulberry(17);
+      for (let i = 0; i < 360; i++) {
+        g.fillStyle = r() < .5 ? `rgba(255,248,222,${r() * .12})` : `rgba(90,60,20,${r() * .06})`;
+        g.fillRect(r() * w - 200 * k, r() * h, (120 + r() * 500) * k, k);
+      }
+      // bevelled edge: light top/left, dark bottom/right
+      const e = 4 * k;
+      g.fillStyle = 'rgba(255,246,220,.6)'; g.fillRect(0, 0, w, e); g.fillRect(0, 0, e, h);
+      g.fillStyle = 'rgba(70,45,10,.55)'; g.fillRect(0, h - e, w, e); g.fillRect(w - e, 0, e, h);
+    } else {
+      g.fillStyle = '#fff'; g.fillRect(0, 0, w, h);
+    }
+    for (const x of screwX) {
+      if (face) {
+        const sg = g.createRadialGradient(x - 2 * k, cy - 2 * k, k, x, cy, sr);
+        sg.addColorStop(0, '#f6e6b4'); sg.addColorStop(.6, '#b8914c'); sg.addColorStop(1, '#6e5124');
+        g.fillStyle = sg;
+      } else g.fillStyle = '#ddd';
+      g.beginPath(); g.arc(x, cy, sr, 0, 7); g.fill();
+      g.strokeStyle = face ? 'rgba(50,32,8,.85)' : '#000'; g.lineWidth = 2.5 * k;
+      g.beginPath(); g.moveTo(x - 6 * k, cy + 3 * k); g.lineTo(x + 6 * k, cy - 3 * k); g.stroke();
+    }
+
+    // big bold capitals (cap height ≈ 55% of the plate); a long name shrinks until it fits between the screws
+    let fs = h * .76, track = .06;
+    const set = () => { g.font = `700 ${fs}px Figtree, "Helvetica Neue", Arial, sans-serif`; g.letterSpacing = `${(fs * track).toFixed(1)}px`; };
+    set();
+    const room = w - 2 * (26 * k + sr + 18 * k);
+    if (g.measureText(label).width > room) { track = .015; set(); }   // long name: tighter letters first
+    const tw = g.measureText(label).width;
+    if (tw > room) { fs *= room / tw; set(); }
+    g.textAlign = 'center'; g.textBaseline = 'alphabetic';
+    const caps = g.measureText('H').actualBoundingBoxAscent;
+    const ty = cy + caps / 2;   // centre the capitals, not the em box
+    if (face) {
+      // engraved letters filled with black paint: light lip below, near-black fill on top
+      g.fillStyle = 'rgba(255,246,215,.85)'; g.fillText(label, w / 2, ty + 2.5 * k);
+      g.fillStyle = '#0d0905'; g.fillText(label, w / 2, ty);
+    } else {
+      g.fillStyle = '#000'; g.fillText(label, w / 2, ty);
+    }
   };
 
-  const color = canvas(w, h, g => {
-    const gr = g.createLinearGradient(0, 0, 0, h);
-    gr.addColorStop(0, '#efd99c'); gr.addColorStop(.5, '#d2ae66'); gr.addColorStop(1, '#ad8641');
-    g.fillStyle = gr; g.fillRect(0, 0, w, h);
-    // brushed metal: fine horizontal streaks (subtle, so they don't fight the letters)
-    const r = mulberry(17);
-    for (let i = 0; i < 360; i++) {
-      g.fillStyle = r() < .5 ? `rgba(255,244,210,${r() * .12})` : `rgba(90,60,20,${r() * .08})`;
-      g.fillRect(r() * w - 200, r() * h, 120 + r() * 500, 1);
-    }
-    // bevelled edge: light top/left, dark bottom/right
-    g.fillStyle = 'rgba(255,246,220,.6)'; g.fillRect(0, 0, w, 4); g.fillRect(0, 0, 4, h);
-    g.fillStyle = 'rgba(70,45,10,.6)'; g.fillRect(0, h - 4, w, 4); g.fillRect(w - 4, 0, 4, h);
-    for (const x of screwX) screw(g, x, true);
-    // engraved letters filled with black paint: light lip below, dark fill on top
-    fit(g);
-    g.fillStyle = 'rgba(255,244,210,.8)'; g.fillText(label, w / 2, ty + 3);
-    g.fillStyle = '#17100a'; g.fillText(label, w / 2, ty);
-  });
-
-  const bump = canvas(w, h, g => {
-    g.fillStyle = '#fff'; g.fillRect(0, 0, w, h);
-    for (const x of screwX) screw(g, x, false);
-    fit(g);
-    g.fillStyle = '#000'; g.fillText(label, w / 2, ty);
-  });
-
-  return { map: tex(color), bumpMap: tex(bump, undefined, false) };
+  const H = Math.round(W * PLATE_H / PLATE_W);
+  const map = tex(canvas(W, H, (g, w, h) => draw(g, w, h, true)));
+  const bumpMap = tex(canvas(W / 2, Math.round(H / 2), (g, w, h) => draw(g, w, h, false)), undefined, false);
+  for (const t of [map, bumpMap]) t.anisotropy = maxAnisotropy;   // readable at a slant
+  return { map, bumpMap };
 }

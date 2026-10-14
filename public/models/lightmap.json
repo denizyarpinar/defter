@@ -1,0 +1,25 @@
+{
+  "surum": 1,
+  "carpan": {
+    "gunduz": 3.215634,
+    "aksam": 8.0
+  },
+  "renk": "srgb",
+  "boyut": 2048,
+  "uv": 1,
+  "gunduz": "lightmap_gunduz.png",
+  "aksam": "lightmap_aksam.png",
+  "sample": {
+    "gunduz": 256,
+    "aksam": 2048
+  },
+  "bakeSuresiSn": {
+    "gunduz": 204,
+    "aksam": 237
+  },
+  "mobil": {
+    "glb": "oda-mobil.glb",
+    "gunduz": "lightmap_gunduz_1024.png",
+    "aksam": "lightmap_aksam_1024.png"
+  }
+}

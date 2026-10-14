@@ -2,3 +2,9 @@ node_modules
 dist
 .env.local
 .vercel
+
+# Blender (Faz 2): indirilen/üretilen dosyalar
+blender/assets/
+blender/out/
+*.blend
+*.blend1

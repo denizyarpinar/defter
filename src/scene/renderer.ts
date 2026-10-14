@@ -1,4 +1,5 @@
 import { ACESFilmicToneMapping, ColorManagement, PCFShadowMap, PerspectiveCamera, Scene, SRGBColorSpace, WebGLRenderer } from 'three';
+import { createFpsCounter } from '../ui/fps';
 import { frame } from './frame';
 import { setMaxAnisotropy } from './textures';
 import { hasTweens, runTweens } from './tween';
@@ -31,6 +32,7 @@ export function createStage(host: HTMLElement): Stage {
 
 // Draws only while something moves or changed (iPad battery).
 export function startLoop(stage: Stage): void {
+  const fps = createFpsCounter();
   const loop = (now: number) => {
     requestAnimationFrame(loop);
     const active = hasTweens();
@@ -38,6 +40,7 @@ export function startLoop(stage: Stage): void {
     if (!active && (!frame.dirty || frame.paused)) return;
     stage.renderer.render(stage.scene, stage.camera);
     frame.dirty = false;
+    fps?.tick(now);
   };
   requestAnimationFrame(loop);
 }

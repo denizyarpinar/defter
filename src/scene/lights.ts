@@ -63,28 +63,42 @@ export function buildLights(scene: Scene, refs: RoomRefs): Lights {
 }
 
 // Day ↔ evening transition (the prototype used 800 ms; longer so the sunset is visible).
+// The baked room passes its own, shorter duration (Faz 2.4: 1.5 s).
 const TRANSITION_MS = 2500;
 
 let nightK = 0;
+export const currentNightK = () => nightK;
+
+// Baked room only. The evening lightmap is much darker than the old room's evening, so the live
+// lights (which light just the bookcase and books there) are turned down to match it.
+const BAKED_NIGHT_LIVE = 0.6;
+// Twilight: halfway through the change everything is this much darker (day → dusk → evening).
+const DUSK_DIP = 0.35;
+const dusk = (k: number) => 1 - DUSK_DIP * Math.sin(Math.PI * k);
+const smoothstep = (k: number) => k * k * (3 - 2 * k);
 
 // Day ↔ evening blend; k = 0 day, 1 evening.
-export function setLighting(L: Lights, renderer: WebGLRenderer, refs: RoomRefs, night: boolean, instant: boolean): void {
+export function setLighting(L: Lights, renderer: WebGLRenderer, refs: RoomRefs, night: boolean, instant: boolean, durationMs = TRANSITION_MS): void {
   const from = nightK, to = night ? 1 : 0;
   const apply = (k: number) => {
     nightK = k;
+    // old room: 1; baked room: dusk dip in the middle, live lights turned down in the evening
+    const live = refs.lightmapBlend ? dusk(k) * (1 - (1 - BAKED_NIGHT_LIVE) * k) : 1;
     L.hemi.intensity = (0.3 - 0.2 * k) * LEGACY; L.hemi.color.setRGB(1 - .45 * k, .95 - .38 * k, .89 - .2 * k);
     L.sun.intensity = (1.9 * (1 - k) + 0.35 * k) * LEGACY; L.sun.color.setRGB(1 - .4 * k, .93 - .22 * k, .8 + .2 * k);
     L.key.intensity = (0.45 * (1 - k) + 0.1 * k) * LEGACY; L.key.color.setRGB(1 - .45 * k, .96 - .3 * k, .92);
     L.spot.intensity = 5 * k * LEGACY; L.glow.intensity = 1.6 * k * LEGACY; L.room.intensity = 1.1 * k * LEGACY;
+    for (const l of [L.hemi, L.sun, L.key, L.spot, L.glow, L.room]) l.intensity *= live;
     M.bulb.emissiveIntensity = 3 * k;
-    setEnvIntensity(0.55 - 0.4 * k);
+    setEnvIntensity((0.55 - 0.4 * k) * live);
     renderer.toneMappingExposure = 0.86 - 0.01 * k;
-    refs.contact.material.opacity = 1 - .4 * k;
+    if (refs.contact) refs.contact.material.opacity = 1 - .4 * k;
+    refs.lightmapBlend?.(smoothstep(k), dusk(k));
     refs.sky.draw(k, to === 0);
     requestRender();
   };
   if (instant) apply(to);
-  else tween(TRANSITION_MS, k => apply(from + (to - from) * k), undefined, 'light');
+  else tween(durationMs, k => apply(from + (to - from) * k), undefined, 'light');
 }
 
 // Soft studio-like reflections for the PBR materials.

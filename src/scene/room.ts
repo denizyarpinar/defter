@@ -5,15 +5,34 @@ import { abstractCanvas, artCanvas, canvas, clothNoise, createSky, tex, type Sky
 import { D, H, P, U, W, mulberry } from './units';
 
 export interface RoomRefs {
-  contact: Mesh<PlaneGeometry, MeshBasicMaterial>;
+  group: Group;          // everything below; exported for Blender (?export=oda)
+  contact: Mesh<PlaneGeometry, MeshBasicMaterial> | null;   // fake contact shadow (old room only)
   sky: Sky;
   hourHand: Group;
   minuteHand: Group;
   lampHead: Vector3;
+  lightmapBlend?: (mix: number, dim: number) => void;   // baked room: evening lightmap share, overall brightness
+  deskShadow?: (on: boolean, w?: number, d?: number) => void;   // baked room: soft shadow under the book on the desk (w × d plan units)
+}
+
+// Wall clock centre (back wall).
+export const CLOCK_POS = P(160, 2.5, 440);
+
+// Hour and minute hands (pivot groups) on a clock group; setClock() turns them.
+export function addClockHands(cg: Object3D): { hourHand: Group; minuteHand: Group } {
+  const hand = (len: number, wd: number) => {
+    const pg = new Group();
+    const m = new Mesh(new BoxGeometry(wd, len, 0.006), M.black); m.position.y = len / 2 - 0.02; pg.add(m);
+    pg.position.z = 0.032; cg.add(pg);
+    return pg;
+  };
+  return { hourHand: hand(0.16, 0.018), minuteHand: hand(0.24, 0.011) };
 }
 
 export function buildRoom(scene: Scene): RoomRefs {
-  const R = new Group(); scene.add(R);
+  const R = new Group(); R.name = 'Oda'; scene.add(R);
+  // "canli" = stays live in the app (own texture/light), not baked in Blender
+  const live = (o: Object3D, name: string) => { o.name = name; o.userData.defter = 'canli'; };
 
   // soft contact shadow under the diorama
   const contact = new Mesh(new PlaneGeometry(14, 12), new MeshBasicMaterial({
@@ -24,7 +43,7 @@ export function buildRoom(scene: Scene): RoomRefs {
     })),
     transparent: true, depthWrite: false
   }));
-  contact.rotation.x = -Math.PI / 2; contact.position.set(5.4, -0.26, 4.4); R.add(contact);
+  contact.rotation.x = -Math.PI / 2; contact.position.set(5.4, -0.26, 4.4); contact.name = 'TemasGolgesi'; R.add(contact);
 
   // floor slab + planks
   boxAt(0, 0, -24, W, D, 23.6, M.slab, R);
@@ -50,14 +69,14 @@ export function buildRoom(scene: Scene): RoomRefs {
   boxAt(735, fz - 4, 190, ft, 8, 290, M.frame, R); boxAt(955 - ft, fz - 4, 190, ft, 8, 290, M.frame, R);
   boxAt(735 + 220 / 3 - 2, fz - 3, 190, 4, 6, 290, M.frame, R); boxAt(735 + 440 / 3 - 2, fz - 3, 190, 4, 6, 290, M.frame, R);
   boxAt(735, fz - 3, 330, 220, 6, 4, M.frame, R);
-  const gl = new Mesh(new PlaneGeometry(2.2, 2.9), M.glass); gl.position.set(8.45, 3.35, -0.1); R.add(gl);
+  const gl = new Mesh(new PlaneGeometry(2.2, 2.9), M.glass); gl.name = 'Cam'; gl.position.set(8.45, 3.35, -0.1); R.add(gl);
   boxAt(725, -2, 182, 240, 16, 8, M.frame, R, 1.5);
   const sky = createSky();
   const skyMesh = new Mesh(new PlaneGeometry(2.65, 3.4), new MeshBasicMaterial({ map: sky.texture, toneMapped: false }));
-  skyMesh.position.set(8.33, 3.35, -0.3); R.add(skyMesh);
+  skyMesh.position.set(8.33, 3.35, -0.3); live(skyMesh, 'Gokyuzu'); R.add(skyMesh);
 
   // wall clock (real time)
-  const cg = new Group(); cg.position.copy(P(160, 2.5, 440)); R.add(cg);
+  const cg = new Group(); cg.position.copy(CLOCK_POS); R.add(cg);
   const rim = new Mesh(new CylinderGeometry(0.32, 0.32, 0.05, 48), M.black); rim.rotation.x = Math.PI / 2; add(rim, cg);
   const face = new Mesh(new CircleGeometry(0.29, 48), std({
     map: tex(canvas(256, 256, (g, w, h) => {
@@ -69,13 +88,7 @@ export function buildRoom(scene: Scene): RoomRefs {
     roughness: .4
   }));
   face.position.z = 0.026; cg.add(face);
-  const hand = (len: number, wd: number) => {
-    const pg = new Group();
-    const m = new Mesh(new BoxGeometry(wd, len, 0.006), M.black); m.position.y = len / 2 - 0.02; pg.add(m);
-    pg.position.z = 0.032; cg.add(pg);
-    return pg;
-  };
-  const hourHand = hand(0.16, 0.018), minuteHand = hand(0.24, 0.011);
+  const { hourHand, minuteHand } = addClockHands(cg);
 
   // posters on left wall (facing +x)
   const poster = (yc: number, zc: number, w: number, h: number, c: HTMLCanvasElement) => {
@@ -123,7 +136,7 @@ export function buildRoom(scene: Scene): RoomRefs {
   const shade = new Mesh(new CylinderGeometry(0.035, 0.12, 0.17, 32, 1, true), std({ color: 0x1f1d1b, roughness: .4, metalness: .5, side: DoubleSide }));
   shade.position.copy(head).add(new Vector3(0, -0.06, 0)); add(shade, R);
   const bulb = new Mesh(new SphereGeometry(0.04, 16, 12), M.bulb);
-  bulb.position.copy(head).add(new Vector3(0, -0.1, 0)); R.add(bulb);
+  bulb.position.copy(head).add(new Vector3(0, -0.1, 0)); live(bulb, 'Ampul'); R.add(bulb);
   const lampHead = head.clone().add(new Vector3(0, -0.1, 0));
 
   // chair
@@ -156,7 +169,7 @@ export function buildRoom(scene: Scene): RoomRefs {
   potPlant(R, 923, 83, 0, 1.25, 'big');
   potPlant(R, 67, 67, 0, 1, 'snake');
 
-  return { contact, sky, hourHand, minuteHand, lampHead };
+  return { group: R, contact, sky, hourHand, minuteHand, lampHead };
 }
 
 export function potPlant(R: Object3D, x: number, y: number, z: number, s: number, kind: 'small' | 'big' | 'snake'): void {

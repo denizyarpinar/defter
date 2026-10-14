@@ -200,7 +200,8 @@ async function boot(): Promise<void> {
     ]);
   } catch { /* fonts are optional */ }
 
-  scene = createRoomScene(stageEl, {
+  loading.textContent = 'Oda yükleniyor…';
+  scene = await createRoomScene(stageEl, {
     data: d,
     night: effectiveMode() === 'night',
     onViewChange: v => { view = v; updateChrome(); },
@@ -216,6 +217,13 @@ async function boot(): Promise<void> {
     onLibraryChanged: () => saver?.libraryChanged(),
     onToast: toast
   });
+
+  // dev only: ?export=oda downloads the room for Blender (Faz 2)
+  if (import.meta.env.DEV && new URLSearchParams(location.search).get('export') === 'oda') {
+    scene.exportRoom()
+      .then(() => toast('oda-kaynak.glb indirildi. blender/assets/ klasörüne taşı.'))
+      .catch(() => toast('Oda dışa aktarılamadı. Konsoldaki hataya bak.'));
+  }
 
   initPanel(d, {
     shelvesChanged: () => { scene?.shelvesChanged(); saver?.libraryChanged(); },
