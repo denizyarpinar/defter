@@ -19,6 +19,8 @@ interface LightmapInfo {
   carpan: { gunduz: number; aksam: number };
   gunduz: string;
   aksam: string;
+  // 1024 px versions for touch devices (blender/mobil.py)
+  mobil?: { glb: string; gunduz: string; aksam: string };
 }
 
 // three.js divides lightMap by π (Lambert); Blender's check render is colour × lightmap × scale.
@@ -37,10 +39,14 @@ export async function loadBakedRoom(scene: Scene, room: Room, signal: AbortSigna
     return r;
   };
   const info = await (await get('lightmap.json')).json() as LightmapInfo;
+  // iPad and phones (same rule as styles.css) get the 1024 px textures and lightmaps
+  const files = matchMedia('(pointer: coarse)').matches && info.mobil
+    ? info.mobil
+    : { glb: 'oda.glb', gunduz: info.gunduz, aksam: info.aksam };
   const [glbBuf, lmDay, lmNight] = await Promise.all([
-    get('oda.glb').then(r => r.arrayBuffer()),
-    get(info.gunduz).then(r => r.blob()).then(lightmapTexture),
-    get(info.aksam).then(r => r.blob()).then(lightmapTexture)
+    get(files.glb).then(r => r.arrayBuffer()),
+    get(files.gunduz).then(r => r.blob()).then(lightmapTexture),
+    get(files.aksam).then(r => r.blob()).then(lightmapTexture)
   ]);
   const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
   const gltf = await loader.parseAsync(glbBuf, BASE);

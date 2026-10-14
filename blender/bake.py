@@ -23,6 +23,8 @@ Then compress (keep names, hierarchy, geometry and the unused-by-materials TEXCO
   npx @gltf-transform/cli optimize public/models/oda.glb public/models/oda.glb --compress meshopt
       --texture-compress webp --texture-size 2048 --join false --flatten false --simplify false
       --instance false --palette false --prune-attributes false
+Then the 1024 px files for iPad/phone (also puts the "mobil" block back into lightmap.json):
+  blender.exe -b -P blender/mobil.py
 """
 import json
 import math

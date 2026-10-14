@@ -16,5 +16,10 @@
   "bakeSuresiSn": {
     "gunduz": 204,
     "aksam": 237
+  },
+  "mobil": {
+    "glb": "oda-mobil.glb",
+    "gunduz": "lightmap_gunduz_1024.png",
+    "aksam": "lightmap_aksam_1024.png"
   }
 }
