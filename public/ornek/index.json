@@ -1,4 +1,18 @@
 {
   "aciklama": "Sadece yerel örnek için: tarayıcı klasör içeriğini listeleyemediği için kitap klasörlerinin listesi. Drive formatının parçası değil.",
-  "kitaplar": ["claude-code-otomasyonlari", "java-habelitz", "lineer-cebir", "programlamaya-giris", "yeni-not"]
+  "kitaplar": [
+    "calculus-1",
+    "claude-code-otomasyonlari",
+    "computer-architecture",
+    "computer-networks",
+    "data-structures",
+    "discrete-mathematics",
+    "java-habelitz",
+    "lineer-cebir",
+    "machine-learning-basics",
+    "operating-systems",
+    "programlamaya-giris",
+    "software-engineering",
+    "yeni-not"
+  ]
 }

@@ -1,0 +1,59 @@
+{
+  "surum": 1,
+  "baslik": "Computer Architecture",
+  "sirt": "Architecture",
+  "kod": "CA",
+  "ders": "Computer Systems",
+  "kapak": {
+    "renk": "#8c2f39",
+    "stil": "kumas"
+  },
+  "sonAcilis": null,
+  "kurdele": null,
+  "bolumler": [
+    {
+      "baslik": "Number systems",
+      "durum": "calisildi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "ca-01-numbers.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Logic gates and circuits",
+      "durum": "calisildi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "ca-02-logic.pdf"
+        },
+        {
+          "tur": "defter",
+          "dosya": "defter/ca-02.jpg"
+        }
+      ]
+    },
+    {
+      "baslik": "The processor",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "ca-03-cpu.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Memory hierarchy",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "ca-04-memory.pdf"
+        }
+      ]
+    }
+  ]
+}

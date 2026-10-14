@@ -1,0 +1,73 @@
+{
+  "surum": 1,
+  "baslik": "Discrete Mathematics",
+  "sirt": "Discrete Math",
+  "kod": "DM",
+  "ders": "Mathematics",
+  "kapak": {
+    "renk": "#6b4e9b",
+    "stil": "kumas"
+  },
+  "sonAcilis": null,
+  "kurdele": null,
+  "bolumler": [
+    {
+      "baslik": "Logic and proofs",
+      "durum": "calisildi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "dm-01-logic.pdf"
+        },
+        {
+          "tur": "defter",
+          "dosya": "defter/dm-01.jpg"
+        }
+      ]
+    },
+    {
+      "baslik": "Sets, relations and functions",
+      "durum": "calisildi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "dm-02-sets.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Induction",
+      "durum": "tekrar",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "dm-03-induction.pdf"
+        },
+        {
+          "tur": "claude",
+          "dosya": "dm-03-exercises.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Combinatorics",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "dm-04-combinatorics.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Graph theory",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "dm-05-graphs.pdf"
+        }
+      ]
+    }
+  ]
+}

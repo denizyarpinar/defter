@@ -1,0 +1,59 @@
+{
+  "surum": 1,
+  "baslik": "Calculus I",
+  "sirt": "Calculus",
+  "kod": "CAL",
+  "ders": "Mathematics",
+  "kapak": {
+    "renk": "#c9822b",
+    "stil": "kumas"
+  },
+  "sonAcilis": null,
+  "kurdele": null,
+  "bolumler": [
+    {
+      "baslik": "Limits and continuity",
+      "durum": "calisildi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "calc-01-limits.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Derivatives",
+      "durum": "tekrar",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "calc-02-derivatives.pdf"
+        },
+        {
+          "tur": "defter",
+          "dosya": "defter/calc-02.jpg"
+        }
+      ]
+    },
+    {
+      "baslik": "Integrals",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "calc-03-integrals.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Sequences and series",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "calc-04-series.pdf"
+        }
+      ]
+    }
+  ]
+}

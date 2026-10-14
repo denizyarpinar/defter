@@ -1,0 +1,73 @@
+{
+  "surum": 1,
+  "baslik": "Data Structures in Java",
+  "sirt": "Data Structures",
+  "kod": "DS",
+  "ders": "Java",
+  "kapak": {
+    "renk": "#1f4e5f",
+    "stil": "deri"
+  },
+  "sonAcilis": null,
+  "kurdele": null,
+  "bolumler": [
+    {
+      "baslik": "Arrays and lists",
+      "durum": "calisildi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "ds-01-lists.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Stacks and queues",
+      "durum": "calisildi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "ds-02-stacks-queues.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Trees",
+      "durum": "tekrar",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "ds-03-trees.pdf"
+        },
+        {
+          "tur": "defter",
+          "dosya": "defter/ds-03.jpg"
+        }
+      ]
+    },
+    {
+      "baslik": "Hash tables",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "ds-04-hashing.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Sorting algorithms",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "ds-05-sorting.pdf"
+        },
+        {
+          "tur": "claude",
+          "dosya": "ds-05-cheatsheet.pdf"
+        }
+      ]
+    }
+  ]
+}

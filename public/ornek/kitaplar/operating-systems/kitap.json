@@ -1,0 +1,59 @@
+{
+  "surum": 1,
+  "baslik": "Operating Systems",
+  "sirt": "Operating Systems",
+  "kod": "OS",
+  "ders": "Computer Systems",
+  "kapak": {
+    "renk": "#4a6b3a",
+    "stil": "kumas"
+  },
+  "sonAcilis": null,
+  "kurdele": null,
+  "bolumler": [
+    {
+      "baslik": "Processes and threads",
+      "durum": "calisildi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "os-01-processes.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Scheduling",
+      "durum": "tekrar",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "os-02-scheduling.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Memory management",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "os-03-memory.pdf"
+        },
+        {
+          "tur": "claude",
+          "dosya": "os-03-summary.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "File systems",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "os-04-files.pdf"
+        }
+      ]
+    }
+  ]
+}

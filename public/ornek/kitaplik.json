@@ -1,11 +1,11 @@
 {
   "surum": 1,
   "raflar": [
-    { "id": "ai",      "ad": "Yapay Zekâ", "kitaplar": ["claude-code-otomasyonlari"] },
-    { "id": "dersler", "ad": "Dersler",    "kitaplar": ["programlamaya-giris", "lineer-cebir"] },
-    { "id": "java",    "ad": "Java",       "kitaplar": ["java-habelitz"] },
-    { "id": "r4",      "ad": "Raf 4",      "kitaplar": [] },
-    { "id": "r5",      "ad": "Raf 5",      "kitaplar": [] }
+    { "id": "ai",      "ad": "Yapay Zekâ", "kitaplar": ["claude-code-otomasyonlari", "machine-learning-basics"] },
+    { "id": "dersler", "ad": "Dersler",    "kitaplar": ["programlamaya-giris", "lineer-cebir", "discrete-mathematics", "calculus-1"] },
+    { "id": "java",    "ad": "Java",       "kitaplar": ["java-habelitz", "data-structures"] },
+    { "id": "r4",      "ad": "Sistemler",  "kitaplar": ["computer-architecture", "operating-systems", "computer-networks"] },
+    { "id": "r5",      "ad": "Yazılım",    "kitaplar": ["software-engineering"] }
   ],
   "oda": { "duvar": "#efe6d8", "zemin": "mese", "mod": "otomatik" }
 }

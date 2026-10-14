@@ -1,0 +1,73 @@
+{
+  "surum": 1,
+  "baslik": "Machine Learning Basics",
+  "sirt": "Machine Learning",
+  "kod": "ML",
+  "ders": "Artificial Intelligence",
+  "kapak": {
+    "renk": "#3d5a80",
+    "stil": "kumas"
+  },
+  "sonAcilis": null,
+  "kurdele": null,
+  "bolumler": [
+    {
+      "baslik": "Linear regression",
+      "durum": "calisildi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "ml-01-regression.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Classification and logistic regression",
+      "durum": "calisildi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "ml-02-classification.pdf"
+        },
+        {
+          "tur": "defter",
+          "dosya": "defter/ml-02.jpg"
+        }
+      ]
+    },
+    {
+      "baslik": "Decision trees",
+      "durum": "tekrar",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "ml-03-trees.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Neural networks",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "ml-04-neural-networks.pdf"
+        },
+        {
+          "tur": "claude",
+          "dosya": "ml-04-summary.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Model evaluation",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "link",
+          "dosya": "https://en.wikipedia.org/wiki/Cross-validation_(statistics)"
+        }
+      ]
+    }
+  ]
+}

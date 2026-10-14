@@ -1,0 +1,59 @@
+{
+  "surum": 1,
+  "baslik": "Software Engineering",
+  "sirt": "Software Eng.",
+  "kod": "SE",
+  "ders": "Software Engineering",
+  "kapak": {
+    "renk": "#5a3e2b",
+    "stil": "deri"
+  },
+  "sonAcilis": null,
+  "kurdele": null,
+  "bolumler": [
+    {
+      "baslik": "Requirements",
+      "durum": "calisildi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "se-01-requirements.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Version control with Git",
+      "durum": "calisildi",
+      "kaynaklar": [
+        {
+          "tur": "link",
+          "dosya": "https://git-scm.com/book/en/v2"
+        }
+      ]
+    },
+    {
+      "baslik": "Testing",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "se-03-testing.pdf"
+        },
+        {
+          "tur": "claude",
+          "dosya": "se-03-checklist.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Design patterns",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "se-04-patterns.pdf"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "surum": 1,
+  "baslik": "Computer Networks",
+  "sirt": "Networks",
+  "kod": "NET",
+  "ders": "Computer Systems",
+  "kapak": {
+    "renk": "#2b6c8f",
+    "stil": "kumas"
+  },
+  "sonAcilis": null,
+  "kurdele": null,
+  "bolumler": [
+    {
+      "baslik": "The layered model",
+      "durum": "calisildi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "net-01-layers.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "IP and routing",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "net-02-ip.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "TCP and UDP",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "net-03-transport.pdf"
+        },
+        {
+          "tur": "defter",
+          "dosya": "defter/net-03.jpg"
+        }
+      ]
+    }
+  ]
+}
