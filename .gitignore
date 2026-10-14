@@ -1,6 +1,9 @@
 node_modules
 dist
 .env.local
+.env
+.env.*
+!.env.example
 .vercel
 
 # Blender (Faz 2): indirilen/üretilen dosyalar
