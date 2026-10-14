@@ -10,6 +10,9 @@ import { U, isDark, mixHex, mulberry } from './units';
 export interface BookDims { t: number; h: number; d: number }
 export const BOOK_DEPTH = 54;
 
+// Upper case by the book's language: English "i" → "I"; Turkish (and books without "dil") "i" → "İ".
+const upper = (b: Book, s: string) => s.toLocaleUpperCase(b.dil?.toLowerCase().startsWith('en') ? 'en' : 'tr-TR');
+
 // Thickness grows with chapters and sources; height is fixed per book (from its id).
 export function bookDims(b: Book): BookDims {
   const sources = b.bolumler.reduce((a, c) => a + c.kaynaklar.length, 0);
@@ -47,7 +50,7 @@ function spineCanvas(b: Book, t: number, h: number, dusty: boolean): HTMLCanvasE
     const band = (y: number) => g.fillRect(0, y, w, Math.max(2, hh * 0.006));
     band(hh * .06); band(hh * .075); band(hh * .86); band(hh * .875); g.globalAlpha = 1;
     // title, top-to-bottom
-    const txt = leather ? b.sirt : b.sirt.toLocaleUpperCase('tr-TR');
+    const txt = leather ? b.sirt : upper(b, b.sirt);
     let fs = w * 0.56;
     const fnt = (s: number) => leather ? `600 ${s}px "Cormorant Garamond", Georgia, serif` : `700 ${s * 0.8}px Figtree, Arial, sans-serif`;
     g.font = fnt(fs);
@@ -84,7 +87,7 @@ function coverCanvas(b: Book, h: number): HTMLCanvasElement {
     }
     lines.push(line);
     lines.forEach((l, i) => g.fillText(l, w / 2, hh * 0.42 + (i - (lines.length - 1) / 2) * fs * 1.05));
-    g.font = '700 20px Figtree, sans-serif'; g.globalAlpha = .75; g.fillText(b.ders.toLocaleUpperCase('tr-TR'), w / 2, hh * 0.78); g.globalAlpha = 1;
+    g.font = '700 20px Figtree, sans-serif'; g.globalAlpha = .75; g.fillText(upper(b, b.ders), w / 2, hh * 0.78); g.globalAlpha = 1;
     noise(g, w, hh, 10, 9);
   });
 }

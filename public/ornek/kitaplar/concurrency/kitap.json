@@ -1,0 +1,60 @@
+{
+  "surum": 1,
+  "baslik": "Concurrent Programming in Java",
+  "sirt": "Concurrency",
+  "kod": "CON",
+  "ders": "Java",
+  "dil": "en",
+  "kapak": {
+    "renk": "#4b5d3a",
+    "stil": "kumas"
+  },
+  "sonAcilis": null,
+  "kurdele": null,
+  "bolumler": [
+    {
+      "baslik": "Threads",
+      "durum": "calisildi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "con-01-threads.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Locks and synchronization",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "con-02-locks.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Thread pools",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "con-03-pools.pdf"
+        },
+        {
+          "tur": "claude",
+          "dosya": "con-03-summary.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Deadlocks",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "con-04-deadlocks.pdf"
+        }
+      ]
+    }
+  ]
+}

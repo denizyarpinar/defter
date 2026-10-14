@@ -1,0 +1,60 @@
+{
+  "surum": 1,
+  "baslik": "Functional Programming",
+  "sirt": "Functional Prog.",
+  "kod": "FP",
+  "ders": "Software Engineering",
+  "dil": "en",
+  "kapak": {
+    "renk": "#8a7a2e",
+    "stil": "kumas"
+  },
+  "sonAcilis": null,
+  "kurdele": null,
+  "bolumler": [
+    {
+      "baslik": "Pure functions",
+      "durum": "calisildi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "fp-01-pure.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Recursion",
+      "durum": "tekrar",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "fp-02-recursion.pdf"
+        },
+        {
+          "tur": "defter",
+          "dosya": "defter/fp-02.jpg"
+        }
+      ]
+    },
+    {
+      "baslik": "Higher-order functions",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "fp-03-higher-order.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Types",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "fp-04-types.pdf"
+        }
+      ]
+    }
+  ]
+}

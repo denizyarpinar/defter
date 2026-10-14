@@ -1,0 +1,60 @@
+{
+  "surum": 1,
+  "baslik": "Probability and Statistics",
+  "sirt": "Probability",
+  "kod": "STAT",
+  "ders": "Mathematics",
+  "dil": "en",
+  "kapak": {
+    "renk": "#b5523b",
+    "stil": "kumas"
+  },
+  "sonAcilis": null,
+  "kurdele": null,
+  "bolumler": [
+    {
+      "baslik": "Probability spaces",
+      "durum": "calisildi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "stat-01-probability.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Random variables",
+      "durum": "tekrar",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "stat-02-variables.pdf"
+        },
+        {
+          "tur": "defter",
+          "dosya": "defter/stat-02.jpg"
+        }
+      ]
+    },
+    {
+      "baslik": "Distributions",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "stat-03-distributions.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Hypothesis testing",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "stat-04-testing.pdf"
+        }
+      ]
+    }
+  ]
+}

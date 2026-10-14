@@ -1,0 +1,60 @@
+{
+  "surum": 1,
+  "baslik": "Database Systems",
+  "sirt": "Databases",
+  "kod": "DB",
+  "ders": "Computer Systems",
+  "dil": "en",
+  "kapak": {
+    "renk": "#245a7a",
+    "stil": "kumas"
+  },
+  "sonAcilis": null,
+  "kurdele": null,
+  "bolumler": [
+    {
+      "baslik": "The relational model",
+      "durum": "calisildi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "db-01-relational.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "SQL",
+      "durum": "tekrar",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "db-02-sql.pdf"
+        },
+        {
+          "tur": "defter",
+          "dosya": "defter/db-02.jpg"
+        }
+      ]
+    },
+    {
+      "baslik": "Normalization",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "db-03-normalization.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Transactions",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "db-04-transactions.pdf"
+        }
+      ]
+    }
+  ]
+}

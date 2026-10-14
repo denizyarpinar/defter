@@ -1,0 +1,60 @@
+{
+  "surum": 1,
+  "baslik": "Numerical Methods",
+  "sirt": "Numerical Methods",
+  "kod": "NUM",
+  "ders": "Mathematics",
+  "dil": "en",
+  "kapak": {
+    "renk": "#3f6e6a",
+    "stil": "kumas"
+  },
+  "sonAcilis": null,
+  "kurdele": null,
+  "bolumler": [
+    {
+      "baslik": "Floating point arithmetic",
+      "durum": "calisildi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "num-01-floats.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Root finding",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "num-02-roots.pdf"
+        },
+        {
+          "tur": "defter",
+          "dosya": "defter/num-02.jpg"
+        }
+      ]
+    },
+    {
+      "baslik": "Interpolation",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "num-03-interpolation.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Numerical integration",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "num-04-integration.pdf"
+        }
+      ]
+    }
+  ]
+}

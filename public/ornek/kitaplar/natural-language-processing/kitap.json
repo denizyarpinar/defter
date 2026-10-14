@@ -1,0 +1,60 @@
+{
+  "surum": 1,
+  "baslik": "Natural Language Processing",
+  "sirt": "Language Processing",
+  "kod": "NLP",
+  "ders": "Artificial Intelligence",
+  "dil": "en",
+  "kapak": {
+    "renk": "#7a4f8a",
+    "stil": "kumas"
+  },
+  "sonAcilis": null,
+  "kurdele": null,
+  "bolumler": [
+    {
+      "baslik": "Text and tokens",
+      "durum": "calisildi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "nlp-01-tokens.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Language models",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "nlp-02-models.pdf"
+        },
+        {
+          "tur": "claude",
+          "dosya": "nlp-02-summary.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Embeddings",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "nlp-03-embeddings.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Transformers",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "nlp-04-transformers.pdf"
+        }
+      ]
+    }
+  ]
+}

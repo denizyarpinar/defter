@@ -20,6 +20,7 @@ export function bookToJson(b: Book): Record<string, unknown> {
     sirt: b.sirt,
     kod: b.kod,
     ders: b.ders,
+    ...(b.dil !== undefined ? { dil: b.dil } : {}),
     kapak: { ...b.kapak.extra, renk: b.kapak.renk, stil: b.kapak.stil },
     sonAcilis: b.sonAcilis,
     kurdele: b.kurdele,

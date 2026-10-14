@@ -1,0 +1,60 @@
+{
+  "surum": 1,
+  "baslik": "Algorithms",
+  "sirt": "Algorithms",
+  "kod": "ALG",
+  "ders": "Java",
+  "dil": "en",
+  "kapak": {
+    "renk": "#2d3e50",
+    "stil": "deri"
+  },
+  "sonAcilis": null,
+  "kurdele": null,
+  "bolumler": [
+    {
+      "baslik": "Complexity",
+      "durum": "calisildi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "alg-01-complexity.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Divide and conquer",
+      "durum": "calisildi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "alg-02-divide.pdf"
+        },
+        {
+          "tur": "claude",
+          "dosya": "alg-02-exercises.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Graph algorithms",
+      "durum": "tekrar",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "alg-03-graphs.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Dynamic programming",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "alg-04-dp.pdf"
+        }
+      ]
+    }
+  ]
+}

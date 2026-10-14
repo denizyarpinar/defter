@@ -61,6 +61,7 @@ export interface Book {
   sirt: string;
   kod: string;
   ders: string;
+  dil?: string;         // language of the book's texts, e.g. "en"; missing: Turkish rules
   kapak: Cover;
   sonAcilis: string | null;   // ISO date
   kurdele: number | string | null;

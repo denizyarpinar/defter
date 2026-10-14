@@ -1,0 +1,60 @@
+{
+  "surum": 1,
+  "baslik": "Compiler Construction",
+  "sirt": "Compilers",
+  "kod": "CC",
+  "ders": "Software Engineering",
+  "dil": "en",
+  "kapak": {
+    "renk": "#6e3b2e",
+    "stil": "kumas"
+  },
+  "sonAcilis": null,
+  "kurdele": null,
+  "bolumler": [
+    {
+      "baslik": "Lexical analysis",
+      "durum": "calisildi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "cc-01-lexer.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Parsing",
+      "durum": "tekrar",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "cc-02-parsing.pdf"
+        },
+        {
+          "tur": "defter",
+          "dosya": "defter/cc-02.jpg"
+        }
+      ]
+    },
+    {
+      "baslik": "Semantic analysis",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "cc-03-semantics.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Code generation",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "cc-04-codegen.pdf"
+        }
+      ]
+    }
+  ]
+}

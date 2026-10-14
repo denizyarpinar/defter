@@ -1,0 +1,60 @@
+{
+  "surum": 1,
+  "baslik": "Introduction to Artificial Intelligence",
+  "sirt": "Intro to AI",
+  "kod": "AI",
+  "ders": "Artificial Intelligence",
+  "dil": "en",
+  "kapak": {
+    "renk": "#33415c",
+    "stil": "kumas"
+  },
+  "sonAcilis": null,
+  "kurdele": null,
+  "bolumler": [
+    {
+      "baslik": "Search",
+      "durum": "calisildi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "ai-01-search.pdf"
+        },
+        {
+          "tur": "defter",
+          "dosya": "defter/ai-01.jpg"
+        }
+      ]
+    },
+    {
+      "baslik": "Knowledge and reasoning",
+      "durum": "tekrar",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "ai-02-logic.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Planning",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "ai-03-planning.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Learning agents",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "ai-04-agents.pdf"
+        }
+      ]
+    }
+  ]
+}

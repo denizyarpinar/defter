@@ -1,0 +1,60 @@
+{
+  "surum": 1,
+  "baslik": "Introduction to Cryptography",
+  "sirt": "Cryptography",
+  "kod": "CRY",
+  "ders": "Computer Systems",
+  "dil": "en",
+  "kapak": {
+    "renk": "#5c2d4a",
+    "stil": "deri"
+  },
+  "sonAcilis": null,
+  "kurdele": null,
+  "bolumler": [
+    {
+      "baslik": "Classical ciphers",
+      "durum": "calisildi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "cry-01-classical.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Symmetric encryption",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "cry-02-symmetric.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Public-key cryptography",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "cry-03-public-key.pdf"
+        },
+        {
+          "tur": "claude",
+          "dosya": "cry-03-summary.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Hash functions",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "cry-04-hashing.pdf"
+        }
+      ]
+    }
+  ]
+}

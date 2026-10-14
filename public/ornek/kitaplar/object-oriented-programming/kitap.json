@@ -1,0 +1,60 @@
+{
+  "surum": 1,
+  "baslik": "Object-Oriented Programming",
+  "sirt": "Object-Oriented Prog.",
+  "kod": "OOP",
+  "ders": "Java",
+  "dil": "en",
+  "kapak": {
+    "renk": "#9c6b2f",
+    "stil": "kumas"
+  },
+  "sonAcilis": null,
+  "kurdele": null,
+  "bolumler": [
+    {
+      "baslik": "Classes and objects",
+      "durum": "calisildi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "oop-01-classes.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Inheritance",
+      "durum": "calisildi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "oop-02-inheritance.pdf"
+        },
+        {
+          "tur": "defter",
+          "dosya": "defter/oop-02.jpg"
+        }
+      ]
+    },
+    {
+      "baslik": "Interfaces",
+      "durum": "tekrar",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "oop-03-interfaces.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Exceptions",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "oop-04-exceptions.pdf"
+        }
+      ]
+    }
+  ]
+}

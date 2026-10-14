@@ -1,0 +1,60 @@
+{
+  "surum": 1,
+  "baslik": "Web Development",
+  "sirt": "Web Development",
+  "kod": "WEB",
+  "ders": "Software Engineering",
+  "dil": "en",
+  "kapak": {
+    "renk": "#2f6f5e",
+    "stil": "kumas"
+  },
+  "sonAcilis": null,
+  "kurdele": null,
+  "bolumler": [
+    {
+      "baslik": "HTML and CSS",
+      "durum": "calisildi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "web-01-html-css.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "JavaScript",
+      "durum": "calisildi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "web-02-javascript.pdf"
+        },
+        {
+          "tur": "claude",
+          "dosya": "web-02-cheatsheet.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "HTTP and APIs",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "web-03-http.pdf"
+        }
+      ]
+    },
+    {
+      "baslik": "Accessibility",
+      "durum": "okunmadi",
+      "kaynaklar": [
+        {
+          "tur": "pdf",
+          "dosya": "web-04-accessibility.pdf"
+        }
+      ]
+    }
+  ]
+}

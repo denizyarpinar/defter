@@ -95,10 +95,11 @@ export function parseBook(id: string, json: unknown | null): Book {
     sirt: str(o.sirt, baslik),
     kod: typeof o.kod === 'string' ? o.kod : '',
     ders: typeof o.ders === 'string' ? o.ders : '',
+    ...(typeof o.dil === 'string' && o.dil.trim() ? { dil: o.dil.trim() } : {}),
     kapak: parseCover(o.kapak),
     sonAcilis: typeof o.sonAcilis === 'string' && !Number.isNaN(Date.parse(o.sonAcilis)) ? o.sonAcilis : null,
     kurdele: typeof o.kurdele === 'number' || typeof o.kurdele === 'string' ? o.kurdele : null,
     bolumler: Array.isArray(o.bolumler) ? o.bolumler.map(parseChapter) : [],
-    extra: rest(o, ['surum', 'baslik', 'sirt', 'kod', 'ders', 'kapak', 'sonAcilis', 'kurdele', 'bolumler'])
+    extra: rest(o, ['surum', 'baslik', 'sirt', 'kod', 'ders', 'dil', 'kapak', 'sonAcilis', 'kurdele', 'bolumler'])
   };
 }
