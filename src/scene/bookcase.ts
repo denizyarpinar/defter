@@ -5,6 +5,9 @@ import { potPlant } from './room';
 import { PLATE_H, PLATE_W, canvas, noise, plateTex, tex } from './textures';
 import { BASE, BD, BW, BX, P, SH, TOP, U, mulberry } from './units';
 
+// Name plate self-glow (emissive), see buildCase.
+const PLATE_GLOW = 0.35;
+
 // Total bookcase height (plan units) for n shelves.
 export const caseHeight = (n: number) => BASE + n * SH - 8 + TOP;
 // Bottom of shelf idx (idx 0 = top shelf).
@@ -40,9 +43,14 @@ export function buildCase(scene: Scene, shelves: CaseShelf[]): Group {
     const z0 = shelfBottom(idx, n);
     // brass name plate
     const plate = plateTex(sh.name);
-    const pm = own(std({ map: plate.map, bumpMap: plate.bumpMap, bumpScale: 1, roughness: .35, metalness: .55 }), plate.map, plate.bumpMap);
+    // a little self-glow from the brass texture: stays readable in the evening and on the lower,
+    // shadowed shelves; the black letters don't glow, so the contrast stays high
+    const pm = own(std({
+      map: plate.map, bumpMap: plate.bumpMap, bumpScale: 1, roughness: .35, metalness: .3,
+      emissive: 0xffffff, emissiveMap: plate.map, emissiveIntensity: PLATE_GLOW
+    }), plate.map, plate.bumpMap);
     const pl = new Mesh(new BoxGeometry(PLATE_W, PLATE_H, 0.008), [M.brass, M.brass, M.brass, M.brass, pm, M.brass]);
-    pl.position.copy(P(BX + BW / 2, BD + 0.5, z0 - 3.5)); add(pl, C, false, true);
+    pl.position.copy(P(BX + BW / 2, BD + 0.5, z0 - 5)); add(pl, C, false, true);
     if (sh.decor === 'globe') globe(C, BX + BW - 60, 36, z0);
     else if (sh.decor === 'box') {
       boxAt(BX + BW - 96, 12, z0, 66, 44, 28, M.walnutH, C, 2);
