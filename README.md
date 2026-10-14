@@ -30,10 +30,24 @@ Defter turns one Google Drive folder into a personal library. Every course or to
 
 > The interface is in Turkish for now; an English option is planned.
 
+## Visual quality
+
+![Before and after: the same room with real-time light (left) and with baked light (right)](docs/once-sonra.png)
+
+In Phase 2 the room got realistic lighting without changing its design:
+
+- **Same room, better light** — the room is exported from three.js to Blender exactly as it is (same objects, colours, textures and layout). Only the light is computed again.
+- **Baked with Cycles** — Blender's path tracer bakes soft sunlight, bounced light and soft shadows into two lightmaps: **day** and **evening** (desk lamp and moonlight). The lightmaps hold only light, no colour, so changing the wall or floor colour needs no new bake.
+- **Blended by time** — three.js mixes the two lightmaps with a smooth transition when the room switches between day and evening (manually or automatically at 18:00).
+- **Live where it matters** — the bookcase and books are not baked: they stay real-time, with live lights and shadows, so shelves, drag-and-drop and opening books work as before.
+- **Light on mobile** — iPads and phones load 1024 px lightmaps instead of 2048 px (about 1 MB instead of 3 MB) and keep 30–60 fps.
+- **Safe fallback** — if the baked room cannot be loaded within 15 s, the original real-time room is shown (`?oda=eski` forces it).
+
 ## Tech stack
 
 - **TypeScript + Vite**, plain DOM (no framework)
 - **three.js** for the 3D room (ACES tone mapping, soft shadows, canvas-generated textures)
+- **Blender (Cycles)** for baked lighting, **gltf-transform** for compressing the room model
 - **Google Identity Services** (OAuth 2.0 token client) for sign-in
 - **Google Drive REST API v3** via `fetch`
 - **Vercel** for static hosting
@@ -63,6 +77,23 @@ flowchart LR
   Auth --> Drive
   Model <--> Drive
   API <--> Folder
+```
+
+### Baked lighting pipeline
+
+The room geometry has one source: the three.js scene. Blender only adds light.
+
+```mermaid
+flowchart LR
+  App["three.js room<br/>(dev export)"] -->|oda-kaynak.glb| Build["Blender<br/>build_room.py<br/>day + evening lights"]
+  Build --> Bake["bake.py<br/>Cycles (OptiX)<br/>diffuse light, no colour"]
+  Bake -->|"2 lightmaps<br/>2048 px PNG + scale"| Models[("public/models<br/>oda.glb<br/>lightmap_gunduz.png<br/>lightmap_aksam.png")]
+  Bake -->|"glTF, 2nd UV set"| GT["gltf-transform<br/>meshopt + WebP"]
+  GT --> Models
+  Models --> Mobile["mobil.py<br/>1024 px copies"]
+  Mobile --> Models
+  Models --> Room["three.js<br/>colour × mix(day, evening)"]
+  Live["bookcase + books<br/>live lights & shadows"] --> Room
 ```
 
 ### Data model
@@ -137,14 +168,14 @@ You need **Node.js 20+** and a Google account.
 5. **Prepare your Drive** — create a folder `Kitaplık` in the root of My Drive with a `kitaplar` folder inside. You can start from `referans/Kitaplik_ornek.zip`.
 6. **Run** — `npm run dev`, open <http://localhost:5173> and sign in with Google.
 
-Other scripts: `npm run build` (production build into `dist/`), `npm run typecheck` (`tsc --noEmit`), `npm run preview`.
+Other scripts: `npm run build` (production build into `dist/`), `npm run typecheck` (`tsc --noEmit`), `npm run preview`, `npm run screenshots` (regenerates the images in `docs/`; needs Chrome and ffmpeg).
 
 To deploy on Vercel, import the repository, set `VITE_GOOGLE_CLIENT_ID` as an environment variable, and add the Vercel URL to the Client ID's authorized JavaScript origins.
 
 ## Roadmap
 
 - [x] **Phase 1 — Foundation:** project setup, 3D room, bookcase and books, Google sign-in, reading Drive and saving the shelf layout, deployment
-- [ ] **Phase 2 — Visual quality:** ready-made models and PBR textures, light baked in Blender
+- [x] **Phase 2 — Visual quality:** light baked in Blender (Cycles) into day and evening lightmaps, smaller files for mobile
 - [ ] **Phase 3 — Reading:** PDF rendering with pdf.js, book and PDF modes, zoom
 - [ ] **Phase 4 — Pen:** Apple Pencil drawings saved into the PDF (pdf-lib)
 - [ ] **Phase 5 — Notebook and adding:** photo notes, conversion, more customisation
