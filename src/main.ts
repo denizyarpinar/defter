@@ -178,14 +178,14 @@ initReader(() => {
   deskBook = null;
   scene?.setPaused(false);
   scene?.closeBook();
-}, bolumIndex => {
+}, (unit, topic) => {
   const b = deskBook ? data?.books.get(deskBook) : undefined;
   if (!b) return;
   const folderId = driveLoc?.bookFolderIds.get(b.id);
   if (!folderId) { toast('Sayfaları görmek için Google ile giriş yap. Örnek kitaplıkta dosya yok.'); return; }
   // the room is behind the reader: don't draw it (it stays paused under the contents page too)
   scene?.setPaused(true);
-  void openOkuyucu(b, folderId, bolumIndex, () => scene?.setPaused(isReaderOpen()));
+  void openOkuyucu(b, folderId, unit, topic, () => scene?.setPaused(isReaderOpen()));
 });
 initOkuyucu();
 

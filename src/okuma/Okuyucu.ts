@@ -1,12 +1,16 @@
 import { SessionExpired } from '../drive/drive';
 import type { Book } from '../model/types';
+import { bookUnits, usesUnits } from '../model/units';
 import { esc } from '../ui/dom';
 import { toast } from '../ui/toast';
-import { buildBookPages, type BookPage } from './kitapSayfalari';
+import { SourceResolver } from './kaynakCoz';
+import { buildBookPages, buildSolutionPages, buildTopicPages, type BookPage } from './kitapSayfalari';
+import { MATERIAL_LABEL, availableKinds, defaultKind, discoverTopic, type MaterialKind, type TopicMaterials } from './konuKesfi';
 import { PageContent, pageKind } from './sayfaIcerik';
 import { PAD_TOP, canvasSize, currentPage, layoutPages, visibleRange, type Layout } from './sanalListe';
 
-// Full-screen reader, PDF mode: all pages of the book one under the other (task 3.2).
+// Full-screen reader, PDF mode (task 3.2). Pages one under the other.
+// surum 1: all pages of the book. surum 2 (task 3.2b): one material of one topic, chosen with tabs.
 // Only the visible pages ±2 have a canvas / photo; the others are grey boxes of the right size.
 
 const MAX_WIDTH = 760;   // prototype #pdfView: min(760px, 100vw − 32px)
@@ -16,8 +20,23 @@ const $ = <T extends HTMLElement>(s: string) => document.querySelector<T>(s)!;
 
 interface Mounted { release(): void }
 
+interface Prepared { pages: BookPage[]; ratios: number[] }
+
 // The pages and their sizes stay in memory while the same book is on the desk.
-let prepared: { book: Book; folderId: string; pages: BookPage[]; ratios: number[] } | null = null;
+let prepared: { book: Book; folderId: string; pages: BookPage[]; ratios: number[] } | null = null;   // surum 1
+const topicCache = new Map<string, Promise<TopicMaterials | null>>();   // surum 2: folder|klasor → materials
+const pageCache = new Map<string, Prepared>();                          // surum 2: file id + version → its pages
+let resolver: { folderId: string; r: SourceResolver } | null = null;
+
+// surum 2: the open topic and what is shown of it
+interface OpenTopic {
+  title: string;
+  materials: TopicMaterials;
+  kind: MaterialKind;
+  fileIndex: number;      // Übungen / Ödevler: the chosen file
+  solution: boolean;      // "Çözümü göster" is on
+}
+let topic: OpenTopic | null = null;
 
 let open = false;
 let session = 0;               // increases on every open/close: late answers of an old one are ignored
@@ -50,30 +69,73 @@ export function initOkuyucu(): void {
   }, true);
   let rt: number | undefined;
   addEventListener('resize', () => { clearTimeout(rt); rt = window.setTimeout(() => { if (open && pages.length) relayout(); }, 150); });
+
+  // surum 2: tabs, file chooser, solution (all stay on the same topic)
+  $('#oTabs').addEventListener('click', e => {
+    const kind = (e.target as HTMLElement).closest<HTMLElement>('[data-kind]')?.dataset.kind as MaterialKind | undefined;
+    if (!topic || !kind || kind === topic.kind) return;
+    topic.kind = kind; topic.fileIndex = 0; topic.solution = false;
+    void showMaterial();
+  });
+  const select = $<HTMLSelectElement>('#oFile');
+  select.addEventListener('change', () => {
+    if (!topic) return;
+    topic.fileIndex = Number(select.value); topic.solution = false;
+    void showMaterial();
+  });
+  $('#oSol').addEventListener('click', () => {
+    if (!topic) return;
+    topic.solution = !topic.solution;
+    void showMaterial();
+  });
 }
 
 // The book left the desk (or the library was reloaded): forget its pages.
 export function forgetBook(): void {
   prepared = null;
+  topicCache.clear();
+  pageCache.clear();
+  resolver = null;
 }
 
-export async function openOkuyucu(b: Book, folderId: string, chapter: number, closed: () => void): Promise<void> {
+// unit / topicIndex: as in bookUnits (surum 1: unit 0 "Genel", topic = chapter).
+export async function openOkuyucu(b: Book, folderId: string, unit: number, topicIndex: number, closed: () => void): Promise<void> {
   if (open) return;
-  if (!b.bolumler[chapter]?.kaynaklar.length) { toast('Bu bölümde henüz kaynak yok.'); return; }
+  const t = bookUnits(b)[unit]?.konular[topicIndex];
+  if (!t) return;
+  const v2 = usesUnits(b);
+  if (!v2 && !t.kaynaklar?.length) { toast('Bu bölümde henüz kaynak yok.'); return; }
   open = true;
   const my = ++session;
   book = b; onClosed = closed;
   content = new PageContent();
+  topic = null;
 
   $('#oBook').textContent = b.baslik;
-  $('#oChap').textContent = b.bolumler[chapter].baslik;
+  $('#oChap').textContent = t.baslik;
   $('#oPno').textContent = '';
-  $('#oPages').replaceChildren();
-  $('#oPages').style.height = '0';
-  setMessage('Sayfalar hazırlanıyor…');
+  clearPages();
+  renderBar();
+  setMessage(v2 ? 'Konu açılıyor…' : 'Sayfalar hazırlanıyor…');
   const el = $('#okuyucu');
   el.hidden = false;
   requestAnimationFrame(() => el.classList.add('show'));
+
+  if (v2) {
+    try {
+      const m = await discover(folderId, t.klasor ?? '');
+      if (my !== session) return;
+      if (!m) { setMessage(`Konu klasörü bulunamadı: ${t.klasor}. Drive'da kitabın klasöründe bu klasörü oluştur ve yenile.`); return; }
+      const kind = defaultKind(m);
+      if (!kind) { setMessage('Henüz materyal yok.'); return; }
+      topic = { title: t.baslik, materials: m, kind, fileIndex: 0, solution: false };
+    } catch (e) {
+      if (my === session) loadFailed(e);
+      return;
+    }
+    await showMaterial();
+    return;
+  }
 
   try {
     if (!prepared || prepared.book !== b || prepared.folderId !== folderId) {
@@ -84,24 +146,118 @@ export async function openOkuyucu(b: Book, folderId: string, chapter: number, cl
       prepared = { book: b, folderId, pages: p, ratios: r };
     }
   } catch (e) {
-    if (my !== session) return;
-    closeOkuyucu();
-    if (!(e instanceof SessionExpired)) {
-      console.error(e);
-      toast(e instanceof TypeError || !(e instanceof Error)
-        ? 'Sayfalar yüklenemedi. İnternet bağlantını kontrol et ve tekrar dene.'
-        : e.message);
-    }
+    if (my === session) loadFailed(e);
     return;
   }
 
-  pages = prepared.pages;
-  ratios = [...prepared.ratios];
-  if (!pages.length) { setMessage('Bu kitapta gösterilecek sayfa yok.'); return; }
+  showPages(prepared.pages, prepared.ratios, Math.max(0, prepared.pages.findIndex(p => p.bolumIndex === topicIndex)), 'Bu kitapta gösterilecek sayfa yok.');
+}
+
+function loadFailed(e: unknown): void {
+  closeOkuyucu();
+  if (e instanceof SessionExpired) return;
+  console.error(e);
+  toast(e instanceof TypeError || !(e instanceof Error)
+    ? 'Sayfalar yüklenemedi. İnternet bağlantını kontrol et ve tekrar dene.'
+    : e.message);
+}
+
+// ---- surum 2: topic materials ----
+
+function discover(folderId: string, klasor: string): Promise<TopicMaterials | null> {
+  const key = `${folderId}|${klasor}`;
+  let p = topicCache.get(key);
+  if (!p) {
+    if (resolver?.folderId !== folderId) resolver = { folderId, r: new SourceResolver(folderId) };
+    p = discoverTopic(resolver.r, klasor);
+    p.catch(() => topicCache.delete(key));   // don't remember a failed request
+    topicCache.set(key, p);
+  }
+  return p;
+}
+
+// The chosen material of the open topic (+ its solution below it, when "Çözümü göster" is on).
+async function showMaterial(): Promise<void> {
+  if (!topic || !content) return;
+  const t = topic, my = ++session;
+  releaseAll();
+  clearPages();
+  renderBar();
+  setMessage('Sayfalar hazırlanıyor…');
+
+  const material = t.kind === 'uebungen' || t.kind === 'oedevler' ? t.materials[t.kind][t.fileIndex] : null;
+  const files = material ? [material.file] : t.materials[t.kind].map(m => m.file);
+  const cozum = t.solution ? material?.cozum ?? null : null;
+  const key = (list: { id: string; modifiedTime: string }[]) => list.map(f => `${f.id}@${f.modifiedTime}`).join(',');
+  try {
+    const main = await cached(key(files), () => buildTopicPages(t.materials, t.kind, t.fileIndex), my);
+    if (my !== session) return;
+    if (!cozum) { showPages(main.pages, main.ratios, 0, 'Bu materyalde gösterilecek sayfa yok.'); return; }
+    const sol = await cached(key([cozum]), () => buildSolutionPages(cozum), my);
+    if (my !== session) return;
+    showPages([...main.pages, ...sol.pages], [...main.ratios, ...sol.ratios], main.pages.length, 'Bu materyalde gösterilecek sayfa yok.');
+  } catch (e) {
+    if (my === session) loadFailed(e);
+  }
+}
+
+// Pages + sizes, remembered only when they were made for the current view (a closed reader gives A4 sizes).
+async function cached(key: string, build: () => Promise<BookPage[]>, my: number): Promise<Prepared> {
+  const hit = pageCache.get(key);
+  if (hit) return hit;
+  const pages = await build();
+  if (my !== session || !content) return { pages: [], ratios: [] };
+  const ratios = await content.ratios(pages);
+  const result = { pages, ratios };
+  if (my === session) pageCache.set(key, result);
+  return result;
+}
+
+// Tabs (only the materials that exist), file chooser and solution button.
+function renderBar(): void {
+  const bar = $('#oBar');
+  bar.hidden = !topic;
+  if (!topic) return;
+  const t = topic;
+  $('#oTabs').replaceChildren(...availableKinds(t.materials).map(k => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'o-tab';
+    b.dataset.kind = k;
+    b.setAttribute('role', 'tab');
+    b.setAttribute('aria-selected', String(k === t.kind));
+    b.textContent = MATERIAL_LABEL[k];
+    return b;
+  }));
+  const list = t.kind === 'uebungen' || t.kind === 'oedevler' ? t.materials[t.kind] : null;
+  $('#oFiles').hidden = !list;
+  if (!list) return;
+  const select = $<HTMLSelectElement>('#oFile');
+  select.replaceChildren(...list.map((m, i) => new Option(m.file.name.replace(/\.pdf$/i, ''), String(i))));
+  select.value = String(t.fileIndex);
+  const sol = $('#oSol');
+  sol.hidden = !list[t.fileIndex]?.cozum;
+  sol.textContent = t.solution ? 'Çözümü gizle' : 'Çözümü göster';
+  sol.setAttribute('aria-pressed', String(t.solution));
+}
+
+// ---- showing a page list ----
+
+function clearPages(): void {
+  pages = []; ratios = []; boxes = [];
+  layout = layoutPages([], 0);
+  $('#oPages').replaceChildren();
+  $('#oPages').style.height = '0';
+  $('#oPno').textContent = '';
+}
+
+function showPages(p: BookPage[], r: number[], scrollTo: number, emptyText: string): void {
+  pages = p;
+  ratios = [...r];
+  if (!pages.length) { setMessage(emptyText); return; }
   setMessage(null);
   build();
-  const first = Math.max(0, pages.findIndex(p => p.bolumIndex === chapter));
-  $('#oScroll').scrollTop = layout.tops[first] - PAD_TOP;
+  $('#oScroll').scrollTop = layout.tops[scrollTo] - PAD_TOP;
   update();
 }
 
@@ -112,6 +268,7 @@ export function closeOkuyucu(): void {
   releaseAll();
   void content?.close();
   content = null;
+  topic = null;
   const el = $('#okuyucu');
   el.classList.remove('show');
   setTimeout(() => {
@@ -184,7 +341,8 @@ function update(): void {
   for (let i = first; i <= last; i++) if (!mounted.has(i)) mount(i);
 
   const cur = currentPage(layout, s.scrollTop, s.clientHeight);
-  $('#oChap').textContent = book!.bolumler[pages[cur].bolumIndex]?.baslik ?? '';
+  // surum 1: the chapter of the current page; surum 2: the topic's title stays
+  if (!topic) $('#oChap').textContent = book!.bolumler[pages[cur].bolumIndex]?.baslik ?? '';
   $('#oPno').textContent = `${cur + 1} / ${pages.length}`;
   void drain();
 }

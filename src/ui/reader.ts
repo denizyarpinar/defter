@@ -1,4 +1,5 @@
 import type { Book, ChapterStatus, SourceType } from '../model/types';
+import { bookUnits, topicCount, usesUnits } from '../model/units';
 import { isOkuyucuOpen } from '../okuma/Okuyucu';
 import { isDark } from '../scene/units';
 import { esc } from './dom';
@@ -41,7 +42,7 @@ let book: Book | null = null;
 let ctx: ReaderContext = { shelfName: null, daysSinceOpened: null, owner: null };
 let idx = 0, pw = 0, single = false, busy = false;
 let onClose: () => void = () => {};
-let onChapter: (bolumIndex: number) => void = () => {};
+let onChapter: (unit: number, topic: number) => void = () => {};
 const PAGES = ['title', 'toc'] as const;
 
 function el(tag: string, cls: string, parent?: HTMLElement, html?: string): HTMLElement {
@@ -52,7 +53,8 @@ function el(tag: string, cls: string, parent?: HTMLElement, html?: string): HTML
   return e;
 }
 
-export function initReader(close: () => void, chapter: (bolumIndex: number) => void): void {
+// chapter(unit, topic): indices as in bookUnits (surum 1: unit 0 "Genel", topic = chapter)
+export function initReader(close: () => void, chapter: (unit: number, topic: number) => void): void {
   onClose = close;
   onChapter = chapter;
   $('#rClose').addEventListener('click', closeReader);
@@ -121,7 +123,8 @@ function updateChrome(): void {
   const n = PAGES.length, b = book!;
   const a = idx + 1, z = Math.min(n, idx + (single ? 1 : 2));
   $('#pno').textContent = single || a === z ? `s. ${a} / ${n}` : `s. ${a}–${z} / ${n}`;
-  $('#rChap').textContent = [b.ders, `${b.bolumler.length} bölüm`].filter(Boolean).join(' · ');
+  const size = usesUnits(b) ? `${b.uniteler.length} ünite · ${topicCount(b)} konu` : `${b.bolumler.length} bölüm`;
+  $('#rChap').textContent = [b.ders, size].filter(Boolean).join(' · ');
   ($('#prev') as HTMLButtonElement).disabled = idx === 0;
   ($('#next') as HTMLButtonElement).disabled = idx + (single ? 1 : 2) >= n;
 }
@@ -141,32 +144,40 @@ function renderPage(i: number, side: 'l' | 'r'): HTMLElement {
   el('div', 'folio', p, String(i + 1));
   if (kind === 'title') {
     const total = b.bolumler.reduce((a, c) => a + c.kaynaklar.length, 0);
+    const size = usesUnits(b)
+      ? `<dt>Ünite</dt><dd>${b.uniteler.length}</dd><dt>Konu</dt><dd>${topicCount(b)}</dd>`
+      : `<dt>Bölüm</dt><dd>${b.bolumler.length}</dd><dt>Kaynak</dt><dd>${total} dosya</dd>`;
     inn.innerHTML = `<div class="shelf">${ctx.shelfName ? esc(ctx.shelfName) + ' rafı' : 'Yeni gelenler'}</div>
       <h1>${esc(b.baslik)}</h1>
-      <dl class="meta"><dt>Ders / alan</dt><dd>${esc(b.ders || '—')}</dd><dt>Bölüm</dt><dd>${b.bolumler.length}</dd>
-      <dt>Kaynak</dt><dd>${total} dosya</dd><dt>Son açılış</dt><dd>${lastOpenedText(ctx.daysSinceOpened)}</dd></dl>
+      <dl class="meta"><dt>Ders / alan</dt><dd>${esc(b.ders || '—')}</dd>${size}
+      <dt>Son açılış</dt><dd>${lastOpenedText(ctx.daysSinceOpened)}</dd></dl>
       ${b.kurdele !== null ? `<button class="go" data-ribbon>Kaldığın yer: s. ${esc(String(b.kurdele))} →</button>` : ''}
       <div class="exl">${ctx.owner ? esc(genitive(ctx.owner)) + ' kitaplığından' : 'Örnek kitaplıktan'}</div>`;
   } else {
     let html = '<div class="src">Kitap · içindekiler</div><h2>İçindekiler</h2>';
-    if (!b.bolumler.length) {
-      html += `<p class="empty">${b.hasJson ? 'Bu kitapta henüz bölüm yok.' : 'Bu klasörde kitap.json yok. Drive\'da klasöre bir kitap.json ekleyince bölümler burada görünür.'}</p>`;
+    const units = bookUnits(b);
+    if (!units.some(u => u.konular.length)) {
+      html += `<p class="empty">${b.hasJson ? 'Bu kitapta henüz konu yok.' : 'Bu klasörde kitap.json yok. Drive\'da klasöre bir kitap.json ekleyince bölümler burada görünür.'}</p>`;
     } else {
-      html += '<ol>';
-      b.bolumler.forEach((c, ci) => {
-        const kinds = [...new Set(c.kaynaklar.map(s => s.tur))];
-        const [cls, label] = ST[c.durum];
-        html += `<li><button data-ch="${ci}"><span class="num">${ci + 1}</span><span><span class="tt">${esc(c.baslik)}</span>
-          <span class="icons">${kinds.map(k => `<span class="ic">${ICON[k]}${SRC_LABEL[k]}</span>`).join('')}<span class="st ${cls}">${label}</span></span></span></button></li>`;
+      units.forEach((u, ui) => {
+        html += `<h3 class="unit">${esc(u.baslik)}</h3><ol>`;
+        u.konular.forEach((t, ti) => {
+          // surum 1: the chapter's source types; surum 2: materials are known only when the topic opens
+          const kinds = [...new Set((t.kaynaklar ?? []).map(s => s.tur))];
+          const [cls, label] = ST[t.durum];
+          html += `<li><button data-u="${ui}" data-t="${ti}"><span class="num">${ti + 1}</span><span><span class="tt">${esc(t.baslik)}</span>
+            <span class="icons">${kinds.map(k => `<span class="ic">${ICON[k]}${SRC_LABEL[k]}</span>`).join('')}<span class="st ${cls}">${label}</span></span></span></button></li>`;
+        });
+        html += '</ol>';
       });
-      html += '</ol><div class="legend">Bölüme dokun: oraya git</div>';
+      html += '<div class="legend">Konuya dokun: oraya git</div>';
     }
     inn.innerHTML = html;
   }
   p.addEventListener('click', e => {
     const t = e.target as HTMLElement;
-    const ch = t.closest<HTMLElement>('[data-ch]');
-    if (ch) onChapter(Number(ch.dataset.ch));
+    const ch = t.closest<HTMLElement>('[data-t]');
+    if (ch) onChapter(Number(ch.dataset.u), Number(ch.dataset.t));
     else if (t.closest('[data-ribbon]')) toast('Kurdele Faz 3\'ün sonraki adımında geliyor.');
   });
   return p;

@@ -1,11 +1,13 @@
-import { SessionExpired } from '../drive/drive';
+import { SessionExpired, type DriveFile } from '../drive/drive';
 import type { Book, SourceType } from '../model/types';
 import { SourceResolver } from './kaynakCoz';
+import type { MaterialKind, TopicMaterials } from './konuKesfi';
 import { closePdf, openPdf } from './pdf';
 import { getPdf } from './pdfOnbellek';
 import { parsePageRange } from './sayfaAraligi';
 
-// A book's chapters and sources → one flat list of pages (see CLAUDE.md → Faz 3).
+// surum 1: a book's chapters and sources → one flat list of pages (see CLAUDE.md → Faz 3).
+// surum 2: one material of a topic → its pages (buildTopicPages).
 // Every PDF page is one page of the book (also a "claude"/"defter" source that is a PDF);
 // a notebook photo / link is one page.
 // A missing file doesn't break the book: it becomes one "Dosya bulunamadı" page.
@@ -41,15 +43,46 @@ export async function buildBookPages(book: Book, bookFolderId: string): Promise<
         const found = { bolumIndex, tur: src.tur, dosyaId: file.id, modifiedTime: file.modifiedTime, mimeType: file.mimeType, ad: src.dosya };
         if (src.tur !== 'pdf' && file.mimeType !== PDF_MIME) { pages.push(found); continue; }
 
-        const doc = await openPdf(await getPdf(file.id, file.modifiedTime));
-        const numbers = parsePageRange(src.sayfalar, doc.numPages);
-        await closePdf(doc);
-        for (const pdfSayfa of numbers) pages.push({ ...found, pdfSayfa });
+        pages.push(...await pdfPages(found, src.sayfalar));
       } catch (e) {
         if (e instanceof SessionExpired) throw e;
         console.warn(`${book.id}: "${src.dosya}" okunamadı.`, e);
         pages.push(missing());
       }
+    }
+  }
+  return pages;
+}
+
+// The PDF's pages (all, or the ones in sayfalar).
+async function pdfPages(found: BookPage, sayfalar?: string | number): Promise<BookPage[]> {
+  const doc = await openPdf(await getPdf(found.dosyaId!, found.modifiedTime!));
+  const numbers = parsePageRange(sayfalar, doc.numPages);
+  await closePdf(doc);
+  return numbers.map(pdfSayfa => ({ ...found, pdfSayfa }));
+}
+
+// surum 2: Orijinal / Özet → all their files in order; Übungen / Ödevler → the chosen file only.
+// Solutions are not included (buildSolutionPages, when "Çözümü göster" is on).
+export function buildTopicPages(m: TopicMaterials, kind: MaterialKind, fileIndex = 0): Promise<BookPage[]> {
+  const items = kind === 'uebungen' || kind === 'oedevler' ? m[kind].slice(fileIndex, fileIndex + 1) : m[kind];
+  return filesToPages(items.map(i => i.file));
+}
+
+export function buildSolutionPages(cozum: DriveFile): Promise<BookPage[]> {
+  return filesToPages([cozum]);
+}
+
+async function filesToPages(files: DriveFile[]): Promise<BookPage[]> {
+  const pages: BookPage[] = [];
+  for (const file of files) {   // one after the other (iPad)
+    const found: BookPage = { bolumIndex: 0, tur: 'pdf', dosyaId: file.id, modifiedTime: file.modifiedTime, mimeType: file.mimeType, ad: file.name };
+    try {
+      pages.push(...await pdfPages(found));
+    } catch (e) {
+      if (e instanceof SessionExpired) throw e;
+      console.warn(`"${file.name}" okunamadı.`, e);
+      pages.push({ bolumIndex: 0, tur: 'pdf', dosyaId: null, eksik: file.name });
     }
   }
   return pages;

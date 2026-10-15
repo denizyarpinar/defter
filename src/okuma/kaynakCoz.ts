@@ -15,11 +15,22 @@ export class SourceResolver {
   async resolve(dosya: string): Promise<ResolvedFile | null> {
     const parts = splitPath(dosya);
     if (!parts) return null;
-    let parent: string | null = this.bookFolderId;
-    for (let i = 0; i < parts.length - 1 && parent; i++) parent = await this.folder(parent, parts[i]);
+    const parent = await this.walk(parts.slice(0, -1));
     if (!parent) return null;
     const files = await listChildren(parent, { name: parts[parts.length - 1] });
     return files.find(f => f.mimeType !== FOLDER_MIME) ?? null;
+  }
+
+  // "Unite-01-Logik/Konu-01-Aussagenlogik" → the folder's Drive id (null: not there)
+  async resolveFolder(klasor: string): Promise<string | null> {
+    const parts = splitPath(klasor);
+    return parts ? this.walk(parts) : null;
+  }
+
+  private async walk(parts: string[]): Promise<string | null> {
+    let parent: string | null = this.bookFolderId;
+    for (let i = 0; i < parts.length && parent; i++) parent = await this.folder(parent, parts[i]);
+    return parent;
   }
 
   private folder(parentId: string, name: string): Promise<string | null> {

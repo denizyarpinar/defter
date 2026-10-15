@@ -52,6 +52,20 @@ export interface Chapter {
   extra: Extra;
 }
 
+// surum 2: a topic's files are found in its folder (see CLAUDE.md → Veri modeli (kitap.json surum 2))
+export interface Topic {
+  baslik: string;
+  klasor: string;       // path relative to the book's folder, e.g. "Unite-01-Logik/Konu-01-Aussagenlogik"
+  durum: ChapterStatus;
+  extra: Extra;
+}
+
+export interface Unit {
+  baslik: string;
+  konular: Topic[];
+  extra: Extra;
+}
+
 // kitaplar/<id>/kitap.json
 export interface Book {
   id: string;           // folder name
@@ -65,7 +79,8 @@ export interface Book {
   kapak: Cover;
   sonAcilis: string | null;   // ISO date
   kurdele: number | string | null;
-  bolumler: Chapter[];
+  bolumler: Chapter[];   // surum 1
+  uniteler: Unit[];      // surum 2
   extra: Extra;
 }
 

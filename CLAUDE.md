@@ -132,3 +132,16 @@ Kitaplık/
 ### Güvenlik
 - Ders PDF'leri telifli: public/ veya git'e asla girmez. Demo için kendi ürettiğin örnek PDF'leri kullan.
 - Faz 3'te kalem düğmesi gizli; çizim kodu Faz 4'te gelir.
+
+### Veri modeli (kitap.json surum 2)
+- `kitap.json`: `{ surum: 2, baslik, sirt, kod, ders, kapak, sonAcilis, kurdele, uniteler: [ { baslik, konular: [ { baslik, klasor, durum } ] } ] }`.
+- `klasor` kitabın klasörüne göre yoldur (ör. `Unite-01-Logik/Konu-01-Aussagenlogik`). Dosyalar kitap.json'da tek tek yazılmaz; konu klasörüne bakılarak bulunur.
+- Konu klasörü (dosya adları büyük/küçük harf duyarsız, ASCII):
+  - Orijinal: `orijinal.pdf`
+  - Özet: `ozet.pdf`; yoksa `brifing.pdf` ve varsa `sorular.pdf` arka arkaya
+  - Übungen: `Uebungen/` altındaki `*.pdf`, alfabetik
+  - Ödevler: `Oedevler/` altındaki `*.pdf`, alfabetik
+  - `X_cozum.pdf`, aynı klasördeki `X.pdf`'in çözümüdür; listede ayrı öğe olmaz.
+- Bulunmayan materyal gizlenir. Hiçbiri yoksa konu "Henüz materyal yok" gösterir.
+- surum 1 (düz `bolumler`) okunmaya devam eder: bölümler "Genel" adlı tek ünite altında birer konu olarak görünür; `kaynaklar` ve `sayfalar` aynen çalışır.
+- Okuyucuda konu açılınca sekmeler: Orijinal · Özet · Übungen · Ödevler. Varsayılan Özet (yoksa Orijinal, o da yoksa ilk bulunan).
