@@ -2,8 +2,8 @@
 <html lang="tr">
   <head>
     <meta charset="utf-8" />
-    <!-- maximum-scale=1: iPad doesn't zoom in when you tap a text field -->
-    <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover" />
+    <!-- no browser zoom (iPad often ignores this, so ui/sayfaZoom.ts also guards it); no zoom into text fields -->
+    <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
     <title>Defter</title>
     <meta name="description" content="Drive'daki notların, çalışma odandaki kitaplıkta." />
     <link rel="manifest" href="/manifest.webmanifest" />

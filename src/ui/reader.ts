@@ -4,6 +4,7 @@ import { cycleStatus, resumeOf, type Resume } from '../okuma/okumaDurumu';
 import { isOkuyucuOpen } from '../okuma/Okuyucu';
 import { isDark } from '../scene/units';
 import { esc } from './dom';
+import { viewSize } from './ekran';
 
 // Open book on the desk (2D overlay). Phase 1: title page + table of contents only.
 
@@ -93,9 +94,10 @@ function measure(): void {
   const r = $('#reader');
   const topH = r.querySelector<HTMLElement>('.r-top')!.offsetHeight;
   const botH = r.querySelector<HTMLElement>('.r-bottom')!.offsetHeight;
-  const avH = innerHeight - topH - botH - 34;
-  single = innerWidth < 760;
-  const w = single ? Math.min(innerWidth - 40, avH / PAGE_AR) : Math.min((innerWidth - 60) / 2, avH / PAGE_AR);
+  const { w: vw, h: vh } = viewSize();   // not innerWidth: wrong on a browser-zoomed iPad
+  const avH = vh - topH - botH - 34;
+  single = vw < 760;
+  const w = single ? Math.min(vw - 40, avH / PAGE_AR) : Math.min((vw - 60) / 2, avH / PAGE_AR);
   pw = Math.max(140, Math.floor(w));
   const spread = $('#spread');
   spread.style.width = (single ? pw : pw * 2) + 'px';

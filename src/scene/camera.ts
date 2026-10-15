@@ -1,4 +1,5 @@
 import { Vector3, type PerspectiveCamera } from 'three';
+import { viewSize } from '../ui/ekran';
 import { caseHeight } from './bookcase';
 import { requestRender } from './frame';
 import { tween } from './tween';
@@ -15,9 +16,10 @@ export interface Framing {
 
 // Camera position for each view; fits the target area to the current screen size.
 export function viewParams(camera: PerspectiveCamera, v: View, fr: Framing): ViewTarget {
-  const aspect = innerWidth / innerHeight, vf = camera.fov * Math.PI / 180;
+  const { w, h } = viewSize();
+  const aspect = w / h, vf = camera.fov * Math.PI / 180;
   const hf = 2 * Math.atan(Math.tan(vf / 2) * aspect);
-  const useV = (innerHeight - 130) / innerHeight;
+  const useV = (h - 130) / h;
   const fit = (halfW: number, halfH: number) => Math.max(halfH / Math.tan(vf * useV / 2), halfW / Math.tan(hf / 2));
   if (v === 'room') {
     const tgt = new Vector3(5.1, 1.55, 4.2), dir = new Vector3(1, 0.86, 1.08).normalize();

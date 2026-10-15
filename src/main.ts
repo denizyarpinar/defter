@@ -19,14 +19,15 @@ import { hideSaveState, initNotFound, initSaveState, setLibraryLoading, setNotFo
 import { closeReader, initReader, isReaderOpen, openReader, refreshReader } from './ui/reader';
 import { hideLogin, initLogin, setLoginBusy, setLoginError, setRememberedName, showLogin } from './ui/login';
 import { initTopBar, initUserBox, updateCrumb, updateModeButtons, updateUserBox, type LightMode } from './ui/topBar';
+import { installPageZoomGuard } from './ui/sayfaZoom';
 import { toast } from './ui/toast';
 
 const app = document.querySelector<HTMLElement>('#app')!;
 const stageEl = document.querySelector<HTMLElement>('#stage')!;
 const loading = document.querySelector<HTMLElement>('#loading')!;
 
-// Safari: two-finger pinch would zoom the whole page (the viewport tag alone doesn't stop it).
-for (const ev of ['gesturestart', 'gesturechange']) document.addEventListener(ev, e => e.preventDefault(), { passive: false });
+// iPad: the browser must not zoom the page (the viewport tag alone doesn't stop it); see ui/sayfaZoom.ts.
+installPageZoomGuard(() => scene?.resize());
 
 const MODE_FROM_DATA: Record<ModeKey, LightMode> = { otomatik: 'auto', gunduz: 'day', aksam: 'night' };
 const MODE_TO_DATA: Record<LightMode, ModeKey> = { auto: 'otomatik', day: 'gunduz', night: 'aksam' };
@@ -274,8 +275,11 @@ async function boot(): Promise<void> {
   // clock + automatic evening switch
   setInterval(() => { scene?.updateClock(); if (mode === 'auto') applyMode(); }, 20000);
 
+  // the stage's own size, not only window resize: iPad toolbars and rotation change it too
   let rt: number | undefined;
-  addEventListener('resize', () => { clearTimeout(rt); rt = window.setTimeout(() => scene?.resize(), 120); });
+  const resized = () => { clearTimeout(rt); rt = window.setTimeout(() => scene?.resize(), 120); };
+  addEventListener('resize', resized);
+  new ResizeObserver(resized).observe(stageEl);
 
   loading.hidden = true;
 }
