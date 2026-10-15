@@ -323,6 +323,43 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 .o-turn.out-l { transform: rotateY(-70deg); opacity: 0 }
 .o-turn.out-r { transform: rotateY(70deg) translateX(30%); opacity: 0 }
 
+/* task 3.4: zoom (prototype #zoom), page slider, contents panel */
+.o-zoom { perspective: 2400px; transform-origin: 50% 50% }
+.o-zoom.anim { transition: transform .28s cubic-bezier(.3, 0, .2, 1) }
+#okuyucu.zoomed .o-kitap { cursor: grab }
+#okuyucu.zoomed .o-scroll { overflow-x: auto }
+.o-scroll { touch-action: pan-x pan-y }
+.o-top, .o-bar, .o-foot { touch-action: pan-x }
+.o-pages { transform-origin: 0 0 }
+.o-page canvas.o-detail { position: absolute; width: auto; height: auto }
+.o-tocbtn { flex: none; width: 40px; height: 40px; margin-left: -6px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, .22); background: rgba(0, 0, 0, .18); color: #f5ecdf; font-size: 18px; line-height: 1 }
+.o-tocbtn[aria-expanded="true"] { background: rgba(255, 255, 255, .18) }
+.o-foot { padding: 6px 20px calc(env(safe-area-inset-bottom, 0px) + 8px); background: rgba(0, 0, 0, .2); border-top: 1px solid rgba(255, 255, 255, .08) }
+.o-foot[hidden] { display: none }
+.o-sl { position: relative; max-width: 760px; margin: 0 auto }
+.o-sl input { display: block; width: 100%; height: 36px; margin: 0; accent-color: #f5ecdf; background: none }
+.o-bubble { position: absolute; bottom: calc(100% + 4px); transform: translateX(-50%); max-width: min(320px, 80vw); padding: 6px 12px; border-radius: 10px;
+  background: #f5ecdf; color: #2a231d; font: 600 13px var(--ui); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-shadow: 0 6px 18px rgba(0, 0, 0, .3); pointer-events: none }
+.o-bubble[hidden] { display: none }
+.o-scrim { position: absolute; inset: 0; z-index: 30; background: rgba(0, 0, 0, .35); opacity: 0; transition: opacity .25s }
+.o-toc { position: absolute; top: 0; bottom: 0; left: 0; z-index: 31; width: min(340px, 85vw); display: flex; flex-direction: column; box-sizing: border-box;
+  padding: calc(env(safe-area-inset-top, 0px) + 10px) 0 env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  background: var(--paper, #f4ecdd); color: var(--ink, #2a231d); box-shadow: 8px 0 30px rgba(0, 0, 0, .3); transform: translateX(-105%); transition: transform .25s cubic-bezier(.3, 0, .2, 1); touch-action: pan-y }
+.o-scrim[hidden], .o-toc[hidden] { display: none }
+#okuyucu.toc-open .o-scrim { opacity: 1 }
+#okuyucu.toc-open .o-toc { transform: none }
+.o-tochead { display: flex; align-items: center; justify-content: space-between; padding: 0 12px 8px 18px }
+.o-tochead b { font: 600 22px var(--serif) }
+.o-tochead .o-close { color: var(--ink, #2a231d); border-color: rgba(0, 0, 0, .15); background: none }
+.o-toclist { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 0 10px 20px }
+.o-toclist h3 { margin: 14px 8px 6px; font: 600 12px var(--ui); letter-spacing: .1em; text-transform: uppercase; opacity: .6 }
+.o-toclist ol { list-style: none; margin: 0; padding: 0 }
+.o-toclist button { width: 100%; min-height: 44px; display: flex; align-items: center; gap: 10px; padding: 8px; border: 0; border-radius: 10px; background: none; color: inherit; text-align: left; font: 500 15px/1.25 var(--ui) }
+.o-toclist button:hover { background: rgba(0, 0, 0, .05) }
+.o-toclist button[aria-current="true"] { background: rgba(181, 82, 59, .14); font-weight: 600; box-shadow: inset 3px 0 0 var(--accent, #b5523b) }
+.o-toclist button.empty { opacity: .5 }
+.o-tst { flex: none; width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; font: 700 12px/1 var(--ui) }
+
 @media (max-width: 640px) {
   .brand { font-size: 22px }
   .crumb { display: none }

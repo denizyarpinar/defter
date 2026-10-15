@@ -79,6 +79,18 @@ export class BookView {
     if (s) this.fit(i, s.page);
   }
 
+  // Jump to the spread of page i without turning (page slider, contents; task 3.4).
+  goTo(i: number): void {
+    if (!this.left) return;
+    this.stop();
+    this.spread.querySelectorAll('.o-leaf, .o-turn').forEach(e => e.remove());
+    const n = this.host.count();
+    this.idx = spreadStart(Math.max(0, Math.min(i, n - 1)), this.single);
+    this.ensure();
+    this.place();
+    this.host.changed();
+  }
+
   // Turn one spread forward (1) or back (−1).
   flip(dir: 1 | -1): void {
     if (this.busy || !this.left) return;

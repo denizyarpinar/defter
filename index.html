@@ -99,6 +99,7 @@
         </div>
         <div id="okuyucu" hidden>
           <div class="o-top">
+            <button class="o-tocbtn" id="oTocBtn" type="button" aria-label="İçindekiler" aria-expanded="false" aria-controls="oToc">☰</button>
             <div class="o-title"><b id="oBook"></b><span id="oChap"></span></div>
             <div class="o-seg" id="oMode" role="group" aria-label="Okuma modu">
               <button type="button" data-m="kitap">Kitap</button><button type="button" data-m="pdf">PDF</button>
@@ -117,7 +118,18 @@
           <div class="o-scroll" id="oScroll">
             <div class="o-pages" id="oPages"></div>
           </div>
-          <div class="o-kitap" id="oKitap" hidden><div class="o-spread" id="oSpread"></div></div>
+          <div class="o-kitap" id="oKitap" hidden><div class="o-zoom" id="oZoom"><div class="o-spread" id="oSpread"></div></div></div>
+          <div class="o-foot" id="oFoot" hidden>
+            <div class="o-sl">
+              <input type="range" id="oSlider" min="1" max="1" value="1" step="1" aria-label="Sayfa" />
+              <div class="o-bubble" id="oBubble" hidden></div>
+            </div>
+          </div>
+          <div class="o-scrim" id="oScrim" hidden></div>
+          <aside class="o-toc" id="oToc" hidden aria-label="İçindekiler">
+            <div class="o-tochead"><b>İçindekiler</b><button class="o-close" id="oTocClose" type="button" aria-label="İçindekileri kapat">×</button></div>
+            <nav class="o-toclist" id="oTocList"></nav>
+          </aside>
         </div>
       </div>
 

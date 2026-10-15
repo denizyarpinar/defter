@@ -16,7 +16,7 @@ const ICON: Record<SourceType, string> = {
   link: '<svg viewBox="0 0 16 16"><path d="M6.5 9.5l3-3M7 4.5l1.5-1.5a2.8 2.8 0 0 1 4 4L11 8.5M9 11.5L7.5 13a2.8 2.8 0 0 1-4-4L5 7.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>'
 };
 const SRC_LABEL: Record<SourceType, string> = { pdf: 'PDF', defter: 'Defter', claude: 'Claude', link: 'Link' };
-const ST: Record<ChapterStatus, [cls: string, label: string]> = {
+export const ST: Record<ChapterStatus, [cls: string, label: string]> = {
   okunmadi: ['todo', 'Okunmadı'], calisildi: ['done', 'Çalışıldı'], tekrar: ['review', 'Tekrar']
 };
 

@@ -1,7 +1,8 @@
 import { SessionExpired } from '../drive/drive';
-import type { Book } from '../model/types';
+import type { Book, ChapterStatus } from '../model/types';
 import { bookUnits, usesUnits } from '../model/units';
 import { esc } from '../ui/dom';
+import { ST } from '../ui/reader';
 import { toast } from '../ui/toast';
 import { SourceResolver } from './kaynakCoz';
 import { visiblePages } from './kitapDuzen';
@@ -10,18 +11,24 @@ import { buildBookPages, buildSolutionPages, buildTopicPages, type BookPage } fr
 import { MATERIAL_LABEL, availableKinds, defaultKind, discoverTopic, type MaterialKind, type TopicMaterials } from './konuKesfi';
 import { PageContent, pageKind } from './sayfaIcerik';
 import { PAD_TOP, canvasSize, currentPage, layoutPages, visibleRange, type Layout } from './sanalListe';
+import { anchorPoint, covers, detailRect, pdfLeft, tapZone, visiblePart, type Rect } from './yakinlastirma';
+import { ZoomController } from './zoomKontrol';
 
 // Full-screen reader. PDF mode (task 3.2): pages one under the other.
 // Book mode (task 3.3, kitapModu.ts): two pages side by side, pages turn.
 // surum 1: all pages of the book. surum 2 (task 3.2b): one material of one topic, chosen with tabs.
 // Only the visible pages ±2 have a canvas / photo; the others are grey boxes of the right size.
+// Task 3.4: contents panel, page slider, zoom (zoomKontrol.ts); zoomed pages get a sharp "detail" canvas.
 
 const MAX_WIDTH = 760;   // prototype #pdfView: min(760px, 100vw − 32px)
 const SIDE = 16;
 
 const $ = <T extends HTMLElement>(s: string) => document.querySelector<T>(s)!;
 
-interface Mounted { release(): void }
+interface Mounted {
+  release(): void;
+  detail?(view: DOMRect | null): void;   // zoomed: draw the visible part sharp; null: free it
+}
 
 interface Prepared { pages: BookPage[]; ratios: number[] }
 
@@ -40,11 +47,13 @@ interface OpenTopic {
   solution: boolean;      // "Çözümü göster" is on
 }
 let topic: OpenTopic | null = null;
+let current = { unit: 0, topic: 0 };   // surum 2: the topic chosen last (also while it is loading)
 
 type Mode = 'kitap' | 'pdf';
 const MODE_KEY = 'defter.okumaModu';
 let mode: Mode = loadMode();
 let bookView: BookView | null = null;
+let zoom: ZoomController;
 
 function loadMode(): Mode {
   try { return localStorage.getItem(MODE_KEY) === 'pdf' ? 'pdf' : 'kitap'; } catch { return 'kitap'; }
@@ -53,14 +62,19 @@ function loadMode(): Mode {
 let open = false;
 let session = 0;               // increases on every open/close: late answers of an old one are ignored
 let book: Book | null = null;
+let folder = '';
 let pages: BookPage[] = [];
 let ratios: number[] = [];
 let content: PageContent | null = null;
 let layout: Layout = layoutPages([], 0);
-let width = 0;
+let baseWidth = 0;             // PDF mode: page width at 100 %
+let width = 0;                 // … at the current zoom
+let pageLeft = 0;              // x of the pages inside the scroll content
 let boxes: HTMLElement[] = [];
 const mounted = new Map<number, Mounted>();
 let onClosed: () => void = () => {};
+let sliding = false;
+let tocOpen = false;
 
 // PDF pages are drawn one at a time (iPad memory), the one nearest the current page first.
 const queue = new Map<number, () => Promise<void>>();
@@ -74,18 +88,23 @@ export function initOkuyucu(): void {
   let raf = 0;
   scroller.addEventListener('scroll', () => {
     if (!raf) raf = requestAnimationFrame(() => { raf = 0; update(); });
+    zoom.settleLater();
   }, { passive: true });
   // capture + stop: Esc must close only the reader, not the book behind it
   addEventListener('keydown', e => {
     if (!open) return;
-    if (e.key === 'Escape') { e.stopPropagation(); closeOkuyucu(); return; }
-    if (mode === 'kitap' && (e.key === 'ArrowRight' || e.key === 'ArrowLeft') && !(e.target instanceof HTMLSelectElement)) {
+    if (e.key === 'Escape') { e.stopPropagation(); if (tocOpen) closeToc(); else closeOkuyucu(); return; }
+    if (mode === 'kitap' && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')
+      && !(e.target instanceof HTMLSelectElement) && !(e.target instanceof HTMLInputElement)) {
       e.preventDefault();
-      bookView?.flip(e.key === 'ArrowRight' ? 1 : -1);
+      if (!zoom.zoomed) bookView?.flip(e.key === 'ArrowRight' ? 1 : -1);   // zoomed: the page stays
     }
   }, true);
   let rt: number | undefined;
-  addEventListener('resize', () => { clearTimeout(rt); rt = window.setTimeout(() => { if (open && pages.length) relayout(); }, 150); });
+  addEventListener('resize', () => {
+    clearTimeout(rt);
+    rt = window.setTimeout(() => { if (open && pages.length) { zoom.reset(); dropDetails(); relayout(); } }, 150);
+  });
 
   // surum 2: tabs, file chooser, solution (all stay on the same topic)
   $('#oTabs').addEventListener('click', e => {
@@ -121,28 +140,58 @@ export function initOkuyucu(): void {
     release: i => { mounted.get(i)?.release(); mounted.delete(i); queue.delete(i); },
     changed: () => { showPageNumber(); void drain(); },
   });
-  // book mode: tap the right half / swipe left → forward; left half / swipe right → back
+
+  // Zoom + book mode taps: a tap on the side turns the page, a swipe too (only at 100 %)
   const area = $('#oKitap');
-  let down: { x: number; y: number; id: number } | null = null;
-  area.addEventListener('pointerdown', e => {
-    down = (e.target as HTMLElement).closest('a, button') ? null : { x: e.clientX, y: e.clientY, id: e.pointerId };
-  });
-  area.addEventListener('pointercancel', () => { down = null; });
-  area.addEventListener('pointerup', e => {
-    if (!down || down.id !== e.pointerId) return;
-    const dx = e.clientX - down.x, dy = e.clientY - down.y;
-    down = null;
-    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.3) bookView?.flip(dx < 0 ? 1 : -1);
-    else if (Math.abs(dx) < 10 && Math.abs(dy) < 10) {
+  zoom = new ZoomController($('#okuyucu'), area, $('#oZoom'), scroller, $('#oPages'), {
+    mode: () => mode,
+    hasPages: () => open && pages.length > 0,
+    pdfZoom: (_z, x, y) => applyPdfZoom(x, y),
+    settled: sharpen,
+    tap: x => {
       const r = area.getBoundingClientRect();
-      bookView?.flip(e.clientX > r.left + r.width / 2 ? 1 : -1);
-    }
+      const zone = tapZone((x - r.left) / Math.max(1, r.width));
+      if (zone === 'middle') return false;
+      bookView?.flip(zone === 'next' ? 1 : -1);
+      return true;
+    },
+    swipe: dir => bookView?.flip(dir),
+  });
+
+  // Page slider: the bubble shows where you'd land, the reader follows while dragging
+  const slider = $<HTMLInputElement>('#oSlider');
+  let jump = 0;
+  slider.addEventListener('input', () => {
+    sliding = true;
+    showBubble();
+    if (!jump) jump = requestAnimationFrame(() => { jump = 0; goToPage(Number(slider.value) - 1); });
+  });
+  const endSlide = () => {
+    if (!sliding) return;
+    // a jump still waiting for its frame goes now (fast flick, keyboard), before the value is set back
+    if (jump) { cancelAnimationFrame(jump); jump = 0; goToPage(Number(slider.value) - 1); }
+    sliding = false;
+    $('#oBubble').hidden = true;
+    showPageNumber();
+  };
+  slider.addEventListener('change', endSlide);
+  slider.addEventListener('pointerup', endSlide);
+  slider.addEventListener('blur', endSlide);
+
+  // Contents: units → topics
+  $('#oTocBtn').addEventListener('click', () => { if (tocOpen) closeToc(); else openToc(); });
+  $('#oTocClose').addEventListener('click', closeToc);
+  $('#oScrim').addEventListener('click', closeToc);
+  $('#oTocList').addEventListener('click', e => {
+    const b = (e.target as HTMLElement).closest<HTMLElement>('[data-u]');
+    if (b && book) chooseTopic(Number(b.dataset.u), Number(b.dataset.t));
   });
 }
 
 function setMode(m: Mode): void {
   if (m === mode) return;
   const cur = pages.length ? focusPage() : 0;
+  zoom.reset();
   mode = m;
   try { localStorage.setItem(MODE_KEY, m); } catch { /* private window: not remembered */ }
   renderMode();
@@ -194,6 +243,93 @@ function showPageNumber(): void {
   if (!topic) $('#oChap').textContent = book!.bolumler[pages[cur].bolumIndex]?.baslik ?? '';
   const v = mode === 'kitap' ? visiblePages(cur, bookView?.single ?? true, n) : [cur];
   $('#oPno').textContent = v.length > 1 ? `${v[0] + 1}–${v[1] + 1} / ${n}` : `${cur + 1} / ${n}`;
+  $('#oFoot').hidden = n < 2;
+  const slider = $<HTMLInputElement>('#oSlider');
+  slider.max = String(n);
+  if (!sliding) slider.value = String(cur + 1);
+}
+
+// ---- page slider ----
+
+function pageTitle(i: number): string {
+  if (topic) return topic.title;
+  return book?.bolumler[pages[i]?.bolumIndex]?.baslik ?? '';
+}
+
+function showBubble(): void {
+  const slider = $<HTMLInputElement>('#oSlider'), b = $('#oBubble');
+  const i = Number(slider.value) - 1, n = pages.length;
+  const title = pageTitle(i);
+  b.textContent = title ? `s. ${i + 1} · ${title}` : `s. ${i + 1}`;
+  b.hidden = false;
+  // above the thumb (≈ 22 px wide), but not off the screen
+  const w = slider.clientWidth, half = b.offsetWidth / 2;
+  const x = 11 + (n > 1 ? i / (n - 1) : 0) * (w - 22);
+  b.style.left = Math.max(half - 12, Math.min(w - half + 12, x)) + 'px';
+}
+
+// Jump to page i (slider, contents): back to 100 % first.
+function goToPage(i: number): void {
+  if (!open || !pages.length) return;
+  i = Math.max(0, Math.min(pages.length - 1, i));
+  resetZoom();
+  if (mode === 'pdf') {
+    $('#oScroll').scrollTop = layout.tops[i] - PAD_TOP;
+    update();
+  } else bookView?.goTo(i);
+}
+
+// ---- contents panel ----
+
+const STATUS_ICON: Record<ChapterStatus, string> = { okunmadi: '•', calisildi: '✓', tekrar: '↻' };
+
+function openToc(): void {
+  if (!book) return;
+  renderToc();
+  $('#oToc').hidden = $('#oScrim').hidden = false;
+  tocOpen = true;
+  $('#oTocBtn').setAttribute('aria-expanded', 'true');
+  requestAnimationFrame(() => {
+    $('#okuyucu').classList.add('toc-open');
+    $('#oToc').querySelector<HTMLElement>('[aria-current="true"]')?.scrollIntoView({ block: 'center' });
+  });
+}
+
+function closeToc(): void {
+  if (!tocOpen) return;
+  tocOpen = false;
+  $('#okuyucu').classList.remove('toc-open');
+  $('#oTocBtn').setAttribute('aria-expanded', 'false');
+  setTimeout(() => { if (!tocOpen) $('#oToc').hidden = $('#oScrim').hidden = true; }, 260);
+}
+
+// surum 2: the topic chosen last; surum 1: the chapter of the page on screen.
+function currentTopic(): { unit: number; topic: number } {
+  if (!book || usesUnits(book) || !pages.length) return current;
+  return { unit: 0, topic: pages[focusPage()].bolumIndex };
+}
+
+function renderToc(): void {
+  const b = book!, cur = currentTopic(), v1 = !usesUnits(b);
+  const html = bookUnits(b).map((u, ui) => `<section><h3>${esc(u.baslik)}</h3><ol>${u.konular.map((t, ti) => {
+    const [cls, label] = ST[t.durum];
+    const on = cur.unit === ui && cur.topic === ti;
+    const empty = v1 && !t.kaynaklar?.length;
+    return `<li><button type="button" data-u="${ui}" data-t="${ti}"${on ? ' aria-current="true"' : ''}${empty ? ' class="empty"' : ''}>`
+      + `<span class="o-tst st ${cls}" title="${label}" aria-label="${label}">${STATUS_ICON[t.durum]}</span><span>${esc(t.baslik)}</span></button></li>`;
+  }).join('')}</ol></section>`).join('');
+  $('#oTocList').innerHTML = html || '<p class="o-msg">Bu kitapta henüz konu yok.</p>';
+}
+
+function chooseTopic(unit: number, ti: number): void {
+  const b = book!;
+  if (usesUnits(b)) { closeToc(); void openTopic(unit, ti); return; }
+  // surum 1: every chapter is in the same page list
+  if (!bookUnits(b)[unit]?.konular[ti]?.kaynaklar?.length) { toast('Bu bölümde henüz kaynak yok.'); return; }
+  const i = pages.findIndex(p => p.bolumIndex === ti);
+  if (i < 0) return;   // pages are still loading
+  closeToc();
+  goToPage(i);
 }
 
 // The book left the desk (or the library was reloaded): forget its pages.
@@ -213,9 +349,11 @@ export async function openOkuyucu(b: Book, folderId: string, unit: number, topic
   if (!v2 && !t.kaynaklar?.length) { toast('Bu bölümde henüz kaynak yok.'); return; }
   open = true;
   const my = ++session;
-  book = b; onClosed = closed;
+  book = b; folder = folderId; onClosed = closed;
+  current = { unit, topic: topicIndex };
   content = new PageContent();
   topic = null;
+  zoom.reset();
 
   $('#oBook').textContent = b.baslik;
   $('#oChap').textContent = t.baslik;
@@ -227,21 +365,7 @@ export async function openOkuyucu(b: Book, folderId: string, unit: number, topic
   el.hidden = false;
   requestAnimationFrame(() => el.classList.add('show'));
 
-  if (v2) {
-    try {
-      const m = await discover(folderId, t.klasor ?? '');
-      if (my !== session) return;
-      if (!m) { setMessage(`Konu klasörü bulunamadı: ${t.klasor}. Drive'da kitabın klasöründe bu klasörü oluştur ve yenile.`); return; }
-      const kind = defaultKind(m);
-      if (!kind) { setMessage('Henüz materyal yok.'); return; }
-      topic = { title: t.baslik, materials: m, kind, fileIndex: 0, solution: false };
-    } catch (e) {
-      if (my === session) loadFailed(e);
-      return;
-    }
-    await showMaterial();
-    return;
-  }
+  if (v2) { await openTopic(unit, topicIndex); return; }
 
   try {
     if (!prepared || prepared.book !== b || prepared.folderId !== folderId) {
@@ -282,10 +406,38 @@ function discover(folderId: string, klasor: string): Promise<TopicMaterials | nu
   return p;
 }
 
+// Open a topic (first open, or from the contents) with its default material.
+async function openTopic(unit: number, topicIndex: number): Promise<void> {
+  const t = book ? bookUnits(book)[unit]?.konular[topicIndex] : undefined;
+  if (!t) return;
+  const my = ++session;
+  current = { unit, topic: topicIndex };
+  topic = null;
+  zoom.reset();
+  releaseAll();
+  clearPages();
+  renderBar();
+  $('#oChap').textContent = t.baslik;
+  setMessage('Konu açılıyor…');
+  try {
+    const m = await discover(folder, t.klasor ?? '');
+    if (my !== session) return;
+    if (!m) { setMessage(`Konu klasörü bulunamadı: ${t.klasor}. Drive'da kitabın klasöründe bu klasörü oluştur ve yenile.`); return; }
+    const kind = defaultKind(m);
+    if (!kind) { setMessage('Henüz materyal yok.'); return; }
+    topic = { title: t.baslik, materials: m, kind, fileIndex: 0, solution: false };
+  } catch (e) {
+    if (my === session) loadFailed(e);
+    return;
+  }
+  await showMaterial();
+}
+
 // The chosen material of the open topic (+ its solution below it, when "Çözümü göster" is on).
 async function showMaterial(): Promise<void> {
   if (!topic || !content) return;
   const t = topic, my = ++session;
+  zoom.reset();
   releaseAll();
   clearPages();
   renderBar();
@@ -356,6 +508,7 @@ function clearPages(): void {
   $('#oPages').style.height = '0';
   bookView?.clear();
   $('#oPno').textContent = '';
+  $('#oFoot').hidden = true;
 }
 
 function showPages(p: BookPage[], r: number[], scrollTo: number, emptyText: string): void {
@@ -370,7 +523,9 @@ export function closeOkuyucu(): void {
   if (!open) return;
   open = false;
   session++;
+  closeToc();
   releaseAll();
+  zoom.reset();
   void content?.close();
   content = null;
   topic = null;
@@ -384,6 +539,7 @@ export function closeOkuyucu(): void {
     boxes = [];
   }, 300);
   pages = []; ratios = []; book = null;
+  $('#oFoot').hidden = true;
   onClosed();
 }
 
@@ -400,24 +556,34 @@ function measureWidth(): number {
 }
 
 function build(): void {
-  width = measureWidth();
-  layout = layoutPages(ratios, width);
-  const holder = $('#oPages');
-  holder.style.width = width + 'px';
-  holder.style.height = layout.total + 'px';
-  boxes = pages.map((p, i) => {
+  baseWidth = measureWidth();
+  boxes = pages.map(p => {
     const box = document.createElement('div');
     box.className = 'o-page';
     box.dataset.kind = pageKind(p);
-    place(box, i);
     return box;
   });
-  holder.replaceChildren(...boxes);
+  $('#oPages').replaceChildren(...boxes);
+  setPdfGeometry();
+}
+
+// PDF mode: page width = 100 % width × zoom; wider than the screen → the list scrolls sideways too.
+function setPdfGeometry(): void {
+  width = Math.round(baseWidth * zoom.z);
+  layout = layoutPages(ratios, width);
+  const g = pdfLeft($('#oScroll').clientWidth, width, SIDE);
+  pageLeft = g.left;
+  const holder = $('#oPages');
+  holder.style.width = g.holder + 'px';
+  holder.style.height = layout.total + 'px';
+  boxes.forEach(place);
 }
 
 function place(box: HTMLElement, i: number): void {
   box.style.top = layout.tops[i] + 'px';
   box.style.height = layout.heights[i] + 'px';
+  box.style.left = pageLeft + 'px';
+  box.style.width = width + 'px';
 }
 
 // New width (rotation) or a page got its real size: stay on the same spot of the same page.
@@ -426,16 +592,49 @@ function relayout(): void {
   const s = $('#oScroll');
   const cur = currentPage(layout, s.scrollTop, s.clientHeight);
   const into = (s.scrollTop - layout.tops[cur]) / Math.max(1, layout.heights[cur]);
-  const newWidth = measureWidth();
-  const sizeChanged = newWidth !== width;
-  width = newWidth;
-  layout = layoutPages(ratios, width);
-  $('#oPages').style.width = width + 'px';
-  $('#oPages').style.height = layout.total + 'px';
-  boxes.forEach(place);
+  const newBase = measureWidth();
+  const sizeChanged = newBase !== baseWidth;
+  baseWidth = newBase;
+  setPdfGeometry();
   if (sizeChanged) releaseAll();   // canvases were drawn for the old width
   s.scrollTop = layout.tops[cur] + into * layout.heights[cur];
   update();
+}
+
+// ---- zoom ----
+
+// Back to 100 % (jump to another page). PDF mode lays the pages out at their normal width again.
+function resetZoom(): void {
+  if (!zoom.zoomed) return;
+  zoom.reset();
+  dropDetails();
+  if (mode === 'pdf' && boxes.length) relayout();
+}
+
+// PDF mode, zoom changed (zoom.z): wider pages, the point under the finger stays where it is.
+// The canvases stay (drawn at 100 %, stretched by CSS) until sharpen() draws the visible part.
+function applyPdfZoom(cx: number, cy: number): void {
+  if (mode !== 'pdf' || !boxes.length) return;
+  const s = $('#oScroll'), r = s.getBoundingClientRect();
+  const ox = cx - r.left, oy = cy - r.top;
+  const from = { layout, left: pageLeft, width };
+  const p = { x: s.scrollLeft + ox, y: s.scrollTop + oy };
+  setPdfGeometry();
+  const q = anchorPoint(from, { layout, left: pageLeft, width }, p);
+  s.scrollLeft = q.x - ox;
+  s.scrollTop = q.y - oy;
+  update();
+}
+
+// The gesture is over: zoomed → visible PDF pages get a sharp canvas; 100 % → those are freed.
+function sharpen(): void {
+  if (!open) return;
+  const view = zoom.zoomed ? (mode === 'pdf' ? $('#oScroll') : $('#oKitap')).getBoundingClientRect() : null;
+  for (const m of mounted.values()) m.detail?.(view);
+}
+
+function dropDetails(): void {
+  for (const m of mounted.values()) m.detail?.(null);
 }
 
 // ---- virtual list ----
@@ -445,7 +644,8 @@ function update(): void {
   const s = $('#oScroll');
   const [first, last] = visibleRange(layout, s.scrollTop, s.clientHeight);
   for (const [i, m] of mounted) if (i < first || i > last) { m.release(); mounted.delete(i); queue.delete(i); }
-  for (let i = first; i <= last; i++) if (!mounted.has(i)) mount(i, boxes[i], width, layout.heights[i]);
+  // the canvas is drawn at 100 % size; zoom makes it sharp separately
+  for (let i = first; i <= last; i++) if (!mounted.has(i)) mount(i, boxes[i], width / zoom.z, layout.heights[i] / zoom.z);
   showPageNumber();
   void drain();
 }
@@ -486,25 +686,64 @@ function linkCard(url: string): string {
     <a class="o-open" href="${esc(url.trim())}" target="_blank" rel="noopener noreferrer">Bağlantıyı aç ↗</a>`;
 }
 
+interface Detail { canvas: HTMLCanvasElement; rect: Rect; pageW: number; job: { cancel(): void } | null }
+
+const freeCanvas = (c: HTMLCanvasElement) => { c.width = c.height = 0; c.remove(); };
+
 function mountPdf(i: number, p: BookPage, box: HTMLElement, cssW: number, cssH: number): void {
   const canvas = document.createElement('canvas');
   const { w, h } = canvasSize(cssW, cssH, devicePixelRatio);
   canvas.width = w; canvas.height = h;
   let job: { cancel(): void } | null = null;
+  // zoomed: a second canvas over the page with only the visible part, drawn at the zoomed size
+  let shown: Detail | null = null, pending: Detail | null = null;
+  const dropPending = () => { if (pending) { pending.job?.cancel(); freeCanvas(pending.canvas); pending = null; } };
+  const dropDetail = () => { dropPending(); if (shown) { freeCanvas(shown.canvas); shown = null; } };
   const release = () => {
+    dropDetail();
     job?.cancel(); job = null;
-    canvas.width = canvas.height = 0;   // Safari frees the canvas memory only like this
-    canvas.remove();
+    freeCanvas(canvas);   // Safari frees the canvas memory only like this
     box.classList.remove('ready');
   };
-  mounted.set(i, { release });
+  const detail = (view: DOMRect | null) => {
+    if (mounted.get(i)?.release !== release) return;
+    const b = box.getBoundingClientRect();
+    const vis = view && visiblePart(b, view);
+    if (!vis || !content || !box.classList.contains('ready')) { dropDetail(); return; }
+    const have = pending ?? shown;
+    if (have && Math.abs(have.pageW - b.width) < 2 && covers(have.rect, vis)) return;
+    dropPending();
+    const r = detailRect(vis, b.width, b.height, devicePixelRatio);
+    const c = document.createElement('canvas');
+    c.className = 'o-detail';
+    c.width = r.pw; c.height = r.ph;
+    Object.assign(c.style, { left: r.x * 100 + '%', top: r.y * 100 + '%', width: r.w * 100 + '%', height: r.h * 100 + '%' });
+    const d = content.drawPdf(p, c, r);
+    const mine: Detail = { canvas: c, rect: r, pageW: b.width, job: d };
+    pending = mine;
+    d.promise.then(() => {
+      if (pending !== mine) { freeCanvas(c); return; }
+      pending = null; mine.job = null;
+      box.append(c);
+      if (shown) freeCanvas(shown.canvas);
+      shown = mine;
+    }, e => {
+      if (pending === mine) pending = null;
+      freeCanvas(c);
+      if (!(e instanceof SessionExpired)) console.warn(`Sayfa ${i + 1} keskin çizilemedi.`, e);
+    });
+  };
+  mounted.set(i, { release, detail });
   queue.set(i, async () => {
     if (!content) return;
     const d = content.drawPdf(p, canvas);
     job = d;
     try {
       await d.promise;
-      if (mounted.get(i)?.release === release) { box.append(canvas); box.classList.add('ready'); }
+      if (mounted.get(i)?.release === release) {
+        box.prepend(canvas); box.classList.add('ready');
+        if (zoom.zoomed) zoom.settleLater();   // drawn while zoomed: make it sharp too
+      }
     } catch (e) {
       if (e instanceof SessionExpired) { closeOkuyucu(); return; }
       console.warn(`Sayfa ${i + 1} çizilemedi.`, e);

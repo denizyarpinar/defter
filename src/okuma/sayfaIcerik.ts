@@ -56,13 +56,20 @@ export class PageContent {
   }
 
   // Draws the PDF page into the canvas (its width/height are already set). cancel() stops it.
-  drawPdf(p: BookPage, canvas: HTMLCanvasElement): { promise: Promise<void>; cancel: () => void } {
+  // rect (0–1 fractions of the page): only that part, filling the canvas (sharp zoom, task 3.4).
+  drawPdf(p: BookPage, canvas: HTMLCanvasElement, rect?: { x: number; y: number; w: number }): { promise: Promise<void>; cancel: () => void } {
     let task: RenderTask | null = null, cancelled = false;
     const promise = (async () => {
       const page = await (await this.doc(p)).getPage(p.pdfSayfa!);
       if (cancelled) return;
       const base = page.getViewport({ scale: 1 });
-      task = page.render({ canvas, viewport: page.getViewport({ scale: canvas.width / base.width }) });
+      const r = rect ?? { x: 0, y: 0, w: 1 };
+      const scale = canvas.width / (r.w * base.width);
+      task = page.render({
+        canvas,
+        viewport: page.getViewport({ scale }),
+        transform: rect ? [1, 0, 0, 1, -r.x * base.width * scale, -r.y * base.height * scale] : undefined,
+      });
       try { await task.promise; } catch (e) { if (!cancelled) throw e; }
     })();
     return { promise, cancel: () => { cancelled = true; task?.cancel(); } };
