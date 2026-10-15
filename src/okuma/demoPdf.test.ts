@@ -38,14 +38,14 @@ const penTestUrl = Object.values(import.meta.glob<string>('/public/demo/kalem-te
 const penTestBytes = () => Uint8Array.from(atob(penTestUrl.split(',')[1]), c => c.charCodeAt(0));
 
 describe('kalem-testi.pdf', () => {
-  it('3 Defter notes (hidden by the reader) and 2 foreign notes (shown)', async () => {
+  it('15 Defter notes (hidden by the reader) and 2 foreign notes (shown)', async () => {
     const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
     const doc = await pdfjs.getDocument({ data: penTestBytes() }).promise;
     try {
-      expect(doc.numPages).toBe(2);
-      const annots = (await Promise.all([1, 2].map(async n => (await doc.getPage(n)).getAnnotations()))).flat();
+      expect(doc.numPages).toBe(6);
+      const annots = (await Promise.all([1, 2, 3, 4, 5, 6].map(async n => (await doc.getPage(n)).getAnnotations()))).flat();
       const ours = annots.filter(isDefterAnnotation), others = annots.filter(a => !isDefterAnnotation(a));
-      expect(ours.length).toBe(3);
+      expect(ours.length).toBe(3 + 4 * 3);   // pages 1–2, then pen + highlighter + dot on pages 3–6 (task 4.5)
       expect(others.map(a => `${a.subtype}/${a.titleObj?.str}`).sort()).toEqual(['Ink/GoodNotes', 'Square/Baska program']);
       for (const a of annots) expect(a.hasAppearance).toBe(true);
     } finally {

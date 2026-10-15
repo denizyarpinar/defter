@@ -1,5 +1,6 @@
 import type { PDFDocumentProxy, PDFPageProxy, RenderTask } from 'pdfjs-dist';
 import { SessionExpired, driveFetch, ok } from '../drive/drive';
+import { defterInks, type DefterInk, type ViewportLike } from '../kalem/cizimKatmani';
 import { hideDefterNotes, isDefterAnnotation } from '../kalem/defterNotu';
 import { noteRender } from '../ui/tani';
 import type { BookPage } from './kitapSayfalari';
@@ -11,7 +12,10 @@ import { getPdf } from './pdfOnbellek';
 
 export const A4 = 1.4142;   // height / width; cards and unknown sizes
 
-const HIDE_OWN_NOTES = hideDefterNotes();   // ?defterNot=goster: draw them too (task 4.4)
+const HIDE_OWN_NOTES = hideDefterNotes();   // ?defterNot=goster / ?cizimKontrol=1: draw them too (task 4.4)
+
+// A page's Defter strokes (task 4.5) and its viewport at scale 1 (the pen layer's coordinates)
+export interface DefterNotes { inks: DefterInk[]; viewport: ViewportLike }
 
 export type PageKind = 'pdf' | 'image' | 'link' | 'missing' | 'unsupported';
 
@@ -26,7 +30,7 @@ export function pageKind(p: BookPage): PageKind {
 export class PageContent {
   private docs = new Map<string, Promise<PDFDocumentProxy>>();
   private images = new Map<string, Promise<Blob>>();
-  private ownNotes = new WeakMap<PDFPageProxy, Promise<void>>();   // pdf.js keeps one proxy per page
+  private ownNotes = new WeakMap<PDFPageProxy, Promise<DefterNotes>>();   // pdf.js keeps one proxy per page
   private closed = false;
 
   // height / width of every page, before anything is drawn (so the list doesn't jump)
@@ -97,15 +101,30 @@ export class PageContent {
   // notes from other apps and form fields are drawn as before. Once per page, before its first
   // render, so the main and the zoom canvas both wait for it and the page isn't drawn twice.
   // Pages without Defter notes don't touch the storage (its hash is part of pdf.js's render cache).
-  private hideOwnNotes(doc: PDFDocumentProxy, page: PDFPageProxy): Promise<void> {
+  private async hideOwnNotes(doc: PDFDocumentProxy, page: PDFPageProxy): Promise<void> {
+    try {
+      await this.pageNotes(doc, page);
+    } catch {
+      // the page is still drawn (with the Defter notes); tried again next time
+    }
+  }
+
+  // Task 4.5: the Defter strokes of a page, for the pen layer. Same request as hideOwnNotes (asked once per page).
+  async defterNotes(p: BookPage): Promise<DefterNotes> {
+    const doc = await this.doc(p);
+    return this.pageNotes(doc, await doc.getPage(p.pdfSayfa!));
+  }
+
+  private pageNotes(doc: PDFDocumentProxy, page: PDFPageProxy): Promise<DefterNotes> {
     let h = this.ownNotes.get(page);
     if (!h) {
       h = page.getAnnotations({ intent: 'display' }).then(annots => {
-        for (const a of annots) if (isDefterAnnotation(a)) doc.annotationStorage.setValue(a.id, { noView: true });
-      }, e => {
-        // the page is still drawn (with the Defter notes); tried again next time
+        if (HIDE_OWN_NOTES) for (const a of annots) if (isDefterAnnotation(a)) doc.annotationStorage.setValue(a.id, { noView: true });
+        return { inks: defterInks(annots), viewport: page.getViewport({ scale: 1 }) };   // includes the page's rotation
+      });
+      h.catch(e => {
         if (!this.closed) console.warn('Sayfanın notları okunamadı.', e);
-        this.ownNotes.delete(page);
+        if (this.ownNotes.get(page) === h) this.ownNotes.delete(page);   // tried again next time
       });
       this.ownNotes.set(page, h);
     }

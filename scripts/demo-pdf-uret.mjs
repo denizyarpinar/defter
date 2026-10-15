@@ -1,7 +1,8 @@
 // Task 3.6: generates the demo PDFs in public/demo/ for the sample library (?demo).
 //   demo-dikey.pdf  64 pages, A4 portrait: a made-up course text with figures
 //   demo-slayt.pdf  24 slides, 16:9 landscape
-//   kalem-testi.pdf  2 pages with notes (task 4.4): Defter's own Ink notes + notes from "other apps"
+//   kalem-testi.pdf  6 pages with notes (task 4.4): Defter's own Ink notes + notes from "other apps";
+//                    pages 3–6 rotated / cropped, for the pen layer's alignment (task 4.5)
 // All text is written for this script: no copyrighted content, free to share.
 // The first two need no packages: a small PDF writer with the PDF's built-in Helvetica fonts
 // (ASCII text only, so nothing has to be embedded). kalem-testi.pdf is made with pdf-lib, and its
@@ -13,7 +14,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { deflateSync } from 'node:zlib';
-import { PDFDocument, PDFString, StandardFonts, rgb as libRgb } from 'pdf-lib';
+import { PDFDocument, PDFString, StandardFonts, degrees, rgb as libRgb } from 'pdf-lib';
 import { createServer } from 'vite';
 
 const OUT = join(dirname(fileURLToPath(import.meta.url)), '..', 'public', 'demo');
@@ -752,6 +753,53 @@ async function penTest() {
     InkList: [green], C: [0, 0.55, 0.2], BS: { W: 4, S: 'S' }, T: PDFString.of('GoodNotes')
   });
 
+  // Task 4.5: pages 3–6 check that the pen layer (SVG, reading mode) lands where pdf.js draws the
+  // notes: rotated 90 / 180 / 270 and a CropBox that doesn't start at 0 0. Thin grey lines in the
+  // page itself mark where each Defter stroke must be; open with ?cizimKontrol=1 to compare.
+  const GUIDE = libRgb(0.6, 0.6, 0.6);
+  const guide = (page, pts) => {
+    if (pts.length === 2) {
+      const [x, y] = pts;
+      page.drawLine({ start: { x: x - 8, y }, end: { x: x + 8, y }, thickness: 0.5, color: GUIDE });
+      page.drawLine({ start: { x, y: y - 8 }, end: { x, y: y + 8 }, thickness: 0.5, color: GUIDE });
+      return;
+    }
+    for (let k = 0; k + 3 < pts.length; k += 2) {
+      page.drawLine({ start: { x: pts[k], y: pts[k + 1] }, end: { x: pts[k + 2], y: pts[k + 3] }, thickness: 0.5, color: GUIDE });
+    }
+  };
+  const alignPages = [
+    { title: 'Pen test - page 3: rotated 90', rotate: 90 },
+    { title: 'Pen test - page 4: rotated 180', rotate: 180 },
+    { title: 'Pen test - page 5: rotated 270', rotate: 270 },
+    { title: 'Pen test - page 6: CropBox from 120 160', crop: [120, 160, 400, 560] }
+  ];
+  const alignStrokes = [];
+  for (const [n, a] of alignPages.entries()) {
+    const page = doc.addPage([595.28, 841.89]);
+    if (a.rotate) page.setRotation(degrees(a.rotate));
+    // inside the CropBox, the same shapes moved in: x 120–520, y 160–720
+    const [ox, oy] = a.crop ? [a.crop[0] + 20, a.crop[1] + 20] : [72, 120];
+    if (a.crop) page.setCropBox(...a.crop);
+    text(page, a.title, ox, oy + 500, 16, bold);
+    [
+      "The grey lines are part of the page. Defter's red pen line, yellow highlighter",
+      'and red dot must lie exactly on them. With ?cizimKontrol=1 a cyan dashed line',
+      "shows the reader's layer over pdf.js's own drawing of the notes."
+    ].forEach((l, i) => text(page, l, ox, oy + 470 - i * 16, 9));
+    text(page, 'Highlighted line: the quick brown fox', ox, oy + 380, 12);
+    // not symmetric (an L with a tail), so a wrong turn or a mirror shows at once
+    const penPts = [ox, oy + 300, ox, oy + 120, ox + 200, oy + 120, ox + 260, oy + 200];
+    const hlPts = [ox - 2, oy + 384, ox + 215, oy + 384];
+    const dotPts = [ox + 300, oy + 300];
+    guide(page, penPts); guide(page, hlPts); guide(page, dotPts);
+    alignStrokes.push([2 + n, [
+      { id: `demo-hiza-fosforlu-${n + 3}`, arac: 'fosforlu', renk: '#ffeb3b', kalinlik: 14, opaklik: 0.4, noktalar: hlPts },
+      { id: `demo-hiza-kalem-${n + 3}`, arac: 'kalem', renk: '#d32f2f', kalinlik: 3, opaklik: 1, noktalar: penPts },
+      { id: `demo-hiza-nokta-${n + 3}`, arac: 'kalem', renk: '#d32f2f', kalinlik: 6, opaklik: 1, noktalar: dotPts }
+    ]]);
+  }
+
   const base = await doc.save({ useObjectStreams: false });
 
   const vite = await createServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'error' });
@@ -763,7 +811,8 @@ async function penTest() {
         pen('demo-kalem-1', [80, 520, 120, 490, 160, 525, 200, 485, 240, 520, 270, 500]),
         { id: 'demo-fosforlu-1', arac: 'fosforlu', renk: '#ffeb3b', kalinlik: 14, opaklik: 0.4, noktalar: [70, 664, 505, 664] }
       ]],
-      [1, [pen('demo-kalem-2', [330, 520, 370, 600, 410, 520, 450, 600, 490, 520])]]
+      [1, [pen('demo-kalem-2', [330, 520, 370, 600, 410, 520, 450, 600, 490, 520])]],
+      ...alignStrokes
     ]), { simdi: FIXED });
   } finally {
     await vite.close();
@@ -773,5 +822,5 @@ async function penTest() {
 {
   const bytes = await penTest();
   writeFileSync(join(OUT, 'kalem-testi.pdf'), bytes);
-  console.log(`public/demo/kalem-testi.pdf: 2 pages, ${(bytes.length / 1024).toFixed(0)} kB`);
+  console.log(`public/demo/kalem-testi.pdf: 6 pages, ${(bytes.length / 1024).toFixed(0)} kB`);
 }

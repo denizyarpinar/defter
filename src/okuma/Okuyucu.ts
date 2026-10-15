@@ -1,4 +1,6 @@
 import { SessionExpired } from '../drive/drive';
+import { penLayerSvg } from '../kalem/cizimKatmani';
+import { penLayerMode } from '../kalem/defterNotu';
 import type { Book, ChapterStatus, PageMark } from '../model/types';
 import { bookUnits, usesUnits } from '../model/units';
 import { esc } from '../ui/dom';
@@ -26,6 +28,8 @@ import { ZoomController } from './zoomKontrol';
 // Only the visible pages ±2 have a canvas / photo; the others are grey boxes of the right size.
 // Task 3.4: contents panel, page slider, zoom (zoomKontrol.ts); zoomed pages get a sharp "detail" canvas.
 // Task 3.5: the page on screen becomes the ribbon, topics get "okunuyor" / "okundu" (okumaDurumu.ts).
+
+const PEN_LAYER = penLayerMode();   // task 4.5: ?cizimKontrol=1 / ?defterNot=goster
 
 const MAX_WIDTH = 760;   // prototype #pdfView: min(760px, 100vw − 32px)
 const SIDE = 16;
@@ -829,7 +833,9 @@ function mountPdf(i: number, p: BookPage, box: HTMLElement, cssW: number, cssH: 
     budget.delete(key);
     box.classList.remove('ready');
   };
-  const release = () => { gone = true; sleep(); };
+  // Task 4.5: Defter's strokes, an SVG layer over the canvases (no pixels: it stays while the page sleeps)
+  let penLayer: Element[] = [];
+  const release = () => { gone = true; sleep(); for (const e of penLayer) e.remove(); penLayer = []; };
   const mine = () => !gone && mounted.get(i)?.release === release;
 
   const draw = () => {
@@ -911,6 +917,17 @@ function mountPdf(i: number, p: BookPage, box: HTMLElement, cssW: number, cssH: 
   };
   mounted.set(i, { release, detail, detailWant, wake });
   draw();
+  if (PEN_LAYER !== 'kapali' && content) {
+    content.defterNotes(p).then(n => {
+      const svg = penLayerSvg(n.inks, n.viewport, PEN_LAYER);
+      if (!svg || !mine()) return;
+      box.insertAdjacentHTML('beforeend', svg);
+      penLayer = [...box.querySelectorAll(':scope > svg.o-cizim')];
+    }, e => {
+      // the page is shown without its strokes (warned in sayfaIcerik)
+      if (e instanceof SessionExpired && mine()) closeOkuyucu();
+    });
+  }
 }
 
 function mountImage(i: number, p: BookPage, box: HTMLElement): void {

@@ -286,6 +286,9 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 .o-page { position: absolute; left: 0; right: 0; background: #cfc8bd; box-shadow: 0 10px 26px rgba(0, 0, 0, .3); overflow: hidden }
 .o-page.ready { background: #fff var(--paperImg, none) }
 .o-page canvas, .o-page img { display: block; width: 100%; height: 100%; object-fit: contain }
+/* task 4.5: Defter's strokes over the page (and over the zoom canvas); highlighter multiplied with the page */
+.o-page svg.o-cizim { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1 }
+.o-page svg.o-cizim.fosforlu { mix-blend-mode: multiply }
 .o-card { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
   padding: 10%; text-align: center; color: #2a231d; font-size: 15px; overflow-wrap: anywhere }
 .o-card p { margin: 0 }
