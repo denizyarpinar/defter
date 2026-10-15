@@ -71,7 +71,7 @@ export class DriveError extends Error {
   }
 }
 
-async function ok(res: Response, what: string): Promise<Response> {
+export async function ok(res: Response, what: string): Promise<Response> {
   if (!res.ok) throw new DriveError(res.status, what);
   return res;
 }
@@ -80,16 +80,17 @@ export interface DriveFile {
   id: string;
   name: string;
   mimeType: string;
+  modifiedTime: string;   // ISO date; changes when the file content changes
 }
 
-// Value inside a Drive query string: escape \ and '.
-const qv = (s: string) => s.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+// Value inside a Drive query string: escape \ and ' (file names like "Deniz'in notları.pdf").
+export const qv = (s: string) => s.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 
 async function list(q: string, what: string): Promise<DriveFile[]> {
   const out: DriveFile[] = [];
   let pageToken = '';
   do {
-    const params = new URLSearchParams({ q, fields: 'nextPageToken,files(id,name,mimeType)', pageSize: '1000', orderBy: 'name' });
+    const params = new URLSearchParams({ q, fields: 'nextPageToken,files(id,name,mimeType,modifiedTime)', pageSize: '1000', orderBy: 'name' });
     if (pageToken) params.set('pageToken', pageToken);
     const res = await ok(await driveFetch('files?' + params), what);
     const j = await res.json() as { files?: DriveFile[]; nextPageToken?: string };

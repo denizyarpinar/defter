@@ -91,6 +91,10 @@ async function loadFromDrive(): Promise<void> {
     // the saver reads from the shared holder, whose contents useData replaces
     await useData(r, new DriveSaver(r.loc, data!, { saving: showSaving, saved: showSaved, failed: showSaveError }));
     if (r.warnings.length) toast(r.warnings[0]);
+    // dev only: ?test=pdf (&kitap=<kod>) checks the PDF pipeline (task 3.1); not in the build
+    if (import.meta.env.DEV && new URLSearchParams(location.search).get('test') === 'pdf') {
+      import('./okuma/testPdf').then(m => m.runPdfTest(r)).catch(e => console.error('[test=pdf]', e));
+    }
   } catch (e) {
     if (e instanceof LibraryNotFound) setNotFound(true);
     else toast(errorText(e));
