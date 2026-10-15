@@ -115,7 +115,7 @@ Kitaplık/
 
 ### PDF
 - PDF çizimi: pdfjs-dist (PDF.js). Worker Vite ile: import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'.
-- PDF Drive'dan files/{id}?alt=media ile indirilir (Authorization başlığıyla). Asla Drive'da kopyalanmaz, taşınmaz, değiştirilmez.
+- PDF Drive'dan files/{id}?alt=media ile indirilir (Authorization başlığıyla). PDF'ler Drive'da kopyalanmaz, taşınmaz, silinmez; değiştirilmesine sadece "Faz 4 — PDF'e çizim yazma (güvenlik)" kuralları çerçevesinde izin verilir.
 - İndirilen PDF'ler IndexedDB'de önbelleğe alınır; anahtar = dosya id + modifiedTime. Drive'da dosya değişince yenisi indirilir. Önbellek toplamı 500 MB'ı geçerse en eski açılanlar silinir.
 - Kaynak yolu (kaynak.dosya) kitabın klasörüne göre çözülür; alt klasörler (defter/...) desteklenir. Bulunamayan dosya kitabı bozmaz: o sayfa yerine "Dosya bulunamadı: <ad>" sayfası gösterilir.
 - sayfalar alanı: "3", "3-7", "1-2,5,9-11"; yoksa tüm PDF.
@@ -147,7 +147,7 @@ Kitaplık/
 
 ### Güvenlik
 - Ders PDF'leri telifli: public/ veya git'e asla girmez. Demo için kendi ürettiğin örnek PDF'leri kullan.
-- Faz 3'te kalem düğmesi gizli; çizim kodu Faz 4'te gelir.
+- Kalem düğmesi Faz 4'te çizim kodu gelene kadar gizli kalır. Çizim kodu Faz 4 kurallarına uyar (aşağıda).
 
 ### Veri modeli (kitap.json surum 2)
 - `kitap.json`: `{ surum: 2, baslik, sirt, kod, ders, kapak, sonAcilis, kurdele, uniteler: [ { baslik, konular: [ { baslik, klasor, durum, kurdeleler? } ] } ] }`.
@@ -161,3 +161,15 @@ Kitaplık/
 - Bulunmayan materyal gizlenir. Hiçbiri yoksa konu "Henüz materyal yok" gösterir.
 - surum 1 (düz `bolumler`) okunmaya devam eder: bölümler "Genel" adlı tek ünite altında birer konu olarak görünür; `kaynaklar` ve `sayfalar` aynen çalışır.
 - Okuyucuda konu açılınca sekmeler: Orijinal · Özet · Übungen · Ödevler. Varsayılan Özet (yoksa Orijinal, o da yoksa ilk bulunan).
+
+## Faz 4 — PDF'e çizim yazma (güvenlik)
+- Çizimler PDF'e standart Ink annotation (not) olarak yazılır; görünüm akışı (/AP) eklenir, böylece Drive önizlemesi, iPad ve Windows'ta görünür. Sayfa içeriğine (content stream) asla dokunulmaz.
+- Uygulamanın notları özel `/DefterId` anahtarıyla işaretlenir. Sadece /DefterId işaretli Ink annotation'lar eklenir/değişir/silinir. Sayfa içeriği, başka notlar, form alanları, metadata ve sayfa sırası korunur.
+- Aynı dosya id'sine PATCH (uploadType=media veya resumable). Asla yeni dosya veya kopya oluşturulmaz.
+- Yazmadan önce: capabilities.canEdit kontrolü; modifiedTime oku. Değişmişse son hali indir, bekleyen çizgileri onun üstüne yeniden uygula, tekrar dene. Kör üstüne yazma yok.
+- Çizgiler önce cihazda (IndexedDB) saklanır, Drive'a sonra yazılır. Sayfa kapanırken PDF yüklenmez (keepalive sınırı); bekleyen çizgiler bir sonraki açılışta yazılır.
+- Kayıttan sonra yeni modifiedTime ile PDF önbelleği ve bellekteki kopyalar güncellenir.
+- Demo/örnek kitaplıkta Drive'a yazma yok. Telifli ders PDF'leri asla public/ veya git'e girmez; testler demo PDF'lerle yapılır.
+- Mevcut `drive` kapsamı yeterli; yeni Google izni istenmez.
+- pdf-lib (tam sürüm 1.17.1) sadece kalem modu açılınca dinamik import (`await import('pdf-lib')`) ile yüklenir; ilk açılış paketine girmez.
+- Yedek yöntemi ayrı bir adımda kararlaştırılacak. Karar verilene kadar gerçek Drive PDF'ine yazma kodu çalıştırılmaz.
