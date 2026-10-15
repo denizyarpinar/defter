@@ -66,7 +66,7 @@ function expectSame(a: PageStrokes, b: PageStrokes) {
 
 describe('writeDefterStrokes / readDefterStrokes', () => {
   it('writes strokes on 2 pages and reads them back', async () => {
-    const strokes: PageStrokes = new Map([[0, [stroke('a1'), hl('a2')]], [2, [stroke('b1', { renk: '#ff0000', opaklik: 0.8, noktalar: [300, 300] })]]]);
+    const strokes: PageStrokes = new Map([[0, [stroke('a1'), hl('a2')]], [2, [stroke('b1', { renk: '#ff0000', noktalar: [300, 300] })]]]);
     const out = await writeDefterStrokes(await samplePdf(), strokes);
     expectSame(strokes, await readDefterStrokes(out));
   });
@@ -232,7 +232,7 @@ describe('PDFs that must not be written', () => {
 // Defter notes later (for hiding them from the canvas, next step).
 describe('pdf.js reads the notes', () => {
   it('Ink, inkLists, titleObj = Defter; reports whether /NM comes through', async () => {
-    const out = await writeDefterStrokes(await samplePdf(), new Map([[1, [stroke('pj', { noktalar: [100, 100, 200, 200] })]]]));
+    const out = await writeDefterStrokes(await samplePdf(), new Map([[0, [hl('ph')]], [1, [stroke('pj', { noktalar: [100, 100, 200, 200] })]]]));
     const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
     const doc = await pdfjs.getDocument({ data: out }).promise;
     try {
@@ -246,6 +246,19 @@ describe('pdf.js reads the notes', () => {
       expect(a.hasAppearance).toBe(true);
       // the GoodNotes Ink note is there too, without our title
       expect(annots.filter(x => x.subtype === 'Ink').length).toBe(2);
+
+      // task 4.4: enough to draw the stroke without pdf-lib (points, colour, width, opacity)
+      expect([...a.inkLists[0]]).toEqual([100, 100, 200, 200]);
+      expect([...a.color]).toEqual([0x1a, 0x2b, 0x3c]);
+      expect(a.borderStyle.width).toBeCloseTo(2.5, 2);
+      expect(a.opacity).toBe(1);
+      const hlNote = (await (await doc.getPage(1)).getAnnotations()).find(x => x.titleObj?.str === 'Defter');
+      expect(hlNote?.opacity).toBeCloseTo(0.4, 3);   // highlighter: opacity < 1 (pen is always 1)
+      // pdf.js sets borderStyle.width to 1 when it is more than half the Rect's height (a flat
+      // highlighter stroke): the written width is in borderStyle.rawWidth
+      expect(hlNote?.borderStyle.width).toBe(1);
+      expect(hlNote?.borderStyle.rawWidth).toBe(12);
+      expect(a.borderStyle.rawWidth).toBeCloseTo(2.5, 2);
 
       const nm = Object.entries(a).filter(([, v]) => typeof v === 'string' && v.startsWith('defter-')).map(([k]) => k);
       console.log(`[pdf.js] Defter notu alanları: ${Object.keys(a).sort().join(', ')}`);

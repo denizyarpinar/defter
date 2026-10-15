@@ -1,15 +1,20 @@
 // Task 3.6: generates the demo PDFs in public/demo/ for the sample library (?demo).
 //   demo-dikey.pdf  64 pages, A4 portrait: a made-up course text with figures
 //   demo-slayt.pdf  24 slides, 16:9 landscape
+//   kalem-testi.pdf  2 pages with notes (task 4.4): Defter's own Ink notes + notes from "other apps"
 // All text is written for this script: no copyrighted content, free to share.
-// No dependencies: a small PDF writer with the PDF's built-in Helvetica fonts (ASCII text only,
-// so nothing has to be embedded). The output is the same on every run.
+// The first two need no packages: a small PDF writer with the PDF's built-in Helvetica fonts
+// (ASCII text only, so nothing has to be embedded). kalem-testi.pdf is made with pdf-lib, and its
+// Defter notes with the app's own writer (src/kalem/pdfNotlari.ts, loaded through Vite).
+// The output is the same on every run.
 // Run: npm run demo-pdf
 
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { deflateSync } from 'node:zlib';
+import { PDFDocument, PDFString, StandardFonts, rgb as libRgb } from 'pdf-lib';
+import { createServer } from 'vite';
 
 const OUT = join(dirname(fileURLToPath(import.meta.url)), '..', 'public', 'demo');
 
@@ -691,4 +696,82 @@ for (const [name, pages, title] of [
 ]) {
   const size = writePdf(join(OUT, name), pages, title);
   console.log(`public/demo/${name}: ${pages.length} pages, ${(size / 1024).toFixed(0)} kB`);
+}
+
+// ---- kalem-testi.pdf (task 4.4) ----
+// The reader leaves Defter's own notes (Ink, author "Defter") out of the page; notes from other
+// apps stay. With ?defterNot=goster in the address, the Defter notes are drawn too.
+
+const FIXED = new Date(Date.UTC(2026, 9, 15, 12, 0, 0));
+
+async function penTest() {
+  const doc = await PDFDocument.create();
+  doc.setTitle(`${COURSE} (pen test)`);
+  doc.setAuthor('Defter demo');
+  doc.setProducer('scripts/demo-pdf-uret.mjs');
+  doc.setCreator('scripts/demo-pdf-uret.mjs');
+  doc.setCreationDate(FIXED);
+  doc.setModificationDate(FIXED);
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const bold = await doc.embedFont(StandardFonts.HelveticaBold);
+  const ctx = doc.context;
+  const text = (page, str, x, y, size = 12, f = font) => page.drawText(str, { x, y, size, font: f, color: libRgb(0.15, 0.15, 0.2) });
+
+  // a note from another app, with its own appearance stream (so every viewer draws it the same)
+  const foreign = (page, subtype, rect, ap, extra) => {
+    const [x0, y0, x1, y1] = rect;
+    const n = ctx.register(ctx.flateStream(ap, { Type: 'XObject', Subtype: 'Form', BBox: [x0, y0, x1, y1] }));
+    const ref = ctx.register(ctx.obj({ Type: 'Annot', Subtype: subtype, Rect: rect, F: 4, M: PDFString.of('D:20261015120000Z'), AP: { N: n }, ...extra }));
+    page.node.addAnnot(ref);
+  };
+
+  const p1 = doc.addPage([595.28, 841.89]);
+  text(p1, 'Pen test - page 1', 72, 770, 22, bold);
+  [
+    "This page checks that the reader hides Defter's own notes and keeps the others.",
+    'Normally you see only the blue box on the right (a note from another program).',
+    'With ?defterNot=goster in the address you also see a red pen line and a yellow',
+    "highlighter stroke over this line of text - those are Defter's own Ink notes."
+  ].forEach((l, i) => text(p1, l, 72, 720 - i * 20));
+  text(p1, 'Defter pen line (hidden):', 72, 560);
+  text(p1, 'Note from another program (always visible):', 300, 560);
+  foreign(p1, 'Square', [330, 420, 520, 530], '0 0 0.8 RG 3 w 331.5 421.5 187 107 re S\n', {
+    C: [0, 0, 0.8], BS: { W: 3, S: 'S' }, T: PDFString.of('Baska program'), Contents: PDFString.of('Square note from another program')
+  });
+
+  const p2 = doc.addPage([595.28, 841.89]);
+  text(p2, 'Pen test - page 2', 72, 770, 22, bold);
+  [
+    'Two Ink notes. The green one on the left comes from another program (author "GoodNotes")',
+    "and is always visible. The red one on the right is Defter's (author 'Defter'):",
+    'hidden normally, visible with ?defterNot=goster.'
+  ].forEach((l, i) => text(p2, l, 72, 720 - i * 20));
+  const green = [90, 520, 130, 600, 170, 520, 210, 600, 250, 520];
+  const greenPath = `${green[0]} ${green[1]} m ` + green.slice(2).reduce((a, v, i) => a + (i % 2 ? `${v} l ` : `${v} `), '');
+  foreign(p2, 'Ink', [80, 510, 260, 610], `0 0.55 0.2 RG 4 w 1 J 1 j ${greenPath}S\n`, {
+    InkList: [green], C: [0, 0.55, 0.2], BS: { W: 4, S: 'S' }, T: PDFString.of('GoodNotes')
+  });
+
+  const base = await doc.save({ useObjectStreams: false });
+
+  const vite = await createServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'error' });
+  try {
+    const { writeDefterStrokes } = await vite.ssrLoadModule('/src/kalem/pdfNotlari.ts');
+    const pen = (id, noktalar) => ({ id, arac: 'kalem', renk: '#d32f2f', kalinlik: 3, opaklik: 1, noktalar });
+    return await writeDefterStrokes(base, new Map([
+      [0, [
+        pen('demo-kalem-1', [80, 520, 120, 490, 160, 525, 200, 485, 240, 520, 270, 500]),
+        { id: 'demo-fosforlu-1', arac: 'fosforlu', renk: '#ffeb3b', kalinlik: 14, opaklik: 0.4, noktalar: [70, 664, 505, 664] }
+      ]],
+      [1, [pen('demo-kalem-2', [330, 520, 370, 600, 410, 520, 450, 600, 490, 520])]]
+    ]), { simdi: FIXED });
+  } finally {
+    await vite.close();
+  }
+}
+
+{
+  const bytes = await penTest();
+  writeFileSync(join(OUT, 'kalem-testi.pdf'), bytes);
+  console.log(`public/demo/kalem-testi.pdf: 2 pages, ${(bytes.length / 1024).toFixed(0)} kB`);
 }

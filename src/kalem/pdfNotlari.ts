@@ -1,4 +1,5 @@
 import type { PDFArray, PDFContext, PDFDict, PDFDocument, PDFObject, PDFRef } from 'pdf-lib';
+import { TITLE } from './defterNotu';
 import { hexToRgb, rgbToHex, strokeBounds, validateStroke, type PageStrokes, type Stroke, type StrokeTool } from './cizgi';
 
 // Pen strokes as PDF Ink annotations (Faz 4, task 4.3). Nothing calls this yet.
@@ -25,7 +26,6 @@ const ENCRYPTED = 'Bu PDF şifreli olduğu için çizimler kaydedilemiyor. Şifr
 const UNREADABLE = 'Bu PDF okunamadı, o yüzden çizimler kaydedilemiyor. Dosya bozuk olabilir; Drive\'da açılıp açılmadığına bak.';
 const SIGNED = 'Bu PDF dijital imzalı; çizim kaydedilirse imza bozulur.';
 
-const TITLE = 'Defter';
 const NM_PREFIX = 'defter-';
 
 // Up to 2 decimals: 0.01 pt is far below what a pen can draw

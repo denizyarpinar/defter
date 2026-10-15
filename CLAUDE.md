@@ -174,3 +174,4 @@ Kitaplık/
 - Mevcut `drive` kapsamı yeterli; yeni Google izni istenmez.
 - pdf-lib (tam sürüm 1.17.1) sadece kalem modu açılınca dinamik import (`await import('pdf-lib')`) ile yüklenir; ilk açılış paketine girmez.
 - Yedek: ilk yazmadan önce head sürüm keepForever=true yapılır (ensureOriginalKept). Gerçek Drive PDF'ine ilk deneme Deniz'in onayıyla, test kitabında yapılır.
+- Okuma modunda Defter notları (Ink + /T "Defter") pdf.js canvas'ında çizilmez (annotationMode ENABLE_STORAGE + noView); başka programların notları görünür. Çizgiler okuma modunda getAnnotations verisiyle gösterilir (kalınlık: borderStyle.rawWidth; opaklık < 1 → fosforlu). Kalem modunda id ve araç pdf-lib readDefterStrokes ile kesin okunur. Kalemin opaklığı her zaman 1, fosforlununki 0–1 arası (1 hariç). Hata ayıklama: ?defterNot=goster.

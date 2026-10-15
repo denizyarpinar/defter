@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { isDefterAnnotation } from '../kalem/defterNotu';
 
 // Task 3.6: the generated demo PDFs (npm run demo-pdf). The page objects are not compressed,
 // so their count and size can be read from the file as text.
@@ -27,6 +28,28 @@ describe('demo PDFs', () => {
     for (const name of ['demo-dikey.pdf', 'demo-slayt.pdf']) {
       const pdf = read(name);
       expect(Number(pdf.match(/\/Type \/Pages .*?\/Count (\d+)/)?.[1])).toBe(pages(pdf));
+    }
+  });
+});
+
+// Task 4.4: kalem-testi.pdf has Defter's own notes and notes from "other apps", all with appearances
+// ?inline gives the file as a base64 data URL (binary-safe, unlike ?raw)
+const penTestUrl = Object.values(import.meta.glob<string>('/public/demo/kalem-testi.pdf', { eager: true, query: '?inline', import: 'default' }))[0];
+const penTestBytes = () => Uint8Array.from(atob(penTestUrl.split(',')[1]), c => c.charCodeAt(0));
+
+describe('kalem-testi.pdf', () => {
+  it('3 Defter notes (hidden by the reader) and 2 foreign notes (shown)', async () => {
+    const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+    const doc = await pdfjs.getDocument({ data: penTestBytes() }).promise;
+    try {
+      expect(doc.numPages).toBe(2);
+      const annots = (await Promise.all([1, 2].map(async n => (await doc.getPage(n)).getAnnotations()))).flat();
+      const ours = annots.filter(isDefterAnnotation), others = annots.filter(a => !isDefterAnnotation(a));
+      expect(ours.length).toBe(3);
+      expect(others.map(a => `${a.subtype}/${a.titleObj?.str}`).sort()).toEqual(['Ink/GoodNotes', 'Square/Baska program']);
+      for (const a of annots) expect(a.hasAppearance).toBe(true);
+    } finally {
+      await doc.loadingTask.destroy();
     }
   });
 });

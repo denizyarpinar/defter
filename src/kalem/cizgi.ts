@@ -29,6 +29,9 @@ export function validateStroke(s: Stroke): void {
   if (!HEX.test(s.renk)) bad(`renk "${s.renk}"`);
   if (!(Number.isFinite(s.kalinlik) && s.kalinlik > 0)) bad(`kalınlık ${s.kalinlik}`);
   if (!(Number.isFinite(s.opaklik) && s.opaklik > 0 && s.opaklik <= 1)) bad(`opaklık ${s.opaklik}`);
+  // the reader tells the tools apart by opacity alone (pdf.js doesn't give /DefterArac): pen 1, highlighter < 1
+  if (s.arac === 'kalem' && s.opaklik !== 1) bad(`kalem opaklığı 1 olmalı (${s.opaklik})`);
+  if (s.arac === 'fosforlu' && s.opaklik === 1) bad(`fosforlu opaklığı 1'den küçük olmalı`);
   if (s.noktalar.length < 2 || s.noktalar.length % 2 !== 0) bad('nokta sayısı');
   if (!s.noktalar.every(Number.isFinite)) bad('nokta sayı değil');
 }

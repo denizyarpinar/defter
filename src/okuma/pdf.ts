@@ -4,7 +4,7 @@ import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 // PDF.js in one place. It is loaded only when the first PDF opens (task 3.6): the room starts
 // without it, and the build keeps it in its own chunk. The worker is a separate file as before.
 let lib: Promise<typeof import('pdfjs-dist')> | null = null;
-function pdfjs(): Promise<typeof import('pdfjs-dist')> {
+export function pdfjs(): Promise<typeof import('pdfjs-dist')> {
   lib ??= import('pdfjs-dist').then(m => {
     m.GlobalWorkerOptions.workerSrc = workerUrl;
     return m;

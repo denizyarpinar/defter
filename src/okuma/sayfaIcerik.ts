@@ -1,14 +1,17 @@
-import type { PDFDocumentProxy, RenderTask } from 'pdfjs-dist';
+import type { PDFDocumentProxy, PDFPageProxy, RenderTask } from 'pdfjs-dist';
 import { SessionExpired, driveFetch, ok } from '../drive/drive';
+import { hideDefterNotes, isDefterAnnotation } from '../kalem/defterNotu';
 import { noteRender } from '../ui/tani';
 import type { BookPage } from './kitapSayfalari';
-import { closePdf, openPdf } from './pdf';
+import { closePdf, openPdf, pdfjs } from './pdf';
 import { getPdf } from './pdfOnbellek';
 
 // What goes on a page of the reader: PDF pages, notebook photos, or a card (link, missing file).
 // One PageContent per open reader; close() frees the PDFs in the worker.
 
 export const A4 = 1.4142;   // height / width; cards and unknown sizes
+
+const HIDE_OWN_NOTES = hideDefterNotes();   // ?defterNot=goster: draw them too (task 4.4)
 
 export type PageKind = 'pdf' | 'image' | 'link' | 'missing' | 'unsupported';
 
@@ -23,6 +26,7 @@ export function pageKind(p: BookPage): PageKind {
 export class PageContent {
   private docs = new Map<string, Promise<PDFDocumentProxy>>();
   private images = new Map<string, Promise<Blob>>();
+  private ownNotes = new WeakMap<PDFPageProxy, Promise<void>>();   // pdf.js keeps one proxy per page
   private closed = false;
 
   // height / width of every page, before anything is drawn (so the list doesn't jump)
@@ -62,7 +66,10 @@ export class PageContent {
   drawPdf(p: BookPage, canvas: HTMLCanvasElement, rect?: { x: number; y: number; w: number }): { promise: Promise<void>; cancel: () => void; cancelled: () => boolean } {
     let task: RenderTask | null = null, cancelled = false;
     const promise = (async () => {
-      const page = await (await this.doc(p)).getPage(p.pdfSayfa!);
+      const doc = await this.doc(p);
+      const page = await doc.getPage(p.pdfSayfa!);
+      if (HIDE_OWN_NOTES) await this.hideOwnNotes(doc, page);
+      const { AnnotationMode } = await pdfjs();
       if (cancelled) return;
       const base = page.getViewport({ scale: 1 });
       const r = rect ?? { x: 0, y: 0, w: 1 };
@@ -71,6 +78,7 @@ export class PageContent {
         canvas,
         viewport: page.getViewport({ scale }),
         transform: rect ? [1, 0, 0, 1, -r.x * base.width * scale, -r.y * base.height * scale] : undefined,
+        annotationMode: AnnotationMode.ENABLE_STORAGE,   // notes are drawn, except those marked noView below
       });
       const t0 = performance.now();
       try { await task.promise; } catch (e) { if (!cancelled) throw e; return; }
@@ -83,6 +91,25 @@ export class PageContent {
       }
     })();
     return { promise, cancel: () => { cancelled = true; task?.cancel(); }, cancelled: () => cancelled };
+  }
+
+  // Task 4.4: Defter's own Ink notes are left out of the canvas (the pen layer draws them);
+  // notes from other apps and form fields are drawn as before. Once per page, before its first
+  // render, so the main and the zoom canvas both wait for it and the page isn't drawn twice.
+  // Pages without Defter notes don't touch the storage (its hash is part of pdf.js's render cache).
+  private hideOwnNotes(doc: PDFDocumentProxy, page: PDFPageProxy): Promise<void> {
+    let h = this.ownNotes.get(page);
+    if (!h) {
+      h = page.getAnnotations({ intent: 'display' }).then(annots => {
+        for (const a of annots) if (isDefterAnnotation(a)) doc.annotationStorage.setValue(a.id, { noView: true });
+      }, e => {
+        // the page is still drawn (with the Defter notes); tried again next time
+        if (!this.closed) console.warn('Sayfanın notları okunamadı.', e);
+        this.ownNotes.delete(page);
+      });
+      this.ownNotes.set(page, h);
+    }
+    return h;
   }
 
   // The photo's bytes; kept while the reader is open (the browser decodes it only when shown).
