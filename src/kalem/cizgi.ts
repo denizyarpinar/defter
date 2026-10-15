@@ -1,0 +1,59 @@
+// A pen stroke (Faz 4, task 4.3). Coordinates are in PDF user space (pt, unrotated page),
+// so they don't depend on zoom or page rotation; turning them into screen pixels is the
+// drawing layer's job (pdf.js viewport).
+// The width is constant along the stroke for now. Pressure can be added later as an optional
+// field (e.g. basinc?: number[], one 0–1 value per point) without changing these fields.
+
+export type StrokeTool = 'kalem' | 'fosforlu';
+export const STROKE_TOOLS: readonly StrokeTool[] = ['kalem', 'fosforlu'];
+
+export interface Stroke {
+  id: string;           // unique; the caller makes it (crypto.randomUUID)
+  arac: StrokeTool;
+  renk: string;         // '#rrggbb'
+  kalinlik: number;     // line width in pt, > 0
+  opaklik: number;      // 0 < x ≤ 1
+  noktalar: number[];   // x,y,x,y… in PDF user space (pt)
+}
+
+// Page index (0-based) → the Defter strokes on that page.
+export type PageStrokes = Map<number, Stroke[]>;
+
+const HEX = /^#[0-9a-f]{6}$/i;
+
+// Throws for data the writer must not put into a PDF (a bug in the caller, not a user error).
+export function validateStroke(s: Stroke): void {
+  const bad = (why: string) => { throw new Error(`Geçersiz çizgi ${s.id || '(id yok)'}: ${why}`); };
+  if (typeof s.id !== 'string' || !s.id) bad('id boş');
+  if (!STROKE_TOOLS.includes(s.arac)) bad(`araç "${s.arac}"`);
+  if (!HEX.test(s.renk)) bad(`renk "${s.renk}"`);
+  if (!(Number.isFinite(s.kalinlik) && s.kalinlik > 0)) bad(`kalınlık ${s.kalinlik}`);
+  if (!(Number.isFinite(s.opaklik) && s.opaklik > 0 && s.opaklik <= 1)) bad(`opaklık ${s.opaklik}`);
+  if (s.noktalar.length < 2 || s.noktalar.length % 2 !== 0) bad('nokta sayısı');
+  if (!s.noktalar.every(Number.isFinite)) bad('nokta sayı değil');
+}
+
+// The stroke's bounds, grown by half the line width (round caps reach that far) plus 1 pt.
+export function strokeBounds(s: Stroke): [number, number, number, number] {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (let i = 0; i < s.noktalar.length; i += 2) {
+    const x = s.noktalar[i], y = s.noktalar[i + 1];
+    if (x < x0) x0 = x;
+    if (x > x1) x1 = x;
+    if (y < y0) y0 = y;
+    if (y > y1) y1 = y;
+  }
+  const pad = s.kalinlik / 2 + 1;
+  return [x0 - pad, y0 - pad, x1 + pad, y1 + pad];
+}
+
+// '#rrggbb' ↔ [r, g, b] in 0–1 (the PDF /C array)
+export function hexToRgb(hex: string): [number, number, number] {
+  const n = parseInt(hex.slice(1), 16);
+  return [(n >> 16 & 255) / 255, (n >> 8 & 255) / 255, (n & 255) / 255];
+}
+
+export function rgbToHex(rgb: readonly number[]): string {
+  const c = (v: number | undefined) => Math.round(Math.min(1, Math.max(0, v ?? 0)) * 255).toString(16).padStart(2, '0');
+  return '#' + c(rgb[0]) + c(rgb[1]) + c(rgb[2]);
+}
