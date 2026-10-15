@@ -71,7 +71,7 @@ export class DriveError extends Error {
   }
 }
 
-async function ok(res: Response, what: string): Promise<Response> {
+export async function ok(res: Response, what: string): Promise<Response> {
   if (!res.ok) throw new DriveError(res.status, what);
   return res;
 }
@@ -80,16 +80,17 @@ export interface DriveFile {
   id: string;
   name: string;
   mimeType: string;
+  modifiedTime: string;   // ISO date; changes when the file content changes
 }
 
-// Value inside a Drive query string: escape \ and '.
-const qv = (s: string) => s.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+// Value inside a Drive query string: escape \ and ' (file names like "Deniz'in notları.pdf").
+export const qv = (s: string) => s.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 
 async function list(q: string, what: string): Promise<DriveFile[]> {
   const out: DriveFile[] = [];
   let pageToken = '';
   do {
-    const params = new URLSearchParams({ q, fields: 'nextPageToken,files(id,name,mimeType)', pageSize: '1000', orderBy: 'name' });
+    const params = new URLSearchParams({ q, fields: 'nextPageToken,files(id,name,mimeType,modifiedTime)', pageSize: '1000', orderBy: 'name' });
     if (pageToken) params.set('pageToken', pageToken);
     const res = await ok(await driveFetch('files?' + params), what);
     const j = await res.json() as { files?: DriveFile[]; nextPageToken?: string };
@@ -119,12 +120,30 @@ export async function readJson(fileId: string, what: string): Promise<unknown> {
   try { return JSON.parse(text); } catch { return {}; }
 }
 
-// Replace the content of an existing file.
-export async function updateJson(fileId: string, obj: unknown, what: string): Promise<void> {
+// File content as JSON for writing back: broken JSON is an error (never write over a file we couldn't read).
+export async function readJsonStrict(fileId: string, what: string): Promise<unknown> {
+  const res = await ok(await driveFetch(`files/${encodeURIComponent(fileId)}?alt=media`), what);
+  try { return JSON.parse(await res.text()); } catch { throw new BrokenJson(what); }
+}
+
+export class BrokenJson extends Error {
+  constructor(what: string) { super(`${what}: dosyanın içi bozuk (geçerli JSON değil). Drive'da dosyayı düzelt; o zamana kadar okuma yerin kaydedilmiyor.`); }
+}
+
+// The file's version time (changes when its content changes; another device may have written it).
+export async function getModifiedTime(fileId: string, what: string): Promise<string> {
+  const res = await ok(await driveFetch(`files/${encodeURIComponent(fileId)}?fields=modifiedTime`), what);
+  return (await res.json() as { modifiedTime?: string }).modifiedTime ?? '';
+}
+
+// Replace the content of an existing file (same id: never a second "kitap (1).json").
+// keepalive: the request may finish after the page is closed (pagehide).
+export async function updateJson(fileId: string, obj: unknown, what: string, keepalive = false): Promise<void> {
   await ok(await driveFetch(`${UPLOAD}files/${encodeURIComponent(fileId)}?uploadType=media`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json; charset=UTF-8' },
-    body: JSON.stringify(obj, null, 2)
+    body: JSON.stringify(obj, null, 2),
+    keepalive
   }), what);
 }
 

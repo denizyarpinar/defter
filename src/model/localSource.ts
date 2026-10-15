@@ -1,8 +1,10 @@
+import { parseSampleFolders, setSampleFolders } from '../okuma/ornekKaynak';
 import { parseBook, parseLibrary } from './parse';
 import type { Book, Library } from './types';
 
 // Reads the sample library from public/ornek/ until Drive is connected (task 1.4).
-// A web server can't list a folder, so ornek/index.json lists the book folders.
+// A web server can't list a folder, so ornek/index.json lists the book folders
+// (and, task 3.6, the files of the sample topics: ornekKaynak.ts).
 
 const BASE = `${import.meta.env.BASE_URL}ornek/`;
 
@@ -25,6 +27,7 @@ export async function loadLocalLibrary(): Promise<LoadedLibrary> {
   const ids = (index && typeof index === 'object' && Array.isArray((index as { kitaplar?: unknown }).kitaplar))
     ? ((index as { kitaplar: unknown[] }).kitaplar.filter(x => typeof x === 'string') as string[])
     : [];
+  setSampleFolders(parseSampleFolders(index && typeof index === 'object' ? (index as { klasorler?: unknown }).klasorler : null));
   const library = parseLibrary(await getJson('kitaplik.json'));
   const books = new Map<string, Book>();
   await Promise.all(ids.map(async id => {

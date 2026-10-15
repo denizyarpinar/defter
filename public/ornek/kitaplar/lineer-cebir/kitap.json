@@ -1,5 +1,5 @@
 {
-  "surum": 1,
+  "surum": 2,
   "baslik": "Lineer Cebir",
   "sirt": "Lineer Cebir",
   "kod": "LC",
@@ -10,20 +10,35 @@
   },
   "sonAcilis": null,
   "kurdele": null,
-  "bolumler": [
+  "uniteler": [
     {
       "baslik": "Vektörler ve matrisler",
-      "durum": "calisildi",
-      "kaynaklar": [
-        { "tur": "pdf", "dosya": "bolum-1.pdf" }
+      "konular": [
+        {
+          "baslik": "Vektörler ve matrisler",
+          "klasor": "Unite-01-Vektorler/Konu-01-Matrisler",
+          "durum": "calisildi"
+        },
+        {
+          "baslik": "Lineer denklem sistemleri",
+          "klasor": "Unite-01-Vektorler/Konu-02-Denklemler",
+          "durum": "okunuyor"
+        }
       ]
     },
     {
-      "baslik": "Lineer denklem sistemleri",
-      "durum": "okunmadi",
-      "kaynaklar": [
-        { "tur": "pdf", "dosya": "bolum-2.pdf" },
-        { "tur": "defter", "dosya": "defter/bolum-2.jpg" }
+      "baslik": "Dönüşümler",
+      "konular": [
+        {
+          "baslik": "Determinant",
+          "klasor": "Unite-02-Donusumler/Konu-03-Determinant",
+          "durum": "okunmadi"
+        },
+        {
+          "baslik": "Özdeğerler",
+          "klasor": "",
+          "durum": "okunmadi"
+        }
       ]
     }
   ]

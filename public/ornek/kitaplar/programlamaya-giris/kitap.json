@@ -1,5 +1,5 @@
 {
-  "surum": 1,
+  "surum": 2,
   "baslik": "Programlamaya Giriş",
   "sirt": "Programlama",
   "kod": "PRG",
@@ -9,30 +9,41 @@
     "stil": "kumas"
   },
   "sonAcilis": null,
-  "kurdele": null,
-  "bolumler": [
+  "kurdele": {
+    "konu": "Unite-01-Temeller/Konu-02-Kosullar",
+    "materyal": "ozet",
+    "dosya": "ozet.pdf",
+    "sayfa": 7
+  },
+  "uniteler": [
     {
-      "baslik": "Değişkenler ve veri tipleri",
-      "durum": "calisildi",
-      "kaynaklar": [
-        { "tur": "pdf", "dosya": "hafta-01.pdf" },
-        { "tur": "defter", "dosya": "defter/hafta-01.jpg" }
+      "baslik": "Temeller",
+      "konular": [
+        {
+          "baslik": "Değişkenler ve veri tipleri",
+          "klasor": "Unite-01-Temeller/Konu-01-Degiskenler",
+          "durum": "calisildi"
+        },
+        {
+          "baslik": "Koşullar ve döngüler",
+          "klasor": "Unite-01-Temeller/Konu-02-Kosullar",
+          "durum": "tekrar"
+        }
       ]
     },
     {
-      "baslik": "Koşullar ve döngüler",
-      "durum": "tekrar",
-      "kaynaklar": [
-        { "tur": "pdf", "dosya": "hafta-02.pdf" },
-        { "tur": "claude", "dosya": "hafta-02-ozet.pdf" }
-      ]
-    },
-    {
-      "baslik": "Metotlar",
-      "durum": "okunmadi",
-      "kaynaklar": [
-        { "tur": "pdf", "dosya": "hafta-03.pdf" },
-        { "tur": "link", "dosya": "https://example.com/alistirma-3" }
+      "baslik": "Metotlar ve nesneler",
+      "konular": [
+        {
+          "baslik": "Metotlar",
+          "klasor": "Unite-02-Metotlar/Konu-03-Metotlar",
+          "durum": "okunmadi"
+        },
+        {
+          "baslik": "Sınıflar ve nesneler",
+          "klasor": "",
+          "durum": "okunmadi"
+        }
       ]
     }
   ]

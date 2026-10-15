@@ -55,7 +55,7 @@ Kitaplık/
     *.pdf, defter/*.jpg    ← kaynak dosyalar
 ```
 - `kitaplik.json`: `{ surum, raflar: [{ id, ad, kitaplar: [kitapId] }], oda: { duvar, zemin, mod } }`
-- `kitap.json`: `{ surum, baslik, sirt, kod, ders, dil?, kapak: { renk, stil: "kumas"|"deri" }, sonAcilis, kurdele, bolumler: [{ baslik, durum: "okunmadi"|"calisildi"|"tekrar", kaynaklar: [{ tur: "pdf"|"defter"|"claude"|"link", dosya, sayfalar? }] }] }`
+- `kitap.json`: `{ surum, baslik, sirt, kod, ders, dil?, kapak: { renk, stil: "kumas"|"deri" }, sonAcilis, kurdele, bolumler: [{ baslik, durum: "okunmadi"|"okunuyor"|"okundu"|"calisildi"|"tekrar", kaynaklar: [{ tur: "pdf"|"defter"|"claude"|"link", dosya, sayfalar? }] }] }`
 - `dil` isteğe bağlıdır. `"en"` ise sırt ve kapak yazıları İngilizce kurala göre büyük harfe çevrilir (i → I). Yoksa ya da başka bir dilse Türkçe kural geçerlidir (i → İ). Dil başlıktan tahmin edilmez.
 - `kitap.json` yoksa kitap yine görünür (klasör adıyla, gri kapak).
 - Hiçbir rafta olmayan kitaplar "Yeni gelenler" yığınında görünür.
@@ -110,3 +110,54 @@ Kitaplık/
 - Veri modeline dokunma. kitaplik.json'daki oda.duvar / oda.zemin / oda.mod alanları aynı anlamda kullanılır.
 - Her görevin sonunda npm run build hatasız olmalı; raf görünümü, kitap açma, sürükle-bırak ve akşam modu bozulmamış olmalı.
 - Faz 2 işleri faz-2 dalında yapılır. main'e birleştirme ancak Deniz onay verince.
+
+## Faz 3 — Okuma kuralları
+
+### PDF
+- PDF çizimi: pdfjs-dist (PDF.js). Worker Vite ile: import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'.
+- PDF Drive'dan files/{id}?alt=media ile indirilir (Authorization başlığıyla). Asla Drive'da kopyalanmaz, taşınmaz, değiştirilmez.
+- İndirilen PDF'ler IndexedDB'de önbelleğe alınır; anahtar = dosya id + modifiedTime. Drive'da dosya değişince yenisi indirilir. Önbellek toplamı 500 MB'ı geçerse en eski açılanlar silinir.
+- Kaynak yolu (kaynak.dosya) kitabın klasörüne göre çözülür; alt klasörler (defter/...) desteklenir. Bulunamayan dosya kitabı bozmaz: o sayfa yerine "Dosya bulunamadı: <ad>" sayfası gösterilir.
+- sayfalar alanı: "3", "3-7", "1-2,5,9-11"; yoksa tüm PDF.
+
+### Sayfa ve bellek
+- Her PDF sayfası kitabın bir sayfası. Sayfa oranı PDF'in kendi oranı (çoğu A4; yatay slaytlar yatay kalır, kitap modunda sayfaya sığdırılır).
+- Aynı anda sadece görünen sayfalar + 2 önceki + 2 sonraki çizilir; uzaklaşan canvas'lar serbest bırakılır (width = height = 0).
+- Canvas boyutu: devicePixelRatio en fazla 2; tek canvas en fazla 16 milyon piksel (iPad Safari sınırı). Yakınlaştırmada görüntü önce CSS ile büyür, parmak kalkınca keskin olarak yeniden çizilir.
+
+### Yazılan alanlar (Faz 3)
+- kitaplik.json: raflar ve oda (Faz 1'deki gibi).
+- kitap.json: kapak, sonAcilis, kurdele, uniteler[].konular[].durum ve .kurdeleler (surum 1: kurdele ({ bolum, sayfa }), bolumler[].durum). Başka alana dokunma; bilinmeyen alanları koru. Yazmadan önce dosyanın son halini oku, sadece bu alanları güncelle.
+
+### Okuma durumu ve kurdele (Görev 3.5)
+- Durum değerleri: `okunmadi` (Okunmadı), `okunuyor` (Okunuyor), `okundu` (Okundu), `calisildi` (Çalışıldı), `tekrar` (Tekrar). Duruma dokununca bu sırayla döner.
+- Otomatik sadece ileri: konuya girince okunmadi → okunuyor; özetin (yoksa orijinalin) son sayfası ekrana gelince okunmadi/okunuyor → okundu. okundu, calisildi, tekrar otomatik değişmez.
+- surum 2: `konular[].kurdeleler.<materyal> = { dosya, sayfa }` (materyal: orijinal|ozet|uebungen|oedevler; dosya = Drive'daki dosya adı; sayfa = o PDF'teki sayfa, 1'den). Kitap düzeyinde `kurdele = { konu, materyal, dosya, sayfa }`; konu = konunun `klasor` yolu.
+- surum 1: `kurdele = { bolum, sayfa }` (bolum 0'dan, sayfa bölüm içinde 1'den). Eski tip kurdele (sadece sayı) okunur, ilk yazmada yeni biçime geçer.
+
+### Yazma güvenliği (okuma durumu)
+- Değişiklikler bir yama olarak birikir; sadece bu oturumda değişen alanlar yazılır. Başka cihazın değiştirdiği konulara dokunulmaz. Konular `klasor`'a göre eşleşir (surum 1: sıra + başlık).
+- Her yazmadan önce: modifiedTime oku → kitap.json'un son halini oku → yamayı uygula → değişen yoksa yazma → modifiedTime'ı tekrar oku; değiştiyse (başka cihaz yazmış) baştan bir kez daha dene.
+- Sadece şu alanlar değişir: sonAcilis, kurdele, uniteler[].konular[].durum ve .kurdeleler (surum 1: bolumler[].durum ve kurdele). Bilinmeyen alanlar korunur; baslik, kapak, klasor vb. alanlara dokunulmaz.
+- Aynı dosyanın üstüne yaz: PATCH upload ile mevcut dosya id'si. Asla yeni dosya oluşturma ("kitap (1).json" oluşmamalı). kitap.json'u olmayan kitapta okuma durumu yazılmaz. İçi bozuk (JSON olmayan) dosyanın üstüne yazılmaz.
+- Demo/örnek kitaplıkta (Drive yok) hiç yazılmaz.
+- Ne zaman: son değişiklikten 5 sn sonra; okuyucu ya da masadaki kitap kapanınca; sekme gizlenince/sayfa kapanınca (visibilitychange/pagehide, keepalive).
+- Hata/çevrimdışı: yama bellekte kalır, bağlantı gelince ve 30 sn'de bir tekrar denenir; küçük uyarı gösterilir. Yeni Google izni istenmez; kapsam yetmezse dur ve Deniz'e söyle.
+- Kod: `src/model/okumaYamasi.ts` (saf birleştirme, testli), `src/drive/okumaKaydi.ts` (yazıcı, testli), `src/okuma/okumaDurumu.ts` (bellekteki kitap + yazıcıya iletme).
+
+### Güvenlik
+- Ders PDF'leri telifli: public/ veya git'e asla girmez. Demo için kendi ürettiğin örnek PDF'leri kullan.
+- Faz 3'te kalem düğmesi gizli; çizim kodu Faz 4'te gelir.
+
+### Veri modeli (kitap.json surum 2)
+- `kitap.json`: `{ surum: 2, baslik, sirt, kod, ders, kapak, sonAcilis, kurdele, uniteler: [ { baslik, konular: [ { baslik, klasor, durum, kurdeleler? } ] } ] }`.
+- `klasor` kitabın klasörüne göre yoldur (ör. `Unite-01-Logik/Konu-01-Aussagenlogik`). Dosyalar kitap.json'da tek tek yazılmaz; konu klasörüne bakılarak bulunur.
+- Konu klasörü (dosya adları büyük/küçük harf duyarsız, ASCII):
+  - Orijinal: `orijinal.pdf`
+  - Özet: `ozet.pdf`; yoksa `brifing.pdf` ve varsa `sorular.pdf` arka arkaya
+  - Übungen: `Uebungen/` altındaki `*.pdf`, alfabetik
+  - Ödevler: `Oedevler/` altındaki `*.pdf`, alfabetik
+  - `X_cozum.pdf`, aynı klasördeki `X.pdf`'in çözümüdür; listede ayrı öğe olmaz.
+- Bulunmayan materyal gizlenir. Hiçbiri yoksa konu "Henüz materyal yok" gösterir.
+- surum 1 (düz `bolumler`) okunmaya devam eder: bölümler "Genel" adlı tek ünite altında birer konu olarak görünür; `kaynaklar` ve `sayfalar` aynen çalışır.
+- Okuyucuda konu açılınca sekmeler: Orijinal · Özet · Übungen · Ödevler. Varsayılan Özet (yoksa Orijinal, o da yoksa ilk bulunan).

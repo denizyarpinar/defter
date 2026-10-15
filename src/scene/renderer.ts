@@ -1,5 +1,6 @@
 import { ACESFilmicToneMapping, ColorManagement, PCFShadowMap, PerspectiveCamera, Scene, SRGBColorSpace, WebGLRenderer } from 'three';
-import { createFpsCounter } from '../ui/fps';
+import { viewSize } from '../ui/ekran';
+import { fpsCounter } from '../ui/fps';
 import { frame } from './frame';
 import { setMaxAnisotropy } from './textures';
 import { hasTweens, runTweens } from './tween';
@@ -17,7 +18,8 @@ export function createStage(host: HTMLElement): Stage {
 
   const renderer = new WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
-  renderer.setSize(innerWidth, innerHeight);
+  const { w, h } = viewSize();
+  renderer.setSize(w, h);
   renderer.outputColorSpace = SRGBColorSpace;
   renderer.toneMapping = ACESFilmicToneMapping; renderer.toneMappingExposure = 1.08;
   // PCFSoftShadowMap is removed in current three.js; PCFShadowMap is soft now.
@@ -26,13 +28,13 @@ export function createStage(host: HTMLElement): Stage {
   setMaxAnisotropy(renderer.capabilities.getMaxAnisotropy());
 
   const scene = new Scene();
-  const camera = new PerspectiveCamera(26, innerWidth / innerHeight, 0.1, 200);
+  const camera = new PerspectiveCamera(26, w / h, 0.1, 200);
   return { renderer, scene, camera };
 }
 
 // Draws only while something moves or changed (iPad battery).
 export function startLoop(stage: Stage): void {
-  const fps = createFpsCounter();
+  const fps = fpsCounter();
   const loop = (now: number) => {
     requestAnimationFrame(loop);
     const active = hasTweens();
@@ -46,7 +48,8 @@ export function startLoop(stage: Stage): void {
 }
 
 export function resizeStage(stage: Stage): void {
-  stage.renderer.setSize(innerWidth, innerHeight);
-  stage.camera.aspect = innerWidth / innerHeight;
+  const { w, h } = viewSize();
+  stage.renderer.setSize(w, h);
+  stage.camera.aspect = w / h;
   stage.camera.updateProjectionMatrix();
 }

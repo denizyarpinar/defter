@@ -29,7 +29,9 @@ export interface Library {
 }
 
 export type CoverStyle = 'kumas' | 'deri';
-export type ChapterStatus = 'okunmadi' | 'calisildi' | 'tekrar';
+// okunuyor / okundu: task 3.5 (set by the reader); the order is the order of a tap on the status
+export type ChapterStatus = 'okunmadi' | 'okunuyor' | 'okundu' | 'calisildi' | 'tekrar';
+export const CHAPTER_STATUSES: readonly ChapterStatus[] = ['okunmadi', 'okunuyor', 'okundu', 'calisildi', 'tekrar'];
 export type SourceType = 'pdf' | 'defter' | 'claude' | 'link';
 
 export interface Cover {
@@ -52,6 +54,39 @@ export interface Chapter {
   extra: Extra;
 }
 
+// Where the reader stopped inside one material: file name (as in Drive) + page inside that PDF (1-based).
+export interface PageMark {
+  dosya: string;
+  sayfa: number;
+}
+
+// Book-level ribbon. surum 2: topic (its klasor) + material + page mark; surum 1: chapter index + page inside the chapter.
+export interface RibbonV2 extends PageMark {
+  konu: string;
+  materyal: string;
+}
+export interface RibbonV1 {
+  bolum: number;
+  sayfa: number;
+}
+// number / string: the old format (only a page), still read
+export type Ribbon = RibbonV1 | RibbonV2 | number | string;
+
+// surum 2: a topic's files are found in its folder (see CLAUDE.md → Veri modeli (kitap.json surum 2))
+export interface Topic {
+  baslik: string;
+  klasor: string;       // path relative to the book's folder, e.g. "Unite-01-Logik/Konu-01-Aussagenlogik"
+  durum: ChapterStatus;
+  kurdeleler: Record<string, PageMark>;   // material kind → where the reader stopped in it
+  extra: Extra;
+}
+
+export interface Unit {
+  baslik: string;
+  konular: Topic[];
+  extra: Extra;
+}
+
 // kitaplar/<id>/kitap.json
 export interface Book {
   id: string;           // folder name
@@ -64,8 +99,9 @@ export interface Book {
   dil?: string;         // language of the book's texts, e.g. "en"; missing: Turkish rules
   kapak: Cover;
   sonAcilis: string | null;   // ISO date
-  kurdele: number | string | null;
-  bolumler: Chapter[];
+  kurdele: Ribbon | null;
+  bolumler: Chapter[];   // surum 1
+  uniteler: Unit[];      // surum 2
   extra: Extra;
 }
 

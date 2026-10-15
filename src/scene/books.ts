@@ -1,6 +1,7 @@
 import { BoxGeometry, Group, Mesh } from 'three';
 import { daysSinceOpened } from '../model/library';
 import type { Book } from '../model/types';
+import { topicCount } from '../model/units';
 import { add } from './geometry';
 import { M, own, std } from './materials';
 import { canvas, clothNoise, noise, tex } from './textures';
@@ -13,10 +14,10 @@ export const BOOK_DEPTH = 54;
 // Upper case by the book's language: English "i" → "I"; Turkish (and books without "dil") "i" → "İ".
 const upper = (b: Book, s: string) => s.toLocaleUpperCase(b.dil?.toLowerCase().startsWith('en') ? 'en' : 'tr-TR');
 
-// Thickness grows with chapters and sources; height is fixed per book (from its id).
+// Thickness grows with chapters (surum 2: topics) and sources; height is fixed per book (from its id).
 export function bookDims(b: Book): BookDims {
   const sources = b.bolumler.reduce((a, c) => a + c.kaynaklar.length, 0);
-  const t = Math.max(17, Math.min(32, 14 + 3 * b.bolumler.length + 1.5 * sources));
+  const t = Math.max(17, Math.min(32, 14 + 3 * topicCount(b) + 1.5 * sources));
   let hash = 0;
   for (const ch of b.id) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
   return { t, h: 60 + hash % 15, d: BOOK_DEPTH };

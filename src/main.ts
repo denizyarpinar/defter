@@ -1,27 +1,37 @@
 import './styles.css';
 import { AuthError, prepareAuth, rememberUser, rememberedUser, signIn, signOut } from './drive/auth';
 import { getUser, setAccountHint, setSessionExpiredHandler } from './drive/drive';
-import { LibraryNotFound, loadDriveLibrary } from './drive/driveLibrary';
+import { LibraryNotFound, loadDriveLibrary, type DriveLocation } from './drive/driveLibrary';
+import { ReadingSaver, driveReadingApi } from './drive/okumaKaydi';
 import { DriveSaver } from './drive/save';
 import { daysSinceOpened, shelfOf } from './model/library';
 import { loadLocalLibrary } from './model/localSource';
 import type { ModeKey } from './model/types';
+import { usesUnits } from './model/units';
+import { markOpened, setReadingSink } from './okuma/okumaDurumu';
+import { sampleBookFolder } from './okuma/ornekKaynak';
+import { closeOkuyucu, forgetBook, initOkuyucu, openOkuyucu } from './okuma/Okuyucu';
 import { createRoomScene, type LibraryData, type RoomScene, type View } from './scene';
 import { canvas, drawWood, noise } from './scene/textures';
 import { updateHint } from './ui/hint';
 import { initPanel } from './ui/panel';
 import { hideSaveState, initNotFound, initSaveState, setLibraryLoading, setNotFound, showSaveError, showSaved, showSaving } from './ui/driveStatus';
-import { closeReader, initReader, isReaderOpen, openReader } from './ui/reader';
+import { closeReader, initReader, isReaderOpen, openReader, refreshReader } from './ui/reader';
 import { hideLogin, initLogin, setLoginBusy, setLoginError, setRememberedName, showLogin } from './ui/login';
 import { initTopBar, initUserBox, updateCrumb, updateModeButtons, updateUserBox, type LightMode } from './ui/topBar';
+import { installErrorBox } from './ui/hataKutusu';
+import { installPageZoomGuard } from './ui/sayfaZoom';
 import { toast } from './ui/toast';
 
 const app = document.querySelector<HTMLElement>('#app')!;
 const stageEl = document.querySelector<HTMLElement>('#stage')!;
 const loading = document.querySelector<HTMLElement>('#loading')!;
 
-// Safari: two-finger pinch would zoom the whole page (the viewport tag alone doesn't stop it).
-for (const ev of ['gesturestart', 'gesturechange']) document.addEventListener(ev, e => e.preventDefault(), { passive: false });
+// ?fps=1: errors in a small box on screen (the iPad has no console); first, so it sees everything
+installErrorBox();
+
+// iPad: the browser must not zoom the page (the viewport tag alone doesn't stop it); see ui/sayfaZoom.ts.
+installPageZoomGuard(() => scene?.resize());
 
 const MODE_FROM_DATA: Record<ModeKey, LightMode> = { otomatik: 'auto', gunduz: 'day', aksam: 'night' };
 const MODE_TO_DATA: Record<LightMode, ModeKey> = { auto: 'otomatik', day: 'gunduz', night: 'aksam' };
@@ -32,6 +42,9 @@ let scene: RoomScene | null = null;
 let view: View = 'room';
 let openTitle: string | null = null;
 let saver: DriveSaver | null = null;   // set while the library comes from Drive
+let reading: ReadingSaver | null = null;   // with saver: ribbon, topic status, last opened (task 3.5)
+let driveLoc: DriveLocation | null = null;   // with saver: where the book folders are
+let deskBook: string | null = null;    // id of the book open on the desk
 let ownerName: string | null = null;    // signed-in user (title page: "<ad>'in kitaplığından")
 
 const isEvening = () => { const h = new Date().getHours(); return h >= 18 || h < 6; };
@@ -70,13 +83,21 @@ const offline = "Drive'a bağlanılamadı. İnternet bağlantını kontrol et ve
 const errorText = (e: unknown) => e instanceof TypeError || !(e instanceof Error) ? offline : e.message;
 
 // Put new data into the shared holder and rebuild the room.
-async function useData(next: { library: LibraryData['library']; books: LibraryData['books'] }, newSaver: DriveSaver | null): Promise<void> {
+async function useData(next: { library: LibraryData['library']; books: LibraryData['books'] }, newSaver: DriveSaver | null, loc: DriveLocation | null): Promise<void> {
   await ready;
   if (!data || !scene) return;
+  closeOkuyucu();
+  forgetBook();
   if (isReaderOpen()) { closeReader(); await new Promise(r => setTimeout(r, 1900)); }   // let the book fly home first
   data.library = next.library;
   data.books = next.books;
   saver = newSaver;
+  driveLoc = loc;
+  // reading state: written only to a Drive library (the sample library has no writer)
+  reading?.dispose();
+  reading = loc ? new ReadingSaver(id => loc.bookFileIds.get(id), driveReadingApi, { saving: () => {}, saved: showSaved, failed: showSaveError }) : null;
+  const r = reading;
+  setReadingSink(r ? (id, patch) => r.change(id, patch) : null);
   hideSaveState();
   scene.reload();
   if (location.hash !== '#aksam') { mode = MODE_FROM_DATA[data.library.oda.mod]; applyMode(); }
@@ -89,7 +110,7 @@ async function loadFromDrive(): Promise<void> {
   try {
     const r = await loadDriveLibrary();
     // the saver reads from the shared holder, whose contents useData replaces
-    await useData(r, new DriveSaver(r.loc, data!, { saving: showSaving, saved: showSaved, failed: showSaveError }));
+    await useData(r, new DriveSaver(r.loc, data!, { saving: showSaving, saved: showSaved, failed: showSaveError }), r.loc);
     if (r.warnings.length) toast(r.warnings[0]);
   } catch (e) {
     if (e instanceof LibraryNotFound) setNotFound(true);
@@ -100,7 +121,7 @@ async function loadFromDrive(): Promise<void> {
 }
 
 async function useSample(): Promise<void> {
-  try { await useData(await loadLocalLibrary(), null); } catch { toast('Örnek kitaplık yüklenemedi. Sayfayı yenile.'); }
+  try { await useData(await loadLocalLibrary(), null, null); } catch { toast('Örnek kitaplık yüklenemedi. Sayfayı yenile.'); }
 }
 
 initNotFound({
@@ -109,6 +130,9 @@ initNotFound({
 });
 initSaveState();
 addEventListener('beforeunload', e => { if (saver?.hasUnsaved) e.preventDefault(); });
+// tab hidden / page closed: write the reading state now (keepalive: may finish after the page is gone)
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') void reading?.flush(true); });
+addEventListener('pagehide', () => { void reading?.flush(true); });
 
 // ---- Google sign-in ----
 
@@ -141,7 +165,8 @@ initLogin({
 });
 initUserBox({
   onSignIn: () => googleSignIn(),
-  onSignOut: () => {
+  onSignOut: async () => {
+    await reading?.flush();   // while the token is still there
     signOut(); rememberUser(null); setAccountHint(undefined); setRememberedName(null);
     ownerName = null;
     updateUserBox({ kind: 'none' }); showLogin();
@@ -163,9 +188,27 @@ else showLogin();
 prepareAuth().catch((e: unknown) => { if (e instanceof AuthError) setLoginError(e.message); });
 
 initReader(() => {
+  closeOkuyucu();
+  forgetBook();
+  deskBook = null;
+  void reading?.flush();
   scene?.setPaused(false);
   scene?.closeBook();
+}, (unit, topic, resume) => {
+  const b = deskBook ? data?.books.get(deskBook) : undefined;
+  if (!b) return;
+  // sample library: surum 2 books open the demo PDFs in public/demo (task 3.6); surum 1 ones have no files
+  const folderId = driveLoc ? driveLoc.bookFolderIds.get(b.id) : usesUnits(b) ? sampleBookFolder(b.id) : undefined;
+  if (!folderId) { toast('Sayfaları görmek için Google ile giriş yap. Örnek kitaplıkta bu kitabın dosyası yok.'); return; }
+  // the room is behind the reader: don't draw it (it stays paused under the contents page too)
+  scene?.setPaused(true);
+  void openOkuyucu(b, folderId, unit, topic, () => {
+    scene?.setPaused(isReaderOpen());
+    void reading?.flush();
+    refreshReader();   // status / ribbon on the contents page
+  }, resume);
 });
+initOkuyucu();
 
 // Wooden desk + paper texture for the reading view (same as the prototype).
 function readerTextures(): void {
@@ -208,9 +251,10 @@ async function boot(): Promise<void> {
     onBookOpening: id => { openTitle = d.books.get(id)!.baslik; updateChrome(); },
     onBookOnDesk: id => {
       const b = d.books.get(id)!;
+      deskBook = id;
       const shelf = shelfOf(d.library, id);
       openReader(b, { shelfName: shelf >= 0 ? d.library.raflar[shelf].ad : null, daysSinceOpened: daysSinceOpened(b), owner: saver ? ownerName : null });
-      b.sonAcilis = new Date().toISOString();   // in memory only in phase 1
+      markOpened(b);
       setTimeout(() => { if (isReaderOpen()) scene?.setPaused(true); }, 400);
     },
     onBookClosed: () => { openTitle = null; updateChrome(); },
@@ -235,8 +279,11 @@ async function boot(): Promise<void> {
   // clock + automatic evening switch
   setInterval(() => { scene?.updateClock(); if (mode === 'auto') applyMode(); }, 20000);
 
+  // the stage's own size, not only window resize: iPad toolbars and rotation change it too
   let rt: number | undefined;
-  addEventListener('resize', () => { clearTimeout(rt); rt = window.setTimeout(() => scene?.resize(), 120); });
+  const resized = () => { clearTimeout(rt); rt = window.setTimeout(() => scene?.resize(), 120); };
+  addEventListener('resize', resized);
+  new ResizeObserver(resized).observe(stageEl);
 
   loading.hidden = true;
 }

@@ -1,5 +1,5 @@
 {
-  "aciklama": "Sadece yerel örnek için: tarayıcı klasör içeriğini listeleyemediği için kitap klasörlerinin listesi. Drive formatının parçası değil.",
+  "aciklama": "Sadece yerel örnek için: tarayıcı klasör içeriğini listeleyemediği için kitap klasörlerinin listesi ve (surum 2 kitaplarda) konu klasörlerindeki dosyalar → public/ altındaki demo PDF'ler. Drive formatının parçası değil.",
   "kitaplar": [
     "algorithms",
     "artificial-intelligence",
@@ -32,5 +32,53 @@
     "software-testing",
     "web-development",
     "yeni-not"
-  ]
+  ],
+  "klasorler": {
+    "programlamaya-giris": {
+      "Unite-01-Temeller/Konu-01-Degiskenler": {
+        "orijinal.pdf": "demo/demo-dikey.pdf",
+        "ozet.pdf": "demo/demo-slayt.pdf",
+        "Uebungen/blatt-01.pdf": "demo/demo-slayt.pdf",
+        "Uebungen/blatt-01_cozum.pdf": "demo/demo-dikey.pdf",
+        "Uebungen/blatt-02.pdf": "demo/demo-dikey.pdf",
+        "Oedevler/odev-01.pdf": "demo/demo-slayt.pdf"
+      },
+      "Unite-01-Temeller/Konu-02-Kosullar": {
+        "orijinal.pdf": "demo/demo-dikey.pdf",
+        "ozet.pdf": "demo/demo-slayt.pdf"
+      },
+      "Unite-02-Metotlar/Konu-03-Metotlar": {
+        "orijinal.pdf": "demo/demo-dikey.pdf"
+      }
+    },
+    "lineer-cebir": {
+      "Unite-01-Vektorler/Konu-01-Matrisler": {
+        "orijinal.pdf": "demo/demo-dikey.pdf",
+        "ozet.pdf": "demo/demo-slayt.pdf"
+      },
+      "Unite-01-Vektorler/Konu-02-Denklemler": {
+        "orijinal.pdf": "demo/demo-dikey.pdf",
+        "brifing.pdf": "demo/demo-slayt.pdf",
+        "sorular.pdf": "demo/demo-slayt.pdf"
+      },
+      "Unite-02-Donusumler/Konu-03-Determinant": {
+        "orijinal.pdf": "demo/demo-dikey.pdf"
+      }
+    },
+    "algorithms": {
+      "Unit-01-Foundations/Topic-01-Complexity": {
+        "orijinal.pdf": "demo/demo-dikey.pdf",
+        "ozet.pdf": "demo/demo-slayt.pdf"
+      },
+      "Unit-01-Foundations/Topic-02-Divide": {
+        "ozet.pdf": "demo/demo-slayt.pdf",
+        "Uebungen/sheet-01.pdf": "demo/demo-dikey.pdf",
+        "Uebungen/sheet-01_cozum.pdf": "demo/demo-slayt.pdf"
+      },
+      "Unit-02-Graphs/Topic-03-Graphs": {
+        "orijinal.pdf": "demo/demo-dikey.pdf",
+        "Oedevler/assignment-01.pdf": "demo/demo-slayt.pdf"
+      }
+    }
+  }
 }

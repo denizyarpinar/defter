@@ -2,8 +2,8 @@
 <html lang="tr">
   <head>
     <meta charset="utf-8" />
-    <!-- maximum-scale=1: iPad doesn't zoom in when you tap a text field -->
-    <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover" />
+    <!-- no browser zoom (iPad often ignores this, so ui/sayfaZoom.ts also guards it); no zoom into text fields -->
+    <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
     <title>Defter</title>
     <meta name="description" content="Drive'daki notların, çalışma odandaki kitaplıkta." />
     <link rel="manifest" href="/manifest.webmanifest" />
@@ -96,6 +96,40 @@
           <button class="arrow" id="prev" aria-label="Önceki sayfa">‹</button>
           <span class="pno" id="pno"></span>
           <button class="arrow" id="next" aria-label="Sonraki sayfa">›</button>
+        </div>
+        <div id="okuyucu" hidden>
+          <div class="o-top">
+            <button class="o-tocbtn" id="oTocBtn" type="button" aria-label="İçindekiler" aria-expanded="false" aria-controls="oToc">☰</button>
+            <div class="o-title"><b id="oBook"></b><span id="oChap"></span></div>
+            <div class="o-seg" id="oMode" role="group" aria-label="Okuma modu">
+              <button type="button" data-m="kitap">Kitap</button><button type="button" data-m="pdf">PDF</button>
+            </div>
+            <span class="o-pno" id="oPno"></span>
+            <button class="o-close" id="oClose" aria-label="Okuyucuyu kapat">×</button>
+          </div>
+          <div class="o-bar" id="oBar" hidden>
+            <div class="o-tabs" id="oTabs" role="tablist" aria-label="Materyal"></div>
+            <div class="o-files" id="oFiles" hidden>
+              <select id="oFile" aria-label="Dosya seç"></select>
+              <button class="o-sol" id="oSol" type="button" aria-pressed="false">Çözümü göster</button>
+            </div>
+          </div>
+          <div class="o-msg" id="oMsg" hidden></div>
+          <div class="o-scroll" id="oScroll">
+            <div class="o-pages" id="oPages"></div>
+          </div>
+          <div class="o-kitap" id="oKitap" hidden><div class="o-zoom" id="oZoom"><div class="o-spread" id="oSpread"></div></div></div>
+          <div class="o-foot" id="oFoot" hidden>
+            <div class="o-sl">
+              <input type="range" id="oSlider" min="1" max="1" value="1" step="1" aria-label="Sayfa" />
+              <div class="o-bubble" id="oBubble" hidden></div>
+            </div>
+          </div>
+          <div class="o-scrim" id="oScrim" hidden></div>
+          <aside class="o-toc" id="oToc" hidden aria-label="İçindekiler">
+            <div class="o-tochead"><b>İçindekiler</b><button class="o-close" id="oTocClose" type="button" aria-label="İçindekileri kapat">×</button></div>
+            <nav class="o-toclist" id="oTocList"></nav>
+          </aside>
         </div>
       </div>
 

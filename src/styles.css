@@ -26,12 +26,13 @@
   --chrome: rgba(22, 28, 46, .82); --chromeFg: #efe7da; --chromeLine: rgba(255, 255, 255, .12);
 }
 [hidden] { display: none !important }
-/* iPad/iPhone: no rubber-band scrolling, no double-tap zoom, no long-press menu */
-html, body { height: 100%; overscroll-behavior: none }
+/* iPad/iPhone: no rubber-band scrolling, no browser zoom (task 3.7: not even pinch; see ui/sayfaZoom.ts), no long-press menu.
+   Scrolling areas allow only panning: .o-scroll, .o-toc, the bars, #panel. */
+html, body { height: 100%; overscroll-behavior: none; touch-action: none }
 body {
   margin: 0; background: #d8c3a2; font-family: var(--ui); color: var(--chromeFg); overflow: hidden;
   -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent;
-  touch-action: manipulation; -webkit-touch-callout: none; -webkit-text-size-adjust: 100%; text-size-adjust: 100%;
+  -webkit-touch-callout: none; -webkit-text-size-adjust: 100%; text-size-adjust: 100%;
 }
 /* iOS zooms into text fields smaller than 16px */
 @media (pointer: coarse) {
@@ -130,7 +131,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 /* ---------- side panel ---------- */
 #panel {
   position: fixed; right: 12px; top: calc(env(safe-area-inset-top, 0px) + 62px); bottom: 12px; width: min(340px, calc(100vw - 24px)); z-index: 30;
-  background: var(--chrome); color: var(--chromeFg); border: 1px solid var(--chromeLine); border-radius: 18px; padding: 16px; box-sizing: border-box; overflow: auto;
+  background: var(--chrome); color: var(--chromeFg); border: 1px solid var(--chromeLine); border-radius: 18px; padding: 16px; box-sizing: border-box; overflow: auto; touch-action: pan-y;
   backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: 0 20px 50px rgba(0, 0, 0, .18); user-select: text; -webkit-user-select: text;
 }
 #panel h3 { margin: 18px 0 8px; font: 600 11px/1 var(--ui); letter-spacing: .12em; text-transform: uppercase; opacity: .65 }
@@ -205,6 +206,8 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 
 /* table of contents */
 .toc h2 { margin-bottom: 5cqw }
+.toc h3.unit { margin: 3cqw 0 1cqw; font: 600 2.3cqw var(--ui); letter-spacing: .12em; text-transform: uppercase; opacity: .6 }
+.toc h2 + h3.unit { margin-top: 0 }
 .toc ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1.2cqw }
 .toc li button { width: 100%; display: grid; grid-template-columns: 5cqw 1fr; gap: 2cqw; align-items: baseline; border: 0; background: none; padding: 1.6cqw 1.2cqw; border-radius: 1.4cqw; text-align: left; color: var(--ink); font: inherit }
 .toc li button:hover { background: #f2eadb }
@@ -217,6 +220,15 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 .st.todo { background: #ece4d6; color: #6b5d48 }
 .st.done { background: #d8e8d2; color: #2f5a2a }
 .st.review { background: #f6dcc9; color: #8a3d1d }
+.st.reading { background: #f3e6bf; color: #6e5512 }
+.st.read { background: #d6e2ec; color: #284a68 }
+[data-st] { cursor: pointer }
+/* task 3.5: "Kaldığın yerden devam" (the ribbon colour of the prototype) */
+.toc .resume { display: flex; align-items: center; gap: 2cqw; width: 100%; margin: -2cqw 0 4cqw; padding: 2cqw 2.4cqw; border: 1px solid #e3cdb9; border-radius: 1.6cqw;
+  background: #f8ece2; color: var(--ink); text-align: left; font: 500 2.6cqw/1.3 var(--ui) }
+.toc .resume:hover { background: #f3e1d3 }
+.toc .resume b { font-weight: 700 }
+.toc .resume .rib { flex: none; width: 1.6cqw; height: 4.4cqw; background: var(--accent); clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 78%, 0 100%) }
 .toc .legend { margin-top: auto; font-size: 2.3cqw; opacity: .6; padding-top: 3cqw }
 
 /* cover */
@@ -246,6 +258,119 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 .r-bottom .arrow:disabled { opacity: .35; cursor: default }
 .r-bottom .pno { font-size: 13px; min-width: 110px; text-align: center; font-variant-numeric: tabular-nums; opacity: .85 }
 
+/* ---------- okuyucu: PDF mode (task 3.2), over the open book; desk background from #reader ---------- */
+#okuyucu { position: absolute; inset: 0; z-index: 20; display: flex; flex-direction: column; background: inherit; opacity: 0; transition: opacity .3s }
+#okuyucu.show { opacity: 1 }
+.o-top { display: flex; align-items: center; gap: 12px; padding: calc(env(safe-area-inset-top, 0px) + 6px) 12px 6px 16px; color: #f5ecdf;
+  background: rgba(0, 0, 0, .28); border-bottom: 1px solid rgba(255, 255, 255, .1) }
+.o-title { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.2 }
+.o-title b { font: 600 17px var(--serif) }
+.o-title span { font-size: 12.5px; opacity: .75; margin-left: 10px }
+.o-pno { font-size: 13px; font-variant-numeric: tabular-nums; opacity: .85; white-space: nowrap }
+.o-close { width: 36px; height: 36px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, .22); background: rgba(0, 0, 0, .18); color: #f5ecdf; font-size: 22px; line-height: 1 }
+/* task 3.2b: material tabs of a topic + file chooser (Übungen / Ödevler) */
+.o-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 6px 12px 8px 16px; color: #f5ecdf;
+  background: rgba(0, 0, 0, .2); border-bottom: 1px solid rgba(255, 255, 255, .08) }
+.o-bar[hidden], .o-files[hidden], .o-sol[hidden] { display: none }
+.o-tabs { display: flex; gap: 4px; max-width: 100%; overflow-x: auto; scrollbar-width: none }
+.o-tab { flex: none; min-height: 40px; padding: 0 14px; border: 1px solid transparent; border-radius: 99px; background: none; color: inherit; font: 500 14px var(--ui); opacity: .75 }
+.o-tab[aria-selected="true"] { opacity: 1; background: rgba(255, 255, 255, .14); border-color: rgba(255, 255, 255, .22) }
+.o-files { display: flex; align-items: center; gap: 8px; min-width: 0 }
+.o-files select { min-width: 0; max-width: 260px; min-height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, .22);
+  background: rgba(0, 0, 0, .25); color: #f5ecdf; font: 14px var(--ui) }
+.o-files select option { color: var(--ink); background: var(--paper) }
+.o-sol { flex: none; min-height: 40px; padding: 0 14px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, .22); background: rgba(0, 0, 0, .18); color: #f5ecdf; font: 500 14px var(--ui) }
+.o-sol[aria-pressed="true"] { background: var(--accent); border-color: var(--accent) }
+.o-scroll { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; overscroll-behavior: contain }
+.o-pages { position: relative; margin: 0 auto }
+.o-page { position: absolute; left: 0; right: 0; background: #cfc8bd; box-shadow: 0 10px 26px rgba(0, 0, 0, .3); overflow: hidden }
+.o-page.ready { background: #fff var(--paperImg, none) }
+.o-page canvas, .o-page img { display: block; width: 100%; height: 100%; object-fit: contain }
+.o-card { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+  padding: 10%; text-align: center; color: #2a231d; font-size: 15px; overflow-wrap: anywhere }
+.o-card p { margin: 0 }
+.o-big { font: 600 22px var(--serif) }
+.o-label { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; opacity: .6 }
+.o-url { font-size: 13.5px; opacity: .8; max-width: 100% }
+.o-open { margin-top: 8px; padding: 11px 18px; border-radius: 10px; background: var(--accent, #b5523b); color: #fff; font-weight: 600; text-decoration: none }
+.o-msg { padding: 40px 16px; text-align: center; color: #f5ecdf; font-size: 15px }
+.o-msg[hidden] { display: none }
+/* task 3.3: Kitap / PDF switch (prototype #rMode) */
+.o-seg { flex: none; display: flex; background: rgba(0, 0, 0, .22); border-radius: 10px; padding: 3px }
+.o-seg button { border: 0; background: none; color: #f5ecdf; min-height: 34px; padding: 0 12px; border-radius: 8px; font: 500 13px var(--ui) }
+.o-seg button.on { background: #f5ecdf; color: #2a231d }
+/* task 3.3: book mode — two pages side by side, spine shadow, page turn (prototype #spread / .leaf) */
+.o-kitap { flex: 1; min-height: 0; position: relative; display: flex; align-items: center; justify-content: center; overflow: hidden; perspective: 2400px; touch-action: none; user-select: none; -webkit-user-select: none }
+.o-kitap[hidden] { display: none }
+.o-spread { position: relative; transform-style: preserve-3d }
+.o-spread:empty { display: none }
+.o-spread::before {
+  content: ''; position: absolute; inset: -7px -9px; border-radius: 6px;
+  background: linear-gradient(90deg, rgba(0, 0, 0, .18), rgba(255, 255, 255, .04) 50%, rgba(0, 0, 0, .18)), var(--bookc, #24476b);
+  box-shadow: 0 26px 50px rgba(0, 0, 0, .38), 0 3px 0 rgba(0, 0, 0, .25);
+}
+.o-spread::after {
+  content: ''; position: absolute; top: 0; bottom: 0; left: calc(50% - 22px); width: 44px; pointer-events: none; z-index: 3;
+  background: linear-gradient(90deg, rgba(0, 0, 0, 0), rgba(0, 0, 0, .16) 45%, rgba(0, 0, 0, .24) 50%, rgba(0, 0, 0, .16) 55%, rgba(0, 0, 0, 0));
+}
+.o-spread.single::after { display: none }
+.o-slot { position: absolute; top: 0; height: 100% }
+.o-sheet { position: absolute; inset: 0; overflow: hidden; background: var(--paperImg, none) var(--paper); box-shadow: inset 0 0 0 1px rgba(80, 60, 30, .08) }
+.o-sheet.leftp { box-shadow: inset -18px 0 26px -18px rgba(0, 0, 0, .18) }
+.o-sheet.rightp { box-shadow: inset 18px 0 26px -18px rgba(0, 0, 0, .18) }
+.o-sheet .o-page { right: auto; box-shadow: none }
+.o-endtext { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font: italic 500 18px var(--serif); color: var(--ink); opacity: .45 }
+.o-leaf { position: absolute; top: 0; height: 100%; transform-style: preserve-3d; z-index: 5; transition: transform .4s cubic-bezier(.45, .05, .2, 1) }
+.o-leaf.fw { transform-origin: 0 50%; transform: rotateY(0deg) }
+.o-leaf.fw.go { transform: rotateY(-180deg) }
+.o-leaf.bw { transform-origin: 100% 50%; transform: rotateY(0deg) }
+.o-leaf.bw.go { transform: rotateY(180deg) }
+.o-lf { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden }
+.o-lf.back { transform: rotateY(180deg) }
+.o-lf::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(90deg, rgba(0, 0, 0, 0), rgba(0, 0, 0, .18)); opacity: 0; transition: opacity .2s }
+.o-leaf.go .o-lf.front::after { opacity: 1 }
+.o-turn { z-index: 6; transition: transform .4s cubic-bezier(.5, 0, .2, 1), opacity .4s; transform-origin: 0 50% }
+.o-turn.out-l { transform: rotateY(-70deg); opacity: 0 }
+.o-turn.out-r { transform: rotateY(70deg) translateX(30%); opacity: 0 }
+
+/* task 3.4: zoom (prototype #zoom), page slider, contents panel */
+.o-zoom { perspective: 2400px; transform-origin: 50% 50% }
+.o-zoom.anim { transition: transform .28s cubic-bezier(.3, 0, .2, 1) }
+#okuyucu.zoomed .o-kitap { cursor: grab }
+#okuyucu.zoomed .o-scroll { overflow-x: auto }
+.o-scroll { touch-action: pan-x pan-y }
+.o-top, .o-bar, .o-foot { touch-action: pan-x }
+.o-pages { transform-origin: 0 0 }
+.o-page canvas.o-detail { position: absolute; width: auto; height: auto }
+.o-tocbtn { flex: none; width: 40px; height: 40px; margin-left: -6px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, .22); background: rgba(0, 0, 0, .18); color: #f5ecdf; font-size: 18px; line-height: 1 }
+.o-tocbtn[aria-expanded="true"] { background: rgba(255, 255, 255, .18) }
+.o-foot { padding: 6px 20px calc(env(safe-area-inset-bottom, 0px) + 8px); background: rgba(0, 0, 0, .2); border-top: 1px solid rgba(255, 255, 255, .08) }
+.o-foot[hidden] { display: none }
+.o-sl { position: relative; max-width: 760px; margin: 0 auto }
+.o-sl input { display: block; width: 100%; height: 36px; margin: 0; accent-color: #f5ecdf; background: none }
+.o-bubble { position: absolute; bottom: calc(100% + 4px); transform: translateX(-50%); max-width: min(320px, 80vw); padding: 6px 12px; border-radius: 10px;
+  background: #f5ecdf; color: #2a231d; font: 600 13px var(--ui); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-shadow: 0 6px 18px rgba(0, 0, 0, .3); pointer-events: none }
+.o-bubble[hidden] { display: none }
+.o-scrim { position: absolute; inset: 0; z-index: 30; background: rgba(0, 0, 0, .35); opacity: 0; transition: opacity .25s }
+.o-toc { position: absolute; top: 0; bottom: 0; left: 0; z-index: 31; width: min(340px, 85vw); display: flex; flex-direction: column; box-sizing: border-box;
+  padding: calc(env(safe-area-inset-top, 0px) + 10px) 0 env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  background: var(--paper, #f4ecdd); color: var(--ink, #2a231d); box-shadow: 8px 0 30px rgba(0, 0, 0, .3); transform: translateX(-105%); transition: transform .25s cubic-bezier(.3, 0, .2, 1); touch-action: pan-y }
+.o-scrim[hidden], .o-toc[hidden] { display: none }
+#okuyucu.toc-open .o-scrim { opacity: 1 }
+#okuyucu.toc-open .o-toc { transform: none }
+.o-tochead { display: flex; align-items: center; justify-content: space-between; padding: 0 12px 8px 18px }
+.o-tochead b { font: 600 22px var(--serif) }
+.o-tochead .o-close { color: var(--ink, #2a231d); border-color: rgba(0, 0, 0, .15); background: none }
+.o-toclist { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 0 10px 20px }
+.o-toclist h3 { margin: 14px 8px 6px; font: 600 12px var(--ui); letter-spacing: .1em; text-transform: uppercase; opacity: .6 }
+.o-toclist ol { list-style: none; margin: 0; padding: 0 }
+.o-toclist button { width: 100%; min-height: 44px; display: flex; align-items: center; gap: 10px; padding: 8px; border: 0; border-radius: 10px; background: none; color: inherit; text-align: left; font: 500 15px/1.25 var(--ui) }
+.o-toclist button:hover { background: rgba(0, 0, 0, .05) }
+.o-toclist button[aria-current="true"] { background: rgba(181, 82, 59, .14); font-weight: 600; box-shadow: inset 3px 0 0 var(--accent, #b5523b) }
+.o-toclist button.empty { opacity: .5 }
+.o-tst { position: relative; flex: none; width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; font: 700 12px/1 var(--ui) }
+.o-tst::after { content: ''; position: absolute; inset: -11px }   /* 44 px to tap on the iPad */
+
 @media (max-width: 640px) {
   .brand { font-size: 22px }
   .crumb { display: none }
@@ -256,9 +381,23 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
   .r-top .rb .lbl { display: none }
 }
 @media (prefers-reduced-motion: reduce) {
-  .leaf, #spread, .single-turn { transition-duration: .01s !important }
+  .leaf, #spread, .single-turn, .o-leaf, .o-turn { transition-duration: .01s !important }
 }
 
 /* Faz 2.5: FPS counter, only with ?fps=1 */
+/* task 3.7: the page got zoomed by the browser anyway (shown at the top of what is on screen) */
+#sayfaZoom { position: fixed; left: 0; top: 0; z-index: 10000; transform-origin: 0 0; box-sizing: border-box; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px;
+  padding: 10px 14px; background: #2a231d; color: #fff; font: 500 15px/1.3 var(--ui); touch-action: manipulation }
+#sayfaZoom[hidden] { display: none }
+#sayfaZoom button { font: 700 15px var(--ui); padding: 8px 16px; border: 0; border-radius: 999px; background: #f3eadb; color: #2a231d }
+#sayfaZoom small { flex-basis: 100%; opacity: .75; font-size: 13px }
+
 #fps { position: fixed; top: 4px; left: 4px; z-index: 9999; pointer-events: none; padding: 2px 6px; border-radius: 4px;
-  background: rgba(0, 0, 0, .6); color: #fff; font: 11px/1.4 ui-monospace, Menlo, Consolas, monospace }
+  background: rgba(0, 0, 0, .6); color: #fff; font: 11px/1.4 ui-monospace, Menlo, Consolas, monospace; white-space: pre }
+/* task 3.7: errors with ?fps=1 (the iPad has no console) */
+#hataKutusu { position: fixed; left: 4px; bottom: 4px; z-index: 9999; max-width: min(560px, calc(100vw - 8px)); max-height: 40vh; overflow: auto; box-sizing: border-box;
+  padding: 6px 34px 6px 8px; border-radius: 6px; background: rgba(120, 20, 20, .9); color: #fff; font: 11px/1.4 ui-monospace, Menlo, Consolas, monospace; touch-action: pan-y; user-select: text; -webkit-user-select: text }
+#hataKutusu[hidden] { display: none }
+#hataKutusu ol { margin: 0; padding-left: 18px }
+#hataKutusu li { overflow-wrap: anywhere }
+#hataKutusu button { position: absolute; top: 2px; right: 2px; width: 28px; height: 28px; border: 0; border-radius: 4px; background: rgba(255, 255, 255, .2); color: #fff; font: 700 16px/1 var(--ui) }
