@@ -1,0 +1,134 @@
+import { isSampleId } from '../okuma/ornekKaynak';
+import { driveFetch, ok } from './drive';
+
+// Writes a PDF back to Drive (Faz 4, task 4.2). Nothing calls this yet.
+// - Always the same file id (PATCH upload). There is no way to create a file here: PdfDrive has no create.
+// - Backup: before the first write, the head revision gets keepForever=true (ensureOriginalKept).
+//   Binary revisions are normally deleted after ~30 days; kept ones stay (Drive allows 200 per file).
+// - Order: sample id → canEdit → modifiedTime (= expected?) → headRevisionId → keep original
+//   → headRevisionId again (same?) → upload. keepForever may change modifiedTime, so after it
+//   the head revision tells whether the content changed.
+// - Conflict: PdfConflict; re-applying the strokes on the newer file is the caller's job.
+
+const UPLOAD = 'https://www.googleapis.com/upload/drive/v3/';
+export const RESUMABLE_LIMIT = 5 * 1024 * 1024;   // bigger → resumable upload, else media
+
+export interface Revision { id: string; keepForever?: boolean }
+export interface RevisionPage { revisions: Revision[]; nextPageToken?: string }
+export interface UploadResult { id: string; modifiedTime: string; headRevisionId: string }
+
+export interface PdfDrive {
+  canEdit(fileId: string): Promise<boolean>;
+  listRevisions(fileId: string, pageToken?: string): Promise<RevisionPage>;
+  headRevisionId(fileId: string): Promise<string>;
+  keepRevision(fileId: string, revisionId: string): Promise<void>;
+  modifiedTime(fileId: string): Promise<string>;
+  uploadMedia(fileId: string, bytes: Uint8Array): Promise<UploadResult>;
+  uploadResumable(fileId: string, bytes: Uint8Array): Promise<UploadResult>;
+}
+
+export class PdfSampleNoWrite extends Error {
+  constructor() { super('Örnek kitaplıktaki PDF\'lere çizim kaydedilmez. Kendi notların için Google ile giriş yap.'); }
+}
+
+export class PdfReadOnly extends Error {
+  constructor() { super('Bu PDF\'i değiştirme iznin yok. Drive\'da dosyanın sahibi ya da düzenleyicisi olduğundan emin ol.'); }
+}
+
+export class PdfConflict extends Error {
+  constructor() { super('PDF bu arada başka bir yerde değişmiş, o yüzden üstüne yazılmadı.'); }
+}
+
+export class PdfUploadSession extends Error {
+  constructor() { super('PDF yüklemesi başlatılamadı: Drive yükleme adresini vermedi. Biraz sonra tekrar dene.'); }
+}
+
+const WHAT = 'PDF kaydedilirken';
+const fileUrl = (fileId: string) => `files/${encodeURIComponent(fileId)}`;
+const uploadUrl = (fileId: string, type: 'media' | 'resumable') =>
+  `${UPLOAD}files/${encodeURIComponent(fileId)}?uploadType=${type}&fields=id,modifiedTime,headRevisionId`;
+const pdfBody = (bytes: Uint8Array) => new Blob([bytes as Uint8Array<ArrayBuffer>], { type: 'application/pdf' });
+
+async function readResult(res: Response): Promise<UploadResult> {
+  const j = await res.json() as Partial<UploadResult>;
+  return { id: j.id ?? '', modifiedTime: j.modifiedTime ?? '', headRevisionId: j.headRevisionId ?? '' };
+}
+
+export const drivePdfApi: PdfDrive = {
+  async canEdit(fileId) {
+    const res = await ok(await driveFetch(`${fileUrl(fileId)}?fields=capabilities/canEdit`), WHAT);
+    return (await res.json() as { capabilities?: { canEdit?: boolean } }).capabilities?.canEdit === true;
+  },
+  async listRevisions(fileId, pageToken) {
+    const params = new URLSearchParams({ fields: 'nextPageToken,revisions(id,keepForever)' });
+    if (pageToken) params.set('pageToken', pageToken);
+    const res = await ok(await driveFetch(`${fileUrl(fileId)}/revisions?${params}`), WHAT);
+    const j = await res.json() as { revisions?: Revision[]; nextPageToken?: string };
+    return { revisions: j.revisions ?? [], nextPageToken: j.nextPageToken };
+  },
+  async headRevisionId(fileId) {
+    const res = await ok(await driveFetch(`${fileUrl(fileId)}?fields=headRevisionId`), WHAT);
+    return (await res.json() as { headRevisionId?: string }).headRevisionId ?? '';
+  },
+  async keepRevision(fileId, revisionId) {
+    await ok(await driveFetch(`${fileUrl(fileId)}/revisions/${encodeURIComponent(revisionId)}?fields=id`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json; charset=UTF-8' },
+      body: JSON.stringify({ keepForever: true })
+    }), WHAT);
+  },
+  async modifiedTime(fileId) {
+    const res = await ok(await driveFetch(`${fileUrl(fileId)}?fields=modifiedTime`), WHAT);
+    return (await res.json() as { modifiedTime?: string }).modifiedTime ?? '';
+  },
+  async uploadMedia(fileId, bytes) {
+    const res = await ok(await driveFetch(uploadUrl(fileId, 'media'), {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/pdf' },
+      body: pdfBody(bytes)
+    }), WHAT);
+    return readResult(res);
+  },
+  async uploadResumable(fileId, bytes) {
+    // 1) open a session on the existing file (PATCH, not POST: no new file), 2) send the bytes to it
+    const start = await ok(await driveFetch(uploadUrl(fileId, 'resumable'), {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json; charset=UTF-8',
+        'X-Upload-Content-Type': 'application/pdf',
+        'X-Upload-Content-Length': String(bytes.byteLength)
+      },
+      body: '{}'
+    }), WHAT);
+    const session = start.headers.get('Location');
+    if (!session || !session.startsWith('https://')) throw new PdfUploadSession();   // never fall back to media silently
+    const res = await ok(await driveFetch(session, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/pdf' },
+      body: pdfBody(bytes)
+    }), WHAT);
+    return readResult(res);
+  }
+};
+
+// Marks the head revision keepForever, unless some revision is already kept. Safe to call again.
+export async function ensureOriginalKept(drive: PdfDrive, fileId: string): Promise<void> {
+  let pageToken: string | undefined;
+  do {
+    const page = await drive.listRevisions(fileId, pageToken);
+    if (page.revisions.some(r => r.keepForever === true)) return;
+    pageToken = page.nextPageToken;
+  } while (pageToken);
+  await drive.keepRevision(fileId, await drive.headRevisionId(fileId));
+}
+
+// Replaces the PDF with id fileId by bytes, only if it is still the version we read (expectedModifiedTime).
+export async function uploadPdf(drive: PdfDrive, fileId: string, bytes: Uint8Array, expectedModifiedTime: string): Promise<UploadResult> {
+  if (isSampleId(fileId)) throw new PdfSampleNoWrite();   // sample library: no request at all
+  if (!await drive.canEdit(fileId)) throw new PdfReadOnly();
+  if (await drive.modifiedTime(fileId) !== expectedModifiedTime) throw new PdfConflict();
+  const head = await drive.headRevisionId(fileId);
+  await ensureOriginalKept(drive, fileId);
+  if (await drive.headRevisionId(fileId) !== head) throw new PdfConflict();   // content changed meanwhile
+  return bytes.byteLength > RESUMABLE_LIMIT ? drive.uploadResumable(fileId, bytes) : drive.uploadMedia(fileId, bytes);
+}

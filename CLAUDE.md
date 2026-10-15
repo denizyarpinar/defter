@@ -167,9 +167,10 @@ Kitaplık/
 - Uygulamanın notları özel `/DefterId` anahtarıyla işaretlenir. Sadece /DefterId işaretli Ink annotation'lar eklenir/değişir/silinir. Sayfa içeriği, başka notlar, form alanları, metadata ve sayfa sırası korunur.
 - Aynı dosya id'sine PATCH (uploadType=media veya resumable). Asla yeni dosya veya kopya oluşturulmaz.
 - Yazmadan önce: capabilities.canEdit kontrolü; modifiedTime oku. Değişmişse son hali indir, bekleyen çizgileri onun üstüne yeniden uygula, tekrar dene. Kör üstüne yazma yok.
+  Ayrıca headRevisionId yedekten (ensureOriginalKept) önce ve sonra okunur; farklıysa içerik bu arada değişmiştir, yazılmaz (PdfConflict). keepForever modifiedTime'ı değiştirebileceği için yedekten sonra modifiedTime değil headRevisionId karşılaştırılır.
 - Çizgiler önce cihazda (IndexedDB) saklanır, Drive'a sonra yazılır. Sayfa kapanırken PDF yüklenmez (keepalive sınırı); bekleyen çizgiler bir sonraki açılışta yazılır.
 - Kayıttan sonra yeni modifiedTime ile PDF önbelleği ve bellekteki kopyalar güncellenir.
 - Demo/örnek kitaplıkta Drive'a yazma yok. Telifli ders PDF'leri asla public/ veya git'e girmez; testler demo PDF'lerle yapılır.
 - Mevcut `drive` kapsamı yeterli; yeni Google izni istenmez.
 - pdf-lib (tam sürüm 1.17.1) sadece kalem modu açılınca dinamik import (`await import('pdf-lib')`) ile yüklenir; ilk açılış paketine girmez.
-- Yedek yöntemi ayrı bir adımda kararlaştırılacak. Karar verilene kadar gerçek Drive PDF'ine yazma kodu çalıştırılmaz.
+- Yedek: ilk yazmadan önce head sürüm keepForever=true yapılır (ensureOriginalKept). Gerçek Drive PDF'ine ilk deneme Deniz'in onayıyla, test kitabında yapılır.
