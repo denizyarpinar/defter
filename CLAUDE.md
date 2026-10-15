@@ -110,3 +110,25 @@ Kitaplık/
 - Veri modeline dokunma. kitaplik.json'daki oda.duvar / oda.zemin / oda.mod alanları aynı anlamda kullanılır.
 - Her görevin sonunda npm run build hatasız olmalı; raf görünümü, kitap açma, sürükle-bırak ve akşam modu bozulmamış olmalı.
 - Faz 2 işleri faz-2 dalında yapılır. main'e birleştirme ancak Deniz onay verince.
+
+## Faz 3 — Okuma kuralları
+
+### PDF
+- PDF çizimi: pdfjs-dist (PDF.js). Worker Vite ile: import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'.
+- PDF Drive'dan files/{id}?alt=media ile indirilir (Authorization başlığıyla). Asla Drive'da kopyalanmaz, taşınmaz, değiştirilmez.
+- İndirilen PDF'ler IndexedDB'de önbelleğe alınır; anahtar = dosya id + modifiedTime. Drive'da dosya değişince yenisi indirilir. Önbellek toplamı 500 MB'ı geçerse en eski açılanlar silinir.
+- Kaynak yolu (kaynak.dosya) kitabın klasörüne göre çözülür; alt klasörler (defter/...) desteklenir. Bulunamayan dosya kitabı bozmaz: o sayfa yerine "Dosya bulunamadı: <ad>" sayfası gösterilir.
+- sayfalar alanı: "3", "3-7", "1-2,5,9-11"; yoksa tüm PDF.
+
+### Sayfa ve bellek
+- Her PDF sayfası kitabın bir sayfası. Sayfa oranı PDF'in kendi oranı (çoğu A4; yatay slaytlar yatay kalır, kitap modunda sayfaya sığdırılır).
+- Aynı anda sadece görünen sayfalar + 2 önceki + 2 sonraki çizilir; uzaklaşan canvas'lar serbest bırakılır (width = height = 0).
+- Canvas boyutu: devicePixelRatio en fazla 2; tek canvas en fazla 16 milyon piksel (iPad Safari sınırı). Yakınlaştırmada görüntü önce CSS ile büyür, parmak kalkınca keskin olarak yeniden çizilir.
+
+### Yazılan alanlar (Faz 3)
+- kitaplik.json: raflar ve oda (Faz 1'deki gibi).
+- kitap.json: kapak, sonAcilis, kurdele ({ bolum, sayfa }), bolumler[].durum. Başka alana dokunma; bilinmeyen alanları koru. Yazmadan önce dosyanın son halini oku, sadece bu alanları güncelle.
+
+### Güvenlik
+- Ders PDF'leri telifli: public/ veya git'e asla girmez. Demo için kendi ürettiğin örnek PDF'leri kullan.
+- Faz 3'te kalem düğmesi gizli; çizim kodu Faz 4'te gelir.
