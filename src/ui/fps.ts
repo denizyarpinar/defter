@@ -1,6 +1,9 @@
 // Faz 2.5: small FPS counter, only with ?fps=1 in the address. Task 3.6: also in the reader.
 // Counts frames that were actually drawn: the loop skips frames while nothing changes,
 // so an idle room shows "beklemede". Also shows the slowest frame of the last second.
+// Task 3.7: a second line with the reader's canvases and the slowest page drawing (ui/tani.ts).
+
+import { canvasLine } from './tani';
 
 const IDLE_GAP_MS = 250;
 
@@ -24,7 +27,7 @@ function createFpsCounter(): FpsCounter | null {
 
   let frames = 0, worst = 0, last = 0;
   const show = () => {
-    el.textContent = frames ? `${frames} fps · en yavaş ${worst.toFixed(0)} ms` : '0 fps · beklemede';
+    el.textContent = (frames ? `${frames} fps · en yavaş kare ${worst.toFixed(0)} ms` : '0 fps · beklemede') + '\n' + canvasLine();
     frames = 0; worst = 0;
   };
   // updates once a second on its own timer, so an idle scene still shows 0

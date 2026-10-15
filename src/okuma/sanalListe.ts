@@ -50,10 +50,11 @@ export function currentPage(l: Layout, scrollTop: number, viewH: number): number
   return pageAt(l, scrollTop + viewH / 3);
 }
 
-// Canvas pixel size for a page shown at cssW × cssH: devicePixelRatio ≤ 2 and ≤ 16 MP.
-export function canvasSize(cssW: number, cssH: number, dpr: number): { w: number; h: number; scale: number } {
+// Canvas pixel size for a page shown at cssW × cssH: devicePixelRatio ≤ 2 and ≤ maxPx
+// (16 MP; less on a touch device or when the canvas budget is short, see canvasButcesi.ts).
+export function canvasSize(cssW: number, cssH: number, dpr: number, maxPx = MAX_PIXELS): { w: number; h: number; scale: number } {
   let scale = Math.min(Math.max(dpr || 1, 1), MAX_DPR);
   const px = cssW * cssH * scale * scale;
-  if (px > MAX_PIXELS) scale *= Math.sqrt(MAX_PIXELS / px);
+  if (px > maxPx) scale *= Math.sqrt(maxPx / px);
   return { w: Math.floor(cssW * scale), h: Math.floor(cssH * scale), scale };
 }

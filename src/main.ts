@@ -19,12 +19,16 @@ import { hideSaveState, initNotFound, initSaveState, setLibraryLoading, setNotFo
 import { closeReader, initReader, isReaderOpen, openReader, refreshReader } from './ui/reader';
 import { hideLogin, initLogin, setLoginBusy, setLoginError, setRememberedName, showLogin } from './ui/login';
 import { initTopBar, initUserBox, updateCrumb, updateModeButtons, updateUserBox, type LightMode } from './ui/topBar';
+import { installErrorBox } from './ui/hataKutusu';
 import { installPageZoomGuard } from './ui/sayfaZoom';
 import { toast } from './ui/toast';
 
 const app = document.querySelector<HTMLElement>('#app')!;
 const stageEl = document.querySelector<HTMLElement>('#stage')!;
 const loading = document.querySelector<HTMLElement>('#loading')!;
+
+// ?fps=1: errors in a small box on screen (the iPad has no console); first, so it sees everything
+installErrorBox();
 
 // iPad: the browser must not zoom the page (the viewport tag alone doesn't stop it); see ui/sayfaZoom.ts.
 installPageZoomGuard(() => scene?.resize());

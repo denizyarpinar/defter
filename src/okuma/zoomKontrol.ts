@@ -1,3 +1,4 @@
+import { Debouncer } from './cizimKuyrugu';
 import {
   TAP_ZOOM, clampPan, clampZoom, isDoubleTap, isZoomed, zoomAround, type Pt
 } from './yakinlastirma';
@@ -35,8 +36,9 @@ export class ZoomController {
   private lastTap = { t: 0, x: 0, y: 0 };
   private preview: { z0: number; z: number; ox: number; oy: number } | null = null;   // PDF: CSS-only zoom
   private gesture: number | null = null;          // zoom at gesturestart
-  private settleT: number | undefined;
-  private wheelT: number | undefined;
+  // sharp redraw once the gesture is over and things are quiet; wheel zoom applied when the wheel stops
+  private settle = new Debouncer(SETTLE_MS, () => { if (this.busy) this.settle.poke(); else this.host.settled(); });
+  private wheel = new Debouncer(WHEEL_COMMIT_MS, () => { this.commitPreview(); this.settleSoon(); });
 
   constructor(
     private root: HTMLElement,      // #okuyucu
@@ -64,8 +66,8 @@ export class ZoomController {
 
   // Back to 100 % at once (new page, other mode, rotation). The host lays the pages out itself.
   reset(): void {
-    clearTimeout(this.wheelT);
-    clearTimeout(this.settleT);
+    this.wheel.cancel();
+    this.settle.cancel();
     this.preview = null;
     this.pages.style.transform = '';
     this.z = 1;
@@ -164,8 +166,7 @@ export class ZoomController {
       if (this.host.mode() === 'pdf') {
         if (!this.preview) this.startPreview(e.clientX, e.clientY);
         this.setPreview(this.preview!.z * f);
-        clearTimeout(this.wheelT);
-        this.wheelT = window.setTimeout(() => { this.commitPreview(); this.settleSoon(); }, WHEEL_COMMIT_MS);
+        this.wheel.poke();
       } else this.zoomBookAt(this.z * f, e.clientX, e.clientY, false);
       return;
     }
@@ -255,8 +256,12 @@ export class ZoomController {
     this.host.pdfZoom(this.z, p.ox, p.oy);
   }
 
+  // fingers still on the page (pinch, pan) or a Safari gesture going on: not yet
+  private get busy(): boolean {
+    return !!this.pinch || !!this.drag || this.gesture !== null;
+  }
+
   private settleSoon(): void {
-    clearTimeout(this.settleT);
-    this.settleT = window.setTimeout(() => this.host.settled(), SETTLE_MS);
+    this.settle.poke();
   }
 }

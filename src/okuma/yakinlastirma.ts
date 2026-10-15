@@ -53,16 +53,17 @@ export function pdfLeft(viewW: number, width: number, side: number): { holder: n
 export interface Rect { x: number; y: number; w: number; h: number }
 
 // Sharp drawing of a zoomed page shown at pageW × pageH screen px, `vis` of it on screen.
-// The whole page if it fits in 16 MP, else the visible part with some margin (pan stays sharp a bit).
-export function detailRect(vis: Rect, pageW: number, pageH: number, dpr: number): Rect & { pw: number; ph: number } {
+// The whole page if it fits in maxPx (16 MP, or the share of the canvas budget), else the visible
+// part with some margin (pan stays sharp a bit), at a lower resolution if even that doesn't fit.
+export function detailRect(vis: Rect, pageW: number, pageH: number, dpr: number, maxPx = MAX_PIXELS): Rect & { pw: number; ph: number } {
   let scale = Math.min(Math.max(dpr || 1, 1), MAX_DPR);
   const px = (r: Rect, s: number) => r.w * pageW * s * r.h * pageH * s;
   const full = { x: 0, y: 0, w: 1, h: 1 };
   let r: Rect = full;
-  if (px(full, scale) > MAX_PIXELS) {
+  if (px(full, scale) > maxPx) {
     r = grow(vis, 0.25);
-    if (px(r, scale) > MAX_PIXELS) r = vis;
-    if (px(r, scale) > MAX_PIXELS) scale *= Math.sqrt(MAX_PIXELS / px(r, scale));
+    if (px(r, scale) > maxPx) r = vis;
+    if (px(r, scale) > maxPx) scale *= Math.sqrt(maxPx / px(r, scale));
   }
   return { ...r, pw: Math.max(1, Math.floor(r.w * pageW * scale)), ph: Math.max(1, Math.floor(r.h * pageH * scale)) };
 }

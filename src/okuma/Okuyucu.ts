@@ -3,8 +3,11 @@ import type { Book, ChapterStatus, PageMark } from '../model/types';
 import { bookUnits, usesUnits } from '../model/units';
 import { esc } from '../ui/dom';
 import { fpsCounter } from '../ui/fps';
+import { setCanvasStats } from '../ui/tani';
 import { ST } from '../ui/reader';
 import { toast } from '../ui/toast';
+import { CanvasBudget, deviceLimits, shareBudget } from './canvasButcesi';
+import { SingleFlight } from './cizimKuyrugu';
 import { SourceResolver } from './kaynakCoz';
 import { visiblePages } from './kitapDuzen';
 import { BookView } from './kitapModu';
@@ -31,7 +34,9 @@ const $ = <T extends HTMLElement>(s: string) => document.querySelector<T>(s)!;
 
 interface Mounted {
   release(): void;
-  detail?(view: DOMRect | null): void;   // zoomed: draw the visible part sharp; null: free it
+  detail?(view: DOMRect | null, maxPx?: number): void;   // zoomed: draw the visible part sharp (≤ maxPx); null: free it
+  detailWant?(view: DOMRect): number;                     // pixels that sharp part would like
+  wake?(): void;                                          // the page is on screen: draw it if it was freed
 }
 
 interface Prepared { pages: BookPage[]; ratios: number[] }
@@ -83,6 +88,11 @@ let tocOpen = false;
 
 // PDF pages are drawn one at a time (iPad memory), the one nearest the current page first.
 const queue = new Map<number, () => Promise<void>>();
+
+// Task 3.7: all page canvases together stay under the device's limit (canvasButcesi.ts);
+// at most one drawing per page at a time (a new one cancels the old one).
+const budget = new CanvasBudget(deviceLimits(navigator.maxTouchPoints || 0), setCanvasStats);
+const renders = new SingleFlight<number>();
 let drawing = false;
 
 export const isOkuyucuOpen = () => open;
@@ -144,7 +154,7 @@ export function initOkuyucu(): void {
     kind: i => pageKind(pages[i]),
     mount: (i, box, w, h) => mount(i, box, w, h),
     release: i => { mounted.get(i)?.release(); mounted.delete(i); queue.delete(i); },
-    changed: () => { showPageNumber(); void drain(); },
+    changed: () => { showPageNumber(); wakeVisible(); void drain(); },
   });
 
   // Zoom + book mode taps: a tap on the side turns the page, a swipe too (only at 100 %)
@@ -712,7 +722,30 @@ function applyPdfZoom(cx: number, cy: number): void {
 function sharpen(): void {
   if (!open) return;
   const view = zoom.zoomed ? (mode === 'pdf' ? $('#oScroll') : $('#oKitap')).getBoundingClientRect() : null;
-  for (const m of mounted.values()) m.detail?.(view);
+  if (!view) { for (const m of mounted.values()) m.detail?.(null); return; }
+  // task 3.7: the visible pages (two in book mode) share what the budget has left for sharp parts
+  budget.markVisible(isVisible);
+  for (const [i, m] of mounted) if (!isVisible(i)) m.detail?.(null);
+  const list = [...mounted].filter(([i, m]) => m.detail && isVisible(i));
+  const wants = list.map(([, m]) => m.detailWant?.(view) ?? 0);
+  // room for the new sharp parts: off-screen pages go first (only as much as needed)
+  budget.makeRoom(wants.reduce((a, b) => a + b, 0) - budget.usedBy('detay'), focusPage());
+  const caps = shareBudget(budget.limits.total - budget.usedBy('ana'), wants);
+  list.forEach(([, m], k) => m.detail!(view, caps[k] || undefined));
+}
+
+// Task 3.7: is page i on screen now (book mode: the open spread; PDF mode: inside the list's view)?
+function isVisible(i: number): boolean {
+  if (mode === 'kitap') return visiblePages(bookView?.idx ?? 0, bookView?.single ?? true, pages.length).includes(i);
+  const s = $('#oScroll');
+  const [a, b] = visibleRange(layout, s.scrollTop, s.clientHeight, 0);
+  return i >= a && i <= b;
+}
+
+// Pages that came on screen get their canvas back if the budget had taken it.
+function wakeVisible(): void {
+  budget.markVisible(isVisible);
+  for (const [i, m] of mounted) if (isVisible(i)) m.wake?.();
 }
 
 function dropDetails(): void {
@@ -728,6 +761,7 @@ function update(): void {
   for (const [i, m] of mounted) if (i < first || i > last) { m.release(); mounted.delete(i); queue.delete(i); }
   // the canvas is drawn at 100 % size; zoom makes it sharp separately
   for (let i = first; i <= last; i++) if (!mounted.has(i)) mount(i, boxes[i], width / zoom.z, layout.heights[i] / zoom.z);
+  wakeVisible();
   showPageNumber();
   void drain();
 }
@@ -736,6 +770,7 @@ function releaseAll(): void {
   for (const m of mounted.values()) m.release();
   mounted.clear();
   queue.clear();
+  renders.cancelAll();
 }
 
 // Draws page i into box, shown at w × h CSS px (a box of the PDF list, or the fitted page of book mode).
@@ -772,69 +807,110 @@ interface Detail { canvas: HTMLCanvasElement; rect: Rect; pageW: number; job: { 
 
 const freeCanvas = (c: HTMLCanvasElement) => { c.width = c.height = 0; c.remove(); };
 
+// A PDF page: its canvas at 100 % (drawn in turn, nearest first) and, zoomed, a sharp "detail" canvas.
+// Task 3.7: every canvas is in the budget. An off-screen page may "sleep" (no canvas, grey box)
+// when the budget needs the room; it wakes up when it comes on screen.
 function mountPdf(i: number, p: BookPage, box: HTMLElement, cssW: number, cssH: number): void {
-  const canvas = document.createElement('canvas');
-  const { w, h } = canvasSize(cssW, cssH, devicePixelRatio);
-  canvas.width = w; canvas.height = h;
+  const key = `ana${i}`, dKey = `detay${i}`, pKey = `detay${i}+`;
+  let canvas: HTMLCanvasElement | null = null;
   let job: { cancel(): void } | null = null;
+  let gone = false;
   // zoomed: a second canvas over the page with only the visible part, drawn at the zoomed size
   let shown: Detail | null = null, pending: Detail | null = null;
-  const dropPending = () => { if (pending) { pending.job?.cancel(); freeCanvas(pending.canvas); pending = null; } };
-  const dropDetail = () => { dropPending(); if (shown) { freeCanvas(shown.canvas); shown = null; } };
-  const release = () => {
+  const dropPending = () => { if (pending) { pending.job?.cancel(); freeCanvas(pending.canvas); pending = null; budget.delete(pKey); } };
+  const dropDetail = () => { dropPending(); if (shown) { freeCanvas(shown.canvas); shown = null; budget.delete(dKey); } };
+  // no canvas, but still mounted (the budget took the room; wake() draws it again)
+  const sleep = () => {
     dropDetail();
     job?.cancel(); job = null;
-    freeCanvas(canvas);   // Safari frees the canvas memory only like this
+    queue.delete(i);
+    if (canvas) freeCanvas(canvas);   // Safari frees the canvas memory only like this
+    canvas = null;
+    budget.delete(key);
     box.classList.remove('ready');
   };
-  const detail = (view: DOMRect | null) => {
-    if (mounted.get(i)?.release !== release) return;
+  const release = () => { gone = true; sleep(); };
+  const mine = () => !gone && mounted.get(i)?.release === release;
+
+  const draw = () => {
+    const want = canvasSize(cssW, cssH, devicePixelRatio, budget.limits.perCanvas);
+    const visible = isVisible(i);
+    budget.markVisible(isVisible);
+    const cap = budget.reserve(want.w * want.h, visible, focusPage());
+    if (!cap) return;   // off screen and no room: stays grey until it is visible
+    const { w, h } = cap < want.w * want.h ? canvasSize(cssW, cssH, devicePixelRatio, cap) : want;
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    canvas = c;
+    budget.set(key, { page: i, kind: 'ana', px: w * h, visible }, sleep);
+    queue.set(i, async () => {
+      if (!content || canvas !== c) return;
+      const d = renders.start(i, content.drawPdf(p, c));
+      job = d;
+      try {
+        await d.promise;
+        if (mine() && canvas === c && !d.cancelled()) {
+          box.prepend(c); box.classList.add('ready');
+          if (zoom.zoomed) zoom.settleLater();   // drawn while zoomed: make it sharp too
+        }
+      } catch (e) {
+        if (e instanceof SessionExpired) { closeOkuyucu(); return; }
+        console.warn(`Sayfa ${i + 1} çizilemedi.`, e);
+        if (mine()) {
+          release(); mounted.delete(i);
+          mountCard(i, box, '<p class="o-big">Bu sayfa çizilemedi.</p><p>Sayfayı yenileyip tekrar dene.</p>');
+        }
+      } finally {
+        renders.done(i, d);
+        if (job === d) job = null;
+      }
+    });
+  };
+  const wake = () => { if (mine() && !canvas) draw(); };
+
+  // pixels the sharp part would like (for sharing the budget between the visible pages)
+  const detailWant = (view: DOMRect) => {
+    const b = box.getBoundingClientRect();
+    const vis = visiblePart(b, view);
+    if (!vis || !box.classList.contains('ready')) return 0;
+    const r = detailRect(vis, b.width, b.height, devicePixelRatio, budget.limits.perCanvas);
+    return r.pw * r.ph;
+  };
+  const detail = (view: DOMRect | null, maxPx = budget.limits.perCanvas) => {
+    if (!mine()) return;
     const b = box.getBoundingClientRect();
     const vis = view && visiblePart(b, view);
     if (!vis || !content || !box.classList.contains('ready')) { dropDetail(); return; }
     const have = pending ?? shown;
     if (have && Math.abs(have.pageW - b.width) < 2 && covers(have.rect, vis)) return;
     dropPending();
-    const r = detailRect(vis, b.width, b.height, devicePixelRatio);
+    const r = detailRect(vis, b.width, b.height, devicePixelRatio, Math.min(maxPx, budget.limits.perCanvas));
+    // the old sharp part and the new one together would be over the budget: drop the old one first
+    if (shown && budget.used + r.pw * r.ph > budget.limits.total) { freeCanvas(shown.canvas); shown = null; budget.delete(dKey); }
     const c = document.createElement('canvas');
     c.className = 'o-detail';
     c.width = r.pw; c.height = r.ph;
     Object.assign(c.style, { left: r.x * 100 + '%', top: r.y * 100 + '%', width: r.w * 100 + '%', height: r.h * 100 + '%' });
-    const d = content.drawPdf(p, c, r);
-    const mine: Detail = { canvas: c, rect: r, pageW: b.width, job: d };
-    pending = mine;
+    const d = renders.start(i, content.drawPdf(p, c, r));
+    const it: Detail = { canvas: c, rect: r, pageW: b.width, job: d };
+    pending = it;
+    budget.set(pKey, { page: i, kind: 'detay', px: r.pw * r.ph, visible: true }, dropDetail);
     d.promise.then(() => {
-      if (pending !== mine) { freeCanvas(c); return; }
-      pending = null; mine.job = null;
+      if (pending !== it || d.cancelled()) { freeCanvas(c); return; }
+      pending = null; it.job = null;
+      budget.delete(pKey);
       box.append(c);
       if (shown) freeCanvas(shown.canvas);
-      shown = mine;
+      shown = it;
+      budget.set(dKey, { page: i, kind: 'detay', px: r.pw * r.ph, visible: true }, dropDetail);
     }, e => {
-      if (pending === mine) pending = null;
+      if (pending === it) { pending = null; budget.delete(pKey); }
       freeCanvas(c);
       if (!(e instanceof SessionExpired)) console.warn(`Sayfa ${i + 1} keskin çizilemedi.`, e);
-    });
+    }).finally(() => renders.done(i, d));
   };
-  mounted.set(i, { release, detail });
-  queue.set(i, async () => {
-    if (!content) return;
-    const d = content.drawPdf(p, canvas);
-    job = d;
-    try {
-      await d.promise;
-      if (mounted.get(i)?.release === release) {
-        box.prepend(canvas); box.classList.add('ready');
-        if (zoom.zoomed) zoom.settleLater();   // drawn while zoomed: make it sharp too
-      }
-    } catch (e) {
-      if (e instanceof SessionExpired) { closeOkuyucu(); return; }
-      console.warn(`Sayfa ${i + 1} çizilemedi.`, e);
-      if (mounted.get(i)?.release === release) {
-        release(); mounted.delete(i);
-        mountCard(i, box, '<p class="o-big">Bu sayfa çizilemedi.</p><p>Sayfayı yenileyip tekrar dene.</p>');
-      }
-    } finally { job = null; }
-  });
+  mounted.set(i, { release, detail, detailWant, wake });
+  draw();
 }
 
 function mountImage(i: number, p: BookPage, box: HTMLElement): void {

@@ -1,5 +1,6 @@
 import type { PDFDocumentProxy, RenderTask } from 'pdfjs-dist';
 import { SessionExpired, driveFetch, ok } from '../drive/drive';
+import { noteRender } from '../ui/tani';
 import type { BookPage } from './kitapSayfalari';
 import { closePdf, openPdf } from './pdf';
 import { getPdf } from './pdfOnbellek';
@@ -57,7 +58,8 @@ export class PageContent {
 
   // Draws the PDF page into the canvas (its width/height are already set). cancel() stops it.
   // rect (0–1 fractions of the page): only that part, filling the canvas (sharp zoom, task 3.4).
-  drawPdf(p: BookPage, canvas: HTMLCanvasElement, rect?: { x: number; y: number; w: number }): { promise: Promise<void>; cancel: () => void } {
+  // cancelled(): true once cancel() was called (the promise then ends quietly, nothing was drawn).
+  drawPdf(p: BookPage, canvas: HTMLCanvasElement, rect?: { x: number; y: number; w: number }): { promise: Promise<void>; cancel: () => void; cancelled: () => boolean } {
     let task: RenderTask | null = null, cancelled = false;
     const promise = (async () => {
       const page = await (await this.doc(p)).getPage(p.pdfSayfa!);
@@ -72,12 +74,15 @@ export class PageContent {
       });
       const t0 = performance.now();
       try { await task.promise; } catch (e) { if (!cancelled) throw e; return; }
+      if (cancelled) return;
+      const ms = performance.now() - t0;
+      noteRender(ms);   // ?fps=1 box (task 3.7)
       // dev only (task 3.6): how long each page takes; removed from the build
-      if (import.meta.env.DEV && !cancelled) {
-        console.log(`[render] ${p.ad ?? p.dosyaId} s.${p.pdfSayfa} · ${canvas.width}×${canvas.height}${rect ? ' · zoom' : ''} · ${Math.round(performance.now() - t0)} ms`);
+      if (import.meta.env.DEV) {
+        console.log(`[render] ${p.ad ?? p.dosyaId} s.${p.pdfSayfa} · ${canvas.width}×${canvas.height}${rect ? ' · zoom' : ''} · ${Math.round(ms)} ms`);
       }
     })();
-    return { promise, cancel: () => { cancelled = true; task?.cancel(); } };
+    return { promise, cancel: () => { cancelled = true; task?.cancel(); }, cancelled: () => cancelled };
   }
 
   // The photo's bytes; kept while the reader is open (the browser decodes it only when shown).
