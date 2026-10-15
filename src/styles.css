@@ -324,17 +324,23 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 .o-sheet .o-page { right: auto; box-shadow: none }
 .o-endtext { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font: italic 500 18px var(--serif); color: var(--ink); opacity: .45 }
 .o-leaf { position: absolute; top: 0; height: 100%; transform-style: preserve-3d; z-index: 5; transition: transform .4s cubic-bezier(.45, .05, .2, 1) }
-.o-leaf.fw { transform-origin: 0 50%; transform: rotateY(0deg) }
-.o-leaf.fw.go { transform: rotateY(-180deg) }
-.o-leaf.bw { transform-origin: 100% 50%; transform: rotateY(0deg) }
-.o-leaf.bw.go { transform: rotateY(180deg) }
+/* task 4.5b: translateZ(1px) keeps the leaf off the slots' plane; else Safari depth-sorts a page's
+   composited stroke layer (mix-blend-mode) in front of the leaf at the start/end of the turn */
+.o-leaf.fw { transform-origin: 0 50%; transform: translateZ(1px) rotateY(0deg) }
+.o-leaf.fw.go { transform: translateZ(1px) rotateY(-180deg) }
+.o-leaf.bw { transform-origin: 100% 50%; transform: translateZ(1px) rotateY(0deg) }
+.o-leaf.bw.go { transform: translateZ(1px) rotateY(180deg) }
 .o-lf { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden }
+/* a composited child doesn't always get its face's backface-visibility in Safari */
+.o-lf svg.o-cizim { backface-visibility: hidden; -webkit-backface-visibility: hidden }
+/* pages on the turning leaf: no strokes while they move (BookView.hide / reveal) */
+.o-sheet.turning svg.o-cizim { visibility: hidden }
 .o-lf.back { transform: rotateY(180deg) }
 .o-lf::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(90deg, rgba(0, 0, 0, 0), rgba(0, 0, 0, .18)); opacity: 0; transition: opacity .2s }
 .o-leaf.go .o-lf.front::after { opacity: 1 }
-.o-turn { z-index: 6; transition: transform .4s cubic-bezier(.5, 0, .2, 1), opacity .4s; transform-origin: 0 50% }
-.o-turn.out-l { transform: rotateY(-70deg); opacity: 0 }
-.o-turn.out-r { transform: rotateY(70deg) translateX(30%); opacity: 0 }
+.o-turn { z-index: 6; transition: transform .4s cubic-bezier(.5, 0, .2, 1), opacity .4s; transform-origin: 0 50%; transform: translateZ(1px) }
+.o-turn.out-l { transform: translateZ(1px) rotateY(-70deg); opacity: 0 }
+.o-turn.out-r { transform: translateZ(1px) rotateY(70deg) translateX(30%); opacity: 0 }
 
 /* task 3.4: zoom (prototype #zoom), page slider, contents panel */
 .o-zoom { perspective: 2400px; transform-origin: 50% 50% }
