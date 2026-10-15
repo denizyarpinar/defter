@@ -100,6 +100,9 @@
         <div id="okuyucu" hidden>
           <div class="o-top">
             <div class="o-title"><b id="oBook"></b><span id="oChap"></span></div>
+            <div class="o-seg" id="oMode" role="group" aria-label="Okuma modu">
+              <button type="button" data-m="kitap">Kitap</button><button type="button" data-m="pdf">PDF</button>
+            </div>
             <span class="o-pno" id="oPno"></span>
             <button class="o-close" id="oClose" aria-label="Okuyucuyu kapat">×</button>
           </div>
@@ -110,10 +113,11 @@
               <button class="o-sol" id="oSol" type="button" aria-pressed="false">Çözümü göster</button>
             </div>
           </div>
+          <div class="o-msg" id="oMsg" hidden></div>
           <div class="o-scroll" id="oScroll">
-            <div class="o-msg" id="oMsg" hidden></div>
             <div class="o-pages" id="oPages"></div>
           </div>
+          <div class="o-kitap" id="oKitap" hidden><div class="o-spread" id="oSpread"></div></div>
         </div>
       </div>
 

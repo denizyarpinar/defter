@@ -4,12 +4,15 @@ import { bookUnits, usesUnits } from '../model/units';
 import { esc } from '../ui/dom';
 import { toast } from '../ui/toast';
 import { SourceResolver } from './kaynakCoz';
+import { visiblePages } from './kitapDuzen';
+import { BookView } from './kitapModu';
 import { buildBookPages, buildSolutionPages, buildTopicPages, type BookPage } from './kitapSayfalari';
 import { MATERIAL_LABEL, availableKinds, defaultKind, discoverTopic, type MaterialKind, type TopicMaterials } from './konuKesfi';
 import { PageContent, pageKind } from './sayfaIcerik';
 import { PAD_TOP, canvasSize, currentPage, layoutPages, visibleRange, type Layout } from './sanalListe';
 
-// Full-screen reader, PDF mode (task 3.2). Pages one under the other.
+// Full-screen reader. PDF mode (task 3.2): pages one under the other.
+// Book mode (task 3.3, kitapModu.ts): two pages side by side, pages turn.
 // surum 1: all pages of the book. surum 2 (task 3.2b): one material of one topic, chosen with tabs.
 // Only the visible pages ±2 have a canvas / photo; the others are grey boxes of the right size.
 
@@ -38,6 +41,15 @@ interface OpenTopic {
 }
 let topic: OpenTopic | null = null;
 
+type Mode = 'kitap' | 'pdf';
+const MODE_KEY = 'defter.okumaModu';
+let mode: Mode = loadMode();
+let bookView: BookView | null = null;
+
+function loadMode(): Mode {
+  try { return localStorage.getItem(MODE_KEY) === 'pdf' ? 'pdf' : 'kitap'; } catch { return 'kitap'; }
+}
+
 let open = false;
 let session = 0;               // increases on every open/close: late answers of an old one are ignored
 let book: Book | null = null;
@@ -65,7 +77,12 @@ export function initOkuyucu(): void {
   }, { passive: true });
   // capture + stop: Esc must close only the reader, not the book behind it
   addEventListener('keydown', e => {
-    if (open && e.key === 'Escape') { e.stopPropagation(); closeOkuyucu(); }
+    if (!open) return;
+    if (e.key === 'Escape') { e.stopPropagation(); closeOkuyucu(); return; }
+    if (mode === 'kitap' && (e.key === 'ArrowRight' || e.key === 'ArrowLeft') && !(e.target instanceof HTMLSelectElement)) {
+      e.preventDefault();
+      bookView?.flip(e.key === 'ArrowRight' ? 1 : -1);
+    }
   }, true);
   let rt: number | undefined;
   addEventListener('resize', () => { clearTimeout(rt); rt = window.setTimeout(() => { if (open && pages.length) relayout(); }, 150); });
@@ -88,6 +105,95 @@ export function initOkuyucu(): void {
     topic.solution = !topic.solution;
     void showMaterial();
   });
+
+  // Kitap / PDF; the choice is remembered
+  $('#oMode').addEventListener('click', e => {
+    const m = (e.target as HTMLElement).closest<HTMLElement>('[data-m]')?.dataset.m as Mode | undefined;
+    if (m) setMode(m);
+  });
+  renderMode();
+
+  bookView = new BookView($('#oKitap'), $('#oSpread'), {
+    count: () => pages.length,
+    ratio: i => ratios[i],
+    kind: i => pageKind(pages[i]),
+    mount: (i, box, w, h) => mount(i, box, w, h),
+    release: i => { mounted.get(i)?.release(); mounted.delete(i); queue.delete(i); },
+    changed: () => { showPageNumber(); void drain(); },
+  });
+  // book mode: tap the right half / swipe left → forward; left half / swipe right → back
+  const area = $('#oKitap');
+  let down: { x: number; y: number; id: number } | null = null;
+  area.addEventListener('pointerdown', e => {
+    down = (e.target as HTMLElement).closest('a, button') ? null : { x: e.clientX, y: e.clientY, id: e.pointerId };
+  });
+  area.addEventListener('pointercancel', () => { down = null; });
+  area.addEventListener('pointerup', e => {
+    if (!down || down.id !== e.pointerId) return;
+    const dx = e.clientX - down.x, dy = e.clientY - down.y;
+    down = null;
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.3) bookView?.flip(dx < 0 ? 1 : -1);
+    else if (Math.abs(dx) < 10 && Math.abs(dy) < 10) {
+      const r = area.getBoundingClientRect();
+      bookView?.flip(e.clientX > r.left + r.width / 2 ? 1 : -1);
+    }
+  });
+}
+
+function setMode(m: Mode): void {
+  if (m === mode) return;
+  const cur = pages.length ? focusPage() : 0;
+  mode = m;
+  try { localStorage.setItem(MODE_KEY, m); } catch { /* private window: not remembered */ }
+  renderMode();
+  if (!open || !pages.length) { showView(); return; }
+  releaseAll();
+  enterMode(cur);
+}
+
+function renderMode(): void {
+  $('#oMode').querySelectorAll<HTMLElement>('[data-m]').forEach(b => {
+    b.classList.toggle('on', b.dataset.m === mode);
+    b.setAttribute('aria-pressed', String(b.dataset.m === mode));
+  });
+}
+
+// Only the view of the current mode is shown.
+function showView(): void {
+  $('#oScroll').hidden = mode !== 'pdf';
+  $('#oKitap').hidden = mode !== 'kitap';
+}
+
+// Build the current mode's view of `pages`, starting at page `start`.
+function enterMode(start: number): void {
+  showView();
+  if (mode === 'pdf') {
+    bookView?.clear();
+    build();
+    $('#oScroll').scrollTop = layout.tops[start] - PAD_TOP;
+    update();
+  } else {
+    $('#oPages').replaceChildren();
+    $('#oPages').style.height = '0';
+    boxes = [];
+    bookView?.show(start, book?.kapak.renk ?? '#24476b');
+  }
+}
+
+// The page the reader is on (PDF: the one crossing the top third; book: the left / only page).
+function focusPage(): number {
+  if (mode === 'kitap') return bookView?.idx ?? 0;
+  const s = $('#oScroll');
+  return currentPage(layout, s.scrollTop, s.clientHeight);
+}
+
+function showPageNumber(): void {
+  if (!open || !pages.length) return;
+  const cur = focusPage(), n = pages.length;
+  // surum 1: the chapter of the current page; surum 2: the topic's title stays
+  if (!topic) $('#oChap').textContent = book!.bolumler[pages[cur].bolumIndex]?.baslik ?? '';
+  const v = mode === 'kitap' ? visiblePages(cur, bookView?.single ?? true, n) : [cur];
+  $('#oPno').textContent = v.length > 1 ? `${v[0] + 1}–${v[1] + 1} / ${n}` : `${cur + 1} / ${n}`;
 }
 
 // The book left the desk (or the library was reloaded): forget its pages.
@@ -248,6 +354,7 @@ function clearPages(): void {
   layout = layoutPages([], 0);
   $('#oPages').replaceChildren();
   $('#oPages').style.height = '0';
+  bookView?.clear();
   $('#oPno').textContent = '';
 }
 
@@ -256,9 +363,7 @@ function showPages(p: BookPage[], r: number[], scrollTo: number, emptyText: stri
   ratios = [...r];
   if (!pages.length) { setMessage(emptyText); return; }
   setMessage(null);
-  build();
-  $('#oScroll').scrollTop = layout.tops[scrollTo] - PAD_TOP;
-  update();
+  enterMode(scrollTo);
 }
 
 export function closeOkuyucu(): void {
@@ -275,6 +380,7 @@ export function closeOkuyucu(): void {
     if (open) return;
     el.hidden = true;
     $('#oPages').replaceChildren();
+    bookView?.clear();
     boxes = [];
   }, 300);
   pages = []; ratios = []; book = null;
@@ -316,6 +422,7 @@ function place(box: HTMLElement, i: number): void {
 
 // New width (rotation) or a page got its real size: stay on the same spot of the same page.
 function relayout(): void {
+  if (mode === 'kitap') { releaseAll(); bookView?.layout(); return; }
   const s = $('#oScroll');
   const cur = currentPage(layout, s.scrollTop, s.clientHeight);
   const into = (s.scrollTop - layout.tops[cur]) / Math.max(1, layout.heights[cur]);
@@ -334,16 +441,12 @@ function relayout(): void {
 // ---- virtual list ----
 
 function update(): void {
-  if (!open || !pages.length) return;
+  if (!open || !pages.length || mode !== 'pdf') return;
   const s = $('#oScroll');
   const [first, last] = visibleRange(layout, s.scrollTop, s.clientHeight);
   for (const [i, m] of mounted) if (i < first || i > last) { m.release(); mounted.delete(i); queue.delete(i); }
-  for (let i = first; i <= last; i++) if (!mounted.has(i)) mount(i);
-
-  const cur = currentPage(layout, s.scrollTop, s.clientHeight);
-  // surum 1: the chapter of the current page; surum 2: the topic's title stays
-  if (!topic) $('#oChap').textContent = book!.bolumler[pages[cur].bolumIndex]?.baslik ?? '';
-  $('#oPno').textContent = `${cur + 1} / ${pages.length}`;
+  for (let i = first; i <= last; i++) if (!mounted.has(i)) mount(i, boxes[i], width, layout.heights[i]);
+  showPageNumber();
   void drain();
 }
 
@@ -353,10 +456,11 @@ function releaseAll(): void {
   queue.clear();
 }
 
-function mount(i: number): void {
-  const p = pages[i], box = boxes[i];
+// Draws page i into box, shown at w × h CSS px (a box of the PDF list, or the fitted page of book mode).
+function mount(i: number, box: HTMLElement, w: number, h: number): void {
+  const p = pages[i];
   switch (pageKind(p)) {
-    case 'pdf': return mountPdf(i, p, box);
+    case 'pdf': return mountPdf(i, p, box, w, h);
     case 'image': return mountImage(i, p, box);
     case 'link': return mountCard(i, box, linkCard(p.link ?? ''));
     case 'missing': return mountCard(i, box,
@@ -382,9 +486,9 @@ function linkCard(url: string): string {
     <a class="o-open" href="${esc(url.trim())}" target="_blank" rel="noopener noreferrer">Bağlantıyı aç ↗</a>`;
 }
 
-function mountPdf(i: number, p: BookPage, box: HTMLElement): void {
+function mountPdf(i: number, p: BookPage, box: HTMLElement, cssW: number, cssH: number): void {
   const canvas = document.createElement('canvas');
-  const { w, h } = canvasSize(width, layout.heights[i], devicePixelRatio);
+  const { w, h } = canvasSize(cssW, cssH, devicePixelRatio);
   canvas.width = w; canvas.height = h;
   let job: { cancel(): void } | null = null;
   const release = () => {
@@ -434,7 +538,11 @@ function mountImage(i: number, p: BookPage, box: HTMLElement): void {
       box.append(img); box.classList.add('ready');
       // Drive didn't know the size, or the photo's turn differs: fix the box
       const r = img.naturalHeight / img.naturalWidth;
-      if (r && Math.abs(r - ratios[i]) > 0.01) { ratios[i] = r; if (prepared?.pages === pages) prepared.ratios[i] = r; relayout(); }
+      if (r && Math.abs(r - ratios[i]) > 0.01) {
+        ratios[i] = r;
+        if (prepared?.pages === pages) prepared.ratios[i] = r;
+        if (mode === 'pdf') relayout(); else bookView?.refit(i);
+      }
     };
     img.onerror = () => {
       if (gone) return;
@@ -456,8 +564,7 @@ async function drain(): Promise<void> {
   drawing = true;
   try {
     while (open && queue.size) {
-      const s = $('#oScroll');
-      const cur = currentPage(layout, s.scrollTop, s.clientHeight);
+      const cur = focusPage();
       let best = -1;
       for (const i of queue.keys()) if (best < 0 || Math.abs(i - cur) < Math.abs(best - cur)) best = i;
       const job = queue.get(best)!;
