@@ -246,6 +246,30 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 .r-bottom .arrow:disabled { opacity: .35; cursor: default }
 .r-bottom .pno { font-size: 13px; min-width: 110px; text-align: center; font-variant-numeric: tabular-nums; opacity: .85 }
 
+/* ---------- okuyucu: PDF mode (task 3.2), over the open book; desk background from #reader ---------- */
+#okuyucu { position: absolute; inset: 0; z-index: 20; display: flex; flex-direction: column; background: inherit; opacity: 0; transition: opacity .3s }
+#okuyucu.show { opacity: 1 }
+.o-top { display: flex; align-items: center; gap: 12px; padding: calc(env(safe-area-inset-top, 0px) + 6px) 12px 6px 16px; color: #f5ecdf;
+  background: rgba(0, 0, 0, .28); border-bottom: 1px solid rgba(255, 255, 255, .1) }
+.o-title { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.2 }
+.o-title b { font: 600 17px var(--serif) }
+.o-title span { font-size: 12.5px; opacity: .75; margin-left: 10px }
+.o-pno { font-size: 13px; font-variant-numeric: tabular-nums; opacity: .85; white-space: nowrap }
+.o-close { width: 36px; height: 36px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, .22); background: rgba(0, 0, 0, .18); color: #f5ecdf; font-size: 22px; line-height: 1 }
+.o-scroll { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; overscroll-behavior: contain }
+.o-pages { position: relative; margin: 0 auto }
+.o-page { position: absolute; left: 0; right: 0; background: #cfc8bd; box-shadow: 0 10px 26px rgba(0, 0, 0, .3); overflow: hidden }
+.o-page.ready { background: #fff var(--paperImg, none) }
+.o-page canvas, .o-page img { display: block; width: 100%; height: 100%; object-fit: contain }
+.o-card { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+  padding: 10%; text-align: center; color: #2a231d; font-size: 15px; overflow-wrap: anywhere }
+.o-card p { margin: 0 }
+.o-big { font: 600 22px var(--serif) }
+.o-label { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; opacity: .6 }
+.o-url { font-size: 13.5px; opacity: .8; max-width: 100% }
+.o-open { margin-top: 8px; padding: 11px 18px; border-radius: 10px; background: var(--accent, #b5523b); color: #fff; font-weight: 600; text-decoration: none }
+.o-msg { padding: 40px 16px; text-align: center; color: #f5ecdf; font-size: 15px }
+
 @media (max-width: 640px) {
   .brand { font-size: 22px }
   .crumb { display: none }

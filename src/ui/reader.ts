@@ -1,4 +1,5 @@
 import type { Book, ChapterStatus, SourceType } from '../model/types';
+import { isOkuyucuOpen } from '../okuma/Okuyucu';
 import { isDark } from '../scene/units';
 import { esc } from './dom';
 import { toast } from './toast';
@@ -40,6 +41,7 @@ let book: Book | null = null;
 let ctx: ReaderContext = { shelfName: null, daysSinceOpened: null, owner: null };
 let idx = 0, pw = 0, single = false, busy = false;
 let onClose: () => void = () => {};
+let onChapter: (bolumIndex: number) => void = () => {};
 const PAGES = ['title', 'toc'] as const;
 
 function el(tag: string, cls: string, parent?: HTMLElement, html?: string): HTMLElement {
@@ -50,13 +52,14 @@ function el(tag: string, cls: string, parent?: HTMLElement, html?: string): HTML
   return e;
 }
 
-export function initReader(close: () => void): void {
+export function initReader(close: () => void, chapter: (bolumIndex: number) => void): void {
   onClose = close;
+  onChapter = chapter;
   $('#rClose').addEventListener('click', closeReader);
   $('#prev').addEventListener('click', () => flipTo(idx - 1));
   $('#next').addEventListener('click', () => flipTo(idx + 1));
   addEventListener('keydown', e => {
-    if (!book) return;
+    if (!book || isOkuyucuOpen()) return;   // the full-screen reader is on top
     if (e.key === 'Escape') closeReader();
     if (e.key === 'ArrowRight') flipTo(idx + 1);
     if (e.key === 'ArrowLeft') flipTo(idx - 1);
@@ -162,7 +165,9 @@ function renderPage(i: number, side: 'l' | 'r'): HTMLElement {
   }
   p.addEventListener('click', e => {
     const t = e.target as HTMLElement;
-    if (t.closest('[data-ch]') || t.closest('[data-ribbon]')) toast('Sayfalar Faz 3\'te geliyor.');
+    const ch = t.closest<HTMLElement>('[data-ch]');
+    if (ch) onChapter(Number(ch.dataset.ch));
+    else if (t.closest('[data-ribbon]')) toast('Kurdele Faz 3\'ün sonraki adımında geliyor.');
   });
   return p;
 }

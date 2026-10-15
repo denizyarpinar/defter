@@ -1,11 +1,12 @@
 import './styles.css';
 import { AuthError, prepareAuth, rememberUser, rememberedUser, signIn, signOut } from './drive/auth';
 import { getUser, setAccountHint, setSessionExpiredHandler } from './drive/drive';
-import { LibraryNotFound, loadDriveLibrary } from './drive/driveLibrary';
+import { LibraryNotFound, loadDriveLibrary, type DriveLocation } from './drive/driveLibrary';
 import { DriveSaver } from './drive/save';
 import { daysSinceOpened, shelfOf } from './model/library';
 import { loadLocalLibrary } from './model/localSource';
 import type { ModeKey } from './model/types';
+import { closeOkuyucu, forgetBook, initOkuyucu, openOkuyucu } from './okuma/Okuyucu';
 import { createRoomScene, type LibraryData, type RoomScene, type View } from './scene';
 import { canvas, drawWood, noise } from './scene/textures';
 import { updateHint } from './ui/hint';
@@ -32,6 +33,8 @@ let scene: RoomScene | null = null;
 let view: View = 'room';
 let openTitle: string | null = null;
 let saver: DriveSaver | null = null;   // set while the library comes from Drive
+let driveLoc: DriveLocation | null = null;   // with saver: where the book folders are
+let deskBook: string | null = null;    // id of the book open on the desk
 let ownerName: string | null = null;    // signed-in user (title page: "<ad>'in kitaplığından")
 
 const isEvening = () => { const h = new Date().getHours(); return h >= 18 || h < 6; };
@@ -70,13 +73,16 @@ const offline = "Drive'a bağlanılamadı. İnternet bağlantını kontrol et ve
 const errorText = (e: unknown) => e instanceof TypeError || !(e instanceof Error) ? offline : e.message;
 
 // Put new data into the shared holder and rebuild the room.
-async function useData(next: { library: LibraryData['library']; books: LibraryData['books'] }, newSaver: DriveSaver | null): Promise<void> {
+async function useData(next: { library: LibraryData['library']; books: LibraryData['books'] }, newSaver: DriveSaver | null, loc: DriveLocation | null): Promise<void> {
   await ready;
   if (!data || !scene) return;
+  closeOkuyucu();
+  forgetBook();
   if (isReaderOpen()) { closeReader(); await new Promise(r => setTimeout(r, 1900)); }   // let the book fly home first
   data.library = next.library;
   data.books = next.books;
   saver = newSaver;
+  driveLoc = loc;
   hideSaveState();
   scene.reload();
   if (location.hash !== '#aksam') { mode = MODE_FROM_DATA[data.library.oda.mod]; applyMode(); }
@@ -89,7 +95,7 @@ async function loadFromDrive(): Promise<void> {
   try {
     const r = await loadDriveLibrary();
     // the saver reads from the shared holder, whose contents useData replaces
-    await useData(r, new DriveSaver(r.loc, data!, { saving: showSaving, saved: showSaved, failed: showSaveError }));
+    await useData(r, new DriveSaver(r.loc, data!, { saving: showSaving, saved: showSaved, failed: showSaveError }), r.loc);
     if (r.warnings.length) toast(r.warnings[0]);
     // dev only: ?test=pdf (&kitap=<kod>) checks the PDF pipeline (task 3.1); not in the build
     if (import.meta.env.DEV && new URLSearchParams(location.search).get('test') === 'pdf') {
@@ -104,7 +110,7 @@ async function loadFromDrive(): Promise<void> {
 }
 
 async function useSample(): Promise<void> {
-  try { await useData(await loadLocalLibrary(), null); } catch { toast('Örnek kitaplık yüklenemedi. Sayfayı yenile.'); }
+  try { await useData(await loadLocalLibrary(), null, null); } catch { toast('Örnek kitaplık yüklenemedi. Sayfayı yenile.'); }
 }
 
 initNotFound({
@@ -167,9 +173,21 @@ else showLogin();
 prepareAuth().catch((e: unknown) => { if (e instanceof AuthError) setLoginError(e.message); });
 
 initReader(() => {
+  closeOkuyucu();
+  forgetBook();
+  deskBook = null;
   scene?.setPaused(false);
   scene?.closeBook();
+}, bolumIndex => {
+  const b = deskBook ? data?.books.get(deskBook) : undefined;
+  if (!b) return;
+  const folderId = driveLoc?.bookFolderIds.get(b.id);
+  if (!folderId) { toast('Sayfaları görmek için Google ile giriş yap. Örnek kitaplıkta dosya yok.'); return; }
+  // the room is behind the reader: don't draw it (it stays paused under the contents page too)
+  scene?.setPaused(true);
+  void openOkuyucu(b, folderId, bolumIndex, () => scene?.setPaused(isReaderOpen()));
 });
+initOkuyucu();
 
 // Wooden desk + paper texture for the reading view (same as the prototype).
 function readerTextures(): void {
@@ -212,6 +230,7 @@ async function boot(): Promise<void> {
     onBookOpening: id => { openTitle = d.books.get(id)!.baslik; updateChrome(); },
     onBookOnDesk: id => {
       const b = d.books.get(id)!;
+      deskBook = id;
       const shelf = shelfOf(d.library, id);
       openReader(b, { shelfName: shelf >= 0 ? d.library.raflar[shelf].ad : null, daysSinceOpened: daysSinceOpened(b), owner: saver ? ownerName : null });
       b.sonAcilis = new Date().toISOString();   // in memory only in phase 1

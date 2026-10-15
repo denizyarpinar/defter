@@ -1,0 +1,312 @@
+import { SessionExpired } from '../drive/drive';
+import type { Book } from '../model/types';
+import { esc } from '../ui/dom';
+import { toast } from '../ui/toast';
+import { buildBookPages, type BookPage } from './kitapSayfalari';
+import { PageContent, pageKind } from './sayfaIcerik';
+import { PAD_TOP, canvasSize, currentPage, layoutPages, visibleRange, type Layout } from './sanalListe';
+
+// Full-screen reader, PDF mode: all pages of the book one under the other (task 3.2).
+// Only the visible pages ±2 have a canvas / photo; the others are grey boxes of the right size.
+
+const MAX_WIDTH = 760;   // prototype #pdfView: min(760px, 100vw − 32px)
+const SIDE = 16;
+
+const $ = <T extends HTMLElement>(s: string) => document.querySelector<T>(s)!;
+
+interface Mounted { release(): void }
+
+// The pages and their sizes stay in memory while the same book is on the desk.
+let prepared: { book: Book; folderId: string; pages: BookPage[]; ratios: number[] } | null = null;
+
+let open = false;
+let session = 0;               // increases on every open/close: late answers of an old one are ignored
+let book: Book | null = null;
+let pages: BookPage[] = [];
+let ratios: number[] = [];
+let content: PageContent | null = null;
+let layout: Layout = layoutPages([], 0);
+let width = 0;
+let boxes: HTMLElement[] = [];
+const mounted = new Map<number, Mounted>();
+let onClosed: () => void = () => {};
+
+// PDF pages are drawn one at a time (iPad memory), the one nearest the current page first.
+const queue = new Map<number, () => Promise<void>>();
+let drawing = false;
+
+export const isOkuyucuOpen = () => open;
+
+export function initOkuyucu(): void {
+  $('#oClose').addEventListener('click', closeOkuyucu);
+  const scroller = $('#oScroll');
+  let raf = 0;
+  scroller.addEventListener('scroll', () => {
+    if (!raf) raf = requestAnimationFrame(() => { raf = 0; update(); });
+  }, { passive: true });
+  // capture + stop: Esc must close only the reader, not the book behind it
+  addEventListener('keydown', e => {
+    if (open && e.key === 'Escape') { e.stopPropagation(); closeOkuyucu(); }
+  }, true);
+  let rt: number | undefined;
+  addEventListener('resize', () => { clearTimeout(rt); rt = window.setTimeout(() => { if (open && pages.length) relayout(); }, 150); });
+}
+
+// The book left the desk (or the library was reloaded): forget its pages.
+export function forgetBook(): void {
+  prepared = null;
+}
+
+export async function openOkuyucu(b: Book, folderId: string, chapter: number, closed: () => void): Promise<void> {
+  if (open) return;
+  if (!b.bolumler[chapter]?.kaynaklar.length) { toast('Bu bölümde henüz kaynak yok.'); return; }
+  open = true;
+  const my = ++session;
+  book = b; onClosed = closed;
+  content = new PageContent();
+
+  $('#oBook').textContent = b.baslik;
+  $('#oChap').textContent = b.bolumler[chapter].baslik;
+  $('#oPno').textContent = '';
+  $('#oPages').replaceChildren();
+  $('#oPages').style.height = '0';
+  setMessage('Sayfalar hazırlanıyor…');
+  const el = $('#okuyucu');
+  el.hidden = false;
+  requestAnimationFrame(() => el.classList.add('show'));
+
+  try {
+    if (!prepared || prepared.book !== b || prepared.folderId !== folderId) {
+      const p = await buildBookPages(b, folderId);
+      if (my !== session) return;
+      const r = await content.ratios(p);
+      if (my !== session) return;
+      prepared = { book: b, folderId, pages: p, ratios: r };
+    }
+  } catch (e) {
+    if (my !== session) return;
+    closeOkuyucu();
+    if (!(e instanceof SessionExpired)) {
+      console.error(e);
+      toast(e instanceof TypeError || !(e instanceof Error)
+        ? 'Sayfalar yüklenemedi. İnternet bağlantını kontrol et ve tekrar dene.'
+        : e.message);
+    }
+    return;
+  }
+
+  pages = prepared.pages;
+  ratios = [...prepared.ratios];
+  if (!pages.length) { setMessage('Bu kitapta gösterilecek sayfa yok.'); return; }
+  setMessage(null);
+  build();
+  const first = Math.max(0, pages.findIndex(p => p.bolumIndex === chapter));
+  $('#oScroll').scrollTop = layout.tops[first] - PAD_TOP;
+  update();
+}
+
+export function closeOkuyucu(): void {
+  if (!open) return;
+  open = false;
+  session++;
+  releaseAll();
+  void content?.close();
+  content = null;
+  const el = $('#okuyucu');
+  el.classList.remove('show');
+  setTimeout(() => {
+    if (open) return;
+    el.hidden = true;
+    $('#oPages').replaceChildren();
+    boxes = [];
+  }, 300);
+  pages = []; ratios = []; book = null;
+  onClosed();
+}
+
+function setMessage(text: string | null): void {
+  const m = $('#oMsg');
+  m.hidden = text === null;
+  m.textContent = text ?? '';
+}
+
+// ---- layout ----
+
+function measureWidth(): number {
+  return Math.max(120, Math.min(MAX_WIDTH, $('#oScroll').clientWidth - 2 * SIDE));
+}
+
+function build(): void {
+  width = measureWidth();
+  layout = layoutPages(ratios, width);
+  const holder = $('#oPages');
+  holder.style.width = width + 'px';
+  holder.style.height = layout.total + 'px';
+  boxes = pages.map((p, i) => {
+    const box = document.createElement('div');
+    box.className = 'o-page';
+    box.dataset.kind = pageKind(p);
+    place(box, i);
+    return box;
+  });
+  holder.replaceChildren(...boxes);
+}
+
+function place(box: HTMLElement, i: number): void {
+  box.style.top = layout.tops[i] + 'px';
+  box.style.height = layout.heights[i] + 'px';
+}
+
+// New width (rotation) or a page got its real size: stay on the same spot of the same page.
+function relayout(): void {
+  const s = $('#oScroll');
+  const cur = currentPage(layout, s.scrollTop, s.clientHeight);
+  const into = (s.scrollTop - layout.tops[cur]) / Math.max(1, layout.heights[cur]);
+  const newWidth = measureWidth();
+  const sizeChanged = newWidth !== width;
+  width = newWidth;
+  layout = layoutPages(ratios, width);
+  $('#oPages').style.width = width + 'px';
+  $('#oPages').style.height = layout.total + 'px';
+  boxes.forEach(place);
+  if (sizeChanged) releaseAll();   // canvases were drawn for the old width
+  s.scrollTop = layout.tops[cur] + into * layout.heights[cur];
+  update();
+}
+
+// ---- virtual list ----
+
+function update(): void {
+  if (!open || !pages.length) return;
+  const s = $('#oScroll');
+  const [first, last] = visibleRange(layout, s.scrollTop, s.clientHeight);
+  for (const [i, m] of mounted) if (i < first || i > last) { m.release(); mounted.delete(i); queue.delete(i); }
+  for (let i = first; i <= last; i++) if (!mounted.has(i)) mount(i);
+
+  const cur = currentPage(layout, s.scrollTop, s.clientHeight);
+  $('#oChap').textContent = book!.bolumler[pages[cur].bolumIndex]?.baslik ?? '';
+  $('#oPno').textContent = `${cur + 1} / ${pages.length}`;
+  void drain();
+}
+
+function releaseAll(): void {
+  for (const m of mounted.values()) m.release();
+  mounted.clear();
+  queue.clear();
+}
+
+function mount(i: number): void {
+  const p = pages[i], box = boxes[i];
+  switch (pageKind(p)) {
+    case 'pdf': return mountPdf(i, p, box);
+    case 'image': return mountImage(i, p, box);
+    case 'link': return mountCard(i, box, linkCard(p.link ?? ''));
+    case 'missing': return mountCard(i, box,
+      `<p class="o-big">Dosya bulunamadı: ${esc(p.eksik ?? '')}</p><p>Drive'da kitabın klasörüne bu adla yükle ve yenile.</p>`);
+    case 'unsupported': return mountCard(i, box,
+      `<p class="o-big">Bu dosya türü henüz gösterilemiyor: ${esc(p.ad ?? '')}</p><p>Şimdilik PDF, JPG ve PNG dosyaları okunabiliyor.</p>`);
+  }
+}
+
+function mountCard(i: number, box: HTMLElement, html: string): void {
+  const card = document.createElement('div');
+  card.className = 'o-card';
+  card.innerHTML = html;
+  box.append(card);
+  box.classList.add('ready');
+  mounted.set(i, { release: () => { card.remove(); box.classList.remove('ready'); } });
+}
+
+function linkCard(url: string): string {
+  const safe = /^https?:\/\//i.test(url.trim());
+  if (!safe) return `<p class="o-big">Bağlantı açılamıyor.</p><p>Adres http:// ya da https:// ile başlamalı: ${esc(url)}</p>`;
+  return `<p class="o-label">Bağlantı</p><p class="o-url">${esc(url)}</p>
+    <a class="o-open" href="${esc(url.trim())}" target="_blank" rel="noopener noreferrer">Bağlantıyı aç ↗</a>`;
+}
+
+function mountPdf(i: number, p: BookPage, box: HTMLElement): void {
+  const canvas = document.createElement('canvas');
+  const { w, h } = canvasSize(width, layout.heights[i], devicePixelRatio);
+  canvas.width = w; canvas.height = h;
+  let job: { cancel(): void } | null = null;
+  const release = () => {
+    job?.cancel(); job = null;
+    canvas.width = canvas.height = 0;   // Safari frees the canvas memory only like this
+    canvas.remove();
+    box.classList.remove('ready');
+  };
+  mounted.set(i, { release });
+  queue.set(i, async () => {
+    if (!content) return;
+    const d = content.drawPdf(p, canvas);
+    job = d;
+    try {
+      await d.promise;
+      if (mounted.get(i)?.release === release) { box.append(canvas); box.classList.add('ready'); }
+    } catch (e) {
+      if (e instanceof SessionExpired) { closeOkuyucu(); return; }
+      console.warn(`Sayfa ${i + 1} çizilemedi.`, e);
+      if (mounted.get(i)?.release === release) {
+        release(); mounted.delete(i);
+        mountCard(i, box, '<p class="o-big">Bu sayfa çizilemedi.</p><p>Sayfayı yenileyip tekrar dene.</p>');
+      }
+    } finally { job = null; }
+  });
+}
+
+function mountImage(i: number, p: BookPage, box: HTMLElement): void {
+  const img = document.createElement('img');
+  img.alt = '';
+  img.decoding = 'async';
+  let url: string | null = null, gone = false;
+  mounted.set(i, {
+    release: () => {
+      gone = true;
+      img.removeAttribute('src'); img.remove();
+      if (url) URL.revokeObjectURL(url);
+      box.classList.remove('ready');
+    }
+  });
+  const my = session;
+  content!.image(p).then(blob => {
+    if (gone || my !== session) return;
+    url = URL.createObjectURL(blob);
+    img.onload = () => {
+      if (gone) return;
+      box.append(img); box.classList.add('ready');
+      // Drive didn't know the size, or the photo's turn differs: fix the box
+      const r = img.naturalHeight / img.naturalWidth;
+      if (r && Math.abs(r - ratios[i]) > 0.01) { ratios[i] = r; if (prepared?.pages === pages) prepared.ratios[i] = r; relayout(); }
+    };
+    img.onerror = () => {
+      if (gone) return;
+      mounted.get(i)?.release(); mounted.delete(i);
+      mountCard(i, box, '<p class="o-big">Bu resim gösterilemiyor.</p><p>Dosya JPG ya da PNG olmalı.</p>');
+    };
+    img.src = url;
+  }).catch(e => {
+    if (gone || my !== session) return;
+    if (e instanceof SessionExpired) { closeOkuyucu(); return; }
+    console.warn(`Resim ${i + 1} indirilemedi.`, e);
+    mounted.get(i)?.release(); mounted.delete(i);
+    mountCard(i, box, '<p class="o-big">Resim indirilemedi.</p><p>İnternet bağlantını kontrol et ve sayfayı yenile.</p>');
+  });
+}
+
+async function drain(): Promise<void> {
+  if (drawing) return;
+  drawing = true;
+  try {
+    while (open && queue.size) {
+      const s = $('#oScroll');
+      const cur = currentPage(layout, s.scrollTop, s.clientHeight);
+      let best = -1;
+      for (const i of queue.keys()) if (best < 0 || Math.abs(i - cur) < Math.abs(best - cur)) best = i;
+      const job = queue.get(best)!;
+      queue.delete(best);
+      await job();
+    }
+  } finally {
+    drawing = false;
+  }
+}
