@@ -1,5 +1,5 @@
 import { SessionExpired } from '../drive/drive';
-import type { Book, ChapterStatus } from '../model/types';
+import type { Book, ChapterStatus, PageMark } from '../model/types';
 import { bookUnits, usesUnits } from '../model/units';
 import { esc } from '../ui/dom';
 import { ST } from '../ui/reader';
@@ -9,6 +9,7 @@ import { visiblePages } from './kitapDuzen';
 import { BookView } from './kitapModu';
 import { buildBookPages, buildSolutionPages, buildTopicPages, type BookPage } from './kitapSayfalari';
 import { MATERIAL_LABEL, availableKinds, defaultKind, discoverTopic, type MaterialKind, type TopicMaterials } from './konuKesfi';
+import { autoTopicStatus, cycleStatus, markChapterPage, markTopicPage, type Resume } from './okumaDurumu';
 import { PageContent, pageKind } from './sayfaIcerik';
 import { PAD_TOP, canvasSize, currentPage, layoutPages, visibleRange, type Layout } from './sanalListe';
 import { anchorPoint, covers, detailRect, pdfLeft, tapZone, visiblePart, type Rect } from './yakinlastirma';
@@ -19,6 +20,7 @@ import { ZoomController } from './zoomKontrol';
 // surum 1: all pages of the book. surum 2 (task 3.2b): one material of one topic, chosen with tabs.
 // Only the visible pages ±2 have a canvas / photo; the others are grey boxes of the right size.
 // Task 3.4: contents panel, page slider, zoom (zoomKontrol.ts); zoomed pages get a sharp "detail" canvas.
+// Task 3.5: the page on screen becomes the ribbon, topics get "okunuyor" / "okundu" (okumaDurumu.ts).
 
 const MAX_WIDTH = 760;   // prototype #pdfView: min(760px, 100vw − 32px)
 const SIDE = 16;
@@ -48,6 +50,7 @@ interface OpenTopic {
 }
 let topic: OpenTopic | null = null;
 let current = { unit: 0, topic: 0 };   // surum 2: the topic chosen last (also while it is loading)
+let mainCount = 0;                     // surum 2: pages of the material itself (the solution's come after)
 
 type Mode = 'kitap' | 'pdf';
 const MODE_KEY = 'defter.okumaModu';
@@ -111,7 +114,8 @@ export function initOkuyucu(): void {
     const kind = (e.target as HTMLElement).closest<HTMLElement>('[data-kind]')?.dataset.kind as MaterialKind | undefined;
     if (!topic || !kind || kind === topic.kind) return;
     topic.kind = kind; topic.fileIndex = 0; topic.solution = false;
-    void showMaterial();
+    const mark = savedMark(topic);   // the material opens where the reader left it
+    void showMaterial(mark && useMark(topic, mark));
   });
   const select = $<HTMLSelectElement>('#oFile');
   select.addEventListener('change', () => {
@@ -184,7 +188,10 @@ export function initOkuyucu(): void {
   $('#oScrim').addEventListener('click', closeToc);
   $('#oTocList').addEventListener('click', e => {
     const b = (e.target as HTMLElement).closest<HTMLElement>('[data-u]');
-    if (b && book) chooseTopic(Number(b.dataset.u), Number(b.dataset.t));
+    if (!b || !book) return;
+    // the status icon: next status, the panel stays open
+    if ((e.target as HTMLElement).closest('[data-st]')) { cycleStatus(book, Number(b.dataset.u), Number(b.dataset.t)); renderToc(); return; }
+    chooseTopic(Number(b.dataset.u), Number(b.dataset.t));
   });
 }
 
@@ -247,6 +254,32 @@ function showPageNumber(): void {
   const slider = $<HTMLInputElement>('#oSlider');
   slider.max = String(n);
   if (!sliding) slider.value = String(cur + 1);
+  recordReading(cur, v);
+}
+
+// ---- reading state (task 3.5) ----
+
+// The material whose last page makes the topic "okundu": Özet, else Orijinal.
+const readKind = (m: TopicMaterials): MaterialKind | null => m.ozet.length ? 'ozet' : m.orijinal.length ? 'orijinal' : null;
+
+// cur: the page the reader is on; shown: the pages on screen (book mode: one or two).
+function recordReading(cur: number, shown: number[]): void {
+  const b = book, p = pages[cur];
+  if (!b || !p) return;
+  // PDF mode: a page counts as seen when it is the current one, the last one also when the list is at its end
+  const s = $('#oScroll');
+  const atEnd = mode === 'pdf' && s.scrollTop + s.clientHeight >= s.scrollHeight - 2;
+  const seen = (i: number) => shown.includes(i) || (atEnd && i === pages.length - 1);
+  if (topic) {
+    if (p.ad && p.pdfSayfa) markTopicPage(b, current.unit, current.topic, topic.kind, { dosya: p.ad, sayfa: p.pdfSayfa });
+    if (topic.kind === readKind(topic.materials) && mainCount && seen(mainCount - 1)) autoTopicStatus(b, current.unit, current.topic, 'bitti');
+  } else if (!usesUnits(b)) {
+    const bolum = p.bolumIndex;
+    markChapterPage(b, bolum, cur - pages.findIndex(q => q.bolumIndex === bolum) + 1);
+    autoTopicStatus(b, 0, bolum, 'girildi');
+    // the last page of a chapter on screen: that chapter is read
+    pages.forEach((q, i) => { if (seen(i) && pages[i + 1]?.bolumIndex !== q.bolumIndex) autoTopicStatus(b, 0, q.bolumIndex, 'bitti'); });
+  }
 }
 
 // ---- page slider ----
@@ -281,7 +314,7 @@ function goToPage(i: number): void {
 
 // ---- contents panel ----
 
-const STATUS_ICON: Record<ChapterStatus, string> = { okunmadi: '•', calisildi: '✓', tekrar: '↻' };
+const STATUS_ICON: Record<ChapterStatus, string> = { okunmadi: '•', okunuyor: '◐', okundu: '●', calisildi: '✓', tekrar: '↻' };
 
 function openToc(): void {
   if (!book) return;
@@ -316,7 +349,7 @@ function renderToc(): void {
     const on = cur.unit === ui && cur.topic === ti;
     const empty = v1 && !t.kaynaklar?.length;
     return `<li><button type="button" data-u="${ui}" data-t="${ti}"${on ? ' aria-current="true"' : ''}${empty ? ' class="empty"' : ''}>`
-      + `<span class="o-tst st ${cls}" title="${label}" aria-label="${label}">${STATUS_ICON[t.durum]}</span><span>${esc(t.baslik)}</span></button></li>`;
+      + `<span class="o-tst st ${cls}" data-st title="${label} · değiştirmek için dokun" aria-label="${label}">${STATUS_ICON[t.durum]}</span><span>${esc(t.baslik)}</span></button></li>`;
   }).join('')}</ol></section>`).join('');
   $('#oTocList').innerHTML = html || '<p class="o-msg">Bu kitapta henüz konu yok.</p>';
 }
@@ -341,7 +374,8 @@ export function forgetBook(): void {
 }
 
 // unit / topicIndex: as in bookUnits (surum 1: unit 0 "Genel", topic = chapter).
-export async function openOkuyucu(b: Book, folderId: string, unit: number, topicIndex: number, closed: () => void): Promise<void> {
+// resume: "Kaldığın yerden devam" (the ribbon's material, file and page).
+export async function openOkuyucu(b: Book, folderId: string, unit: number, topicIndex: number, closed: () => void, resume?: Resume): Promise<void> {
   if (open) return;
   const t = bookUnits(b)[unit]?.konular[topicIndex];
   if (!t) return;
@@ -365,7 +399,8 @@ export async function openOkuyucu(b: Book, folderId: string, unit: number, topic
   el.hidden = false;
   requestAnimationFrame(() => el.classList.add('show'));
 
-  if (v2) { await openTopic(unit, topicIndex); return; }
+  if (v2) { await openTopic(unit, topicIndex, resume); return; }
+  autoTopicStatus(b, 0, topicIndex, 'girildi');
 
   try {
     if (!prepared || prepared.book !== b || prepared.folderId !== folderId) {
@@ -380,7 +415,10 @@ export async function openOkuyucu(b: Book, folderId: string, unit: number, topic
     return;
   }
 
-  showPages(prepared.pages, prepared.ratios, Math.max(0, prepared.pages.findIndex(p => p.bolumIndex === topicIndex)), 'Bu kitapta gösterilecek sayfa yok.');
+  const first = prepared.pages.findIndex(p => p.bolumIndex === topicIndex);
+  // resume: page `sayfa` of the chapter (if the chapter still has that many)
+  const at = resume && first >= 0 && prepared.pages[first + resume.sayfa - 1]?.bolumIndex === topicIndex ? first + resume.sayfa - 1 : first;
+  showPages(prepared.pages, prepared.ratios, Math.max(0, at), 'Bu kitapta gösterilecek sayfa yok.');
 }
 
 function loadFailed(e: unknown): void {
@@ -406,12 +444,14 @@ function discover(folderId: string, klasor: string): Promise<TopicMaterials | nu
   return p;
 }
 
-// Open a topic (first open, or from the contents) with its default material.
-async function openTopic(unit: number, topicIndex: number): Promise<void> {
+// Open a topic (first open, or from the contents) with its default material,
+// or with the ribbon's material and page (resume).
+async function openTopic(unit: number, topicIndex: number, resume?: Resume): Promise<void> {
   const t = book ? bookUnits(book)[unit]?.konular[topicIndex] : undefined;
-  if (!t) return;
+  if (!t || !book) return;
   const my = ++session;
   current = { unit, topic: topicIndex };
+  autoTopicStatus(book, unit, topicIndex, 'girildi');
   topic = null;
   zoom.reset();
   releaseAll();
@@ -423,20 +463,39 @@ async function openTopic(unit: number, topicIndex: number): Promise<void> {
     const m = await discover(folder, t.klasor ?? '');
     if (my !== session) return;
     if (!m) { setMessage(`Konu klasörü bulunamadı: ${t.klasor}. Drive'da kitabın klasöründe bu klasörü oluştur ve yenile.`); return; }
-    const kind = defaultKind(m);
+    const kind = resume?.materyal && m[resume.materyal].length ? resume.materyal : defaultKind(m);
     if (!kind) { setMessage('Henüz materyal yok.'); return; }
     topic = { title: t.baslik, materials: m, kind, fileIndex: 0, solution: false };
   } catch (e) {
     if (my === session) loadFailed(e);
     return;
   }
-  await showMaterial();
+  const mark = resume?.dosya && resume.materyal === topic.kind ? { dosya: resume.dosya, sayfa: resume.sayfa } : savedMark(topic);
+  await showMaterial(mark && useMark(topic, mark));
+}
+
+// The ribbon of the open topic's current material.
+function savedMark(t: OpenTopic): PageMark | null {
+  return book?.uniteler[current.unit]?.konular[current.topic]?.kurdeleler[t.kind] ?? null;
+}
+
+// Übungen / Ödevler: the mark chooses the file (and the solution, if it was in it). null: its file is gone.
+function useMark(t: OpenTopic, mark: PageMark): PageMark | null {
+  const list = t.kind === 'uebungen' || t.kind === 'oedevler' ? t.materials[t.kind] : null;
+  if (!list) return mark;
+  const i = list.findIndex(m => m.file.name === mark.dosya || m.cozum?.name === mark.dosya);
+  if (i < 0) return null;
+  t.fileIndex = i;
+  t.solution = list[i].cozum?.name === mark.dosya;
+  return mark;
 }
 
 // The chosen material of the open topic (+ its solution below it, when "Çözümü göster" is on).
-async function showMaterial(): Promise<void> {
+// start: open at this page (a ribbon); otherwise at the start (or at the solution).
+async function showMaterial(start?: PageMark | null): Promise<void> {
   if (!topic || !content) return;
   const t = topic, my = ++session;
+  mainCount = 0;
   zoom.reset();
   releaseAll();
   clearPages();
@@ -447,13 +506,19 @@ async function showMaterial(): Promise<void> {
   const files = material ? [material.file] : t.materials[t.kind].map(m => m.file);
   const cozum = t.solution ? material?.cozum ?? null : null;
   const key = (list: { id: string; modifiedTime: string }[]) => list.map(f => `${f.id}@${f.modifiedTime}`).join(',');
+  const at = (list: BookPage[], def: number) => {
+    const i = start ? list.findIndex(p => p.ad === start.dosya && p.pdfSayfa === start.sayfa) : -1;
+    return i >= 0 ? i : def;
+  };
   try {
     const main = await cached(key(files), () => buildTopicPages(t.materials, t.kind, t.fileIndex), my);
     if (my !== session) return;
-    if (!cozum) { showPages(main.pages, main.ratios, 0, 'Bu materyalde gösterilecek sayfa yok.'); return; }
+    mainCount = main.pages.length;
+    if (!cozum) { showPages(main.pages, main.ratios, at(main.pages, 0), 'Bu materyalde gösterilecek sayfa yok.'); return; }
     const sol = await cached(key([cozum]), () => buildSolutionPages(cozum), my);
     if (my !== session) return;
-    showPages([...main.pages, ...sol.pages], [...main.ratios, ...sol.ratios], main.pages.length, 'Bu materyalde gösterilecek sayfa yok.');
+    const all = [...main.pages, ...sol.pages];
+    showPages(all, [...main.ratios, ...sol.ratios], at(all, main.pages.length), 'Bu materyalde gösterilecek sayfa yok.');
   } catch (e) {
     if (my === session) loadFailed(e);
   }

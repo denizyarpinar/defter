@@ -2,17 +2,19 @@ import './styles.css';
 import { AuthError, prepareAuth, rememberUser, rememberedUser, signIn, signOut } from './drive/auth';
 import { getUser, setAccountHint, setSessionExpiredHandler } from './drive/drive';
 import { LibraryNotFound, loadDriveLibrary, type DriveLocation } from './drive/driveLibrary';
+import { ReadingSaver, driveReadingApi } from './drive/okumaKaydi';
 import { DriveSaver } from './drive/save';
 import { daysSinceOpened, shelfOf } from './model/library';
 import { loadLocalLibrary } from './model/localSource';
 import type { ModeKey } from './model/types';
+import { markOpened, setReadingSink } from './okuma/okumaDurumu';
 import { closeOkuyucu, forgetBook, initOkuyucu, openOkuyucu } from './okuma/Okuyucu';
 import { createRoomScene, type LibraryData, type RoomScene, type View } from './scene';
 import { canvas, drawWood, noise } from './scene/textures';
 import { updateHint } from './ui/hint';
 import { initPanel } from './ui/panel';
 import { hideSaveState, initNotFound, initSaveState, setLibraryLoading, setNotFound, showSaveError, showSaved, showSaving } from './ui/driveStatus';
-import { closeReader, initReader, isReaderOpen, openReader } from './ui/reader';
+import { closeReader, initReader, isReaderOpen, openReader, refreshReader } from './ui/reader';
 import { hideLogin, initLogin, setLoginBusy, setLoginError, setRememberedName, showLogin } from './ui/login';
 import { initTopBar, initUserBox, updateCrumb, updateModeButtons, updateUserBox, type LightMode } from './ui/topBar';
 import { toast } from './ui/toast';
@@ -33,6 +35,7 @@ let scene: RoomScene | null = null;
 let view: View = 'room';
 let openTitle: string | null = null;
 let saver: DriveSaver | null = null;   // set while the library comes from Drive
+let reading: ReadingSaver | null = null;   // with saver: ribbon, topic status, last opened (task 3.5)
 let driveLoc: DriveLocation | null = null;   // with saver: where the book folders are
 let deskBook: string | null = null;    // id of the book open on the desk
 let ownerName: string | null = null;    // signed-in user (title page: "<ad>'in kitaplığından")
@@ -83,6 +86,11 @@ async function useData(next: { library: LibraryData['library']; books: LibraryDa
   data.books = next.books;
   saver = newSaver;
   driveLoc = loc;
+  // reading state: written only to a Drive library (the sample library has no writer)
+  reading?.dispose();
+  reading = loc ? new ReadingSaver(id => loc.bookFileIds.get(id), driveReadingApi, { saving: () => {}, saved: showSaved, failed: showSaveError }) : null;
+  const r = reading;
+  setReadingSink(r ? (id, patch) => r.change(id, patch) : null);
   hideSaveState();
   scene.reload();
   if (location.hash !== '#aksam') { mode = MODE_FROM_DATA[data.library.oda.mod]; applyMode(); }
@@ -119,6 +127,9 @@ initNotFound({
 });
 initSaveState();
 addEventListener('beforeunload', e => { if (saver?.hasUnsaved) e.preventDefault(); });
+// tab hidden / page closed: write the reading state now (keepalive: may finish after the page is gone)
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') void reading?.flush(true); });
+addEventListener('pagehide', () => { void reading?.flush(true); });
 
 // ---- Google sign-in ----
 
@@ -151,7 +162,8 @@ initLogin({
 });
 initUserBox({
   onSignIn: () => googleSignIn(),
-  onSignOut: () => {
+  onSignOut: async () => {
+    await reading?.flush();   // while the token is still there
     signOut(); rememberUser(null); setAccountHint(undefined); setRememberedName(null);
     ownerName = null;
     updateUserBox({ kind: 'none' }); showLogin();
@@ -176,16 +188,21 @@ initReader(() => {
   closeOkuyucu();
   forgetBook();
   deskBook = null;
+  void reading?.flush();
   scene?.setPaused(false);
   scene?.closeBook();
-}, (unit, topic) => {
+}, (unit, topic, resume) => {
   const b = deskBook ? data?.books.get(deskBook) : undefined;
   if (!b) return;
   const folderId = driveLoc?.bookFolderIds.get(b.id);
   if (!folderId) { toast('Sayfaları görmek için Google ile giriş yap. Örnek kitaplıkta dosya yok.'); return; }
   // the room is behind the reader: don't draw it (it stays paused under the contents page too)
   scene?.setPaused(true);
-  void openOkuyucu(b, folderId, unit, topic, () => scene?.setPaused(isReaderOpen()));
+  void openOkuyucu(b, folderId, unit, topic, () => {
+    scene?.setPaused(isReaderOpen());
+    void reading?.flush();
+    refreshReader();   // status / ribbon on the contents page
+  }, resume);
 });
 initOkuyucu();
 
@@ -233,7 +250,7 @@ async function boot(): Promise<void> {
       deskBook = id;
       const shelf = shelfOf(d.library, id);
       openReader(b, { shelfName: shelf >= 0 ? d.library.raflar[shelf].ad : null, daysSinceOpened: daysSinceOpened(b), owner: saver ? ownerName : null });
-      b.sonAcilis = new Date().toISOString();   // in memory only in phase 1
+      markOpened(b);
       setTimeout(() => { if (isReaderOpen()) scene?.setPaused(true); }, 400);
     },
     onBookClosed: () => { openTitle = null; updateChrome(); },

@@ -1,9 +1,9 @@
 import type { Book, ChapterStatus, SourceType } from '../model/types';
 import { bookUnits, topicCount, usesUnits } from '../model/units';
+import { cycleStatus, resumeOf, type Resume } from '../okuma/okumaDurumu';
 import { isOkuyucuOpen } from '../okuma/Okuyucu';
 import { isDark } from '../scene/units';
 import { esc } from './dom';
-import { toast } from './toast';
 
 // Open book on the desk (2D overlay). Phase 1: title page + table of contents only.
 
@@ -17,7 +17,8 @@ const ICON: Record<SourceType, string> = {
 };
 const SRC_LABEL: Record<SourceType, string> = { pdf: 'PDF', defter: 'Defter', claude: 'Claude', link: 'Link' };
 export const ST: Record<ChapterStatus, [cls: string, label: string]> = {
-  okunmadi: ['todo', 'Okunmadı'], calisildi: ['done', 'Çalışıldı'], tekrar: ['review', 'Tekrar']
+  okunmadi: ['todo', 'Okunmadı'], okunuyor: ['reading', 'Okunuyor'], okundu: ['read', 'Okundu'],
+  calisildi: ['done', 'Çalışıldı'], tekrar: ['review', 'Tekrar']
 };
 
 export interface ReaderContext {
@@ -42,7 +43,7 @@ let book: Book | null = null;
 let ctx: ReaderContext = { shelfName: null, daysSinceOpened: null, owner: null };
 let idx = 0, pw = 0, single = false, busy = false;
 let onClose: () => void = () => {};
-let onChapter: (unit: number, topic: number) => void = () => {};
+let onChapter: (unit: number, topic: number, resume?: Resume) => void = () => {};
 const PAGES = ['title', 'toc'] as const;
 
 function el(tag: string, cls: string, parent?: HTMLElement, html?: string): HTMLElement {
@@ -54,7 +55,8 @@ function el(tag: string, cls: string, parent?: HTMLElement, html?: string): HTML
 }
 
 // chapter(unit, topic): indices as in bookUnits (surum 1: unit 0 "Genel", topic = chapter)
-export function initReader(close: () => void, chapter: (unit: number, topic: number) => void): void {
+// resume: "Kaldığın yerden devam" (task 3.5)
+export function initReader(close: () => void, chapter: (unit: number, topic: number, resume?: Resume) => void): void {
   onClose = close;
   onChapter = chapter;
   $('#rClose').addEventListener('click', closeReader);
@@ -79,6 +81,11 @@ export function initReader(close: () => void, chapter: (unit: number, topic: num
 }
 
 export const isReaderOpen = () => book !== null;
+
+// The reading state changed (the full-screen reader closed): draw the pages again.
+export function refreshReader(): void {
+  if (book) renderAll();
+}
 
 // ---- layout ----
 
@@ -139,6 +146,7 @@ function lastOpenedText(d: number | null): string {
 function renderPage(i: number, side: 'l' | 'r'): HTMLElement {
   const b = book!;
   const kind = PAGES[i];
+  const resume = resumeOf(b);
   const p = el('div', `page ${kind === 'title' ? 'tp' : 'toc'} ${side === 'r' ? 'rightp' : 'leftp'}`);
   const inn = el('div', 'in', p);
   el('div', 'folio', p, String(i + 1));
@@ -151,10 +159,11 @@ function renderPage(i: number, side: 'l' | 'r'): HTMLElement {
       <h1>${esc(b.baslik)}</h1>
       <dl class="meta"><dt>Ders / alan</dt><dd>${esc(b.ders || '—')}</dd>${size}
       <dt>Son açılış</dt><dd>${lastOpenedText(ctx.daysSinceOpened)}</dd></dl>
-      ${b.kurdele !== null ? `<button class="go" data-ribbon>Kaldığın yer: s. ${esc(String(b.kurdele))} →</button>` : ''}
+      ${resume ? `<button class="go" data-ribbon>Kaldığın yer: ${esc(resume.label)} →</button>` : ''}
       <div class="exl">${ctx.owner ? esc(genitive(ctx.owner)) + ' kitaplığından' : 'Örnek kitaplıktan'}</div>`;
   } else {
     let html = '<div class="src">Kitap · içindekiler</div><h2>İçindekiler</h2>';
+    if (resume) html += `<button class="resume" data-ribbon><span class="rib" aria-hidden="true"></span><span>Kaldığın yerden devam: <b>${esc(resume.label)}</b></span></button>`;
     const units = bookUnits(b);
     if (!units.some(u => u.konular.length)) {
       html += `<p class="empty">${b.hasJson ? 'Bu kitapta henüz konu yok.' : 'Bu klasörde kitap.json yok. Drive\'da klasöre bir kitap.json ekleyince bölümler burada görünür.'}</p>`;
@@ -166,19 +175,23 @@ function renderPage(i: number, side: 'l' | 'r'): HTMLElement {
           const kinds = [...new Set((t.kaynaklar ?? []).map(s => s.tur))];
           const [cls, label] = ST[t.durum];
           html += `<li><button data-u="${ui}" data-t="${ti}"><span class="num">${ti + 1}</span><span><span class="tt">${esc(t.baslik)}</span>
-            <span class="icons">${kinds.map(k => `<span class="ic">${ICON[k]}${SRC_LABEL[k]}</span>`).join('')}<span class="st ${cls}">${label}</span></span></span></button></li>`;
+            <span class="icons">${kinds.map(k => `<span class="ic">${ICON[k]}${SRC_LABEL[k]}</span>`).join('')}<span class="st ${cls}" data-st title="Durumu değiştirmek için dokun">${label}</span></span></span></button></li>`;
         });
         html += '</ol>';
       });
-      html += '<div class="legend">Konuya dokun: oraya git</div>';
+      html += '<div class="legend">Konuya dokun: oraya git · Duruma dokun: değiştir</div>';
     }
     inn.innerHTML = html;
   }
   p.addEventListener('click', e => {
     const t = e.target as HTMLElement;
     const ch = t.closest<HTMLElement>('[data-t]');
-    if (ch) onChapter(Number(ch.dataset.u), Number(ch.dataset.t));
-    else if (t.closest('[data-ribbon]')) toast('Kurdele Faz 3\'ün sonraki adımında geliyor.');
+    if (ch && t.closest('[data-st]')) {
+      // the status label: next status (only this page is drawn again)
+      cycleStatus(b, Number(ch.dataset.u), Number(ch.dataset.t));
+      p.replaceWith(renderPage(i, side));
+    } else if (ch) onChapter(Number(ch.dataset.u), Number(ch.dataset.t));
+    else if (t.closest('[data-ribbon]') && resume) onChapter(resume.unit, resume.topic, resume);
   });
   return p;
 }

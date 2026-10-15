@@ -23,7 +23,7 @@ export function bookToJson(b: Book): Record<string, unknown> {
     ...(b.dil !== undefined ? { dil: b.dil } : {}),
     kapak: { ...b.kapak.extra, renk: b.kapak.renk, stil: b.kapak.stil },
     sonAcilis: b.sonAcilis,
-    kurdele: b.kurdele,
+    kurdele: b.kurdele !== null && typeof b.kurdele === 'object' ? { ...b.kurdele } : b.kurdele,
     bolumler: b.bolumler.map(c => ({
       ...c.extra,
       baslik: c.baslik,
@@ -34,7 +34,10 @@ export function bookToJson(b: Book): Record<string, unknown> {
       uniteler: b.uniteler.map(u => ({
         ...u.extra,
         baslik: u.baslik,
-        konular: u.konular.map(t => ({ ...t.extra, baslik: t.baslik, klasor: t.klasor, durum: t.durum }))
+        konular: u.konular.map(t => ({
+          ...t.extra, baslik: t.baslik, klasor: t.klasor, durum: t.durum,
+          ...(Object.keys(t.kurdeleler).length ? { kurdeleler: { ...t.kurdeleler } } : {})
+        }))
       }))
     } : {})
   };
