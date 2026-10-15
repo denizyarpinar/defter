@@ -70,7 +70,12 @@ export class PageContent {
         viewport: page.getViewport({ scale }),
         transform: rect ? [1, 0, 0, 1, -r.x * base.width * scale, -r.y * base.height * scale] : undefined,
       });
-      try { await task.promise; } catch (e) { if (!cancelled) throw e; }
+      const t0 = performance.now();
+      try { await task.promise; } catch (e) { if (!cancelled) throw e; return; }
+      // dev only (task 3.6): how long each page takes; removed from the build
+      if (import.meta.env.DEV && !cancelled) {
+        console.log(`[render] ${p.ad ?? p.dosyaId} s.${p.pdfSayfa} · ${canvas.width}×${canvas.height}${rect ? ' · zoom' : ''} · ${Math.round(performance.now() - t0)} ms`);
+      }
     })();
     return { promise, cancel: () => { cancelled = true; task?.cancel(); } };
   }

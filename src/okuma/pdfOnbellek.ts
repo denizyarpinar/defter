@@ -1,4 +1,5 @@
 import { driveFetch, ok } from '../drive/drive';
+import { fetchSample, isSampleId } from './ornekKaynak';
 
 // Downloaded PDFs are kept in IndexedDB (see CLAUDE.md → Faz 3 → PDF).
 // Key = file id + modifiedTime: when the file changes in Drive, the new version is downloaded.
@@ -100,7 +101,9 @@ async function download(id: string): Promise<ArrayBuffer> {
 }
 
 // The PDF's bytes: from the cache, or downloaded from Drive (and then cached).
+// Sample library (task 3.6): straight from public/, never from Drive or the cache.
 export async function getPdf(id: string, modifiedTime: string): Promise<ArrayBuffer> {
+  if (isSampleId(id)) return fetchSample(id);
   try {
     const cached = await readCached(id, modifiedTime);
     if (cached) return cached;

@@ -75,10 +75,38 @@ describe('detailRect', () => {
 });
 
 describe('tapZone', () => {
-  it('only the sides turn the page', () => {
-    expect(tapZone(0.1)).toBe('prev');
-    expect(tapZone(0.5)).toBe('middle');
-    expect(tapZone(0.9)).toBe('next');
+  // a 1536 px wide, low window: the two-page book is 760 px wide in the middle (388–1148)
+  const book = { left: 388, width: 760, pages: 2 as const };
+  const page = 380;
+
+  it('the outer 22 % of each page turns it, also when the book is narrow in a wide area', () => {
+    // with the old area-based zone (22 % of 1536 px = 338 px from the window edge) these all were "middle"
+    expect(tapZone(1148 - page * 0.05, book)).toBe('next');
+    expect(tapZone(1148 - page * 0.15, book)).toBe('next');
+    expect(tapZone(388 + page * 0.05, book)).toBe('prev');
+    expect(tapZone(388 + page * 0.15, book)).toBe('prev');
+  });
+
+  it('the middle around the spine does not turn', () => {
+    expect(tapZone(768, book)).toBe('middle');
+    expect(tapZone(1148 - page * 0.3, book)).toBe('middle');
+    expect(tapZone(388 + page * 0.3, book)).toBe('middle');
+    // the border: exactly 22 % of a page
+    expect(tapZone(1148 - page * 0.22, book)).toBe('middle');
+    expect(tapZone(1148 - page * 0.22 + 1, book)).toBe('next');
+  });
+
+  it('the desk beside the book turns that side', () => {
+    expect(tapZone(100, book)).toBe('prev');
+    expect(tapZone(1400, book)).toBe('next');
+  });
+
+  it('one page (portrait): 22 % of that page', () => {
+    const one = { left: 60, width: 700, pages: 1 as const };
+    expect(tapZone(60 + 700 * 0.1, one)).toBe('prev');
+    expect(tapZone(410, one)).toBe('middle');
+    expect(tapZone(760 - 700 * 0.1, one)).toBe('next');
+    expect(tapZone(760 - 700 * 0.3, one)).toBe('middle');
   });
 });
 

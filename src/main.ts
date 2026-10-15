@@ -7,7 +7,9 @@ import { DriveSaver } from './drive/save';
 import { daysSinceOpened, shelfOf } from './model/library';
 import { loadLocalLibrary } from './model/localSource';
 import type { ModeKey } from './model/types';
+import { usesUnits } from './model/units';
 import { markOpened, setReadingSink } from './okuma/okumaDurumu';
+import { sampleBookFolder } from './okuma/ornekKaynak';
 import { closeOkuyucu, forgetBook, initOkuyucu, openOkuyucu } from './okuma/Okuyucu';
 import { createRoomScene, type LibraryData, type RoomScene, type View } from './scene';
 import { canvas, drawWood, noise } from './scene/textures';
@@ -105,10 +107,6 @@ async function loadFromDrive(): Promise<void> {
     // the saver reads from the shared holder, whose contents useData replaces
     await useData(r, new DriveSaver(r.loc, data!, { saving: showSaving, saved: showSaved, failed: showSaveError }), r.loc);
     if (r.warnings.length) toast(r.warnings[0]);
-    // dev only: ?test=pdf (&kitap=<kod>) checks the PDF pipeline (task 3.1); not in the build
-    if (import.meta.env.DEV && new URLSearchParams(location.search).get('test') === 'pdf') {
-      import('./okuma/testPdf').then(m => m.runPdfTest(r)).catch(e => console.error('[test=pdf]', e));
-    }
   } catch (e) {
     if (e instanceof LibraryNotFound) setNotFound(true);
     else toast(errorText(e));
@@ -194,8 +192,9 @@ initReader(() => {
 }, (unit, topic, resume) => {
   const b = deskBook ? data?.books.get(deskBook) : undefined;
   if (!b) return;
-  const folderId = driveLoc?.bookFolderIds.get(b.id);
-  if (!folderId) { toast('Sayfaları görmek için Google ile giriş yap. Örnek kitaplıkta dosya yok.'); return; }
+  // sample library: surum 2 books open the demo PDFs in public/demo (task 3.6); surum 1 ones have no files
+  const folderId = driveLoc ? driveLoc.bookFolderIds.get(b.id) : usesUnits(b) ? sampleBookFolder(b.id) : undefined;
+  if (!folderId) { toast('Sayfaları görmek için Google ile giriş yap. Örnek kitaplıkta bu kitabın dosyası yok.'); return; }
   // the room is behind the reader: don't draw it (it stays paused under the contents page too)
   scene?.setPaused(true);
   void openOkuyucu(b, folderId, unit, topic, () => {

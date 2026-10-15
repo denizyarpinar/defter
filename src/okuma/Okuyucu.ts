@@ -2,6 +2,7 @@ import { SessionExpired } from '../drive/drive';
 import type { Book, ChapterStatus, PageMark } from '../model/types';
 import { bookUnits, usesUnits } from '../model/units';
 import { esc } from '../ui/dom';
+import { fpsCounter } from '../ui/fps';
 import { ST } from '../ui/reader';
 import { toast } from '../ui/toast';
 import { SourceResolver } from './kaynakCoz';
@@ -9,6 +10,7 @@ import { visiblePages } from './kitapDuzen';
 import { BookView } from './kitapModu';
 import { buildBookPages, buildSolutionPages, buildTopicPages, type BookPage } from './kitapSayfalari';
 import { MATERIAL_LABEL, availableKinds, defaultKind, discoverTopic, type MaterialKind, type TopicMaterials } from './konuKesfi';
+import { discoverSampleTopic, isSampleId } from './ornekKaynak';
 import { autoTopicStatus, cycleStatus, markChapterPage, markTopicPage, type Resume } from './okumaDurumu';
 import { PageContent, pageKind } from './sayfaIcerik';
 import { PAD_TOP, canvasSize, currentPage, layoutPages, visibleRange, type Layout } from './sanalListe';
@@ -153,8 +155,8 @@ export function initOkuyucu(): void {
     pdfZoom: (_z, x, y) => applyPdfZoom(x, y),
     settled: sharpen,
     tap: x => {
-      const r = area.getBoundingClientRect();
-      const zone = tapZone((x - r.left) / Math.max(1, r.width));
+      const r = $('#oSpread').getBoundingClientRect();   // the open book (taps turn only at 100 %)
+      const zone = tapZone(x, { left: r.left, width: r.width, pages: bookView?.single ? 1 : 2 });
       if (zone === 'middle') return false;
       bookView?.flip(zone === 'next' ? 1 : -1);
       return true;
@@ -398,6 +400,7 @@ export async function openOkuyucu(b: Book, folderId: string, unit: number, topic
   const el = $('#okuyucu');
   el.hidden = false;
   requestAnimationFrame(() => el.classList.add('show'));
+  startFps();
 
   if (v2) { await openTopic(unit, topicIndex, resume); return; }
   autoTopicStatus(b, 0, topicIndex, 'girildi');
@@ -436,8 +439,11 @@ function discover(folderId: string, klasor: string): Promise<TopicMaterials | nu
   const key = `${folderId}|${klasor}`;
   let p = topicCache.get(key);
   if (!p) {
-    if (resolver?.folderId !== folderId) resolver = { folderId, r: new SourceResolver(folderId) };
-    p = discoverTopic(resolver.r, klasor);
+    if (isSampleId(folderId)) p = discoverSampleTopic(folderId, klasor);   // sample library: no Drive
+    else {
+      if (resolver?.folderId !== folderId) resolver = { folderId, r: new SourceResolver(folderId) };
+      p = discoverTopic(resolver.r, klasor);
+    }
     p.catch(() => topicCache.delete(key));   // don't remember a failed request
     topicCache.set(key, p);
   }
@@ -588,6 +594,7 @@ export function closeOkuyucu(): void {
   if (!open) return;
   open = false;
   session++;
+  cancelAnimationFrame(fpsRaf); fpsRaf = 0;
   closeToc();
   releaseAll();
   zoom.reset();
@@ -606,6 +613,16 @@ export function closeOkuyucu(): void {
   pages = []; ratios = []; book = null;
   $('#oFoot').hidden = true;
   onClosed();
+}
+
+// ?fps=1 (task 3.6): the reader is DOM, not the paused 3D loop, so it ticks the counter itself.
+// Every animation frame counts: the number shows whether scrolling / drawing blocks the page.
+let fpsRaf = 0;
+function startFps(): void {
+  const fps = fpsCounter();
+  if (!fps || fpsRaf) return;
+  const tick = (now: number) => { fps.tick(now); fpsRaf = requestAnimationFrame(tick); };
+  fpsRaf = requestAnimationFrame(tick);
 }
 
 function setMessage(text: string | null): void {

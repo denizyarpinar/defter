@@ -88,9 +88,13 @@ export function covers(a: Rect, b: Rect, eps = 0.002): boolean {
   return a.x <= b.x + eps && a.y <= b.y + eps && a.x + a.w >= b.x + b.w - eps && a.y + a.h >= b.y + b.h - eps;
 }
 
-// Book mode, tap at x (0–1 of the area width): the sides turn the page, the middle doesn't.
-export function tapZone(x: number): 'prev' | 'next' | 'middle' {
-  return x < EDGE ? 'prev' : x > 1 - EDGE ? 'next' : 'middle';
+// Book mode, tap at x (px). book: the open book on screen and its page count (1 or 2).
+// The outer EDGE of each page turns it, and so does the desk beside the book; the middle
+// (around the spine) doesn't, it is for double tap zoom. Measured on the book, not on the whole
+// area: on a wide, low window the book is narrow and an area-based edge lay on the desk only.
+export function tapZone(x: number, book: { left: number; width: number; pages: 1 | 2 }): 'prev' | 'next' | 'middle' {
+  const edge = EDGE * book.width / book.pages;
+  return x < book.left + edge ? 'prev' : x > book.left + book.width - edge ? 'next' : 'middle';
 }
 
 export function isDoubleTap(last: { t: number; x: number; y: number }, t: number, x: number, y: number): boolean {
