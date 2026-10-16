@@ -14,6 +14,7 @@ import { DriveUploader, type UploadDeps, type UploadStatus, type Uploaded } from
 import type { KonuEklemeOrtami } from '../defter/konuyaEkle';
 import type { EklenenSayfalar } from '../defter/ozeteEkle';
 import { PdfYazilamaz } from '../kalem/pdfNotlari';
+import { urlKilidiAcik } from '../drive/pdfOlustur';
 import type { Book, ChapterStatus, PageMark } from '../model/types';
 import { bookUnits, usesUnits } from '../model/units';
 import { esc } from '../ui/dom';
@@ -182,7 +183,7 @@ export function initOkuyucu(): void {
   });
 
   addEventListener('keydown', e => {
-    if (!open) return;
+    if (!open || document.getElementById('fotoPanel')) return;   // task 5.8a: the photo panel has the keys
     if (e.key === 'Escape') { e.stopPropagation(); if (tocOpen) closeToc(); else closeOkuyucu(); return; }
     // pen mode: Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z and Ctrl+Y redo (not while typing somewhere)
     if (penOn && (e.ctrlKey || e.metaKey) && !e.altKey && !typing(e.target)) {
@@ -223,6 +224,15 @@ export function initOkuyucu(): void {
     if (!topic) return;
     topic.solution = !topic.solution;
     void showMaterial();
+  });
+  // Task 5.8a: "Fotoğraf ekle" (draft, writes nothing). The picker opens inside the tap (iPad Safari),
+  // the panel (a lazy import) after the photos are chosen.
+  const fotoInput = $<HTMLInputElement>('#oFotoInput');
+  $('#oFoto').addEventListener('click', () => { if (topic) fotoInput.click(); });
+  fotoInput.addEventListener('change', () => {
+    const files = [...(fotoInput.files ?? [])];
+    fotoInput.value = '';   // the same photo can be chosen again
+    if (files.length) openPhotoPanel(files);
   });
 
   // Kitap / PDF; the choice is remembered
@@ -721,6 +731,33 @@ function renderBar(): void {
   sol.hidden = !list[t.fileIndex]?.cozum;
   sol.textContent = t.solution ? 'Çözümü gizle' : 'Çözümü göster';
   sol.setAttribute('aria-pressed', String(t.solution));
+}
+
+// Task 5.8a: the photo panel, with what the reader already knows about the topic (no Drive request).
+function openPhotoPanel(files: File[]): void {
+  const t = topic;
+  if (!t || !open) return;
+  const onScreen = t.kind === 'ozet' ? pages[focusPage()]?.dosyaId ?? null : null;
+  const ctx = {
+    konuAdi: t.title,
+    ozetDosyalari: t.materials.ozet.map(m => m.file),
+    acikDosyaId: onScreen,
+    sayfaSayisi: knownPageCount,
+    ornek: isSampleId(folder),
+    kilitAcik: urlKilidiAcik()
+  };
+  import('../ui/fotoPanel').then(m => m.acFotoPanel(ctx, files)).catch(e => { console.warn(e); toast('Fotoğraf paneli açılamadı. Sayfayı yenileyip tekrar dene.'); });
+}
+
+// Pages of a summary file in its current version, when the reader has made its pages already.
+function knownPageCount(fileId: string): number | undefined {
+  const file = topic?.materials.ozet.find(m => m.file.id === fileId)?.file;
+  if (!file) return undefined;
+  const version = `${file.id}@${file.modifiedTime}`;
+  for (const [key, prep] of pageCache) {
+    if (key.split(',').includes(version)) return prep.pages.filter(p => p.dosyaId === fileId).length;
+  }
+  return undefined;
 }
 
 // ---- showing a page list ----
