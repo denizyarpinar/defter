@@ -151,6 +151,14 @@ let lastSaveToast = '';
 export const isOkuyucuOpen = () => open;
 
 export function initOkuyucu(): void {
+  // task 4.8c, development only (not in the build): window.defterSurumler() lists the open PDF's revisions
+  if (import.meta.env.DEV) {
+    void import('../drive/surumler').then(m => m.installRevisionHelper(() => {
+      if (!open || !pages.length) return null;
+      const p = pages[focusPage()];
+      return (p && pageKind(p) === 'pdf' ? p : pages.find(x => pageKind(x) === 'pdf'))?.dosyaId ?? null;
+    }));
+  }
   $('#oClose').addEventListener('click', closeOkuyucu);
   const scroller = $('#oScroll');
   let raf = 0;
