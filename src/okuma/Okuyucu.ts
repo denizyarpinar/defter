@@ -10,7 +10,7 @@ import { penLayerMode } from '../kalem/defterNotu';
 import { PenToolbar, strokeStyle } from '../kalem/kalemCubugu';
 import { PenInput } from '../kalem/kalemModu';
 import type { PenViewport } from '../kalem/koordinat';
-import { DriveUploader, driveWriteEnabled, type UploadStatus, type Uploaded } from '../kalem/pdfKayit';
+import { DriveUploader, type UploadStatus, type Uploaded } from '../kalem/pdfKayit';
 import { PdfYazilamaz } from '../kalem/pdfNotlari';
 import type { Book, ChapterStatus, PageMark } from '../model/types';
 import { bookUnits, usesUnits } from '../model/units';
@@ -42,7 +42,8 @@ import { ZoomController } from './zoomKontrol';
 // Task 3.5: the page on screen becomes the ribbon, topics get "okunuyor" / "okundu" (okumaDurumu.ts).
 // Task 4.6: pen mode (kalemModu.ts): live drawing into an in-memory model per PDF file (cizimModeli.ts), not saved yet.
 // Task 4.7: eraser and undo / redo (one history for the reader session, all files).
-// Task 4.8b: the pending strokes are uploaded into the PDF on Drive (pdfKayit.ts); safety lock ?kalemYaz=1.
+// Task 4.8b: the pending strokes are uploaded into the PDF on Drive (pdfKayit.ts).
+// Task 4.9d: the ?kalemYaz=1 safety lock is gone (real Drive tests done in 4.8c); the sample library never uploads.
 
 const PEN_LAYER = penLayerMode();   // task 4.5: ?cizimKontrol=1 / ?defterNot=goster
 
@@ -140,8 +141,8 @@ let storeWarned = false;
 
 // Task 4.8b: upload to Drive. When: pen off, another material / topic, reader closed, 30 s after the last
 // change, "Kaydet", a file with a record from before opens, back online. Never on pagehide (keepalive
-// limit): the record stays on the device. Safety lock until the real test (4.8c): only with ?kalemYaz=1.
-const uploader = new DriveUploader(driveWriteEnabled(), {
+// limit): the record stays on the device.
+const uploader = new DriveUploader({
   drive: drivePdfApi,
   bytes: async (id, mt) => new Uint8Array(await getPdf(id, mt)),   // same version cached → no download
 }, { record: uploadSource, done: fileUploaded, status: uploadStatus });
@@ -1191,7 +1192,7 @@ function setPen(on: boolean): void {
 
 function renderTools(): void {
   const dirty = penModel.dirty;
-  const kilit = isSampleId(folder) ? 'ornek' : uploader.enabled ? 'acik' : 'kapali';
+  const kilit = isSampleId(folder) ? 'ornek' : 'acik';
   toolbar?.set({ preparing: penOn && penModel.loading, dirty, onDevice: pendingStore.ok, canUndo: penModel.canUndo, canRedo: penModel.canRedo, kayit: { kilit, durum: saveState } });
   // reading mode (no tool bar): a dot on the pen button
   const btn = document.querySelector<HTMLElement>('#oPenBtn');

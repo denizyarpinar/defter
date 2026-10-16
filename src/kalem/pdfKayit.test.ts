@@ -3,7 +3,7 @@ import { PDFDocument, PDFName, PDFString } from 'pdf-lib';
 import { PdfConflict, type PdfDrive } from '../drive/pdfYazici';
 import { remainingDiff, type PenDiff, type PendingRecord } from './bekleyenFark';
 import type { PageStrokes, Stroke } from './cizgi';
-import { DriveUploader, MAX_TRIES, driveWriteEnabled, uploadRecord, type UploadStatus, type Uploaded } from './pdfKayit';
+import { DriveUploader, MAX_TRIES, uploadRecord, type UploadStatus, type Uploaded } from './pdfKayit';
 import { readDefterStrokes, writeDefterStrokes } from './pdfNotlari';
 
 // Task 4.8b: pending strokes → the PDF on Drive. A fake Drive in memory; no request goes anywhere.
@@ -66,14 +66,6 @@ async function pageText(bytes: Uint8Array, i: number): Promise<string> {
 
 afterEach(() => { vi.useRealTimers(); });
 
-describe('driveWriteEnabled (safety lock)', () => {
-  it('only with ?kalemYaz=1', () => {
-    expect(driveWriteEnabled('')).toBe(false);
-    expect(driveWriteEnabled('?kalemYaz=0')).toBe(false);
-    expect(driveWriteEnabled('?demo&kalemYaz=1')).toBe(true);
-  });
-});
-
 describe('uploadRecord', () => {
   it('writes the difference; another device\'s strokes and other pages stay', async () => {
     const start = await writeDefterStrokes(await samplePdf(), new Map([[0, [stroke('o')]]]));
@@ -120,12 +112,12 @@ describe('uploadRecord', () => {
 });
 
 describe('DriveUploader', () => {
-  function setup(start: Uint8Array, opts: { enabled?: boolean; record?: PendingRecord | null } = {}) {
+  function setup(start: Uint8Array, opts: { record?: PendingRecord | null } = {}) {
     const d = fakeDrive(start);
     const statuses: UploadStatus[] = [];
     const done: Uploaded[] = [];
     let record = opts.record === undefined ? rec({ eklenen: [{ sayfa: 0, stroke: stroke('a') }] }) : opts.record;
-    const up = new DriveUploader(opts.enabled ?? true, d.deps, {
+    const up = new DriveUploader(d.deps, {
       record: async () => record,
       done: u => { done.push(u); record = null; },
       status: s => statuses.push(s),
@@ -133,19 +125,14 @@ describe('DriveUploader', () => {
     return { ...d, up, statuses, done, setRecord: (r: PendingRecord | null) => { record = r; } };
   }
 
-  it('lock closed: Drive is never asked', async () => {
-    const s = setup(await samplePdf(), { enabled: false });
-    await s.up.request(['f']);
-    s.up.soon('f');
-    expect(s.log).toEqual([]);
-    expect(s.statuses).toEqual([]);
-  });
-
-  it('sample library: Drive is never asked, also with the lock open', async () => {
+  it('sample library: Drive is never asked', async () => {
     const s = setup(await samplePdf());
     await s.up.request(['ornek:kitap#x/ozet.pdf']);
+    s.up.soon('ornek:kitap#x/ozet.pdf');
     expect(s.up.canUpload('ornek:kitap#x/ozet.pdf')).toBe(false);
+    expect(s.up.canUpload('f')).toBe(true);
     expect(s.log).toEqual([]);
+    expect(s.statuses).toEqual([]);
   });
 
   it('success: kaydediliyor → kaydedildi, done gets the new version', async () => {

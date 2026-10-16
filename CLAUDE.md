@@ -193,7 +193,7 @@ Kitaplık/
 - Başarıda: yeni baytlar PDF önbelleğine; bellekteki sürümler (sayfalar, önbellekler, model) yeni modifiedTime'a taşınır; yükleme sırasında yapılan değişiklikler kalan fark olarak bekler (remainingDiff). Açık pdf.js belgesi yeniden açılmaz (Defter notları canvas'ta zaten gizli, katman modelden çizer).
 - Ne zaman: kalem kapanınca, materyal/konu değişince, okuyucu kapanınca (yükleme kapandıktan sonra sürer, sonuç toast'la söylenir), son değişiklikten 30 sn sonra, "Kaydet" düğmesi, önceki oturumdan kaydı olan dosya açılınca, çevrimiçi olunca.
 - Hatalar: çevrimdışı/ağ hatası ve Drive 429/5xx → online olayında ve 60 sn'de bir tekrar; yazma izni yok, imzalı PDF, yükleme oturumu açılamadı, 3 kez çakışma → Türkçe mesaj + "Tekrar dene".
-- **Geçici kilit:** PDF yükleme sadece adreste `?kalemYaz=1` varsa çalışır; yoksa kayıt cihazda kalır ve araç çubuğunda "Drive'a yazma kapalı (test)" yazar. Kilit şu an duruyor; büyük PDF (> 5 MB, resumable) gerçek testinden sonra kaldırılacak. Gerçek Drive PDF'ine deneme Deniz'in onayıyla, test kitabında yapılır.
+- Gerçek Drive testleri 4.8c'de tamamlandı (media, resumable 14 MB, keepForever, çakışma). Drive kitaplığında yükleme her zaman açık; örnek kitaplıkta hiç yok.
 
 ### Sınırlar
 - Demo/örnek kitaplıkta hiçbir koşulda Drive'a yazma yok.

@@ -82,20 +82,14 @@ describe('saveStatus / saveButton', () => {
   });
   const disabled = (html: string) => html.includes(' disabled');
 
-  it('lock closed: the hint, Kaydet disabled', () => {
-    const s = st({}, { kilit: 'kapali' });
-    expect(saveStatus(s)).toContain("Drive'a yazma kapalı (test)");
+  it('sample library: never saved, Kaydet disabled', () => {
+    const s = st({}, { kilit: 'ornek' });
+    expect(saveStatus(s)).toContain('Örnek kitaplık');
     expect(saveStatus(s)).toContain('Kaydedilmedi');
     expect(disabled(saveButton(s))).toBe(true);
   });
 
-  it('sample library: never saved, Kaydet disabled', () => {
-    const s = st({}, { kilit: 'ornek' });
-    expect(saveStatus(s)).toContain('Örnek kitaplık');
-    expect(disabled(saveButton(s))).toBe(true);
-  });
-
-  it('lock open: Kaydet only with something to save, not while saving', () => {
+  it('Drive library: Kaydet only with something to save, not while saving', () => {
     expect(disabled(saveButton(st()))).toBe(false);
     expect(disabled(saveButton(st({ dirty: false })))).toBe(true);
     expect(disabled(saveButton(st({}, { durum: { tur: 'kaydediliyor' } })))).toBe(true);
@@ -116,7 +110,7 @@ describe('saveStatus / saveButton', () => {
   // Task 4.9b: on a phone only the short text shows; the full text stays in the title
   it('every status has a title and a short text (≤ 13 characters)', () => {
     const states = [
-      st({ preparing: true }), st({}, { kilit: 'kapali' }), st({}, { kilit: 'ornek' }), st({ onDevice: false }),
+      st({ preparing: true }), st({}, { kilit: 'ornek' }), st({ onDevice: false }),
       st({}, { durum: { tur: 'kaydediliyor' } }), st({ dirty: false }, { durum: { tur: 'kaydedildi' } }),
       st({}, { durum: { tur: 'cevrimdisi' } }), st({}, { durum: { tur: 'hata', mesaj: 'x', tekrar: true } })
     ];

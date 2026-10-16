@@ -12,16 +12,12 @@ import { PdfYazilamaz, readDefterStrokes, writeDefterStrokes } from './pdfNotlar
 //   c. the Defter strokes in it + the pending difference by id (strokes another device added stay)
 //   d. only the pages the difference touches are written
 //   e. uploadPdf on the same file id; PdfConflict (changed meanwhile) → from a. again, at most 3 times
-// No error removes the pending record. Safety lock (until the real test, 4.8c): uploads only run with
-// ?kalemYaz=1 in the address; the sample library never uploads.
+// No error removes the pending record. The sample library never uploads.
+// Task 4.9d: the ?kalemYaz=1 safety lock is gone (real Drive tests done in 4.8c).
 
 export const MAX_TRIES = 3;
 export const IDLE_MS = 30_000;    // upload 30 s after the last change
 export const RETRY_MS = 60_000;   // offline / Drive busy: try again every 60 s (and when back online)
-
-export function driveWriteEnabled(search = typeof location !== 'undefined' ? location.search : ''): boolean {
-  return new URLSearchParams(search).get('kalemYaz') === '1';
-}
 
 export interface UploadDeps {
   drive: PdfDrive;
@@ -110,14 +106,14 @@ export class DriveUploader {
   private idleFiles = new Set<string>();
   private readonly onOnline = () => { if (this.retry.size) void this.request([...this.retry]); };
 
-  constructor(readonly enabled: boolean, private deps: UploadDeps, private hooks: UploaderHooks,
+  constructor(private deps: UploadDeps, private hooks: UploaderHooks,
     private opts = { idle: IDLE_MS, retry: RETRY_MS }) {
-    if (enabled) globalThis.addEventListener?.('online', this.onOnline);
+    globalThis.addEventListener?.('online', this.onOnline);
   }
 
-  // May this file go to Drive at all? (lock open, not a sample file)
+  // May this file go to Drive at all? (not a sample file)
   canUpload(fileId: string): boolean {
-    return this.enabled && !isSampleId(fileId);
+    return !isSampleId(fileId);
   }
 
   get busy(): boolean { return this.running !== null; }

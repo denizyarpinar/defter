@@ -78,8 +78,6 @@ flowchart LR
   Patch -->|offline / 5xx| IDB
 ```
 
-Writing to Drive is still behind a test switch (`?kalemYaz=1`) until it has been tested with a large real PDF; without it the strokes stay on the device.
-
 **Try it:** open the [demo](https://defter-jade.vercel.app/?demo), choose *Programlamaya Giriş* → *Değişkenler ve veri tipleri* → the *Özet* tab. The summary already has a few handwritten notes; tap the pen button to add your own. The demo never writes to Drive — your strokes stay in your browser.
 
 ## Tech stack
