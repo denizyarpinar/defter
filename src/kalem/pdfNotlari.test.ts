@@ -4,7 +4,7 @@ import {
   PDFString, StandardFonts, type PDFPage
 } from 'pdf-lib';
 import type { PageStrokes, Stroke } from './cizgi';
-import { PdfYazilamaz, readDefterStrokes, writeDefterStrokes } from './pdfNotlari';
+import { PdfYazilamaz, readDefterStrokes, readStrokesForPen, writeDefterStrokes } from './pdfNotlari';
 
 // Task 4.3: Defter strokes as Ink annotations. The PDFs are made here with pdf-lib (no course PDFs).
 
@@ -200,6 +200,7 @@ describe('PDFs that must not be written', () => {
     const enc = await doc.save({ useObjectStreams: false });
     await expect(writeDefterStrokes(enc, new Map([[0, [stroke('a')]]]))).rejects.toThrow(/şifreli/);
     await expect(writeDefterStrokes(enc, new Map())).rejects.toThrow(PdfYazilamaz);
+    await expect(readStrokesForPen(enc)).rejects.toThrow(/şifreli/);
   });
 
   async function signed(how: 'flags' | 'field'): Promise<Uint8Array> {
@@ -217,6 +218,8 @@ describe('PDFs that must not be written', () => {
       const pdf = await signed(how);
       await expect(writeDefterStrokes(pdf, new Map([[0, [stroke('b')]]]))).rejects.toThrow('Bu PDF dijital imzalı; çizim kaydedilirse imza bozulur.');
       expect((await readDefterStrokes(pdf)).get(0)!.map(s => s.id)).toEqual(['a']);
+      // task 4.6: the pen doesn't start on it
+      await expect(readStrokesForPen(pdf)).rejects.toThrow('Bu PDF dijital imzalı; çizim kaydedilirse imza bozulur.');
     }
   });
 
@@ -225,6 +228,7 @@ describe('PDFs that must not be written', () => {
     doc.catalog.set(N('AcroForm'), doc.context.register(doc.context.obj({ Fields: [], SigFlags: 0 })));
     const out = await writeDefterStrokes(await doc.save(), new Map([[0, [stroke('a')]]]));
     expect((await readDefterStrokes(out)).get(0)!.length).toBe(1);
+    expect((await readStrokesForPen(out)).get(0)!.length).toBe(1);
   });
 });
 

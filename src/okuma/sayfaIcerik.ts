@@ -1,7 +1,8 @@
 import type { PDFDocumentProxy, PDFPageProxy, RenderTask } from 'pdfjs-dist';
 import { SessionExpired, driveFetch, ok } from '../drive/drive';
-import { defterInks, type DefterInk, type ViewportLike } from '../kalem/cizimKatmani';
+import { defterInks, type DefterInk } from '../kalem/cizimKatmani';
 import { hideDefterNotes, isDefterAnnotation } from '../kalem/defterNotu';
+import type { PenViewport } from '../kalem/koordinat';
 import { noteRender } from '../ui/tani';
 import type { BookPage } from './kitapSayfalari';
 import { closePdf, openPdf, pdfjs } from './pdf';
@@ -15,7 +16,7 @@ export const A4 = 1.4142;   // height / width; cards and unknown sizes
 const HIDE_OWN_NOTES = hideDefterNotes();   // ?defterNot=goster / ?cizimKontrol=1: draw them too (task 4.4)
 
 // A page's Defter strokes (task 4.5) and its viewport at scale 1 (the pen layer's coordinates)
-export interface DefterNotes { inks: DefterInk[]; viewport: ViewportLike }
+export interface DefterNotes { inks: DefterInk[]; viewport: PenViewport }
 
 export type PageKind = 'pdf' | 'image' | 'link' | 'missing' | 'unsupported';
 
@@ -113,6 +114,12 @@ export class PageContent {
   async defterNotes(p: BookPage): Promise<DefterNotes> {
     const doc = await this.doc(p);
     return this.pageNotes(doc, await doc.getPage(p.pdfSayfa!));
+  }
+
+  // Task 4.6: the page's viewport at scale 1 (rotation and CropBox in it), for the pen layer and pen mode.
+  async viewport(p: BookPage): Promise<PenViewport> {
+    const doc = await this.doc(p);
+    return (await doc.getPage(p.pdfSayfa!)).getViewport({ scale: 1 });
   }
 
   private pageNotes(doc: PDFDocumentProxy, page: PDFPageProxy): Promise<DefterNotes> {

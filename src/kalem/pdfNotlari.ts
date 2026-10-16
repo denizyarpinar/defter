@@ -97,6 +97,18 @@ function toStroke(L: Lib, ctx: PDFContext, dict: PDFDict): Stroke | null {
 // Page index → the Defter strokes on it. Pages without any are not in the map.
 export async function readDefterStrokes(bytes: Uint8Array): Promise<PageStrokes> {
   const { L, doc } = await load(bytes);
+  return strokesOf(L, doc);
+}
+
+// Pen mode (task 4.6): the strokes, but only for a file the pen may later write
+// (encrypted, unreadable or signed → PdfYazilamaz, so drawing doesn't start on it).
+export async function readStrokesForPen(bytes: Uint8Array): Promise<PageStrokes> {
+  const { L, doc } = await load(bytes);
+  if (isSigned(L, doc)) throw new PdfYazilamaz(SIGNED);
+  return strokesOf(L, doc);
+}
+
+function strokesOf(L: Lib, doc: PDFDocument): PageStrokes {
   const ctx = doc.context;
   const out: PageStrokes = new Map();
   doc.getPages().forEach((page, i) => {
