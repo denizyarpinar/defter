@@ -1,7 +1,7 @@
 import type { BekleyenFotoDepo } from './bekleyenFoto';
 import { yeniKayit, yuklemeBasla, yuklemeHata, type BekleyenFoto, type YeniKayitGirdisi } from './bekleyenFotoKayit';
 import { basariMetni, durumMetni, kartMetni, kisaNeden } from './fotoEklemeMetin';
-import { konuyaFotografEkle, type KonuEklemeOrtami } from './konuyaEkle';
+import { konuyaFotografEkle, type KonuEklemeOrtami, type KonuyaEklendi } from './konuyaEkle';
 
 // Task 5.8f: "Ekle" for real. The photos go into the device's store first (before any network),
 // then to Drive (konuyaFotografEkle, through the pen's queue), and the record is removed only after that.
@@ -10,7 +10,7 @@ import { konuyaFotografEkle, type KonuEklemeOrtami } from './konuyaEkle';
 
 export interface FotoEklemeUI {
   durum(metin: string | null): void;                    // "2 fotoğraf ekleniyor…" / nothing going on
-  basari(k: BekleyenFoto, metin: string): void;
+  basari(k: BekleyenFoto, metin: string, r: KonuyaEklendi): void;   // r: task 5.8g (the reader refreshes)
   hata(k: BekleyenFoto, metin: string): void;           // the record stays on the device
 }
 
@@ -84,7 +84,7 @@ export class FotoEkleyici {
       }
       // a failing removal only leaves the record: the next try finds the pages there (zatenVardi)
       try { await depo.sil(id); } catch (e) { console.warn('Eklenen fotoğrafların kaydı silinemedi.', e); }
-      ui.basari(k, basariMetni(r));
+      ui.basari(k, basariMetni(r), r);
     } finally {
       this.sirada.delete(id);
       this.bildir();

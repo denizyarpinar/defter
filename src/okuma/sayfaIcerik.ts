@@ -33,6 +33,19 @@ export class PageContent {
   private images = new Map<string, Promise<Blob>>();
   private ownNotes = new WeakMap<PDFPageProxy, Promise<DefterNotes>>();   // pdf.js keeps one proxy per page
   private closed = false;
+  private retired: Promise<PDFDocumentProxy>[] = [];   // task 5.8g: older versions, closed in close()
+
+  // Task 5.8g: the file has a new version (pages added at the end, its bytes already in the cache): its pages
+  // are drawn from that one from now on. The old document isn't closed now (a drawing may be going on).
+  // Not opened yet: nothing to do (it opens with the version of its pages).
+  newVersion(id: string, modifiedTime: string): void {
+    const old = this.docs.get(id);
+    if (this.closed || !old) return;
+    this.retired.push(old);
+    const d = getPdf(id, modifiedTime).then(openPdf);
+    d.catch(() => { if (this.docs.get(id) === d) this.docs.delete(id); });
+    this.docs.set(id, d);
+  }
 
   // height / width of every page, before anything is drawn (so the list doesn't jump)
   async ratios(pages: BookPage[]): Promise<number[]> {
@@ -154,8 +167,8 @@ export class PageContent {
 
   async close(): Promise<void> {
     this.closed = true;
-    const docs = [...this.docs.values()];
-    this.docs.clear(); this.images.clear();
+    const docs = [...this.docs.values(), ...this.retired];
+    this.docs.clear(); this.images.clear(); this.retired = [];
     await Promise.all(docs.map(d => d.then(closePdf, () => {})));
   }
 }

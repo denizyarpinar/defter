@@ -71,6 +71,10 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
   transition: opacity .25s, transform .25s; box-shadow: 0 10px 30px rgba(0, 0, 0, .25);
 }
 #toast.show { opacity: 1; transform: translate(-50%, 0) }
+/* task 5.8g: a toast with a button ("Göster"); only the visible one takes taps */
+#toast.eylemli { display: flex; align-items: center; gap: 12px }
+#toast.eylemli.show { pointer-events: auto }
+#toast button { flex: none; font: inherit; font-weight: 700; color: #221c17; background: #f5ede0; border: 0; border-radius: 8px; padding: 6px 12px; min-height: 32px; cursor: pointer }
 
 /* ---------- 3D stage ---------- */
 #stage { position: absolute; inset: 0; overflow: hidden; touch-action: none }

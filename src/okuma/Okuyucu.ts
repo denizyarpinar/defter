@@ -11,15 +11,15 @@ import { PenToolbar, strokeStyle } from '../kalem/kalemCubugu';
 import { PenInput } from '../kalem/kalemModu';
 import type { PenViewport } from '../kalem/koordinat';
 import { DriveUploader, type UploadDeps, type UploadStatus, type Uploaded } from '../kalem/pdfKayit';
-import { OZET_ADI, type KonuEklemeOrtami } from '../defter/konuyaEkle';
+import { OZET_ADI, type KonuEklemeOrtami, type KonuyaEklendi } from '../defter/konuyaEkle';
 import { SayfaYazmaYok, type EklenenSayfalar } from '../defter/ozeteEkle';
 import { bekleyenFotoDepo } from '../defter/bekleyenFoto';
-import type { BekleyenJpeg } from '../defter/bekleyenFotoKayit';
+import type { BekleyenFoto, BekleyenJpeg } from '../defter/bekleyenFotoKayit';
 import { FotoEkleyici } from '../defter/fotoEkleme';
 import { seritDurumu } from '../defter/fotoEklemeMetin';
 import type { DriveFile } from '../drive/drive';
 import type { DriveLocation } from '../drive/driveLibrary';
-import { PdfYazilamaz } from '../kalem/pdfNotlari';
+import { PdfYazilamaz, readDefterStrokes } from '../kalem/pdfNotlari';
 import { drivePdfOlusturApi, urlKilidiAcik } from '../drive/pdfOlustur';
 import { FotoDurumKutusu } from '../ui/fotoDurum';
 import type { Book, ChapterStatus, PageMark } from '../model/types';
@@ -33,6 +33,7 @@ import { CanvasBudget, deviceLimits, shareBudget } from './canvasButcesi';
 import { SingleFlight } from './cizimKuyrugu';
 import { getPdf, putPdf } from './pdfOnbellek';
 import { SourceResolver } from './kaynakCoz';
+import { GOSTER_OTOMATIK, gosterIndeksi, sayfaListesiniGenislet, yeniIndeks, yenilemeKarari, type GosterHedefi } from './eklemeYenileme';
 import { visiblePages } from './kitapDuzen';
 import { BookView } from './kitapModu';
 import { buildBookPages, buildSolutionPages, buildTopicPages, type BookPage } from './kitapSayfalari';
@@ -779,7 +780,7 @@ const photoAdder = new FotoEkleyici({
   ortam: () => ({ yer: driveLocation(), dosyaDrive: drivePdfOlusturApi, olusturDrive: drivePdfOlusturApi, ...sayfaEklemeOrtami() }),
   ui: {
     durum: m => photoBox?.durum(m),
-    basari: (k, m) => { photoBox?.kartKaldir(k.islemId); toast(m); },
+    basari: (k, m, r) => { photoBox?.kartKaldir(k.islemId); void afterAdding(k, m, r); },
     hata: (k, m) => {
       if (open && photoBox) photoBox.kartGoster(k.islemId, m, () => photoAdder.sirayaKoy(k));
       else toast(m);
@@ -816,6 +817,136 @@ async function photoStrip(t: OpenTopic): Promise<void> {
     simdi: () => { photoBox.seritGoster(null); for (const k of d.kayitlar) photoAdder.sirayaKoy(k); },
     sonra: () => photoBox.seritGoster(null),
   } : null);
+}
+
+// ---- task 5.8g: the open reader after an adding (decisions: eklemeYenileme.ts) ----
+
+// The newest version of each file this session wrote or created (its bytes are in the PDF cache)
+const latestVersion = new Map<string, string>();
+
+// The adding worked: toast (+ "Göster"); the open topic's page list or tabs follow at once.
+// Reader closed / another topic open: only the toast.
+async function afterAdding(k: BekleyenFoto, metin: string, r: KonuyaEklendi): Promise<void> {
+  const t = topic;
+  let same = false;
+  if (t && open) {
+    try { same = await topicFolderId(t) === k.konuKlasorId; } catch { same = false; }
+  }
+  const live = !!t && open && topic === t;
+  const karar = yenilemeKarari(r, {
+    acik: live, ayniKonu: same,
+    odakDosyaId: live && pages.length ? pages[focusPage()]?.dosyaId ?? null : null,
+    konuOzetIdleri: t ? t.materials.ozet.map(m => m.file.id) : [],
+  });
+  let ready: Promise<void> = Promise.resolve();
+  if (karar.yenile === 'liste') ready = refreshList(t!, r.fileId, r.yeniSayfa);
+  else if (karar.yenile === 'konu') ready = refreshTopic(t!);
+  ready = ready.catch(e => {
+    if (e instanceof SessionExpired) return;
+    console.warn('Okuyucu yeni sayfalarla yenilenemedi; konuyu kapatıp açınca görünür.', e);
+  });
+  const g = karar.goster;
+  if (!g) { toast(metin); return; }
+  const go = () => { void ready.then(() => showAdded(t!, g)); };
+  if (GOSTER_OTOMATIK) { toast(metin); go(); } else toast(metin, { etiket: 'Göster', calistir: go });
+}
+
+// The file on screen got pages at the end: the list grows, the reader stays where it is.
+// Runs in the pen's queue (after the file's pending strokes, never next to an upload of the same file).
+// The pen may stay on: the list changes between two strokes, the model moves to the new version
+// (unsaved strokes stay; the old pages keep their numbers, so the strokes stay on their pages).
+function refreshList(t: OpenTopic, fileId: string, total: number): Promise<void> {
+  const still = () => open && topic === t && !!content;
+  return uploader.sirada(fileId, async () => {
+    const newMt = latestVersion.get(fileId);
+    const shown = pages.find(p => p.dosyaId === fileId && pageKind(p) === 'pdf');
+    if (!still() || !newMt || !shown?.modifiedTime) return;
+    const oldMt = shown.modifiedTime, c = content!;
+    const oldKey = `${fileId}@${oldMt}`, newKey = `${fileId}@${newMt}`;
+    if (oldMt !== newMt) {
+      // the pen model, when loaded: the strokes in the new version (from the cache, no download)
+      if (penModel.state(oldKey) === 'yukleniyor') await penModel.ensure(oldKey, () => Promise.reject(new Error('—')));
+      const inFile = penModel.state(oldKey) === 'hazir' ? await readDefterStrokes(new Uint8Array(await getPdf(fileId, newMt))) : null;
+      if (!still() || pages.find(p => p.dosyaId === fileId)?.modifiedTime !== oldMt) return;
+      // one step, no await: the model, the pages and the caches move together (the pdf.js document: pagesAdded)
+      if (inFile) penModel.rebase(oldKey, newKey, inFile, penModel.diff(oldKey));
+      moveVersion(fileId, oldMt, newMt);
+      for (const list of Object.values(t.materials)) for (const it of list) for (const f of [it.file, it.cozum]) if (f?.id === fileId) f.modifiedTime = newMt;
+      if (inFile) {
+        for (const m of mounted.values()) if (m.pdf && fileKey(m.pdf) === newKey) m.layer?.();
+        saver.changed(fileId);   // the device's record follows the new version
+        void saver.flush();
+      }
+    }
+    // the new pages and their sizes
+    const make = (pdfSayfa: number, o: BookPage): BookPage => ({ ...o, pdfSayfa });
+    const plan = sayfaListesiniGenislet(pages, fileId, total, make);
+    if (!plan) { showPageNumber(); return; }
+    const extra = await c.ratios(plan.pages.slice(plan.ekYeri, plan.ekYeri + plan.eklenen));
+    // a stroke / eraser drag going on: wait for it (the pages' places may change)
+    while (still() && pen.isDrawing()) await new Promise(r => setTimeout(r, 100));
+    if (!still()) return;
+    const g = sayfaListesiniGenislet(pages, fileId, total, make);
+    if (!g || g.ekYeri !== plan.ekYeri || g.eklenen !== extra.length) return;   // the list changed meanwhile
+    applyGrowth(g.pages, g.ekYeri, extra, g.sonaMi);
+    if (!t.solution && t.kind === 'ozet') pageCache.set(t.materials.ozet.map(m => `${m.file.id}@${m.file.modifiedTime}`).join(','), { pages: [...pages], ratios: [...ratios] });
+  });
+}
+
+// The new list on screen. At the end: the boxes / canvases there stay, only new ones come.
+// In the middle (brifing + sorular): built again at the same page and the same spot of it.
+function applyGrowth(next: BookPage[], at: number, extra: number[], atEnd: boolean): void {
+  const g = { ekYeri: at, eklenen: extra.length };
+  const oldCount = pages.length, cur = focusPage();
+  const lastShown = isVisible(oldCount - 1);
+  const s = $('#oScroll');
+  const into = mode === 'pdf' && layout.heights[cur] ? (s.scrollTop - layout.tops[cur]) / layout.heights[cur] : 0;
+  pages = next;
+  ratios.splice(at, 0, ...extra);
+  if (mainCount && at <= mainCount) mainCount += extra.length;
+  if (mode === 'pdf') {
+    if (atEnd) {
+      const added = pages.slice(at).map(pageBox);
+      boxes.push(...added);
+      $('#oPages').append(...added);
+      setPdfGeometry();
+    } else {
+      releaseAll();
+      build();
+      const i = yeniIndeks(cur, g);
+      s.scrollTop = layout.tops[i] + into * layout.heights[i];
+    }
+    update();
+  } else if (atEnd && !lastShown) {
+    showPageNumber();
+  } else {
+    // the spread on screen changes (its empty side gets a page, or pages moved)
+    releaseAll();
+    bookView?.show(yeniIndeks(cur, g), book?.kapak.renk ?? '#24476b');
+  }
+}
+
+// A new summary in the topic: its folder is listed again, the tabs show "Özet" at once.
+// The pages on screen stay as they are.
+async function refreshTopic(t: OpenTopic): Promise<void> {
+  topicCache.delete(`${folder}|${t.klasor}`);
+  const m = await discover(folder, t.klasor);
+  if (!m || !open || topic !== t) return;
+  t.materials.ozet = m.ozet;
+  renderBar();
+}
+
+// "Göster": the first new page. In the list now → there; else the Özet tab opens at that page.
+function showAdded(t: OpenTopic, g: GosterHedefi): void {
+  if (!open || topic !== t) return;
+  const i = gosterIndeksi(pages, g);
+  if (i >= 0) { goToPage(i); return; }
+  if (!t.materials.ozet.some(m => m.file.id === g.fileId)) { toast('Yeni sayfalar bulunamadı. Konuyu kapatıp yeniden aç.'); return; }
+  // the file's newest version (its bytes are in the cache)
+  const mt = latestVersion.get(g.fileId);
+  if (mt) for (const m of t.materials.ozet) if (m.file.id === g.fileId) m.file.modifiedTime = mt;
+  t.kind = 'ozet'; t.fileIndex = 0; t.solution = false;
+  void showMaterial({ dosya: g.ad, sayfa: g.sayfa });
 }
 
 // Pages of a summary file in its current version, when the reader has made its pages already.
@@ -906,14 +1037,16 @@ function measureWidth(): number {
 
 function build(): void {
   baseWidth = measureWidth();
-  boxes = pages.map(p => {
-    const box = document.createElement('div');
-    box.className = 'o-page';
-    box.dataset.kind = pageKind(p);
-    return box;
-  });
+  boxes = pages.map(pageBox);
   $('#oPages').replaceChildren(...boxes);
   setPdfGeometry();
+}
+
+function pageBox(p: BookPage): HTMLElement {
+  const box = document.createElement('div');
+  box.className = 'o-page';
+  box.dataset.kind = pageKind(p);
+  return box;
 }
 
 // PDF mode: page width = 100 % width × zoom; wider than the screen → the list scrolls sideways too.
@@ -1351,6 +1484,7 @@ async function uploadSource(fileId: string): Promise<PendingRecord | null> {
 // draws them from the model. Reloading would redraw every canvas (blinking, iPad memory) for nothing.
 async function fileUploaded(u: Uploaded): Promise<void> {
   await putPdf(u.fileId, u.modifiedTime, u.bytes);
+  latestVersion.set(u.fileId, u.modifiedTime);
   const id = u.fileId, oldKey = `${id}@${u.kaynakModifiedTime}`, newKey = `${id}@${u.modifiedTime}`;
   moveVersion(id, u.kaynakModifiedTime, u.modifiedTime);
   if (penModel.state(oldKey) === 'hazir') {
@@ -1391,19 +1525,22 @@ function moveVersion(id: string, oldMt: string, newMt: string): void {
 export function sayfaEklemeOrtami(): Pick<KonuEklemeOrtami, 'deps' | 'sirada' | 'degisti' | 'yeniDosya' | 'konuDegisti'> {
   return {
     deps: uploadDeps, sirada: (id, job) => uploader.sirada(id, job), degisti: pagesAdded,
-    yeniDosya: f => putPdf(f.id, f.modifiedTime, f.bytes),
+    yeniDosya: async f => { await putPdf(f.id, f.modifiedTime, f.bytes); latestVersion.set(f.id, f.modifiedTime); },
     // a topic folder got a new file: every topic is listed again when it opens (a cheap listing).
-    // An open reader keeps its tabs until the topic is opened again (task 5.8 refreshes it).
+    // An open reader on that topic lists it again after the adding (task 5.8g, refreshTopic).
     konuDegisti: () => topicCache.clear(),
   };
 }
 
 // Pages were added at the end of a file: its new bytes go into the cache (the old version goes), the page
 // lists made from the old version are forgotten (the page count changed), the topics' file entries
-// follow the new version: the file opens with its new pages next time. What is on screen now stays as it
-// is (the pen record is fine: the old pages keep their numbers); refreshing an open reader is task 5.8.
+// follow the new version: the file opens with its new pages next time. The page list on screen grows in
+// afterAdding (task 5.8g, refreshList); the pen record is fine: the old pages keep their numbers.
 async function pagesAdded(s: EklenenSayfalar): Promise<void> {
   await putPdf(s.fileId, s.modifiedTime, s.bytes);
+  latestVersion.set(s.fileId, s.modifiedTime);
+  // task 5.8g: an open reader draws this file from the new version (the old pages are the same in it)
+  content?.newVersion(s.fileId, s.modifiedTime);
   const has = (p: BookPage) => p.dosyaId === s.fileId;
   for (const [k, v] of [...pageCache]) if (v.pages.some(has)) pageCache.delete(k);
   if (prepared?.pages.some(has)) prepared = null;
