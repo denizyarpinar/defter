@@ -35,6 +35,11 @@ installErrorBox();
 // iPad: the browser must not zoom the page (the viewport tag alone doesn't stop it); see ui/sayfaZoom.ts.
 installPageZoomGuard(() => scene?.resize());
 
+// ?gorselTest=1 (task 5.3): photo → JPEG trial panel for real devices; writes nothing. Lock goes in 5.8.
+if (new URLSearchParams(location.search).get('gorselTest') === '1') {
+  import('./defter/gorselTest').then(m => m.acGorselTest()).catch(e => toast(`Görsel testi açılamadı: ${e}`));
+}
+
 const MODE_FROM_DATA: Record<ModeKey, LightMode> = { otomatik: 'auto', gunduz: 'day', aksam: 'night' };
 const MODE_TO_DATA: Record<LightMode, ModeKey> = { auto: 'otomatik', day: 'gunduz', night: 'aksam' };
 
