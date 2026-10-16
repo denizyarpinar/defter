@@ -17,15 +17,19 @@ export interface SaveUi {
   failed(message: string, retry: () => void): void;
 }
 
+export interface DriveSaverUi extends SaveUi {
+  warn(message: string): void;   // a change that can't be saved (no retry)
+}
+
 export class DriveSaver {
   private timers = new Map<string, number>();
   private queue: Promise<void> = Promise.resolve();
   private waiting = new Set<string>();   // keys with a change not written yet
   private readonly loc: DriveLocation;
   private readonly data: { library: Library; books: Map<string, Book> };
-  private readonly ui: SaveUi;
+  private readonly ui: DriveSaverUi;
 
-  constructor(loc: DriveLocation, data: { library: Library; books: Map<string, Book> }, ui: SaveUi) {
+  constructor(loc: DriveLocation, data: { library: Library; books: Map<string, Book> }, ui: DriveSaverUi) {
     this.loc = loc;
     this.data = data;
     this.ui = ui;
@@ -40,6 +44,8 @@ export class DriveSaver {
   }
 
   coverChanged(id: string): void {
+    // never create a kitap.json: without one the cover stays in this session only
+    if (!this.loc.bookFileIds.has(id)) { this.ui.warn('Bu kitapta kitap.json yok; kapak kaydedilemedi.'); return; }
     this.schedule('cover:' + id, () => this.saveCover(id));
   }
 
@@ -80,19 +86,12 @@ export class DriveSaver {
     await updateJson(this.loc.libraryFileId, { ...base, raflar: ours.raflar, oda }, 'kitaplik.json kaydedilirken');
   }
 
-  // kitap.json: latest file + our kapak (a missing kitap.json is created with only the kapak)
+  // kitap.json: latest file + our kapak (a missing kitap.json is never created)
   private async saveCover(id: string): Promise<void> {
     const book = this.data.books.get(id);
-    if (!book) return;
-    const kapak = { ...book.kapak.extra, renk: book.kapak.renk, stil: book.kapak.stil };
     const fileId = this.loc.bookFileIds.get(id);
-    if (!fileId) {
-      const folderId = this.loc.bookFolderIds.get(id);
-      if (!folderId) return;
-      this.loc.bookFileIds.set(id, await createJson(folderId, 'kitap.json', { kapak }, `${id}/kitap.json oluşturulurken`));
-      book.hasJson = true;
-      return;
-    }
+    if (!book || !fileId) return;
+    const kapak = { ...book.kapak.extra, renk: book.kapak.renk, stil: book.kapak.stil };
     const latest = await readJson(fileId, `${id}/kitap.json okunurken`);
     const base = isObj(latest) ? latest : {};
     await updateJson(fileId, { ...base, kapak: { ...(isObj(base.kapak) ? base.kapak : {}), ...kapak } }, `${id}/kitap.json kaydedilirken`);

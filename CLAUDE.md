@@ -63,6 +63,7 @@ Kitaplık/
 
 ## Değişmez kurallar
 - Uygulama Drive'daki dosyaları **kopyalamaz, taşımaz, silmez**. Faz 1'de sadece `kitaplik.json` ve `kitap.json` içindeki `kapak` alanı yazılabilir.
+- Tek istisna: Kitaplık/ klasöründe kitaplik.json yoksa ilk raf/oda değişikliğinde bir kez oluşturulur. Başka hiçbir dosya oluşturulmaz.
 - Yazmadan önce dosyanın son halini oku (başka cihazda değişmiş olabilir).
 - Erişim token'ını localStorage'a yazma; bellekte tut. `.env.local` git'e girmez.
 - Hata mesajları Türkçe, kullanıcıya ne yapacağını söyler ("Drive'da Kitaplık klasörü bulunamadı. Klasörü ana dizine yükle ve yenile.").
