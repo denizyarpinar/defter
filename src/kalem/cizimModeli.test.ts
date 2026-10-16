@@ -142,3 +142,222 @@ describe('PenModel.add', () => {
     expect(m.inks('yok@1', 0)).toEqual([]);
   });
 });
+
+// Task 4.7: eraser, undo / redo, "Kaydedilmedi"
+
+const ids = (m: PenModel, key = 'f@1', page = 0) => m.strokes(key, page).map(s => s.id);
+const at = (x: number, y: number) => [x, y] as const;
+
+describe('PenModel eraser', () => {
+  it('one drag that erases several strokes is one operation; they come back together, in their place', async () => {
+    const m = await ready(new Map([[0, [stroke('a', { noktalar: [0, 0, 100, 0] }), stroke('b', { noktalar: [0, 50, 100, 50] }), stroke('c', { noktalar: [0, 100, 100, 100] })]]]));
+    expect(m.eraseAt('f@1', 0, at(50, -10), at(50, 10), 2)).toBe(1);    // a
+    expect(m.eraseAt('f@1', 0, at(50, 10), at(50, 110), 2)).toBe(2);    // b and c, crossed between two events
+    expect(ids(m)).toEqual([]);
+    m.eraseEnd();
+    expect(m.dirty).toBe(true);
+    expect(m.undo()).toEqual({ tur: 'sil', places: [{ key: 'f@1', page: 0 }] });
+    expect(ids(m)).toEqual(['a', 'b', 'c']);
+    expect(m.canUndo).toBe(false);
+    expect(m.dirty).toBe(false);
+  });
+
+  it('the middle stroke erased and undone keeps the drawing order', async () => {
+    const m = await ready(new Map([[0, [stroke('a', { noktalar: [0, 0] }), stroke('b', { noktalar: [50, 0] }), stroke('c', { noktalar: [100, 0] })]]]));
+    m.eraseAt('f@1', 0, at(50, 0), at(50, 0), 1);
+    m.eraseEnd();
+    expect(ids(m)).toEqual(['a', 'c']);
+    m.undo();
+    expect(ids(m)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('a drag that erases nothing is no operation', async () => {
+    const m = await ready(new Map([[0, [stroke('a')]]]));
+    expect(m.eraseAt('f@1', 0, at(500, 500), at(510, 510), 2)).toBe(0);
+    m.eraseEnd();
+    expect(m.canUndo).toBe(false);
+    expect(m.dirty).toBe(false);
+  });
+
+  it('a cancelled drag (second finger) puts back what it erased, no operation', async () => {
+    const m = await ready(new Map([[0, [stroke('a'), stroke('b', { noktalar: [300, 300, 310, 310] })]]]));
+    m.eraseAt('f@1', 0, at(10, 10), at(10, 10), 2);
+    expect(ids(m)).toEqual(['b']);
+    expect(m.eraseCancel()).toEqual([{ key: 'f@1', page: 0 }]);
+    expect(ids(m)).toEqual(['a', 'b']);
+    expect(m.canUndo).toBe(false);
+    expect(m.dirty).toBe(false);
+    expect(m.eraseCancel()).toEqual([]);
+  });
+
+  it('only the strokes in the model: a file not loaded throws, nothing else is touched', async () => {
+    const m = await ready();
+    expect(() => m.eraseAt('yok@1', 0, at(0, 0), at(0, 0), 2)).toThrow(/hazır değil/);
+  });
+});
+
+describe('PenModel undo / redo', () => {
+  it('add → erase → undo → undo → redo', async () => {
+    const m = await ready(new Map([[0, [stroke('eski', { noktalar: [0, 200, 100, 200] })]]]));
+    m.add('f@1', 0, stroke('yeni'));
+    m.eraseAt('f@1', 0, at(0, 200), at(100, 200), 2);   // the old one
+    m.eraseAt('f@1', 0, at(15, 20), at(15, 20), 2);     // the new one
+    m.eraseEnd();
+    expect(ids(m)).toEqual([]);
+    expect(m.undo()?.tur).toBe('sil');
+    expect(ids(m)).toEqual(['eski', 'yeni']);
+    expect(m.undo()?.tur).toBe('ekle');
+    expect(ids(m)).toEqual(['eski']);
+    expect(m.dirty).toBe(false);
+    expect(m.undo()).toBeNull();
+    expect(m.redo()).toEqual({ tur: 'ekle', places: [{ key: 'f@1', page: 0 }] });
+    expect(ids(m)).toEqual(['eski', 'yeni']);
+    expect(m.dirty).toBe(true);
+    expect(m.redo()?.tur).toBe('sil');
+    expect(ids(m)).toEqual([]);
+    expect(m.redo()).toBeNull();
+  });
+
+  it('a new operation clears redo', async () => {
+    const m = await ready();
+    m.add('f@1', 0, stroke('a'));
+    m.undo();
+    expect(m.canRedo).toBe(true);
+    m.add('f@1', 0, stroke('b'));
+    expect(m.canRedo).toBe(false);
+    expect(m.redo()).toBeNull();
+    expect(ids(m)).toEqual(['b']);
+  });
+
+  it('one history across files; each file is dirty on its own', async () => {
+    const m = new PenModel(async () => new Map());
+    await m.ensure('a@1', empty);
+    await m.ensure('b@1', empty);
+    m.add('a@1', 0, stroke('a1'));
+    m.add('b@1', 4, stroke('b1'));
+    m.add('a@1', 2, stroke('a2'));
+    expect(m.undo()).toEqual({ tur: 'ekle', places: [{ key: 'a@1', page: 2 }] });
+    expect(m.undo()).toEqual({ tur: 'ekle', places: [{ key: 'b@1', page: 4 }] });
+    expect(m.isDirty('a@1')).toBe(true);
+    expect(m.isDirty('b@1')).toBe(false);
+    expect(m.undo()).toEqual({ tur: 'ekle', places: [{ key: 'a@1', page: 0 }] });
+    expect(m.dirty).toBe(false);
+    expect(m.redo()?.places[0].key).toBe('a@1');
+    expect(m.redo()?.places[0].key).toBe('b@1');
+    expect(m.strokes('b@1', 4).map(s => s.id)).toEqual(['b1']);
+  });
+
+  it('back at the start: not dirty; undo + a new stroke: dirty (a new revision)', async () => {
+    const m = await ready();
+    expect(m.revision('f@1')).toBe(0);
+    m.add('f@1', 0, stroke('a'));
+    const r1 = m.revision('f@1');
+    m.undo();
+    expect(m.revision('f@1')).toBe(0);
+    expect(m.dirty).toBe(false);
+    m.add('f@1', 0, stroke('b'));
+    expect(m.revision('f@1')).not.toBe(r1);
+    expect(m.dirty).toBe(true);
+  });
+
+  it('task 4.8: markSaved makes that revision the clean one', async () => {
+    const m = await ready();
+    m.add('f@1', 0, stroke('a'));
+    m.markSaved('f@1', m.revision('f@1'));
+    expect(m.dirty).toBe(false);
+    m.undo();                     // the file has "a" now: going back is a change
+    expect(m.dirty).toBe(true);
+    m.redo();
+    expect(m.dirty).toBe(false);
+  });
+
+  it('over 200 operations: the oldest can not be undone, the file stays dirty', async () => {
+    const m = await ready();
+    for (let i = 0; i < 205; i++) m.add('f@1', 0, stroke(`s${i}`));
+    let n = 0;
+    while (m.undo()) n++;
+    expect(n).toBe(200);
+    expect(ids(m)).toEqual(['s0', 's1', 's2', 's3', 's4']);
+    expect(m.dirty).toBe(true);
+  });
+
+  it('undo during an eraser drag: the drag is cancelled first', async () => {
+    const m = await ready();
+    m.add('f@1', 0, stroke('a'));
+    m.add('f@1', 0, stroke('b', { noktalar: [300, 300] }));
+    m.eraseAt('f@1', 0, at(10, 10), at(10, 10), 2);   // a goes
+    m.undo();                                         // a back, then "b" undone
+    expect(ids(m)).toEqual(['a']);
+  });
+
+  it('clear() drops the history', async () => {
+    const m = await ready();
+    m.add('f@1', 0, stroke('a'));
+    m.clear();
+    expect(m.canUndo).toBe(false);
+    expect(m.undo()).toBeNull();
+  });
+});
+
+// Task 4.7b: one eraser drag across pages and files
+
+describe('PenModel eraser across pages', () => {
+  const two = async () => {
+    const m = new PenModel(async () => new Map());
+    await m.ensure('a@1', empty);
+    await m.ensure('b@1', empty);
+    m.add('a@1', 0, stroke('a0', { noktalar: [10, 10] }));
+    m.add('a@1', 0, stroke('a0-kalan', { noktalar: [400, 400] }));
+    m.add('a@1', 1, stroke('a1', { noktalar: [10, 10] }));
+    m.add('b@1', 3, stroke('b3', { noktalar: [10, 10] }));
+    m.markSaved('a@1', m.revision('a@1'));   // as if this were the file
+    m.markSaved('b@1', m.revision('b@1'));
+    return m;
+  };
+  const dot = at(10, 10);
+
+  it('pages 1 and 2 of one file and a page of another: one operation, one undo brings all back', async () => {
+    const m = await two();
+    m.eraseAt('a@1', 0, dot, dot, 2);
+    m.eraseAt('a@1', 1, dot, dot, 2);
+    m.eraseAt('b@1', 3, dot, dot, 2);
+    m.eraseEnd();
+    expect([ids(m, 'a@1', 0), ids(m, 'a@1', 1), ids(m, 'b@1', 3)]).toEqual([['a0-kalan'], [], []]);
+    expect(m.isDirty('a@1') && m.isDirty('b@1')).toBe(true);
+
+    expect(m.undo()).toEqual({ tur: 'sil', places: [{ key: 'a@1', page: 0 }, { key: 'a@1', page: 1 }, { key: 'b@1', page: 3 }] });
+    expect([ids(m, 'a@1', 0), ids(m, 'a@1', 1), ids(m, 'b@1', 3)]).toEqual([['a0', 'a0-kalan'], ['a1'], ['b3']]);
+    expect(m.dirty).toBe(false);
+
+    expect(m.redo()?.places).toHaveLength(3);
+    expect([ids(m, 'a@1', 0), ids(m, 'a@1', 1), ids(m, 'b@1', 3)]).toEqual([['a0-kalan'], [], []]);
+    expect(m.isDirty('a@1') && m.isDirty('b@1')).toBe(true);
+    m.undo();
+    // the adds before it are separate operations, still there to undo
+    expect(m.undo()).toEqual({ tur: 'ekle', places: [{ key: 'b@1', page: 3 }] });
+  });
+
+  it('a cancelled drag puts back what it erased on every page', async () => {
+    const m = await two();
+    m.eraseAt('a@1', 0, dot, dot, 2);
+    m.eraseAt('b@1', 3, dot, dot, 2);
+    m.eraseAt('a@1', 1, dot, dot, 2);
+    expect(m.eraseCancel()).toEqual([{ key: 'a@1', page: 0 }, { key: 'b@1', page: 3 }, { key: 'a@1', page: 1 }]);
+    expect([ids(m, 'a@1', 0), ids(m, 'a@1', 1), ids(m, 'b@1', 3)]).toEqual([['a0', 'a0-kalan'], ['a1'], ['b3']]);
+    expect(m.dirty).toBe(false);
+    m.eraseEnd();
+    expect(m.undo()).toEqual({ tur: 'ekle', places: [{ key: 'b@1', page: 3 }] });   // no erase operation was made
+  });
+
+  it('back and forth over the same page border: each stroke once, all come back in order', async () => {
+    const m = await two();
+    m.eraseAt('a@1', 0, dot, dot, 2);
+    m.eraseAt('a@1', 1, dot, dot, 2);
+    m.eraseAt('a@1', 0, at(400, 400), at(400, 400), 2);   // back on page 1
+    m.eraseEnd();
+    expect(ids(m, 'a@1', 0)).toEqual([]);
+    m.undo();
+    expect(ids(m, 'a@1', 0)).toEqual(['a0', 'a0-kalan']);
+    expect(ids(m, 'a@1', 1)).toEqual(['a1']);
+  });
+});

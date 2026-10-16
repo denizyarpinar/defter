@@ -1,6 +1,7 @@
 import { SessionExpired } from '../drive/drive';
 import { penLayerSvg } from '../kalem/cizimKatmani';
-import { PenModel } from '../kalem/cizimModeli';
+import { PenModel, type Place } from '../kalem/cizimModeli';
+import { locative } from '../kalem/gecmis';
 import { penLayerMode } from '../kalem/defterNotu';
 import { PenToolbar, strokeStyle } from '../kalem/kalemCubugu';
 import { PenInput } from '../kalem/kalemModu';
@@ -35,6 +36,7 @@ import { ZoomController } from './zoomKontrol';
 // Task 3.4: contents panel, page slider, zoom (zoomKontrol.ts); zoomed pages get a sharp "detail" canvas.
 // Task 3.5: the page on screen becomes the ribbon, topics get "okunuyor" / "okundu" (okumaDurumu.ts).
 // Task 4.6: pen mode (kalemModu.ts): live drawing into an in-memory model per PDF file (cizimModeli.ts), not saved yet.
+// Task 4.7: eraser and undo / redo (one history for the reader session, all files).
 
 const PEN_LAYER = penLayerMode();   // task 4.5: ?cizimKontrol=1 / ?defterNot=goster
 
@@ -131,6 +133,15 @@ export function initOkuyucu(): void {
   addEventListener('keydown', e => {
     if (!open) return;
     if (e.key === 'Escape') { e.stopPropagation(); if (tocOpen) closeToc(); else closeOkuyucu(); return; }
+    // pen mode: Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z and Ctrl+Y redo (not while typing somewhere)
+    if (penOn && (e.ctrlKey || e.metaKey) && !e.altKey && !typing(e.target)) {
+      const k = e.key.toLowerCase();
+      if (k === 'z' || (k === 'y' && e.ctrlKey && !e.shiftKey)) {
+        e.preventDefault();
+        undoRedo(k === 'y' || e.shiftKey);
+        return;
+      }
+    }
     if (mode === 'kitap' && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')
       && !(e.target instanceof HTMLSelectElement) && !(e.target instanceof HTMLInputElement)) {
       e.preventDefault();
@@ -200,21 +211,45 @@ export function initOkuyucu(): void {
   });
 
   // Task 4.6: pen button, tool bar, live drawing
-  toolbar = new PenToolbar($('#oTools'), () => setPen(false));
+  toolbar = new PenToolbar($('#oTools'), {
+    close: () => setPen(false),
+    undo: () => undoRedo(false),
+    redo: () => undoRedo(true),
+    toolChanged: () => { pen.hideCursor(); showTool(); },
+  });
   $('#oPenBtn').addEventListener('click', () => setPen(!penOn));
   pen = new PenInput([scroller, area], {
+    pageAtPoint: (x, y) => {
+      for (const [i, m] of mounted) {
+        if (!m.box || !m.vp || !m.pdf || penModel.state(fileKey(m.pdf)) !== 'hazir') continue;
+        const r = m.box.getBoundingClientRect();
+        if (r.width > 0 && x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return { box: m.box, page: { index: i, viewport: m.vp } };
+      }
+      return null;
+    },
     pageAt: box => {
       for (const [i, m] of mounted) {
         if (m.box === box && m.vp && m.pdf && penModel.state(fileKey(m.pdf)) === 'hazir') return { index: i, viewport: m.vp };
       }
       return null;
     },
+    tool: () => toolbar.tool,
     style: () => strokeStyle(toolbar.prefs),
     add: (pg, s) => {
       const p = pages[pg.index];
       if (!p?.pdfSayfa) return;
       penModel.add(fileKey(p), p.pdfSayfa - 1, s);
       mounted.get(pg.index)?.layer?.();
+      renderTools();
+    },
+    erase: (pg, from, to, r) => {
+      const p = pages[pg.index];
+      if (!p?.pdfSayfa) return;
+      if (penModel.eraseAt(fileKey(p), p.pdfSayfa - 1, from, to, r)) relayer(fileKey(p), p.pdfSayfa - 1);
+    },
+    eraseEnd: () => { penModel.eraseEnd(); renderTools(); },
+    eraseCancel: () => {
+      for (const c of penModel.eraseCancel()) relayer(c.key, c.page);
       renderTools();
     },
     penSeen: () => $('#okuyucu').classList.remove('kalem-parmak'),
@@ -654,7 +689,8 @@ export function closeOkuyucu(): void {
   session++;
   cancelAnimationFrame(fpsRaf); fpsRaf = 0;
   setPen(false);
-  penModel.clear();   // not saved yet (task 4.8): the strokes are gone
+  penModel.clear();   // not saved yet (task 4.8): the strokes and the undo history are gone
+  penFileNames.clear();
   renderTools();
   closeToc();
   releaseAll();
@@ -1067,11 +1103,12 @@ function setPen(on: boolean): void {
   if (on && !pages.some(p => pageKind(p) === 'pdf')) { toast('Bu sayfalarda çizilecek PDF yok.'); return; }
   penOn = on;
   pen.active = on;
-  if (!on) pen.cancel();
+  if (!on) { pen.cancel(); pen.hideCursor(); }
   const el = $('#okuyucu');
   el.classList.toggle('kalem', on);
   // no Apple Pencil seen yet: one finger draws, so the list must not scroll under it
   el.classList.toggle('kalem-parmak', on && !pen.penSeen);
+  showTool();
   const btn = $('#oPenBtn');
   btn.classList.toggle('on', on);
   btn.setAttribute('aria-pressed', String(on));
@@ -1086,7 +1123,49 @@ function setPen(on: boolean): void {
 }
 
 function renderTools(): void {
-  toolbar?.set({ preparing: penOn && penModel.loading, dirty: penModel.dirty });
+  toolbar?.set({ preparing: penOn && penModel.loading, dirty: penModel.dirty, canUndo: penModel.canUndo, canRedo: penModel.canRedo });
+}
+
+const typing = (t: EventTarget | null) =>
+  t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || t instanceof HTMLSelectElement
+  || (t instanceof HTMLElement && t.isContentEditable);
+
+// The pen layers of the mounted pages showing this file's page (pdfPage: 0-based) are drawn again
+function relayer(key: string, pdfPage: number): void {
+  for (const [i, m] of mounted) if (m.pdf && fileKey(m.pdf) === key && pages[i].pdfSayfa === pdfPage + 1) m.layer?.();
+}
+
+// Task 4.7: undo (redo = false) / redo. A stroke being drawn (or an eraser drag) is dropped first.
+// The page isn't turned to: when the change is not on screen, a toast says where it was.
+function undoRedo(redo: boolean): void {
+  if (!open) return;
+  pen.cancel();
+  const c = redo ? penModel.redo() : penModel.undo();
+  renderTools();
+  if (!c) return;
+  for (const p of c.places) relayer(p.key, p.page);
+  if (c.places.length && !c.places.some(onScreen)) toast(`${whereText(c.places[0])} ${redo ? 'yinelendi' : 'geri alındı'}.`);
+}
+
+// Task 4.7b: the tool on #okuyucu (the cursor over the pages, styles.css)
+function showTool(): void {
+  const el = $('#okuyucu'), t = toolbar.tool;
+  for (const k of ['kalem', 'fosforlu', 'silgi'] as const) el.classList.toggle(`arac-${k}`, penOn && t === k);
+}
+
+function onScreen(c: Place): boolean {
+  return [...mounted.keys()].some(i => {
+    const p = pages[i];
+    return isVisible(i) && !!p.pdfSayfa && fileKey(p) === c.key && p.pdfSayfa === c.page + 1;
+  });
+}
+
+// "Sayfa 12'de": the reader's page number; a file not open now: its PDF page and its name
+function whereText(c: Place): string {
+  const i = pages.findIndex(p => p.pdfSayfa === c.page + 1 && pageKind(p) === 'pdf' && fileKey(p) === c.key);
+  if (i >= 0) return `Sayfa ${locative(i + 1)}`;
+  const name = penFileNames.get(c.key);
+  return name ? `${name}, sayfa ${locative(c.page + 1)}` : `Sayfa ${locative(c.page + 1)}`;
 }
 
 // Pen mode: the files of the pages on screen get their strokes loaded (once per file);
@@ -1096,9 +1175,13 @@ function loadVisibleFiles(): void {
   for (const [i, m] of mounted) if (m.pdf && isVisible(i)) loadFile(m.pdf);
 }
 
+// file key → its name (for the undo toast when the file is not open now)
+const penFileNames = new Map<string, string>();
+
 function loadFile(p: BookPage): void {
   const key = fileKey(p);
   if (penModel.state(key)) return;
+  if (p.ad) penFileNames.set(key, p.ad);
   void penModel.ensure(key, async () => new Uint8Array(await getPdf(p.dosyaId!, p.modifiedTime!))).then(() => {
     if (!open) return;
     const err = penModel.takeError(key);

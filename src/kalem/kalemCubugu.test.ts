@@ -13,7 +13,7 @@ describe('parsePrefs', () => {
   });
 
   it('a saved choice comes back', () => {
-    const p = { arac: 'fosforlu', renk: { kalem: '#b5523b', fosforlu: '#f59ac0' }, boy: { kalem: 2, fosforlu: 0 } };
+    const p = { arac: 'fosforlu', renk: { kalem: '#e02020', fosforlu: '#f59ac0' }, boy: { kalem: 2, fosforlu: 0 } };
     expect(parsePrefs(JSON.stringify(p))).toEqual(p);
   });
 
@@ -46,10 +46,30 @@ describe('strokeStyle', () => {
     }
   });
 
-  it('4 pen colours, 3 highlighter colours, 3 sizes each', () => {
-    expect(COLORS.kalem.map(c => c[1])).toEqual(['Siyah', 'Mavi', 'Kırmızı', 'Yeşil']);
-    expect(COLORS.fosforlu.map(c => c[1])).toEqual(['Sarı', 'Yeşil', 'Pembe']);
+  it('6 pen colours, 5 highlighter colours, 3 sizes each', () => {
+    expect(COLORS.kalem.map(c => c[1])).toEqual(['Siyah', 'Mavi', 'Kırmızı', 'Yeşil', 'Turuncu', 'Mor']);
+    expect(COLORS.fosforlu.map(c => c[1])).toEqual(['Sarı', 'Yeşil', 'Pembe', 'Mavi', 'Turuncu']);
     expect(SIZES.kalem).toHaveLength(3);
     expect(SIZES.fosforlu).toHaveLength(3);
+  });
+});
+
+describe('the eraser (task 4.7)', () => {
+  it('is not remembered', () => {
+    expect(parsePrefs(JSON.stringify({ arac: 'silgi' })).arac).toBe('kalem');
+  });
+});
+
+describe('the new palette (task 4.7b)', () => {
+  it('the old red saved before becomes the new red; other saved colours stay', () => {
+    expect(parsePrefs(JSON.stringify({ renk: { kalem: '#b5523b', fosforlu: '#7cc4f5' } })).renk).toEqual({ kalem: '#e02020', fosforlu: '#7cc4f5' });
+    expect(parsePrefs(JSON.stringify({ renk: { kalem: '#7b2fbf' } })).renk.kalem).toBe('#7b2fbf');
+    // the old red is not a highlighter colour: there it falls back to the default
+    expect(parsePrefs(JSON.stringify({ renk: { fosforlu: '#b5523b' } })).renk.fosforlu).toBe(DEFAULT_PREFS.renk.fosforlu);
+  });
+
+  it('the exact colours', () => {
+    expect(COLORS.kalem.map(c => c[0])).toEqual(['#222222', '#1d3a8a', '#e02020', '#2f7a46', '#f07a00', '#7b2fbf']);
+    expect(COLORS.fosforlu.map(c => c[0])).toEqual(['#f5d33a', '#8fd16a', '#f59ac0', '#7cc4f5', '#ffb347']);
   });
 });
