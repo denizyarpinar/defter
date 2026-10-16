@@ -17,3 +17,7 @@ export const KIRP_MIN_GUVEN = 0.5;
 // Task 5.4: a photo's page in the PDF. A4 (pt); landscape photo → landscape A4, otherwise portrait.
 // The photo is fitted inside the margin (aspect kept) and centred.
 export const SAYFA_DUZENI = { genislik: 595.28, yukseklik: 841.89, kenar: 24 } as const;
+
+// Task 5.10b: "Dosya ekle" takes files up to this size (MB = 1 000 000 bytes, as the iPad Files app
+// shows it). Adding a PDF happens in memory with pdf-lib (≈ 3–4× the file), so 50 MB stays safe on iPad.
+export const MAX_DOSYA_MB = 50;
