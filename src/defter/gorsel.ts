@@ -104,6 +104,33 @@ async function kirpiliHazirla(src: Kaynak, file: File, k: Kose4): Promise<HazirG
   }
 }
 
+// Task 5.8d: the corner editor's preview. Only kept while the editor is open; width/height are
+// the full image's (the corners' pixels), the canvas is the photo with its long edge ≤ maxKenar.
+export const ONIZLEME_KENAR = 1600;
+export interface Onizleme { canvas: HTMLCanvasElement; width: number; height: number }
+
+export async function onizlemeHazirla(file: File, maxKenar = ONIZLEME_KENAR): Promise<Onizleme> {
+  if (file.size === 0) throw new GorselHatasi('bos');
+  const src = await coz(file);
+  try {
+    if (!(src.width > 0 && src.height > 0)) throw new GorselHatasi(hataTuru(file));
+    const { width, height } = hedefBoyut(src.width, src.height, maxKenar);
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) { canvas.width = canvas.height = 0; throw new GorselHatasi('acilamadi'); }
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, width, height);
+    ctx.drawImage(src.image, 0, 0, width, height);
+    return { canvas, width: src.width, height: src.height };
+  } finally {
+    src.close();
+  }
+}
+
 export interface KirpliGorsel extends KirpKarari { gorsel: HazirGorsel }
 
 // Task 5.8c: the photo panel's preparation. Without koseler the corners are found first (method B

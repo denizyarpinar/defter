@@ -63,7 +63,8 @@ export function kirpPenceresi(k: Kose4, kaynak: Boyut, maxKenar = MAX_KENAR, max
   return { sx, sy, sw, sh, width, height, koseler };
 }
 
-// For the "Ekle" log and the trial page.
-export function kirpYazi(kip: KirpKip, kirpilamadi: boolean): string {
-  return kip === 'kirp' ? 'kırpıldı' : kirpilamadi ? 'tümü (kırpılamadı)' : 'tümü';
+// For the "Ekle" log and the trial page. elle: corners set in the corner editor (5.8d).
+export function kirpYazi(kip: KirpKip, kirpilamadi: boolean, elle = false): string {
+  if (kip === 'kirp') return elle ? 'kırpıldı (elle)' : 'kırpıldı';
+  return kirpilamadi ? 'tümü (kırpılamadı)' : 'tümü';
 }

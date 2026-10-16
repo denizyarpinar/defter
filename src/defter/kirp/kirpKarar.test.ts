@@ -53,6 +53,8 @@ describe('kirpYazi', () => {
     expect(kirpYazi('kirp', true)).toBe('kırpıldı');
     expect(kirpYazi('tumu', false)).toBe('tümü');
     expect(kirpYazi('tumu', true)).toBe('tümü (kırpılamadı)');
+    expect(kirpYazi('kirp', false, true)).toBe('kırpıldı (elle)');
+    expect(kirpYazi('tumu', false, true)).toBe('tümü');
   });
 });
 

@@ -1,15 +1,18 @@
 import type { DriveFile } from '../drive/drive';
 import { KIRP_VARSAYILAN } from '../defter/ayarlar';
-import { hazirlaKirpli, type KirpliGorsel } from '../defter/gorsel';
+import { hazirlaKirpli, onizlemeHazirla, type KirpliGorsel } from '../defter/gorsel';
 import { GorselHatasi } from '../defter/gorselHesap';
 import { boyutYazi, cikar, ekleDurumu, hedefHesapla, tasi } from '../defter/fotoPanelDurumu';
-import { kipDegistir, kirpYazi } from '../defter/kirp/kirpKarar';
+import type { Kose4 } from '../defter/kirp/kirpHesap';
+import { kipDegistir, kirpYazi, type KirpKarari, type KirpKip } from '../defter/kirp/kirpKarar';
+import { acKoseDuzenleyici, type KoseDuzenleyici } from './koseDuzenleyici';
 import { toast } from './toast';
 
 // Task 5.8a: "Fotoğraf ekle" panel over the reader. A draft: "Ekle" writes nothing,
 // it logs what it would do. Photos are prepared one at a time (iPad memory).
 // Task 5.8c: the page is cropped by default; each thumbnail has a crop / whole-photo toggle.
 // The original File and the corners are kept, only the current JPEG is in memory.
+// Task 5.8d: tapping a thumbnail opens the corner editor (corners by hand); "elle" badge.
 
 export interface FotoPanelBaglam {
   konuAdi: string;
@@ -20,7 +23,11 @@ export interface FotoPanelBaglam {
   kilitAcik: boolean;
 }
 
-interface Oge { hazir: KirpliGorsel; file: File; ad: string; url: string; mesgul: boolean }
+interface Oge {
+  hazir: KirpliGorsel; file: File; ad: string; url: string; mesgul: boolean;
+  otoKoseler: Kose4 | null;   // found automatically at the first preparation (the editor's "Otomatik")
+  elle: boolean;              // corners set in the corner editor
+}
 
 const jpegUrl = (h: KirpliGorsel) => URL.createObjectURL(new Blob([h.gorsel.bytes as BlobPart], { type: 'image/jpeg' }));
 
@@ -53,6 +60,7 @@ export function acFotoPanel(b: FotoPanelBaglam, dosyalar: File[]): void {
   let calisiyor = false;
   let kapandi = false;
   let seciliId: string | null = null;
+  let duzenleyici: KoseDuzenleyici | null = null;
   // every preparation (new photos and toggles) runs on this chain: one big image at a time
   let zincir: Promise<unknown> = Promise.resolve();
   const sirada = <T>(is: () => Promise<T>): Promise<T> => {
@@ -98,7 +106,11 @@ export function acFotoPanel(b: FotoPanelBaglam, dosyalar: File[]): void {
       li.classList.toggle('fp-mesgul', o.mesgul);
       const img = el('img');
       img.src = o.url;
-      img.alt = `${i + 1}. fotoğraf`;
+      img.alt = '';
+      const duzelt = dugme('fp-duzelt', '', `${i + 1}. fotoğraf: köşeleri düzelt`);
+      duzelt.append(img);
+      duzelt.disabled = o.mesgul;
+      duzelt.onclick = () => void koseDuzelt(o);
       const sol = dugme('fp-ok', '‹', `${i + 1}. fotoğrafı sola taşı`);
       sol.disabled = i === 0;
       sol.onclick = () => { ogeler = tasi(ogeler, i, -1); ciz(); };
@@ -113,11 +125,12 @@ export function acFotoPanel(b: FotoPanelBaglam, dosyalar: File[]): void {
       const gecis = dugme('fp-kirp', '', kirp ? `${i + 1}. fotoğraf: sayfa kırpılıyor – tüm fotoğrafa geç` : `${i + 1}. fotoğraf: tüm fotoğraf – sayfayı kırp`);
       gecis.innerHTML = kirp ? SIMGE_KIRP : SIMGE_TUMU;
       gecis.setAttribute('aria-pressed', String(kirp));
-      gecis.disabled = o.mesgul || !o.hazir.koseler;
+      gecis.disabled = o.mesgul;
       gecis.onclick = () => void degistir(o);
       const resim = el('div', 'fp-resim');
-      resim.append(img, gecis);
+      resim.append(duzelt, gecis);
       if (o.hazir.kirpilamadi && !kirp) resim.append(el('span', 'fp-rozet', 'Kırpılamadı'));
+      else if (o.elle && kirp) resim.append(el('span', 'fp-rozet fp-rozet-elle', 'elle'));
       li.append(resim, el('span', 'fp-no', String(i + 1)), x, oklar, el('small', 'fp-boyut', boyutYazi(o.hazir.gorsel.yeniBoyut)));
       return li;
     }));
@@ -151,7 +164,7 @@ export function acFotoPanel(b: FotoPanelBaglam, dosyalar: File[]): void {
       try {
         const h = await sirada(() => hazirlaKirpli(f, KIRP_VARSAYILAN ? 'kirp' : 'tumu'));
         if (kapandi) break;
-        ogeler.push({ hazir: h, file: f, ad: f.name, url: jpegUrl(h), mesgul: false });
+        ogeler.push({ hazir: h, file: f, ad: f.name, url: jpegUrl(h), mesgul: false, otoKoseler: h.koseler, elle: false });
       } catch (e) {
         if (kapandi) break;
         toast(e instanceof GorselHatasi ? `${f.name}: ${e.message}` : `${f.name} hazırlanamadı. Başka bir fotoğraf seç.`);
@@ -164,19 +177,42 @@ export function acFotoPanel(b: FotoPanelBaglam, dosyalar: File[]): void {
     if (!kapandi) ciz();
   }
 
-  // the thumbnail's toggle: the same File again, with the kept corners, in the other mode
+  // the thumbnail's toggle: the same File again, with the kept corners, in the other mode.
+  // No corners yet (none found): the corner editor opens instead, so the toggle is never dead.
   async function degistir(o: Oge): Promise<void> {
     if (o.mesgul) return;
+    if (!o.hazir.koseler) return koseDuzelt(o);
     const kip = kipDegistir(o.hazir.kip, o.hazir.koseler);
     if (kip === o.hazir.kip) return;
+    await yenidenHazirla(o, kip, o.hazir);
+  }
+
+  // the corner editor; Uygula → crop with the chosen (sorted) corners
+  async function koseDuzelt(o: Oge): Promise<void> {
+    if (o.mesgul || duzenleyici || kapandi) return;
+    const d = acKoseDuzenleyici(kok, {
+      ad: o.ad,
+      onizleme: sirada(() => onizlemeHazirla(o.file)),
+      koseler: o.hazir.koseler,
+      otoKoseler: o.otoKoseler
+    });
+    duzenleyici = d;
+    const s = await d.sonuc;
+    duzenleyici = null;
+    if (!s || kapandi || !ogeler.includes(o)) return;
+    await yenidenHazirla(o, 'kirp', { ...o.hazir, kip: 'kirp', koseler: s.koseler, kirpilamadi: false }, s.elle);
+  }
+
+  async function yenidenHazirla(o: Oge, kip: KirpKip, onceki: KirpKarari, elle = o.elle): Promise<void> {
     o.mesgul = true;
     ciz();
     try {
-      const h = await sirada(() => hazirlaKirpli(o.file, kip, o.hazir));
+      const h = await sirada(() => hazirlaKirpli(o.file, kip, onceki));
       if (kapandi || !ogeler.includes(o)) return;
       URL.revokeObjectURL(o.url);   // the old JPEG goes before the new one is kept
       o.hazir = h;
       o.url = jpegUrl(h);
+      o.elle = elle;
     } catch (e) {
       if (kapandi) return;
       toast(e instanceof GorselHatasi ? `${o.ad}: ${e.message}` : `${o.ad} hazırlanamadı. Tekrar dene.`);
@@ -189,6 +225,7 @@ export function acFotoPanel(b: FotoPanelBaglam, dosyalar: File[]): void {
 
   function kapat(): void {
     kapandi = true;
+    duzenleyici?.kapat();
     bekleyen = [];
     for (const o of ogeler) URL.revokeObjectURL(o.url);
     ogeler = [];
@@ -197,6 +234,7 @@ export function acFotoPanel(b: FotoPanelBaglam, dosyalar: File[]): void {
   }
 
   function tus(e: KeyboardEvent): void {
+    if (duzenleyici) return;   // the corner editor has the keys (its Esc = Vazgeç)
     if (e.key === 'Escape') { e.stopPropagation(); e.preventDefault(); kapat(); }
   }
 
@@ -218,7 +256,7 @@ export function acFotoPanel(b: FotoPanelBaglam, dosyalar: File[]): void {
       yeniSayfa: ogeler.length,
       jpegler: ogeler.map((o, i) => ({
         sira: i + 1, dosya: o.ad, px: `${o.hazir.gorsel.width}×${o.hazir.gorsel.height}`, boyut: boyutYazi(o.hazir.gorsel.yeniBoyut), bayt: o.hazir.gorsel.yeniBoyut,
-        kirp: kirpYazi(o.hazir.kip, o.hazir.kirpilamadi), guven: o.hazir.guven
+        kirp: kirpYazi(o.hazir.kip, o.hazir.kirpilamadi, o.elle), guven: o.hazir.guven
       }))
     });
     toast('Taslak: eklenmedi');

@@ -329,8 +329,33 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
   border: 1px solid rgba(255, 255, 255, .3); border-radius: 10px; background: rgba(0, 0, 0, .6); color: #fff }
 .fp-kirp[aria-pressed="true"] { background: rgba(214, 160, 70, .85); border-color: transparent }
 .fp-kirp:disabled { opacity: .4 }
-.fp-rozet { position: absolute; left: 4px; bottom: 8px; padding: 2px 8px; border-radius: 10px; background: rgba(150, 40, 30, .85); color: #fff; font-size: 12px; line-height: 18px }
+.fp-rozet { position: absolute; left: 4px; bottom: 8px; pointer-events: none; padding: 2px 8px; border-radius: 10px; background: rgba(150, 40, 30, .85); color: #fff; font-size: 12px; line-height: 18px }
 .fp-mesgul img { opacity: .4 }
+.fp-duzelt { display: block; width: 100%; padding: 0; border: 0; background: none; cursor: pointer; border-radius: 6px }
+.fp-duzelt:disabled { cursor: default }
+.fp-rozet-elle { background: rgba(214, 160, 70, .9); color: #1b1410 }
+
+/* task 5.8d: corner editor (full screen over the photo panel) */
+.kd { position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column; background: #111; color: #f5ecdf; font: 14px var(--ui);
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px) }
+.kd-sahne { position: relative; flex: 1; min-height: 0; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none }
+.kd-gorsel { position: absolute; display: block; pointer-events: none }
+.kd-svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible }
+.kd-karart { fill: rgba(0, 0, 0, .55) }
+.kd-cizgi { fill: none; stroke: #ffd27a; stroke-width: 2; stroke-linejoin: round }
+.kd-tutamac { fill: rgba(255, 210, 122, .35); stroke: #ffd27a; stroke-width: 2.5 }
+.kd-gecersiz .kd-cizgi, .kd-gecersiz .kd-tutamac { stroke: #ff5a4a }
+.kd-gecersiz .kd-tutamac { fill: rgba(255, 90, 74, .35) }
+.kd-buyutec { position: absolute; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 4px 16px rgba(0, 0, 0, .6); pointer-events: none }
+.kd-buyutec[hidden] { display: none }
+.kd-yukleniyor { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; opacity: .8 }
+.kd-ipucu { margin: 0; padding: 8px 16px 0; text-align: center; opacity: .85; min-height: 1.4em }
+.kd-gecersiz .kd-ipucu { color: #ff8a7d; opacity: 1 }
+.kd-alt { display: flex; justify-content: center; gap: 10px; padding: 10px 16px 14px }
+.kd-alt button { min-height: 44px; min-width: 104px; padding: 0 18px; border-radius: 10px; font: 600 15px var(--ui) }
+.kd-otomatik, .kd-vazgec { border: 1px solid rgba(255, 255, 255, .22); background: none; color: inherit }
+.kd-uygula { border: 1px solid var(--accent); background: var(--accent); color: #fff }
+.kd-alt button:disabled { opacity: .4 }
 .fp-arti { align-self: flex-start; min-height: 44px; padding: 0 16px; border-radius: 10px; border: 1px dashed rgba(255, 255, 255, .4); background: none; color: inherit; font: 500 14px var(--ui) }
 .fp-hedef { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-radius: 10px; background: rgba(255, 255, 255, .06); line-height: 1.4; overflow-wrap: anywhere }
 .fp-seclbl { display: flex; align-items: center; gap: 10px; flex-wrap: wrap }
@@ -516,6 +541,8 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
   .fp-liste { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px }
   .fp-ok { font-size: 18px }
   .fp-alt button { flex: 1 }
+  .kd-alt { gap: 8px }
+  .kd-alt button { flex: 1; min-width: 0; padding: 0 8px }
   .o-tools { flex-wrap: nowrap; justify-content: flex-start; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; padding: 6px 0 8px 12px }
   .o-tools::-webkit-scrollbar { display: none }
   .o-tools > * { flex: none }
