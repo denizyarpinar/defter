@@ -228,7 +228,7 @@ To deploy on Vercel, import the repository, set `VITE_GOOGLE_CLIENT_ID` as an en
 - [x] **Phase 1 — Foundation:** project setup, 3D room, bookcase and books, Google sign-in, reading Drive and saving the shelf layout, deployment
 - [x] **Phase 2 — Visual quality:** light baked in Blender (Cycles) into day and evening lightmaps, smaller files for mobile
 - [x] **Phase 3 — Reading:** PDF rendering with pdf.js, book and PDF modes, zoom, ribbons and reading status
-- [x] **Phase 4 — Pen:** Apple Pencil drawings saved into the PDF as standard annotations (pdf-lib) — on the `faz-4` branch, merge pending
+- [x] **Phase 4 — Pen:** Apple Pencil drawings saved into the PDF as standard annotations (pdf-lib)
 - [ ] **Phase 5 — Notebook and adding:** notebook photos into the summary PDF, adding files
 - [ ] **Phase 6 — Smart features:** OCR, search, quizzes and summaries
 
