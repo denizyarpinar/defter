@@ -286,6 +286,9 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 .o-page { position: absolute; left: 0; right: 0; background: #cfc8bd; box-shadow: 0 10px 26px rgba(0, 0, 0, .3); overflow: hidden }
 .o-page.ready { background: #fff var(--paperImg, none) }
 .o-page canvas, .o-page img { display: block; width: 100%; height: 100%; object-fit: contain }
+/* task 4.5: Defter's strokes over the page (and over the zoom canvas); highlighter multiplied with the page */
+.o-page svg.o-cizim { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1 }
+.o-page svg.o-cizim.fosforlu { mix-blend-mode: multiply }
 .o-card { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
   padding: 10%; text-align: center; color: #2a231d; font-size: 15px; overflow-wrap: anywhere }
 .o-card p { margin: 0 }
@@ -321,21 +324,30 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 .o-sheet .o-page { right: auto; box-shadow: none }
 .o-endtext { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font: italic 500 18px var(--serif); color: var(--ink); opacity: .45 }
 .o-leaf { position: absolute; top: 0; height: 100%; transform-style: preserve-3d; z-index: 5; transition: transform .4s cubic-bezier(.45, .05, .2, 1) }
-.o-leaf.fw { transform-origin: 0 50%; transform: rotateY(0deg) }
-.o-leaf.fw.go { transform: rotateY(-180deg) }
-.o-leaf.bw { transform-origin: 100% 50%; transform: rotateY(0deg) }
-.o-leaf.bw.go { transform: rotateY(180deg) }
+/* task 4.5b: translateZ(1px) keeps the leaf off the slots' plane; else Safari depth-sorts a page's
+   composited stroke layer (mix-blend-mode) in front of the leaf at the start/end of the turn */
+.o-leaf.fw { transform-origin: 0 50%; transform: translateZ(1px) rotateY(0deg) }
+.o-leaf.fw.go { transform: translateZ(1px) rotateY(-180deg) }
+.o-leaf.bw { transform-origin: 100% 50%; transform: translateZ(1px) rotateY(0deg) }
+.o-leaf.bw.go { transform: translateZ(1px) rotateY(180deg) }
 .o-lf { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden }
+/* a composited child doesn't always get its face's backface-visibility in Safari */
+.o-lf svg.o-cizim { backface-visibility: hidden; -webkit-backface-visibility: hidden }
+/* pages on the turning leaf: no strokes while they move (BookView.hide / reveal) */
+.o-sheet.turning svg.o-cizim { visibility: hidden }
 .o-lf.back { transform: rotateY(180deg) }
 .o-lf::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(90deg, rgba(0, 0, 0, 0), rgba(0, 0, 0, .18)); opacity: 0; transition: opacity .2s }
 .o-leaf.go .o-lf.front::after { opacity: 1 }
-.o-turn { z-index: 6; transition: transform .4s cubic-bezier(.5, 0, .2, 1), opacity .4s; transform-origin: 0 50% }
-.o-turn.out-l { transform: rotateY(-70deg); opacity: 0 }
-.o-turn.out-r { transform: rotateY(70deg) translateX(30%); opacity: 0 }
+.o-turn { z-index: 6; transition: transform .4s cubic-bezier(.5, 0, .2, 1), opacity .4s; transform-origin: 0 50%; transform: translateZ(1px) }
+.o-turn.out-l { transform: translateZ(1px) rotateY(-70deg); opacity: 0 }
+.o-turn.out-r { transform: translateZ(1px) rotateY(70deg) translateX(30%); opacity: 0 }
 
 /* task 3.4: zoom (prototype #zoom), page slider, contents panel */
 .o-zoom { perspective: 2400px; transform-origin: 50% 50% }
 .o-zoom.anim { transition: transform .28s cubic-bezier(.3, 0, .2, 1) }
+/* task 4.7c: zoomed, pages don't turn, so no 3D is needed. Without perspective Safari may draw the
+   page's layers (the pen SVG) at the zoomed size instead of blowing up a 100 % picture of them. */
+#okuyucu.zoomed .o-zoom { perspective: none }
 #okuyucu.zoomed .o-kitap { cursor: grab }
 #okuyucu.zoomed .o-scroll { overflow-x: auto }
 .o-scroll { touch-action: pan-x pan-y }
@@ -368,6 +380,58 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 .o-toclist button:hover { background: rgba(0, 0, 0, .05) }
 .o-toclist button[aria-current="true"] { background: rgba(181, 82, 59, .14); font-weight: 600; box-shadow: inset 3px 0 0 var(--accent, #b5523b) }
 .o-toclist button.empty { opacity: .5 }
+/* task 4.6: pen button, pen tool bar (prototype .r-tools; 44 px to tap on the iPad), pen mode */
+.o-penbtn { flex: none; min-height: 40px; padding: 0 12px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, .22); background: rgba(0, 0, 0, .18); color: #f5ecdf; font: 500 13px var(--ui) }
+.o-penbtn.on { background: #f5ecdf; color: #2a231d }
+/* task 4.8a: unsaved strokes (kept on the device): a dot on the pen button */
+.o-penbtn { position: relative }
+.o-penbtn.bekleyen::after { content: ''; position: absolute; top: 4px; right: 4px; width: 8px; height: 8px; border-radius: 50%; background: #e0a040; box-shadow: 0 0 0 1.5px rgba(0, 0, 0, .35) }
+.o-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px 8px; padding: 6px 12px 8px; color: #f5ecdf;
+  background: rgba(0, 0, 0, .24); border-bottom: 1px solid rgba(255, 255, 255, .08); touch-action: manipulation }
+.o-tools[hidden] { display: none }
+.o-tgrp { display: flex; align-items: center; gap: 4px }
+.o-tools button { min-width: 44px; min-height: 44px; padding: 0 12px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, .2); background: rgba(0, 0, 0, .22); color: #f5ecdf; font: 500 13.5px var(--ui) }
+.o-tools button.on { background: #f5ecdf; color: #2a231d }
+.o-tools .dot { position: relative; padding: 0; border: 0; background: none }
+.o-tools .dot::before { content: ''; position: absolute; left: 50%; top: 50%; width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%; background: var(--c); border: 2px solid rgba(255, 255, 255, .35); box-sizing: border-box }
+.o-tools .dot.on { background: none }
+.o-tools .dot.on::before { border-color: #fff; box-shadow: 0 0 0 2px rgba(0, 0, 0, .35) }
+.o-tools .sz { padding: 0; display: inline-flex; align-items: center; justify-content: center }
+.o-tools .sz i { display: block; border-radius: 99px; background: currentColor }
+.o-tools .sep { width: 1px; height: 26px; background: rgba(255, 255, 255, .2); margin: 0 2px }
+.o-tdurum { font-size: 12.5px; padding: 3px 9px; border-radius: 99px; background: rgba(255, 255, 255, .12); white-space: nowrap }
+.o-tdurum.kaydedilmedi { background: rgba(214, 150, 60, .35) }
+.o-tdurum small { font-size: 10.5px; opacity: .75; margin-left: 2px }
+.o-tools .o-tkapat { margin-left: 4px }
+/* task 4.8b: saving to Drive */
+.o-kayit { gap: 6px }
+.o-tools .o-kaydet { font-weight: 600 }
+.o-tools .o-kaydet:not(:disabled) { background: #f5ecdf; color: #2a231d }
+.o-tdurum.kaydedildi { background: rgba(90, 160, 90, .35) }
+.o-tdurum.hata { background: rgba(200, 70, 60, .5) }
+#okuyucu.kalem .o-page { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none }
+/* the stroke being drawn, over the page's layer */
+.o-page svg.o-cizim.canli { z-index: 2 }
+#okuyucu.kalem .o-page svg.o-cizim.canli { pointer-events: auto }
+/* task 4.7: eraser circle (10 px on screen), undo / redo, the eraser's hint */
+#okuyucu.kalem .o-page svg.o-silgi { z-index: 3; pointer-events: none }
+.o-silgi circle { fill: rgba(110, 110, 110, .22); stroke: rgba(60, 60, 60, .55); stroke-width: 1px; vector-effect: non-scaling-stroke }
+.o-tools button:disabled { opacity: .4 }
+/* task 4.7b: the cursor over the pages in pen mode. It beats the zoom's grab (#okuyucu.zoomed .o-kitap),
+   which comes back as it was when the pen is off. Tip of the pen = the hot spot. */
+#okuyucu.kalem .o-page { cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M3 21l1.5-5L16 4.5 19.5 8 8 19.5z' fill='%23fff' stroke='%23222' stroke-width='1.3' stroke-linejoin='round'/%3E%3Cpath d='M3 21l1.5-5 3.5 3.5z' fill='%23222'/%3E%3Cpath d='M14 6.5l3.5 3.5' stroke='%23222' stroke-width='1.3'/%3E%3C/svg%3E") 3 21, crosshair }
+#okuyucu.kalem.arac-fosforlu .o-page { cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M2 22l1.5-6.5L15 4l5 5L8.5 20.5z' fill='%23fff' stroke='%23222' stroke-width='1.3' stroke-linejoin='round'/%3E%3Cpath d='M2 22l1.5-6.5 5 5z' fill='%23f5d33a' stroke='%23222' stroke-width='1.1' stroke-linejoin='round'/%3E%3C/svg%3E") 2 22, crosshair }
+#okuyucu.kalem.arac-silgi .o-page { cursor: crosshair }
+#okuyucu.kalem.arac-silgi .o-page.silgi-imlecli { cursor: none }   /* the grey circle is the cursor */
+/* many colours on a narrow screen: the colours scroll sideways instead of pushing the bar wider */
+.o-tools .o-renkler { min-width: 0; max-width: 100%; overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain }
+.o-tools .o-renkler::-webkit-scrollbar { display: none }
+.o-tools .o-renkler > .dot { flex: none }
+.o-tipucu { font-size: 12.5px; opacity: .75; padding: 0 4px }
+/* task 4.9b: short status texts, shown only on a phone (below) */
+.o-tools .o-kisa { display: none }
+/* no Apple Pencil seen: one finger draws, so the list must not scroll under it (two fingers scroll, kalemModu.ts) */
+#okuyucu.kalem-parmak .o-scroll { touch-action: none }
 .o-tst { position: relative; flex: none; width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; font: 700 12px/1 var(--ui) }
 .o-tst::after { content: ''; position: absolute; inset: -11px }   /* 44 px to tap on the iPad */
 
@@ -379,6 +443,27 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
   .uname { display: none }
   .r-title { order: -1; flex-basis: 100% }
   .r-top .rb .lbl { display: none }
+  .o-penbtn span { display: none }
+}
+/* task 4.9b: phone: the pen tool bar is one row that scrolls sideways (buttons stay 44 px);
+   "Kalemi kapat" sticks to the right edge, the save status is a dot + a short word (full text in title) */
+@media (max-width: 599px) {
+  .o-tools { flex-wrap: nowrap; justify-content: flex-start; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; padding: 6px 0 8px 12px }
+  .o-tools::-webkit-scrollbar { display: none }
+  .o-tools > * { flex: none }
+  .o-tools .o-renkler { max-width: none; overflow: visible }
+  .o-tools .o-tipucu { white-space: nowrap }
+  .o-tools .o-tkapat { position: sticky; right: 0; order: 1; width: 108px; padding: 0 8px; margin-left: auto; border-radius: 10px 0 0 10px; background: #2a231d; box-shadow: -8px 0 10px -2px rgba(0, 0, 0, .35) }
+  /* the save status sticks just left of "Kalemi kapat" (its group is unwrapped so it can stick to the bar) */
+  .o-tools .o-kayit { display: contents }
+  .o-tools .o-tdurum { position: sticky; right: 108px; order: 1; align-self: stretch; display: inline-flex; align-items: center; margin-right: -8px; padding: 0 10px;
+    border-radius: 0; background: #2a231d; box-shadow: -8px 0 10px -2px rgba(0, 0, 0, .35) }
+  .o-tools .o-uzun { display: none }
+  .o-tools .o-kisa { display: inline }
+  .o-tools .o-tdurum .o-kisa::before { content: ''; display: inline-block; width: 7px; height: 7px; margin: 0 5px 1px 0; border-radius: 50%; background: currentColor; vertical-align: middle }
+  .o-tools .o-tdurum.kaydedilmedi .o-kisa::before { background: #f0b050 }
+  .o-tools .o-tdurum.kaydedildi .o-kisa::before { background: #8fd18f }
+  .o-tools .o-tdurum.hata .o-kisa::before { background: #ff8a7a }
 }
 @media (prefers-reduced-motion: reduce) {
   .leaf, #spread, .single-turn, .o-leaf, .o-turn { transition-duration: .01s !important }

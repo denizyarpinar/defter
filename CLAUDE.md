@@ -63,6 +63,7 @@ Kitaplık/
 
 ## Değişmez kurallar
 - Uygulama Drive'daki dosyaları **kopyalamaz, taşımaz, silmez**. Faz 1'de sadece `kitaplik.json` ve `kitap.json` içindeki `kapak` alanı yazılabilir.
+- Tek istisna: Kitaplık/ klasöründe kitaplik.json yoksa ilk raf/oda değişikliğinde bir kez oluşturulur. Başka hiçbir dosya oluşturulmaz.
 - Yazmadan önce dosyanın son halini oku (başka cihazda değişmiş olabilir).
 - Erişim token'ını localStorage'a yazma; bellekte tut. `.env.local` git'e girmez.
 - Hata mesajları Türkçe, kullanıcıya ne yapacağını söyler ("Drive'da Kitaplık klasörü bulunamadı. Klasörü ana dizine yükle ve yenile.").
@@ -115,7 +116,7 @@ Kitaplık/
 
 ### PDF
 - PDF çizimi: pdfjs-dist (PDF.js). Worker Vite ile: import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'.
-- PDF Drive'dan files/{id}?alt=media ile indirilir (Authorization başlığıyla). Asla Drive'da kopyalanmaz, taşınmaz, değiştirilmez.
+- PDF Drive'dan files/{id}?alt=media ile indirilir (Authorization başlığıyla). PDF'ler Drive'da kopyalanmaz, taşınmaz, silinmez; değiştirilmesine sadece "Faz 4 — PDF'e çizim yazma (güvenlik)" kuralları çerçevesinde izin verilir.
 - İndirilen PDF'ler IndexedDB'de önbelleğe alınır; anahtar = dosya id + modifiedTime. Drive'da dosya değişince yenisi indirilir. Önbellek toplamı 500 MB'ı geçerse en eski açılanlar silinir.
 - Kaynak yolu (kaynak.dosya) kitabın klasörüne göre çözülür; alt klasörler (defter/...) desteklenir. Bulunamayan dosya kitabı bozmaz: o sayfa yerine "Dosya bulunamadı: <ad>" sayfası gösterilir.
 - sayfalar alanı: "3", "3-7", "1-2,5,9-11"; yoksa tüm PDF.
@@ -147,7 +148,7 @@ Kitaplık/
 
 ### Güvenlik
 - Ders PDF'leri telifli: public/ veya git'e asla girmez. Demo için kendi ürettiğin örnek PDF'leri kullan.
-- Faz 3'te kalem düğmesi gizli; çizim kodu Faz 4'te gelir.
+- Kalem ve çizimler: Faz 4 kurallarına bak (aşağıda).
 
 ### Veri modeli (kitap.json surum 2)
 - `kitap.json`: `{ surum: 2, baslik, sirt, kod, ders, kapak, sonAcilis, kurdele, uniteler: [ { baslik, konular: [ { baslik, klasor, durum, kurdeleler? } ] } ] }`.
@@ -161,3 +162,48 @@ Kitaplık/
 - Bulunmayan materyal gizlenir. Hiçbiri yoksa konu "Henüz materyal yok" gösterir.
 - surum 1 (düz `bolumler`) okunmaya devam eder: bölümler "Genel" adlı tek ünite altında birer konu olarak görünür; `kaynaklar` ve `sayfalar` aynen çalışır.
 - Okuyucuda konu açılınca sekmeler: Orijinal · Özet · Übungen · Ödevler. Varsayılan Özet (yoksa Orijinal, o da yoksa ilk bulunan).
+
+## Faz 4 — PDF'e çizim yazma (güvenlik)
+
+### Biçim
+- Çizimler PDF'e standart Ink annotation (not) olarak yazılır; görünüm akışı (/AP) eklenir, böylece Drive önizlemesi, iPad ve Windows'ta görünür. Sayfa içeriğine (content stream) asla dokunulmaz.
+- Uygulamanın notları özel `/DefterId` anahtarıyla (ve /T "Defter") işaretlenir. Sadece /DefterId işaretli Ink annotation'lar eklenir/değişir/silinir. Sayfa içeriği, başka notlar, form alanları, metadata ve sayfa sırası korunur. İmzalı PDF'e yazılmaz.
+- Çizgi şekli tek kaynak: `src/kalem/cizgiSekli.ts`. Kalem = perfect-freehand dış hattı, dolgu; fosforlu = orta noktalardan yumuşatılmış eğri, sabit kalınlık. Canlı çizim, okuma katmanı ve /AP aynı fonksiyonu kullanır. /AP kalemde dış hat dolgu (f), fosforluda yumuşak eğri (S). /InkList merkez çizgi olarak kalır.
+- Apple Pencil basıncı `basinc` (nokta başına 0–1, 2 ondalık) PDF'te `/DefterBasinc` dizisinde; basınç yoksa (fare, parmak) hızdan tahmin edilir.
+- Kalemin opaklığı her zaman 1, fosforlununki 0–1 arası (1 hariç).
+
+### Okuma modu
+- Defter notları pdf.js canvas'ında çizilmez (annotationMode ENABLE_STORAGE + noView); başka programların notları görünür.
+- Çizgiler önce getAnnotations verisiyle SVG katmanında gösterilir (Ink + /T "Defter"; kalınlık: borderStyle.rawWidth; opaklık < 1 → fosforlu). Dosyanın modeli (pdf-lib, basınç dahil) yüklenince modelden çizilir. Kalem modunda id ve araç pdf-lib readDefterStrokes ile kesin okunur.
+- Hata ayıklama: `?defterNot=goster` (katman yok, pdf.js kendisi çizer).
+
+### pdf-lib
+- Tam sürüm 1.17.1, tembel yüklenir (`await import('pdf-lib')`): kalem modunda, ya da okuma modunda Defter notu veya bekleyen kaydı olan bir dosya açılınca. Diğer dosyalarda hiç yüklenmez; ilk açılış paketine girmez.
+
+### Cihazda saklama
+- Çizgiler önce cihazda, sonra Drive'a. Kaydedilmemiş çizimler dosya başına net fark olarak IndexedDB'de (`defter-kalem`) tutulur; sadece Drive'a başarılı yüklemeden sonra silinir, hiçbir hatada silinmez.
+- Depo ilk kullanımda navigator.storage.persist() ister. iPad'de uygulamayı ana ekrana eklemek önerilir (Safari, ana ekranda olmayan sitenin verisini 7 gün kullanılmayınca silebilir).
+- Sayfa kapanırken (pagehide) PDF yüklenmez (keepalive sınırı); bekleyen çizgiler bir sonraki açılışta yazılır.
+
+### Drive'a yazma (`src/drive/pdfYazici.ts`, `src/kalem/pdfKayit.ts`)
+- Aynı dosya id'sine PATCH (≤ 5 MB uploadType=media, > 5 MB resumable). Asla yeni dosya veya kopya oluşturulmaz. Kör üstüne yazma yok.
+- Yedek: ilk yazmadan önce head sürüm keepForever=true yapılır (ensureOriginalKept).
+- Kontroller: capabilities.canEdit; modifiedTime beklenenle aynı mı; headRevisionId yedekten önce ve sonra okunur, farklıysa içerik bu arada değişmiştir, yazılmaz (PdfConflict). keepForever modifiedTime'ı değiştirebileceği için yedekten sonra modifiedTime değil headRevisionId karşılaştırılır.
+- Akış (dosya başına, dosyalar sırayla, aynı dosyaya aynı anda tek yükleme): son meta oku (modifiedTime) → son baytları al (aynı sürüm önbellekteyse oradan) → Drive'daki Defter çizgilerine bekleyen farkı id'lerle uygula → sadece farkın dokunduğu sayfaları yaz → uploadPdf → PdfConflict'te en fazla 3 kez baştan.
+- Başarıda: yeni baytlar PDF önbelleğine; bellekteki sürümler (sayfalar, önbellekler, model) yeni modifiedTime'a taşınır; yükleme sırasında yapılan değişiklikler kalan fark olarak bekler (remainingDiff). Açık pdf.js belgesi yeniden açılmaz (Defter notları canvas'ta zaten gizli, katman modelden çizer).
+- Ne zaman: kalem kapanınca, materyal/konu değişince, okuyucu kapanınca (yükleme kapandıktan sonra sürer, sonuç toast'la söylenir), son değişiklikten 30 sn sonra, "Kaydet" düğmesi, önceki oturumdan kaydı olan dosya açılınca, çevrimiçi olunca.
+- Hatalar: çevrimdışı/ağ hatası ve Drive 429/5xx → online olayında ve 60 sn'de bir tekrar; yazma izni yok, imzalı PDF, yükleme oturumu açılamadı, 3 kez çakışma → Türkçe mesaj + "Tekrar dene".
+- Gerçek Drive testleri 4.8c'de tamamlandı (media, resumable 14 MB, keepForever, çakışma). Drive kitaplığında yükleme her zaman açık; örnek kitaplıkta hiç yok.
+
+### Sınırlar
+- Demo/örnek kitaplıkta hiçbir koşulda Drive'a yazma yok.
+- Telifli ders PDF'leri asla public/ veya git'e girmez; testler demo PDF'lerle yapılır.
+- Mevcut `drive` kapsamı yeterli; yeni Google izni istenmez.
+
+## Sonra bakılabilir
+- Oda zaman aşımı: şu an glb yüklemesine toplam 15 sn veriliyor; yavaş bağlantıda (masaüstü lightmap'leri ~3.3 MB) eski odaya düşüyor. Öneri: "15 sn hiç ilerleme yok" kuralı + yükleme göstergesi. Faz 2 kural metni değişeceği için Deniz'in onayı gerekir.
+- Masaüstü lightmap PNG'lerinin küçültülmesi (boyut/sıkıştırma).
+- gifsicle: sadece `npm run screenshots` için devDependency, `npm audit`'teki 20 uyarının kaynağı. Kaldırılması ya da başka araçla değiştirilmesi.
+- İki sekmede aynı dosya: iki ayrı çizim modeli ve bekleyen kayıt; birbirini görmüyorlar.
+- Hiç açılmayan dosyaların bekleyen kayıtları: yükleme dosya açılınca tetikleniyor; kaydı olan ama bir daha açılmayan dosya cihazda bekler.
+- README: Features tablosundaki eski durum metni (unread / studied / review) ve Almanca özet; Faz 5 görsel güncellemesiyle birlikte.

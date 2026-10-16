@@ -16,6 +16,9 @@ export interface ZoomHost {
   settled(): void;                                              // gesture over: draw sharp / free the sharp ones
   tap(clientX: number, clientY: number): boolean;               // book mode, one tap at 100 %; true = page turned
   swipe(dir: 1 | -1): void;                                     // book mode at 100 %
+  // task 4.6, pen mode: a pointer that draws (a finger still counts for a pinch) / one to leave alone (palm)
+  penOwns?(id: number): boolean;
+  penIgnores?(id: number): boolean;
 }
 
 // Safari's own pinch events (iPad, Mac trackpad)
@@ -85,6 +88,7 @@ export class ZoomController {
 
   private onDown(e: PointerEvent): void {
     if (!this.host.hasPages() || (e.target as HTMLElement).closest('a, button, select')) return;
+    if (this.host.penIgnores?.(e.pointerId)) return;
     const pdf = this.host.mode() === 'pdf';
     if (e.pointerType === 'touch') this.pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (this.pts.size === 2 && !(pdf && hasGestures)) {
@@ -96,6 +100,7 @@ export class ZoomController {
       return;
     }
     if (this.pts.size >= 2) { this.pinched = true; this.down = null; return; }
+    if (this.host.penOwns?.(e.pointerId)) return;   // drawing: no tap, swipe or drag
     this.down = { id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now() };
     if (!pdf && this.zoomed) {
       this.drag = { id: e.pointerId, x: e.clientX, y: e.clientY, px: this.pan.x, py: this.pan.y };
@@ -104,6 +109,7 @@ export class ZoomController {
   }
 
   private onMove(e: PointerEvent): void {
+    if (this.host.penIgnores?.(e.pointerId)) return;
     if (this.pts.has(e.pointerId)) this.pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (this.pinch && this.pts.size >= 2) {
       const [a, b] = [...this.pts.values()];

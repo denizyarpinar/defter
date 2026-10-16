@@ -110,7 +110,7 @@ async function loadFromDrive(): Promise<void> {
   try {
     const r = await loadDriveLibrary();
     // the saver reads from the shared holder, whose contents useData replaces
-    await useData(r, new DriveSaver(r.loc, data!, { saving: showSaving, saved: showSaved, failed: showSaveError }), r.loc);
+    await useData(r, new DriveSaver(r.loc, data!, { saving: showSaving, saved: showSaved, failed: showSaveError, warn: toast }), r.loc);
     if (r.warnings.length) toast(r.warnings[0]);
   } catch (e) {
     if (e instanceof LibraryNotFound) setNotFound(true);

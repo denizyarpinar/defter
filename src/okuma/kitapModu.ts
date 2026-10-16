@@ -35,6 +35,10 @@ export class BookView {
   private sheets = new Map<number, Sheet>();
   private left: HTMLElement | null = null;
   private right: HTMLElement | null = null;
+  // task 4.5b: sheets on the turning leaf have their pen layer hidden until two frames after the
+  // turn (Safari keeps a composited layer one frame too long after it moves)
+  private hidden = new Set<HTMLElement>();
+  private revealGen = 0;
 
   constructor(private area: HTMLElement, private spread: HTMLElement, private host: BookHost) {}
 
@@ -102,15 +106,16 @@ export class BookView {
     this.host.changed();
     if (reducedMotion()) { this.place(); return; }
     this.busy = true;
+    this.revealGen++;   // a reveal still waiting from the last turn waits for this one
 
     if (this.single) {
       // the old page swings away on top of the new one (prototype single-turn)
       const turn = div('o-slot o-turn', this.spread);
       turn.style.width = this.slotW + 'px'; turn.style.left = '0';
-      turn.append(this.sheetOrEnd(cur));
+      turn.append(this.hide(this.sheetOrEnd(cur)));
       this.left.replaceChildren(this.sheetOrEnd(target));
       requestAnimationFrame(() => turn.classList.add(dir > 0 ? 'out-l' : 'out-r'));
-      this.timer = window.setTimeout(() => { turn.remove(); this.busy = false; }, FLIP_MS + 20);
+      this.timer = window.setTimeout(() => { turn.remove(); this.busy = false; this.reveal(); }, FLIP_MS + 20);
       return;
     }
 
@@ -118,8 +123,8 @@ export class BookView {
     const leaf = div(`o-leaf ${dir > 0 ? 'fw' : 'bw'}`, this.spread);
     leaf.style.width = this.slotW + 'px';
     leaf.style.left = (dir > 0 ? this.slotW : 0) + 'px';
-    div('o-lf front', leaf).append(this.sheetOrEnd(dir > 0 ? cur + 1 : cur));
-    div('o-lf back', leaf).append(this.sheetOrEnd(dir > 0 ? target : target + 1));
+    div('o-lf front', leaf).append(this.hide(this.sheetOrEnd(dir > 0 ? cur + 1 : cur)));
+    div('o-lf back', leaf).append(this.hide(this.sheetOrEnd(dir > 0 ? target : target + 1)));
     if (dir > 0) this.right!.replaceChildren(this.sheetOrEnd(target + 1));
     else this.left.replaceChildren(this.sheetOrEnd(target));
     requestAnimationFrame(() => requestAnimationFrame(() => leaf.classList.add('go')));
@@ -127,6 +132,7 @@ export class BookView {
       this.place();
       leaf.remove();
       this.busy = false;
+      this.reveal();
     }, FLIP_MS + 20);
   }
 
@@ -135,6 +141,23 @@ export class BookView {
   private stop(): void {
     clearTimeout(this.timer);
     this.busy = false;
+    if (this.hidden.size) this.reveal();
+  }
+
+  private hide(el: HTMLElement): HTMLElement {
+    el.classList.add('turning');
+    this.hidden.add(el);
+    return el;
+  }
+
+  // Show the hidden pen layers again, two frames after the pages are in their new places.
+  private reveal(): void {
+    const g = ++this.revealGen;
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      if (g !== this.revealGen) return;
+      for (const el of this.hidden) el.classList.remove('turning');
+      this.hidden.clear();
+    }));
   }
 
   private slot(left: number): HTMLElement {
