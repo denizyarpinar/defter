@@ -1,6 +1,9 @@
 import { SessionExpired } from '../drive/drive';
 import { penLayerSvg } from '../kalem/cizimKatmani';
-import { PenModel, type Place } from '../kalem/cizimModeli';
+import { IdbPendingStore } from '../kalem/bekleyenDepo';
+import type { PendingRecord } from '../kalem/bekleyenFark';
+import { PendingSaver } from '../kalem/bekleyenKayit';
+import { PenModel, fileIdOf, versionOf, type Place } from '../kalem/cizimModeli';
 import { locative } from '../kalem/gecmis';
 import { penLayerMode } from '../kalem/defterNotu';
 import { PenToolbar, strokeStyle } from '../kalem/kalemCubugu';
@@ -119,6 +122,19 @@ const penModel = new PenModel();
 let pen: PenInput;
 let toolbar: PenToolbar;
 
+// Task 4.8a: strokes not saved to Drive stay on the device (one net difference per file) and come back
+// when the file loads again (also in reading mode, also in the sample library).
+const pendingStore = new IdbPendingStore();
+const pendingIds = new Set<string>();   // file ids with a record on the device
+const saver = new PendingSaver(pendingStore, pendingSnapshot, (id, has) => {
+  if (!pendingStore.ok) { warnStore(); return; }
+  if (has) pendingIds.add(id); else pendingIds.delete(id);
+  renderTools();
+});
+const erasedFiles = new Set<string>();  // the files the eraser drag going on touched
+let restoreTold = -1;                   // the session the "restored" toast was shown in
+let storeWarned = false;
+
 export const isOkuyucuOpen = () => open;
 
 export function initOkuyucu(): void {
@@ -130,6 +146,15 @@ export function initOkuyucu(): void {
     zoom.settleLater();
   }, { passive: true });
   // capture + stop: Esc must close only the reader, not the book behind it
+  // the page hides / closes: what changed is written at once (no 300 ms wait)
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') void saver.flush(); });
+  addEventListener('pagehide', () => { void saver.flush(); });
+  void pendingStore.listIds().then(ids => {
+    for (const id of ids) pendingIds.add(id);
+    // the reader opened before the list came: its pages look again
+    if (open && ids.length) for (const m of mounted.values()) m.layer?.();
+  });
+
   addEventListener('keydown', e => {
     if (!open) return;
     if (e.key === 'Escape') { e.stopPropagation(); if (tocOpen) closeToc(); else closeOkuyucu(); return; }
@@ -239,16 +264,23 @@ export function initOkuyucu(): void {
       const p = pages[pg.index];
       if (!p?.pdfSayfa) return;
       penModel.add(fileKey(p), p.pdfSayfa - 1, s);
+      saver.changed(p.dosyaId!);
       mounted.get(pg.index)?.layer?.();
       renderTools();
     },
     erase: (pg, from, to, r) => {
       const p = pages[pg.index];
       if (!p?.pdfSayfa) return;
-      if (penModel.eraseAt(fileKey(p), p.pdfSayfa - 1, from, to, r)) relayer(fileKey(p), p.pdfSayfa - 1);
+      if (penModel.eraseAt(fileKey(p), p.pdfSayfa - 1, from, to, r)) { erasedFiles.add(p.dosyaId!); relayer(fileKey(p), p.pdfSayfa - 1); }
     },
-    eraseEnd: () => { penModel.eraseEnd(); renderTools(); },
+    eraseEnd: () => {
+      penModel.eraseEnd();
+      for (const id of erasedFiles) saver.changed(id);
+      erasedFiles.clear();
+      renderTools();
+    },
     eraseCancel: () => {
+      erasedFiles.clear();
       for (const c of penModel.eraseCancel()) relayer(c.key, c.page);
       renderTools();
     },
@@ -689,7 +721,8 @@ export function closeOkuyucu(): void {
   session++;
   cancelAnimationFrame(fpsRaf); fpsRaf = 0;
   setPen(false);
-  penModel.clear();   // not saved yet (task 4.8): the strokes and the undo history are gone
+  void saver.flush();   // task 4.8a: the records are taken now, before the model goes
+  penModel.clear();     // the strokes and the undo history are gone (the unsaved ones are on the device)
   penFileNames.clear();
   renderTools();
   closeToc();
@@ -1026,6 +1059,8 @@ function mountPdf(i: number, p: BookPage, box: HTMLElement, cssW: number, cssH: 
       if (m.vp) showLayer(g, svg(m.vp), m.vp);
       else content.viewport(p).then(vp => showLayer(g, svg(vp), vp), failed);
     } else if (PEN_LAYER !== 'kapali') {
+      // task 4.8a: strokes waiting on the device → the file's model (pdf-lib), even without Defter notes
+      if (PEN_LAYER === 'normal' && pendingIds.has(p.dosyaId!)) loadFile(p, true);
       content.defterNotes(p).then(n => {
         showLayer(g, penLayerSvg(n.inks, n.viewport, PEN_LAYER), n.viewport);
         // task 4.7c: Defter notes here → the file's strokes with their pressure (pdf-lib, loaded only now)
@@ -1128,7 +1163,35 @@ function setPen(on: boolean): void {
 }
 
 function renderTools(): void {
-  toolbar?.set({ preparing: penOn && penModel.loading, dirty: penModel.dirty, canUndo: penModel.canUndo, canRedo: penModel.canRedo });
+  const dirty = penModel.dirty;
+  toolbar?.set({ preparing: penOn && penModel.loading, dirty, onDevice: pendingStore.ok, canUndo: penModel.canUndo, canRedo: penModel.canRedo });
+  // reading mode (no tool bar): a dot on the pen button
+  const btn = document.querySelector<HTMLElement>('#oPenBtn');
+  if (btn) {
+    btn.classList.toggle('bekleyen', dirty);
+    btn.title = dirty ? `Kalem · Kaydedilmemiş çizim var${pendingStore.ok ? ' (cihazda)' : ''}` : 'Kalem';
+  }
+}
+
+// Task 4.8a: the file's record now (bekleyenKayit.ts); null: its strokes aren't loaded
+function pendingSnapshot(fileId: string): PendingRecord | null {
+  const key = penModel.keyOf(fileId);
+  if (!key) return null;
+  const prev = penModel.restored(key);
+  const rec: PendingRecord = {
+    fileId, kaynakModifiedTime: versionOf(key), dosyaAdi: penFileNames.get(key) ?? prev?.dosyaAdi ?? '',
+    ...penModel.diff(key), guncelleme: new Date().toISOString()
+  };
+  if (prev?.baskaSurum) rec.baskaSurum = prev.baskaSurum;
+  return rec;
+}
+
+// The device's store failed: told once (the strokes stay in memory while the reader is open)
+function warnStore(): void {
+  if (storeWarned) return;
+  storeWarned = true;
+  toast('Çizimler bu cihaza kaydedilemiyor. Okuyucuyu ya da sekmeyi kapatırsan kaybolur.');
+  renderTools();
 }
 
 const typing = (t: EventTarget | null) =>
@@ -1148,6 +1211,7 @@ function undoRedo(redo: boolean): void {
   const c = redo ? penModel.redo() : penModel.undo();
   renderTools();
   if (!c) return;
+  for (const key of new Set(c.places.map(p => p.key))) saver.changed(fileIdOf(key));
   for (const p of c.places) relayer(p.key, p.page);
   if (c.places.length && !c.places.some(onScreen)) toast(`${whereText(c.places[0])} ${redo ? 'yinelendi' : 'geri alındı'}.`);
 }
@@ -1193,12 +1257,20 @@ function loadFile(p: BookPage, quiet = false): void {
     if (!quiet) tellError(p, key);   // it failed in reading mode: told now, once
     return;
   }
-  void penModel.ensure(key, async () => new Uint8Array(await getPdf(p.dosyaId!, p.modifiedTime!))).then(() => {
-    if (!open) return;
+  const my = session;
+  void penModel.ensure(key, async () => new Uint8Array(await getPdf(p.dosyaId!, p.modifiedTime!)), () => pendingStore.get(p.dosyaId!)).then(() => {
+    if (!open || my !== session) return;
     if (penModel.state(key) === 'hata') {
       if (!quiet || penOn) tellError(p, key);
     } else {
       for (const m of mounted.values()) if (m.pdf && fileKey(m.pdf) === key) m.layer?.();
+      // task 4.8a: a pending record was applied
+      const r = penModel.restored(key);
+      if (r) {
+        if (restoreTold !== session) { restoreTold = session; toast('Kaydedilmemiş çizimler geri yüklendi.'); }
+        // made against another version: written again (now against this one, marked baskaSurum)
+        if (r.kaynakModifiedTime !== p.modifiedTime) saver.changed(p.dosyaId!);
+      }
     }
     renderTools();
   });

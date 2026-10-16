@@ -170,6 +170,7 @@ Kitaplık/
   Ayrıca headRevisionId yedekten (ensureOriginalKept) önce ve sonra okunur; farklıysa içerik bu arada değişmiştir, yazılmaz (PdfConflict). keepForever modifiedTime'ı değiştirebileceği için yedekten sonra modifiedTime değil headRevisionId karşılaştırılır.
 - Çizgiler önce cihazda (IndexedDB) saklanır, Drive'a sonra yazılır. Sayfa kapanırken PDF yüklenmez (keepalive sınırı); bekleyen çizgiler bir sonraki açılışta yazılır.
 - Kayıttan sonra yeni modifiedTime ile PDF önbelleği ve bellekteki kopyalar güncellenir.
+- Kaydedilmemiş çizimler dosya başına net fark olarak IndexedDB'de (defter-kalem) tutulur; Drive'a başarılı yüklemeden sonra silinir. Bekleyen çizimler Drive'a yüklenene kadar cihazdadır; iPad'de uygulamayı ana ekrana eklemek önerilir (Safari, ana ekranda olmayan sitenin verisini 7 gün kullanılmayınca silebilir). Depo ilk kullanımda navigator.storage.persist() ister.
 - Demo/örnek kitaplıkta Drive'a yazma yok. Telifli ders PDF'leri asla public/ veya git'e girmez; testler demo PDF'lerle yapılır.
 - Mevcut `drive` kapsamı yeterli; yeni Google izni istenmez.
 - pdf-lib (tam sürüm 1.17.1), kalem modunda ya da okuma modunda Defter notu içeren bir dosya açıldığında tembel yüklenir (`await import('pdf-lib')`); Defter notu olmayan dosyalarda hiç yüklenmez; ilk açılış paketine girmez.

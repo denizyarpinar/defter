@@ -383,6 +383,9 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 /* task 4.6: pen button, pen tool bar (prototype .r-tools; 44 px to tap on the iPad), pen mode */
 .o-penbtn { flex: none; min-height: 40px; padding: 0 12px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, .22); background: rgba(0, 0, 0, .18); color: #f5ecdf; font: 500 13px var(--ui) }
 .o-penbtn.on { background: #f5ecdf; color: #2a231d }
+/* task 4.8a: unsaved strokes (kept on the device): a dot on the pen button */
+.o-penbtn { position: relative }
+.o-penbtn.bekleyen::after { content: ''; position: absolute; top: 4px; right: 4px; width: 8px; height: 8px; border-radius: 50%; background: #e0a040; box-shadow: 0 0 0 1.5px rgba(0, 0, 0, .35) }
 .o-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px 8px; padding: 6px 12px 8px; color: #f5ecdf;
   background: rgba(0, 0, 0, .24); border-bottom: 1px solid rgba(255, 255, 255, .08); touch-action: manipulation }
 .o-tools[hidden] { display: none }
@@ -398,6 +401,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 .o-tools .sep { width: 1px; height: 26px; background: rgba(255, 255, 255, .2); margin: 0 2px }
 .o-tdurum { font-size: 12.5px; padding: 3px 9px; border-radius: 99px; background: rgba(255, 255, 255, .12); white-space: nowrap }
 .o-tdurum.kaydedilmedi { background: rgba(214, 150, 60, .35) }
+.o-tdurum small { font-size: 10.5px; opacity: .75; margin-left: 2px }
 .o-tools .o-tkapat { margin-left: 4px }
 #okuyucu.kalem .o-page { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none }
 /* the stroke being drawn, over the page's layer */

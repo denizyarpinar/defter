@@ -1,6 +1,7 @@
 import { PDFDocument, PDFName } from 'pdf-lib';
 import { describe, expect, it, vi } from 'vitest';
 import type { PageStrokes, Stroke } from './cizgi';
+import type { PendingRecord } from './bekleyenFark';
 import { PenModel } from './cizimModeli';
 import { PdfYazilamaz } from './pdfNotlari';
 
@@ -363,5 +364,66 @@ describe('PenModel eraser across pages', () => {
     m.undo();
     expect(ids(m, 'a@1', 0)).toEqual(['a0', 'a0-kalan']);
     expect(ids(m, 'a@1', 1)).toEqual(['a1']);
+  });
+});
+
+// Task 4.8a: the net difference (device) and a pending record applied at load
+
+describe('PenModel difference and pending record', () => {
+  const rec = (d: Partial<PendingRecord>, mt = '1'): PendingRecord =>
+    ({ fileId: 'f', kaynakModifiedTime: mt, dosyaAdi: 'a.pdf', eklenen: [], silinenIdler: [], guncelleme: 't', ...d });
+
+  it('add, erase, undo all: the difference follows and ends empty', async () => {
+    const m = await ready(new Map([[0, [stroke('eski', { noktalar: [0, 200, 100, 200] })]]]));
+    m.add('f@1', 0, stroke('yeni'));
+    expect(m.diff('f@1').eklenen.map(e => e.stroke.id)).toEqual(['yeni']);
+    m.eraseAt('f@1', 0, at(0, 200), at(100, 200), 2);
+    m.eraseEnd();
+    expect(m.diff('f@1').silinenIdler).toEqual([{ sayfa: 0, id: 'eski' }]);
+    m.undo(); m.undo();
+    expect(m.diff('f@1')).toEqual({ eklenen: [], silinenIdler: [] });
+    expect(m.isDirty('f@1')).toBe(false);
+    m.redo();
+    expect(m.diff('f@1').eklenen).toHaveLength(1);
+  });
+
+  it('a stroke drawn and erased again: no difference, not dirty', async () => {
+    const m = await ready();
+    m.add('f@1', 0, stroke('x'));
+    m.eraseAt('f@1', 0, at(15, 20), at(15, 20), 2);
+    m.eraseEnd();
+    expect(m.dirty).toBe(false);
+  });
+
+  it('the pending record is applied at load, not in the undo history; the file is dirty', async () => {
+    const m = new PenModel(async () => new Map([[0, [stroke('a'), stroke('b')]]]));
+    await m.ensure('f@1', empty, async () => rec({ eklenen: [{ sayfa: 2, stroke: stroke('c') }], silinenIdler: [{ sayfa: 0, id: 'a' }] }));
+    expect(ids(m)).toEqual(['b']);
+    expect(ids(m, 'f@1', 2)).toEqual(['c']);
+    expect(m.canUndo).toBe(false);
+    expect(m.isDirty('f@1')).toBe(true);
+    expect(m.restored('f@1')?.baskaSurum).toBeUndefined();
+    // the difference is still against the file as loaded
+    expect(m.diff('f@1')).toEqual({ eklenen: [{ sayfa: 2, stroke: stroke('c') }], silinenIdler: [{ sayfa: 0, id: 'a' }] });
+    expect(m.keyOf('f')).toBe('f@1');
+  });
+
+  it('a record against another version: applied by id, marked baskaSurum', async () => {
+    const m = new PenModel(async () => new Map([[0, [stroke('a'), stroke('c')]]]));   // the other device wrote "c" already
+    await m.ensure('f@2', empty, async () => rec({ eklenen: [{ sayfa: 0, stroke: stroke('c') }, { sayfa: 0, stroke: stroke('d') }], silinenIdler: [{ sayfa: 0, id: 'yok' }] }, '1'));
+    expect(ids(m, 'f@2')).toEqual(['a', 'c', 'd']);
+    expect(m.restored('f@2')?.baskaSurum).toEqual({ oncekiModifiedTime: '1' });
+    expect(m.diff('f@2')).toEqual({ eklenen: [{ sayfa: 0, stroke: stroke('d') }], silinenIdler: [] });
+  });
+
+  it('no record, an empty one, or a failing store: loads as before', async () => {
+    for (const pending of [async () => null, async () => rec({}), async () => { throw new Error('IndexedDB yok'); }]) {
+      const m = new PenModel(async () => new Map([[0, [stroke('a')]]]));
+      await m.ensure('f@1', empty, pending);
+      expect(m.state('f@1')).toBe('hazir');
+      expect(ids(m)).toEqual(['a']);
+      expect(m.restored('f@1')).toBeNull();
+      expect(m.dirty).toBe(false);
+    }
   });
 });

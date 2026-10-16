@@ -1,3 +1,4 @@
+import { applyDiff, baseOf, computeDiff, isEmptyDiff, type PenDiff, type PendingRecord, type StrokeBase } from './bekleyenFark';
 import type { DefterInk } from './cizimKatmani';
 import { validateStroke, type PageStrokes, type Stroke } from './cizgi';
 import { UndoStack } from './gecmis';
@@ -6,12 +7,14 @@ import { strokeHit, type Pt } from './silgi';
 
 // Pen mode (task 4.6): the strokes in memory, per PDF file (a material can be several files).
 // Key = file id + modifiedTime. Each file is read once (pdf-lib, readStrokesForPen): ids and
-// tools are exact there. Nothing is saved yet (task 4.8): closing the reader drops it all.
+// tools are exact there. Not written to Drive yet (task 4.8b).
 // Task 4.7: eraser and undo / redo. Every change is an operation in one history (all files).
-// "Kaydedilmedi": each operation has its own number (revision); a file's revision is the number of
-// the last operation applied to it now (0 = as loaded). It is unsaved while that differs from
-// the saved revision (0 at load; markSaved in task 4.8).
+// Each operation has its own number (revision); a file's revision is the number of the last
+// operation applied to it now (0 = as loaded).
 // Task 4.7b: one eraser drag may cross pages (and files); it is still one operation.
+// Task 4.8a: the file as loaded is kept as ids (base); diff() = the model now − base, which goes to
+// the device (bekleyenKayit.ts). A pending record found when the file loads is applied to it (not in the
+// undo history). "Kaydedilmedi" = the difference is not empty (everything undone: clean again).
 
 export type FileState = 'yukleniyor' | 'hazir' | 'hata';
 
@@ -23,6 +26,8 @@ interface FileModel {
   promise: Promise<void>;
   revs: number[];   // the operations applied to this file now, oldest first
   saved: number;
+  base: StrokeBase; // the strokes in the file as loaded (before a pending record)
+  restored: PendingRecord | null;   // the pending record applied at load
 }
 
 // A file's page (page: 0-based in the PDF)
@@ -60,15 +65,27 @@ export class PenModel {
 
   // Loads the file's strokes once (a second call while it loads gets the same promise).
   // Never rejects: a failure becomes the 'hata' state (takeError).
-  ensure(key: string, bytes: () => Promise<Uint8Array>): Promise<void> {
+  // pending (task 4.8a): the file's record on the device, applied by id after reading (also when it was
+  // made against another version of the file: then marked baskaSurum). A failing pending is ignored.
+  ensure(key: string, bytes: () => Promise<Uint8Array>, pending?: () => Promise<PendingRecord | null>): Promise<void> {
     const have = this.files.get(key);
     if (have) return have.promise;
-    const f: FileModel = { state: 'yukleniyor', pages: new Map(), error: null, reported: false, promise: Promise.resolve(), revs: [], saved: 0 };
+    const f: FileModel = { state: 'yukleniyor', pages: new Map(), error: null, reported: false, promise: Promise.resolve(), revs: [], saved: 0, base: new Map(), restored: null };
     this.files.set(key, f);
     f.promise = (async () => {
       try {
-        const pages = await this.read(await bytes());
+        const [pages, rec] = await Promise.all([
+          bytes().then(b => this.read(b)),
+          pending ? pending().catch(() => null) : null
+        ]);
         if (this.files.get(key) !== f) return;   // cleared meanwhile
+        f.base = baseOf(pages);
+        if (rec && !isEmptyDiff(rec)) {
+          applyDiff(pages, rec);
+          const mt = versionOf(key);
+          f.restored = rec.kaynakModifiedTime === mt || rec.baskaSurum ? rec
+            : { ...rec, baskaSurum: { oncekiModifiedTime: rec.kaynakModifiedTime } };
+        }
         f.pages = pages;
         f.state = 'hazir';
       } catch (e) {
@@ -166,15 +183,35 @@ export class PenModel {
     return revs?.length ? revs[revs.length - 1] : 0;
   }
 
-  // Task 4.8: the file was written as it was at revision rev
+  // Task 4.8: the file was written as it is now (rev = its revision now): that becomes the base, the
+  // difference is empty. An older rev (changed during the upload) is ignored here; task 4.8b decides.
   markSaved(key: string, rev: number): void {
     const f = this.files.get(key);
-    if (f) f.saved = rev;
+    if (f?.state !== 'hazir' || rev !== this.revision(key)) return;
+    f.saved = rev;
+    f.base = baseOf(f.pages);
+    f.restored = null;
+  }
+
+  // Task 4.8a: the model now − the file as loaded (empty while not loaded)
+  diff(key: string): PenDiff {
+    const f = this.files.get(key);
+    return f?.state === 'hazir' ? computeDiff(f.base, f.pages) : { eklenen: [], silinenIdler: [] };
+  }
+
+  // The pending record applied when the file loaded (null: none)
+  restored(key: string): PendingRecord | null {
+    return this.files.get(key)?.restored ?? null;
+  }
+
+  // The loaded file key with this file id (the reader uses one version per file)
+  keyOf(fileId: string): string | null {
+    for (const [key, f] of this.files) if (f.state === 'hazir' && fileIdOf(key) === fileId) return key;
+    return null;
   }
 
   isDirty(key: string): boolean {
-    const f = this.files.get(key);
-    return !!f && this.revision(key) !== f.saved;
+    return !isEmptyDiff(this.diff(key));
   }
 
   // strokes are not as in the file (in any file)
@@ -221,6 +258,10 @@ export class PenModel {
     this.erasing = null;
   }
 }
+
+// key = file id + '@' + modifiedTime (the id may have ':' but no '@' after it; modifiedTime has none)
+export const fileIdOf = (key: string) => key.slice(0, key.lastIndexOf('@'));
+export const versionOf = (key: string) => key.slice(key.lastIndexOf('@') + 1);
 
 function removeIds(list: Stroke[], strokes: readonly Stroke[]): void {
   for (const s of strokes) {

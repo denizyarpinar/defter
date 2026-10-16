@@ -62,7 +62,8 @@ export function strokeStyle(p: PenPrefs): { arac: StrokeTool; renk: string; kali
   return { arac: t, renk: p.renk[t], kalinlik: SIZES[t][p.boy[t]], opaklik: t === 'kalem' ? 1 : HL_OPACITY };
 }
 
-export interface ToolbarState { preparing: boolean; dirty: boolean; canUndo: boolean; canRedo: boolean }
+// onDevice (task 4.8a): the unsaved strokes are kept on the device (IndexedDB works)
+export interface ToolbarState { preparing: boolean; dirty: boolean; onDevice: boolean; canUndo: boolean; canRedo: boolean }
 
 export interface ToolbarActions {
   close(): void;
@@ -74,7 +75,7 @@ export interface ToolbarActions {
 export class PenToolbar {
   prefs = loadPrefs();
   eraser = false;
-  private state: ToolbarState = { preparing: false, dirty: false, canUndo: false, canRedo: false };
+  private state: ToolbarState = { preparing: false, dirty: false, onDevice: true, canUndo: false, canRedo: false };
 
   constructor(private el: HTMLElement, act: ToolbarActions) {
     el.addEventListener('click', e => {
@@ -120,7 +121,10 @@ export class PenToolbar {
       return `<button type="button" class="sz${i === p.boy[t] ? ' on' : ''}" data-boy="${i}" aria-label="${SIZE_NAMES[i]}" title="${SIZE_NAMES[i]}" aria-pressed="${i === p.boy[t]}"><i style="width:${w}px;height:${h}px"></i></button>`;
     }).join('');
     const status = this.state.preparing ? '<span class="o-tdurum">Kalem hazırlanıyor…</span>'
-      : this.state.dirty ? '<span class="o-tdurum kaydedilmedi" title="Çizimler henüz PDF\'e kaydedilmiyor">Kaydedilmedi</span>' : '';
+      : !this.state.dirty ? ''
+      // task 4.8a: kept on the device until it goes to Drive (4.8b)
+      : this.state.onDevice ? '<span class="o-tdurum kaydedilmedi" title="Çizimler henüz PDF\'e kaydedilmedi; bu cihazda saklanıyor">Kaydedilmedi <small>cihazda</small></span>'
+      : '<span class="o-tdurum kaydedilmedi" title="Çizimler henüz PDF\'e kaydedilmedi ve bu cihaza da kaydedilemiyor">Kaydedilmedi</span>';
     const st = this.state;
     const history = `<button type="button" data-geri title="Geri al (Ctrl+Z)"${st.canUndo ? '' : ' disabled'}>↶ Geri al</button>`
       + `<button type="button" data-ileri title="Yinele (Ctrl+Shift+Z)"${st.canRedo ? '' : ' disabled'}>↷ Yinele</button>`;
