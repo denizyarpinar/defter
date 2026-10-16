@@ -12,6 +12,8 @@ export function ofisMetni(alt?: string): string {
 }
 
 export const DESTEKLENMEYEN_METIN = 'Bu dosya türü desteklenmiyor. PDF ya da görsel (JPEG, PNG) seç.';
+// "Dosya ekle"'s own text (the photo flow keeps hataMesaji('bos'))
+export const BOS_DOSYA_METIN = 'Dosya boş. Başka bir dosya seç.';
 export const BOZUK_PDF_METIN = 'Bu PDF açılamıyor, dosya bozuk olabilir.';
 
 // Why the file can't be added; pdf and gorsel: null (they can)

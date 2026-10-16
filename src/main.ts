@@ -71,7 +71,7 @@ if (import.meta.env.DEV) void import('./drive/dosyaDene').then(m => m.installDos
 if (import.meta.env.DEV) void import('./drive/sayfaDene').then(m => m.installSayfaDene(() => writer() ? driveLoc : null, sayfaEklemeOrtami));
 // dev only (task 5.7): window.defterOzetDurum(kitapAdi), window.defterOzetDene(kitapAdi, konuYolu)
 if (import.meta.env.DEV) void import('./drive/ozetDene').then(m => m.installOzetDene(() => writer() ? driveLoc : null, () => data?.books ?? null, sayfaEklemeOrtami));
-// dev only (task 5.10c): window.defterDosyaEkleDene(kitapAdi, konuYolu, hedef, ad?) adds a PDF from the computer
+// dev only (task 5.10c/d): window.defterDosyaEkleDene(kitapAdi, konuYolu, hedef, ad?) adds a file from the computer (PDF or image → PDF, via dosyaHazirla)
 if (import.meta.env.DEV) void import('./drive/dosyaEkleDene').then(m => m.installDosyaEkleDene(() => writer() ? driveLoc : null, () => data?.books ?? null, sayfaEklemeOrtami));
 // dev only (task 5.8e): window.defterBekleyenFoto() lists the pending photo records; .dene() / .hata(id) / .sil(id); no Drive
 if (import.meta.env.DEV) void import('./defter/bekleyenFotoDene').then(m => m.installBekleyenFoto());
