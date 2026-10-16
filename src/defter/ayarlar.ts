@@ -8,3 +8,7 @@ export const JPEG_KALITE = 0.85;    // canvas.toBlob quality
 
 // iPad Safari: one canvas at most 16 MP (same limit as the reader's canvases)
 export const MAX_CANVAS_PIKSEL = MAX_PIXELS;
+
+// Task 5.4: a photo's page in the PDF. A4 (pt); landscape photo → landscape A4, otherwise portrait.
+// The photo is fitted inside the margin (aspect kept) and centred.
+export const SAYFA_DUZENI = { genislik: 595.28, yukseklik: 841.89, kenar: 24 } as const;

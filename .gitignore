@@ -11,3 +11,6 @@ blender/assets/
 blender/out/
 *.blend
 *.blend1
+
+# Faz 5: örnek çıktılar (npm run sayfa-ornek)
+ornek-cikti/
