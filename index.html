@@ -58,7 +58,7 @@
 
       <div class="hint" id="hint">Kitaplığa dokun, yakından bak</div>
 
-      <div class="libload" id="libLoading" role="status" hidden>Kitaplık yükleniyor…</div>
+      <div class="libload" id="libLoading" role="status" hidden><span class="spin" aria-hidden="true"></span>Kitaplığın yükleniyor…</div>
 
       <div class="save" id="saveState" role="status" aria-live="polite" hidden>
         <span id="saveText"></span>
@@ -78,6 +78,17 @@
           <div class="row">
             <button class="ibtn solid" id="nfRetry">Tekrar dene</button>
             <button class="ibtn" id="nfSample">Örnek kitaplıkla devam et</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="overlay" id="libError" hidden>
+        <div class="card" role="alertdialog" aria-labelledby="leTitle" aria-describedby="leText">
+          <b id="leTitle">Kitaplık yüklenemedi</b>
+          <p id="leText"></p>
+          <div class="row">
+            <button class="ibtn solid" id="leRetry">Tekrar dene</button>
+            <button class="ibtn" id="leSample">Örnek kitaplıkla dene</button>
           </div>
         </div>
       </div>

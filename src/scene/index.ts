@@ -25,6 +25,7 @@ export interface RoomScene {
   closeBook(): void;                // reader closed: fly the book back
   setPaused(p: boolean): void;      // reader covers the scene
   reload(): void;                   // data was replaced (e.g. Drive library loaded)
+  setLocked(on: boolean): void;     // task 5.1: signing in / loading: books can't be opened or moved
   exportRoom(): Promise<void>;      // dev: download the room as oda-kaynak.glb
 }
 
@@ -96,6 +97,7 @@ export async function createRoomScene(host: HTMLElement, opts: RoomSceneOptions)
   };
 
   let openId: string | null = null;
+  let locked = false;
 
   // ---- pointer: tap to zoom / open, drag to move books ----
   const ray = new Raycaster(), ndc = new Vector2();
@@ -117,12 +119,13 @@ export async function createRoomScene(host: HTMLElement, opts: RoomSceneOptions)
   cv.addEventListener('pointermove', e => {
     if (!press) {
       if (openId || e.pointerType !== 'mouse') return;
-      setRay(e); cv.style.cursor = lib3d.pick(ray) ? 'pointer' : 'default';
+      setRay(e); const hit = lib3d.pick(ray);
+      cv.style.cursor = hit && (!locked || rig.view === 'room') ? 'pointer' : 'default';
       return;
     }
     if (press.pid !== e.pointerId) return;
     const id = press.hit?.book;
-    if (!press.drag && rig.view === 'shelf' && id && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 8) {
+    if (!press.drag && !locked && rig.view === 'shelf' && id && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 8) {
       press.drag = true;
       setRay(e); lib3d.startDrag(id, ray.ray);
     }
@@ -144,7 +147,7 @@ export async function createRoomScene(host: HTMLElement, opts: RoomSceneOptions)
     }
     if (rig.view === 'room') { if (p.hit) setView('shelf'); return; }
     if (rig.view === 'shelf') {
-      if (p.hit?.book) openBook(p.hit.book);
+      if (p.hit?.book) { if (!locked) openBook(p.hit.book); }
       else if (!p.hit) setView('room');
     }
   });
@@ -157,7 +160,9 @@ export async function createRoomScene(host: HTMLElement, opts: RoomSceneOptions)
   function openBook(id: string): void {
     openId = id;
     opts.onBookOpening(id);
-    lib3d.flyToDesk(id, () => opts.onBookOnDesk(id), () => {
+    // the library may be replaced while the book flies (reload: openId = null); then stop quietly
+    lib3d.flyToDesk(id, () => { if (openId === id) opts.onBookOnDesk(id); }, () => {
+      if (openId !== id) return;
       setView('desk', false, 1150);
       // the reader covers the desk once the book lands, so the shadow fades in while it comes down
       const dims = lib3d.groups.get(id)?.userData.dims as { h: number; d: number } | undefined;
@@ -190,6 +195,11 @@ export async function createRoomScene(host: HTMLElement, opts: RoomSceneOptions)
       });
     },
     setPaused: p => { frame.paused = p; if (!p) requestRender(); },
+    setLocked: on => {
+      locked = on;
+      if (on && press?.drag) { lib3d.cancelDrag(); press = null; }
+      if (on) cv.style.cursor = 'default';
+    },
     exportRoom: async () => {
       if (!import.meta.env.DEV || baked) return;   // removed from the production build; old room only
       const { exportRoom } = await import('./exportRoom');
