@@ -10,7 +10,7 @@ import { driveFetch, ok } from './drive';
 //   the head revision tells whether the content changed.
 // - Conflict: PdfConflict; re-applying the strokes on the newer file is the caller's job.
 
-const UPLOAD = 'https://www.googleapis.com/upload/drive/v3/';
+export const UPLOAD = 'https://www.googleapis.com/upload/drive/v3/';
 export const RESUMABLE_LIMIT = 5 * 1024 * 1024;   // bigger → resumable upload, else media
 
 export interface Revision { id: string; keepForever?: boolean }
@@ -49,9 +49,46 @@ const uploadUrl = (fileId: string, type: 'media' | 'resumable') =>
   `${UPLOAD}files/${encodeURIComponent(fileId)}?uploadType=${type}&fields=id,modifiedTime,headRevisionId`;
 const pdfBody = (bytes: Uint8Array) => new Blob([bytes as Uint8Array<ArrayBuffer>], { type: 'application/pdf' });
 
-async function readResult(res: Response): Promise<UploadResult> {
+export async function readResult(res: Response): Promise<UploadResult> {
   const j = await res.json() as Partial<UploadResult>;
   return { id: j.id ?? '', modifiedTime: j.modifiedTime ?? '', headRevisionId: j.headRevisionId ?? '' };
+}
+
+// multipart/related body: JSON metadata + the PDF bytes (task 5.5, new files).
+export function multipartPdfBody(meta: object, bytes: Uint8Array): { body: Blob; contentType: string } {
+  const boundary = 'defter' + Math.random().toString(36).slice(2);
+  const body = new Blob([
+    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n`,
+    `--${boundary}\r\nContent-Type: application/pdf\r\n\r\n`,
+    bytes as Uint8Array<ArrayBuffer>,
+    `\r\n--${boundary}--`
+  ]);
+  return { body, contentType: `multipart/related; boundary=${boundary}` };
+}
+
+// Resumable upload: 1) open a session (PATCH on an existing file, POST for a new one), 2) send the bytes to it.
+// check: how an answer is judged (default: any error → DriveError).
+export async function resumableUpload(
+  startUrl: string, method: 'PATCH' | 'POST', meta: string, bytes: Uint8Array,
+  check: (res: Response) => Promise<Response> = res => ok(res, WHAT)
+): Promise<UploadResult> {
+  const start = await check(await driveFetch(startUrl, {
+    method,
+    headers: {
+      'Content-Type': 'application/json; charset=UTF-8',
+      'X-Upload-Content-Type': 'application/pdf',
+      'X-Upload-Content-Length': String(bytes.byteLength)
+    },
+    body: meta
+  }));
+  const session = start.headers.get('Location');
+  if (!session || !session.startsWith('https://')) throw new PdfUploadSession();   // never fall back to media silently
+  const res = await check(await driveFetch(session, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/pdf' },
+    body: pdfBody(bytes)
+  }));
+  return readResult(res);
 }
 
 export const drivePdfApi: PdfDrive = {
@@ -89,25 +126,9 @@ export const drivePdfApi: PdfDrive = {
     }), WHAT);
     return readResult(res);
   },
-  async uploadResumable(fileId, bytes) {
-    // 1) open a session on the existing file (PATCH, not POST: no new file), 2) send the bytes to it
-    const start = await ok(await driveFetch(uploadUrl(fileId, 'resumable'), {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json; charset=UTF-8',
-        'X-Upload-Content-Type': 'application/pdf',
-        'X-Upload-Content-Length': String(bytes.byteLength)
-      },
-      body: '{}'
-    }), WHAT);
-    const session = start.headers.get('Location');
-    if (!session || !session.startsWith('https://')) throw new PdfUploadSession();   // never fall back to media silently
-    const res = await ok(await driveFetch(session, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/pdf' },
-      body: pdfBody(bytes)
-    }), WHAT);
-    return readResult(res);
+  uploadResumable(fileId, bytes) {
+    // session on the existing file (PATCH, not POST: no new file)
+    return resumableUpload(uploadUrl(fileId, 'resumable'), 'PATCH', '{}', bytes);
   }
 };
 

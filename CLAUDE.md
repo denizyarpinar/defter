@@ -204,8 +204,9 @@ Kitaplık/
 
 ### Yeni dosya
 - Yeni dosya sadece `kitaplar/<kitap>/` altında oluşturulur ve sadece PDF olabilir. Başka yerde, başka türde dosya oluşturulmaz (kitaplik.json istisnası aynen kalır).
-- Oluşturmadan önce aynı klasörde aynı isimde dosya var mı bakılır. Varsa üzerine yazılmaz: ya hata verilir ya da açık, anlamlı yeni bir isim seçilir ("ozet (2).pdf" gibi değil). Yöntem 5.5'te kararlaştırılacak.
-- Tekrar denemede çift dosya oluşmaz: id önceden alınır (files.generateIds) ya da eşdeğer bir yöntem kullanılır.
+- Oluşturmadan önce aynı klasörde aynı isimde dosya (büyük/küçük harf duyarsız, tüm sayfalar) var mı bakılır. Varsa hata verilir; üzerine yazılmaz, yeniden adlandırma yok (5.5).
+- Çift dosya koruması: generateIds ile önceden alınan id + tekrar denemede aynı id (5.5). Drive "zaten var" derse boyut eşleşiyorsa oluşmuş kabul edilir. Klasörü yeniden listeleme sadece yedek kontrol.
+- Kod: `src/drive/pdfOlustur.ts` (createPdf). Geçici kilit: sadece adreste `?dosyaOlustur=1` varken çalışır; 5.9 gerçek testlerinden sonra kalkar.
 - Uygulamanın oluşturduğu dosyalar işaretlenir: appProperties `defter: "1"`.
 - Konuda özet yoksa, defter fotoğraflarından o konunun klasörüne yeni bir `ozet.pdf` oluşturulabilir. "Özet yok" = konu klasöründe ne `ozet.pdf` ne `brifing.pdf` ne de `sorular.pdf` var. Biri bile varsa yeni `ozet.pdf` oluşturulmaz; sayfalar var olana eklenir.
 - Hiçbir dosya silinmez, çöpe atılmaz, taşınmaz (değişmedi).

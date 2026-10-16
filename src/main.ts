@@ -63,6 +63,9 @@ let durum: KitaplikDurumu = ilkDurum(startWithSample);
 // Every write to Drive goes through this: null unless the Drive library is on screen.
 const writer = () => etkinYazici(durum, saver);
 
+// dev only (task 5.5): window.defterDosyaDene(kitapAdi) creates a test PDF; needs ?dosyaOlustur=1
+if (import.meta.env.DEV) void import('./drive/dosyaDene').then(m => m.installDosyaDene(() => writer() ? driveLoc : null));
+
 function olay(o: KitaplikOlayi): void {
   durum = gecis(durum, o);
   showState();
