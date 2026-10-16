@@ -1,6 +1,7 @@
-import { disbukeyZarf, dortgenPuani, dortKoseyeIndir, olcekle, type KoseSonuc, type Nokta } from './kirpHesap';
+import { disbukeyZarf, dortgenPuani, dortKoseyeIndir, type KoseSonuc, type Nokta } from './kirpHesap';
+import { koseleriBuyut } from './kirpKarar';
 
-// Task 5.8b, method B: page corners without a library. The paper is the largest bright area:
+// Task 5.8b, method B (chosen in 5.8c): page corners without a library. The paper is the largest bright area:
 // shrink → "paper value" (brightness minus part of the saturation, so warm light on white paper
 // still beats a brown desk) → box blur → Otsu threshold → largest connected bright region →
 // convex hull of its row ends → 4 corners. koseBRgba is pure (tested); koseB is the canvas wrapper.
@@ -96,19 +97,22 @@ export function koseBRgba(rgba: ArrayLike<number>, w: number, h: number): KoseSo
   return guven > 0 ? { koseler: k, guven } : null;
 }
 
-// Canvas wrapper: works on a B_KENAR copy, returns corners in the canvas's own pixels.
-export function koseB(src: HTMLCanvasElement): KoseSonuc {
-  const s = Math.min(1, B_KENAR / Math.max(src.width, src.height));
-  const w = Math.max(1, Math.round(src.width * s)), h = Math.max(1, Math.round(src.height * s));
+// Browser wrapper: draws a B_KENAR copy of the decoded photo (w × h) and returns corners in
+// the photo's own pixels (koseleriBuyut, x and y separately).
+export function koseB(src: CanvasImageSource, srcW: number, srcH: number): KoseSonuc {
+  const s = Math.min(1, B_KENAR / Math.max(srcW, srcH));
+  const w = Math.max(1, Math.round(srcW * s)), h = Math.max(1, Math.round(srcH * s));
   const c = document.createElement('canvas');
   c.width = w;
   c.height = h;
   try {
     const ctx = c.getContext('2d', { willReadFrequently: true });
     if (!ctx) return null;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(src, 0, 0, w, h);
     const r = koseBRgba(ctx.getImageData(0, 0, w, h).data, w, h);
-    return r && { koseler: olcekle(r.koseler, src.width / w), guven: r.guven };
+    return r && { koseler: koseleriBuyut(r.koseler, { width: w, height: h }, { width: srcW, height: srcH }), guven: r.guven };
   } finally {
     c.width = c.height = 0;
   }

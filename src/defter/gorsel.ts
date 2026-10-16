@@ -1,5 +1,9 @@
-import { JPEG_KALITE } from './ayarlar';
+import { JPEG_KALITE, MAX_KENAR } from './ayarlar';
 import { GorselHatasi, hataTuru, hedefBoyut } from './gorselHesap';
+import type { Kose4 } from './kirp/kirpHesap';
+import { ilkKarar, kirpPenceresi, type KirpKarari, type KirpKip } from './kirp/kirpKarar';
+import { koseB } from './kirp/koseB';
+import { duzelt } from './kirp/perspektif';
 
 // Task 5.3: a photo (File) → smaller JPEG for a PDF page. Nothing is written anywhere.
 // Decoding: createImageBitmap with the EXIF orientation applied; if that fails, an <img>
@@ -41,6 +45,15 @@ async function coz(file: File): Promise<Kaynak> {
 export async function hazirlaGorsel(file: File): Promise<HazirGorsel> {
   if (file.size === 0) throw new GorselHatasi('bos');
   const src = await coz(file);
+  try {
+    return await tumunuHazirla(src, file);
+  } finally {
+    src.close();
+  }
+}
+
+// The whole photo, shrunk to MAX_KENAR (what hazirlaGorsel has always done).
+async function tumunuHazirla(src: Kaynak, file: File): Promise<HazirGorsel> {
   const canvas = document.createElement('canvas');
   try {
     if (!(src.width > 0 && src.height > 0)) throw new GorselHatasi(hataTuru(file));
@@ -54,12 +67,70 @@ export async function hazirlaGorsel(file: File): Promise<HazirGorsel> {
     ctx.fillStyle = '#fff';   // JPEG has no transparency: a see-through PNG would turn black
     ctx.fillRect(0, 0, width, height);
     ctx.drawImage(src.image, 0, 0, width, height);
-    const blob = await new Promise<Blob | null>(res => canvas.toBlob(res, 'image/jpeg', JPEG_KALITE));
-    if (!blob) throw new GorselHatasi('acilamadi');
-    const bytes = new Uint8Array(await blob.arrayBuffer());
-    return { bytes, width, height, eskiWidth: src.width, eskiHeight: src.height, eskiBoyut: file.size, yeniBoyut: bytes.length };
+    return await jpegBilgisi(canvas, src, file);
+  } finally {
+    canvas.width = canvas.height = 0;
+  }
+}
+
+async function jpegBilgisi(canvas: HTMLCanvasElement, src: Kaynak, file: File): Promise<HazirGorsel> {
+  const blob = await new Promise<Blob | null>(res => canvas.toBlob(res, 'image/jpeg', JPEG_KALITE));
+  if (!blob) throw new GorselHatasi('acilamadi');
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  return { bytes, width: canvas.width, height: canvas.height, eskiWidth: src.width, eskiHeight: src.height, eskiBoyut: file.size, yeniBoyut: bytes.length };
+}
+
+// Task 5.8c: only the page's part of the full-resolution photo → straightened page, long edge ≤ MAX_KENAR.
+async function kirpiliHazirla(src: Kaynak, file: File, k: Kose4): Promise<HazirGorsel> {
+  const p = kirpPenceresi(k, src);
+  const canvas = document.createElement('canvas');
+  let out: HTMLCanvasElement | null = null;
+  try {
+    canvas.width = p.width;
+    canvas.height = p.height;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) throw new GorselHatasi('acilamadi');
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, p.width, p.height);
+    ctx.drawImage(src.image, p.sx, p.sy, p.sw, p.sh, 0, 0, p.width, p.height);
+    out = duzelt(canvas, p.koseler, MAX_KENAR);
+    canvas.width = canvas.height = 0;   // before the JPEG step: one big canvas at a time
+    return await jpegBilgisi(out, src, file);
+  } finally {
+    canvas.width = canvas.height = 0;
+    if (out) out.width = out.height = 0;
+  }
+}
+
+export interface KirpliGorsel extends KirpKarari { gorsel: HazirGorsel }
+
+// Task 5.8c: the photo panel's preparation. Without koseler the corners are found first (method B
+// on a small copy) and ilkKarar picks the mode; with koseler (the thumbnail's toggle) they are
+// reused and the asked mode is made. If the perspective step fails: the whole photo, "kırpılamadı".
+export async function hazirlaKirpli(file: File, kip: KirpKip, onceki?: KirpKarari): Promise<KirpliGorsel> {
+  if (file.size === 0) throw new GorselHatasi('bos');
+  const src = await coz(file);
+  try {
+    if (!(src.width > 0 && src.height > 0)) throw new GorselHatasi(hataTuru(file));
+    let karar: KirpKarari;
+    if (onceki) karar = { ...onceki, kip: onceki.koseler ? kip : 'tumu' };
+    else {
+      karar = ilkKarar(koseB(src.image, src.width, src.height));
+      if (kip === 'tumu') karar.kip = 'tumu';
+    }
+    if (karar.kip === 'kirp' && karar.koseler) {
+      try {
+        return { ...karar, gorsel: await kirpiliHazirla(src, file, karar.koseler) };
+      } catch (e) {
+        if (e instanceof GorselHatasi) throw e;
+        console.warn('Sayfa kırpılamadı, fotoğrafın tamamı kullanılıyor.', e);
+        karar = { ...karar, kip: 'tumu', kirpilamadi: true };
+      }
+    }
+    return { ...karar, kip: 'tumu', gorsel: await tumunuHazirla(src, file) };
   } finally {
     src.close();
-    canvas.width = canvas.height = 0;
   }
 }

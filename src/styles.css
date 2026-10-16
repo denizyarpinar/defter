@@ -323,6 +323,14 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 .fp-ok { flex: 1; min-height: 44px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, .22); background: rgba(0, 0, 0, .18); color: inherit; font-size: 22px; line-height: 1 }
 .fp-ok:disabled { opacity: .3 }
 .fp-boyut { opacity: .65; font-size: 12px; text-align: center }
+/* task 5.8c: crop / whole-photo toggle and "Kırpılamadı" badge on the thumbnail */
+.fp-resim { position: relative }
+.fp-kirp { position: absolute; right: 4px; bottom: 4px; width: 44px; height: 44px; display: grid; place-items: center; padding: 0;
+  border: 1px solid rgba(255, 255, 255, .3); border-radius: 10px; background: rgba(0, 0, 0, .6); color: #fff }
+.fp-kirp[aria-pressed="true"] { background: rgba(214, 160, 70, .85); border-color: transparent }
+.fp-kirp:disabled { opacity: .4 }
+.fp-rozet { position: absolute; left: 4px; bottom: 8px; padding: 2px 8px; border-radius: 10px; background: rgba(150, 40, 30, .85); color: #fff; font-size: 12px; line-height: 18px }
+.fp-mesgul img { opacity: .4 }
 .fp-arti { align-self: flex-start; min-height: 44px; padding: 0 16px; border-radius: 10px; border: 1px dashed rgba(255, 255, 255, .4); background: none; color: inherit; font: 500 14px var(--ui) }
 .fp-hedef { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-radius: 10px; background: rgba(255, 255, 255, .06); line-height: 1.4; overflow-wrap: anywhere }
 .fp-seclbl { display: flex; align-items: center; gap: 10px; flex-wrap: wrap }

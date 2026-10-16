@@ -3,7 +3,7 @@ import { hedefBoyut, type Boyut } from '../gorselHesap';
 
 // Task 5.8b: the pure part of cropping a notebook page out of a photo (no DOM, tested):
 // corner order, convex hull → 4 corners, how page-like a quadrilateral is, output size and
-// the homography for the perspective fix. The browser parts are perspektif.ts, koseA.ts, koseB.ts.
+// the homography for the perspective fix. The browser parts are perspektif.ts and koseB.ts.
 
 export interface Nokta { x: number; y: number }
 // top-left, top-right, bottom-right, bottom-left (image pixels, y down)

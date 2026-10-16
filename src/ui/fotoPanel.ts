@@ -1,11 +1,15 @@
 import type { DriveFile } from '../drive/drive';
-import { hazirlaGorsel, type HazirGorsel } from '../defter/gorsel';
+import { KIRP_VARSAYILAN } from '../defter/ayarlar';
+import { hazirlaKirpli, type KirpliGorsel } from '../defter/gorsel';
 import { GorselHatasi } from '../defter/gorselHesap';
 import { boyutYazi, cikar, ekleDurumu, hedefHesapla, tasi } from '../defter/fotoPanelDurumu';
+import { kipDegistir, kirpYazi } from '../defter/kirp/kirpKarar';
 import { toast } from './toast';
 
 // Task 5.8a: "Fotoğraf ekle" panel over the reader. A draft: "Ekle" writes nothing,
 // it logs what it would do. Photos are prepared one at a time (iPad memory).
+// Task 5.8c: the page is cropped by default; each thumbnail has a crop / whole-photo toggle.
+// The original File and the corners are kept, only the current JPEG is in memory.
 
 export interface FotoPanelBaglam {
   konuAdi: string;
@@ -16,7 +20,13 @@ export interface FotoPanelBaglam {
   kilitAcik: boolean;
 }
 
-interface Oge { gorsel: HazirGorsel; ad: string; url: string }
+interface Oge { hazir: KirpliGorsel; file: File; ad: string; url: string; mesgul: boolean }
+
+const jpegUrl = (h: KirpliGorsel) => URL.createObjectURL(new Blob([h.gorsel.bytes as BlobPart], { type: 'image/jpeg' }));
+
+// crop: corner brackets; whole photo: a filled frame
+const SIMGE_KIRP = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg>';
+const SIMGE_TUMU = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="13" rx="1.5" fill="currentColor" opacity=".35" stroke="currentColor" stroke-width="1.8"/></svg>';
 
 export const FOTO_PANEL_ID = 'fotoPanel';   // Okuyucu.ts checks it by this id (no import: the panel is lazy)
 
@@ -43,6 +53,13 @@ export function acFotoPanel(b: FotoPanelBaglam, dosyalar: File[]): void {
   let calisiyor = false;
   let kapandi = false;
   let seciliId: string | null = null;
+  // every preparation (new photos and toggles) runs on this chain: one big image at a time
+  let zincir: Promise<unknown> = Promise.resolve();
+  const sirada = <T>(is: () => Promise<T>): Promise<T> => {
+    const p = zincir.then(is);
+    zincir = p.catch(() => undefined);
+    return p;
+  };
 
   const kok = el('div', 'fp');
   kok.id = FOTO_PANEL_ID;
@@ -78,6 +95,7 @@ export function acFotoPanel(b: FotoPanelBaglam, dosyalar: File[]): void {
     durum.hidden = !durum.textContent;
     liste.replaceChildren(...ogeler.map((o, i) => {
       const li = el('li', 'fp-oge');
+      li.classList.toggle('fp-mesgul', o.mesgul);
       const img = el('img');
       img.src = o.url;
       img.alt = `${i + 1}. fotoğraf`;
@@ -91,7 +109,16 @@ export function acFotoPanel(b: FotoPanelBaglam, dosyalar: File[]): void {
       x.onclick = () => { URL.revokeObjectURL(o.url); ogeler = cikar(ogeler, i); ciz(); };
       const oklar = el('div', 'fp-oklar');
       oklar.append(sol, sag);
-      li.append(img, el('span', 'fp-no', String(i + 1)), x, oklar, el('small', 'fp-boyut', boyutYazi(o.gorsel.yeniBoyut)));
+      const kirp = o.hazir.kip === 'kirp';
+      const gecis = dugme('fp-kirp', '', kirp ? `${i + 1}. fotoğraf: sayfa kırpılıyor – tüm fotoğrafa geç` : `${i + 1}. fotoğraf: tüm fotoğraf – sayfayı kırp`);
+      gecis.innerHTML = kirp ? SIMGE_KIRP : SIMGE_TUMU;
+      gecis.setAttribute('aria-pressed', String(kirp));
+      gecis.disabled = o.mesgul || !o.hazir.koseler;
+      gecis.onclick = () => void degistir(o);
+      const resim = el('div', 'fp-resim');
+      resim.append(img, gecis);
+      if (o.hazir.kirpilamadi && !kirp) resim.append(el('span', 'fp-rozet', 'Kırpılamadı'));
+      li.append(resim, el('span', 'fp-no', String(i + 1)), x, oklar, el('small', 'fp-boyut', boyutYazi(o.hazir.gorsel.yeniBoyut)));
       return li;
     }));
     const h = hedef();
@@ -105,7 +132,7 @@ export function acFotoPanel(b: FotoPanelBaglam, dosyalar: File[]): void {
       lbl.append(sec);
       hedefSatir.replaceChildren(lbl, el('span', '', h.metin));
     } else hedefSatir.replaceChildren(el('span', '', h.metin));
-    const e = ekleDurumu({ ornek: b.ornek, kilitAcik: b.kilitAcik, hazirSayisi: ogeler.length, hazirlaniyor: calisiyor });
+    const e = ekleDurumu({ ornek: b.ornek, kilitAcik: b.kilitAcik, hazirSayisi: ogeler.length, hazirlaniyor: calisiyor || ogeler.some(o => o.mesgul) });
     ekle.disabled = !e.aktif;
     not.textContent = e.aciklama ?? '';
     not.hidden = !e.aciklama;
@@ -122,9 +149,9 @@ export function acFotoPanel(b: FotoPanelBaglam, dosyalar: File[]): void {
     while (bekleyen.length && !kapandi) {
       const f = bekleyen.shift()!;
       try {
-        const g = await hazirlaGorsel(f);
+        const h = await sirada(() => hazirlaKirpli(f, KIRP_VARSAYILAN ? 'kirp' : 'tumu'));
         if (kapandi) break;
-        ogeler.push({ gorsel: g, ad: f.name, url: URL.createObjectURL(new Blob([g.bytes as BlobPart], { type: 'image/jpeg' })) });
+        ogeler.push({ hazir: h, file: f, ad: f.name, url: jpegUrl(h), mesgul: false });
       } catch (e) {
         if (kapandi) break;
         toast(e instanceof GorselHatasi ? `${f.name}: ${e.message}` : `${f.name} hazırlanamadı. Başka bir fotoğraf seç.`);
@@ -134,6 +161,29 @@ export function acFotoPanel(b: FotoPanelBaglam, dosyalar: File[]): void {
       ciz();
     }
     calisiyor = false;
+    if (!kapandi) ciz();
+  }
+
+  // the thumbnail's toggle: the same File again, with the kept corners, in the other mode
+  async function degistir(o: Oge): Promise<void> {
+    if (o.mesgul) return;
+    const kip = kipDegistir(o.hazir.kip, o.hazir.koseler);
+    if (kip === o.hazir.kip) return;
+    o.mesgul = true;
+    ciz();
+    try {
+      const h = await sirada(() => hazirlaKirpli(o.file, kip, o.hazir));
+      if (kapandi || !ogeler.includes(o)) return;
+      URL.revokeObjectURL(o.url);   // the old JPEG goes before the new one is kept
+      o.hazir = h;
+      o.url = jpegUrl(h);
+    } catch (e) {
+      if (kapandi) return;
+      toast(e instanceof GorselHatasi ? `${o.ad}: ${e.message}` : `${o.ad} hazırlanamadı. Tekrar dene.`);
+      if (!(e instanceof GorselHatasi)) console.warn('Fotoğraf hazırlanamadı.', e);
+    } finally {
+      o.mesgul = false;
+    }
     if (!kapandi) ciz();
   }
 
@@ -166,7 +216,10 @@ export function acFotoPanel(b: FotoPanelBaglam, dosyalar: File[]): void {
       tur: h.tur,
       eskiSayfa: h.eskiSayfa ?? 'bilinmiyor',
       yeniSayfa: ogeler.length,
-      jpegler: ogeler.map((o, i) => ({ sira: i + 1, dosya: o.ad, px: `${o.gorsel.width}×${o.gorsel.height}`, boyut: boyutYazi(o.gorsel.yeniBoyut), bayt: o.gorsel.yeniBoyut }))
+      jpegler: ogeler.map((o, i) => ({
+        sira: i + 1, dosya: o.ad, px: `${o.hazir.gorsel.width}×${o.hazir.gorsel.height}`, boyut: boyutYazi(o.hazir.gorsel.yeniBoyut), bayt: o.hazir.gorsel.yeniBoyut,
+        kirp: kirpYazi(o.hazir.kip, o.hazir.kirpilamadi), guven: o.hazir.guven
+      }))
     });
     toast('Taslak: eklenmedi');
     kapat();

@@ -35,8 +35,8 @@ installErrorBox();
 // iPad: the browser must not zoom the page (the viewport tag alone doesn't stop it); see ui/sayfaZoom.ts.
 installPageZoomGuard(() => scene?.resize());
 
-// ?gorselTest=1 (task 5.3): photo → JPEG trial panel for real devices; writes nothing. Lock goes in 5.8.
-if (new URLSearchParams(location.search).get('gorselTest') === '1') {
+// dev only (task 5.3, 5.8c): ?gorselTest=1 photo → JPEG trial panel; writes nothing, not in the build
+if (import.meta.env.DEV && new URLSearchParams(location.search).get('gorselTest') === '1') {
   import('./defter/gorselTest').then(m => m.acGorselTest()).catch(e => toast(`Görsel testi açılamadı: ${e}`));
 }
 

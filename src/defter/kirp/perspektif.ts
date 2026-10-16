@@ -1,7 +1,7 @@
 import { JPEG_KALITE, MAX_KENAR } from '../ayarlar';
 import { cikisBoyutu, homografi, type Kose4 } from './kirpHesap';
 
-// Task 5.8b: 4 corners → straightened rectangular page (shared by methods A and B).
+// Task 5.8b: 4 corners → straightened rectangular page (task 5.8c: used by hazirlaKirpli in gorsel.ts).
 // Each output pixel is mapped back into the photo with the homography (output rectangle →
 // corners) and sampled bilinearly. Output long edge ≤ MAX_KENAR; JPEG with JPEG_KALITE.
 

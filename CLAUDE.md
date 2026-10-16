@@ -226,7 +226,7 @@ Kitaplık/
 ### Geçici varsayılanlar (kolay değiştirilebilir sabitler; Deniz testlerde görüp onaylayacak)
 - İki dosyalı özette (brifing + sorular) sayfa, açık olan dosyanın sonuna eklenir.
 - "Dosya ekle" ile gelen görsel PDF'e çevrilir.
-- Fotoğraf: uzun kenar 2000 px, JPEG kalite 0.85.
+- Fotoğraf: sayfa otomatik kırpılır + perspektif düzeltme (saf TS, src/defter/kirp/), istenirse tüm fotoğraf; güven düşükse tüm fotoğraf; uzun kenar 2000 px, JPEG 0.85, filtre yok.
 
 ## Sonra bakılabilir
 - Oda zaman aşımı: şu an glb yüklemesine toplam 15 sn veriliyor; yavaş bağlantıda (masaüstü lightmap'leri ~3.3 MB) eski odaya düşüyor. Öneri: "15 sn hiç ilerleme yok" kuralı + yükleme göstergesi. Faz 2 kural metni değişeceği için Deniz'in onayı gerekir.
