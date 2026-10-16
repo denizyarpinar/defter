@@ -138,12 +138,12 @@ export interface CreatePdfSecenek {
   deneme?: number;              // upload tries at most
 }
 
-const urlKilidiAcik = () => typeof location !== 'undefined' && new URLSearchParams(location.search).get('dosyaOlustur') === '1';
+export const urlKilidiAcik = () => typeof location !== 'undefined' && new URLSearchParams(location.search).get('dosyaOlustur') === '1';
 const MAX_DERINLIK = 10;
 const ayniAd = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();   // the reader matches names this way too
 
 // no connection (fetch failed) or Drive busy: worth another try
-const tekrarlanabilir = (e: unknown) => e instanceof TypeError || (e instanceof DriveError && (e.status === 429 || e.status >= 500));
+export const tekrarlanabilir = (e: unknown) => e instanceof TypeError || (e instanceof DriveError && (e.status === 429 || e.status >= 500));
 
 function pdfMi(ad: string, bytes: Uint8Array): void {
   if (!ad.trim() || ad !== ad.trim()) throw new PdfDegil('dosya adı boş ya da başında/sonunda boşluk var');
@@ -155,7 +155,7 @@ function pdfMi(ad: string, bytes: Uint8Array): void {
 
 // parentId must be <kitap> or one of its subfolders: … → <kitap> → kitaplar → Kitaplık (rootId).
 // Returns the target folder (for its capabilities).
-async function yerKontrol(drive: PdfOlusturDrive, yer: DriveLocation, parentId: string): Promise<KlasorBilgisi> {
+export async function yerKontrol(drive: PdfOlusturDrive, yer: DriveLocation, parentId: string): Promise<KlasorBilgisi> {
   const zincir: KlasorBilgisi[] = [];
   let id = parentId;
   for (let i = 0; i < MAX_DERINLIK; i++) {

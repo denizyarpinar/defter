@@ -10,7 +10,8 @@ import { penLayerMode } from '../kalem/defterNotu';
 import { PenToolbar, strokeStyle } from '../kalem/kalemCubugu';
 import { PenInput } from '../kalem/kalemModu';
 import type { PenViewport } from '../kalem/koordinat';
-import { DriveUploader, type UploadStatus, type Uploaded } from '../kalem/pdfKayit';
+import { DriveUploader, type UploadDeps, type UploadStatus, type Uploaded } from '../kalem/pdfKayit';
+import type { EklenenSayfalar, SayfaEklemeOrtami } from '../defter/ozeteEkle';
 import { PdfYazilamaz } from '../kalem/pdfNotlari';
 import type { Book, ChapterStatus, PageMark } from '../model/types';
 import { bookUnits, usesUnits } from '../model/units';
@@ -142,10 +143,11 @@ let storeWarned = false;
 // Task 4.8b: upload to Drive. When: pen off, another material / topic, reader closed, 30 s after the last
 // change, "Kaydet", a file with a record from before opens, back online. Never on pagehide (keepalive
 // limit): the record stays on the device.
-const uploader = new DriveUploader({
+const uploadDeps: UploadDeps = {
   drive: drivePdfApi,
   bytes: async (id, mt) => new Uint8Array(await getPdf(id, mt)),   // same version cached → no download
-}, { record: uploadSource, done: fileUploaded, status: uploadStatus });
+};
+const uploader = new DriveUploader(uploadDeps, { record: uploadSource, done: fileUploaded, status: uploadStatus });
 let saveState: UploadStatus = { tur: 'bos' };
 let lastSaveToast = '';
 
@@ -1274,6 +1276,27 @@ function moveVersion(id: string, oldMt: string, newMt: string): void {
   }
   const name = penFileNames.get(from);
   if (name !== undefined) { penFileNames.delete(from); penFileNames.set(to, name); }
+}
+
+// Task 5.6: adding pages at the end of a file (ozeteEkle.ts) goes through the pen's queue and cache.
+export function sayfaEklemeOrtami(): Pick<SayfaEklemeOrtami, 'deps' | 'sirada' | 'degisti'> {
+  return { deps: uploadDeps, sirada: (id, job) => uploader.sirada(id, job), degisti: pagesAdded };
+}
+
+// Pages were added at the end of a file: its new bytes go into the cache (the old version goes), the page
+// lists made from the old version are forgotten (the page count changed), the topics' file entries
+// follow the new version: the file opens with its new pages next time. What is on screen now stays as it
+// is (the pen record is fine: the old pages keep their numbers); refreshing an open reader is task 5.8.
+async function pagesAdded(s: EklenenSayfalar): Promise<void> {
+  await putPdf(s.fileId, s.modifiedTime, s.bytes);
+  const has = (p: BookPage) => p.dosyaId === s.fileId;
+  for (const [k, v] of [...pageCache]) if (v.pages.some(has)) pageCache.delete(k);
+  if (prepared?.pages.some(has)) prepared = null;
+  for (const t of topicCache.values()) {
+    t.then(m => {
+      if (m) for (const list of Object.values(m)) for (const it of list) for (const f of [it.file, it.cozum]) if (f?.id === s.fileId) f.modifiedTime = s.modifiedTime;
+    }, () => {});
+  }
 }
 
 // The uploader's status → tool bar; errors and "offline" told once as a toast, success when the reader is closed

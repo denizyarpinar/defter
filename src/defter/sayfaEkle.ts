@@ -31,7 +31,7 @@ export function sayfaYerlesimi(gw: number, gh: number, duzen: SayfaDuzeni = SAYF
   return { sayfa: [W, H], x: (W - w) / 2, y: (H - h) / 2, w, h };
 }
 
-const MESAJLAR: YazilamazMesajlari = {
+export const MESAJLAR: YazilamazMesajlari = {
   sifreli: 'Bu PDF şifreli olduğu için sayfa eklenemiyor. Şifresiz bir kopyasını Drive\'a yükleyip onu kullan.',
   okunamadi: 'Bu PDF okunamadı, o yüzden sayfa eklenemiyor. Dosya bozuk olabilir; Drive\'da açılıp açılmadığına bak.',
   imzali: 'Bu PDF dijital imzalı; sayfa eklenirse imza bozulur.'
@@ -56,7 +56,7 @@ function jpegMi(b: Uint8Array): boolean {
 }
 
 // All photos are checked before anything is added, so a broken one leaves no half-done file.
-async function sayfalariEkle(doc: PDFDocument, jpegler: readonly Jpeg[]): Promise<void> {
+export async function sayfalariEkle(doc: PDFDocument, jpegler: readonly Jpeg[]): Promise<void> {
   if (jpegler.length === 0) throw new SayfaEklemeHatasi(BOS);
   jpegler.forEach((j, i) => { if (!jpegMi(j.bytes)) throw new SayfaEklemeHatasi(bozuk(i)); });
   const gomulu = [];

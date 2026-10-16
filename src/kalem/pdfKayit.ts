@@ -104,6 +104,7 @@ export class DriveUploader {
   private idleTimer: ReturnType<typeof setTimeout> | null = null;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
   private idleFiles = new Set<string>();
+  private jobs = new Map<string, (() => Promise<void>)[]>();   // task 5.6: other writes per file (pages at the end)
   private readonly onOnline = () => { if (this.retry.size) void this.request([...this.retry]); };
 
   constructor(private deps: UploadDeps, private hooks: UploaderHooks,
@@ -143,6 +144,18 @@ export class DriveUploader {
     return this.running ?? Promise.resolve();
   }
 
+  // Task 5.6: another write to this file (e.g. pages at the end) in the same queue: the file's pending
+  // strokes go first, then `job`. Never two writes to one file at the same time.
+  sirada<T>(fileId: string, job: () => Promise<T>): Promise<T> {
+    if (!this.canUpload(fileId)) return Promise.reject(new PdfSampleNoWrite());
+    return new Promise<T>((resolve, reject) => {
+      const list = this.jobs.get(fileId) ?? [];
+      list.push(() => job().then(resolve, reject));
+      this.jobs.set(fileId, list);
+      void this.request([fileId]);
+    });
+  }
+
   // the queue is empty (tests)
   idle(): Promise<void> {
     return this.running ?? Promise.resolve();
@@ -159,24 +172,37 @@ export class DriveUploader {
   private async run(): Promise<void> {
     await Promise.resolve();
     let last: UploadStatus | null = null, lastId: string | null = null;
+    let stopped = false;   // signed out: no more stroke uploads; jobs still run (they fail by themselves)
     while (this.wanted.length) {
       const fileId = this.wanted.shift()!;
-      const rec = await this.hooks.record(fileId).catch(() => null);
-      if (!rec || isEmptyDiff(rec)) { this.retry.delete(fileId); continue; }
-      this.hooks.status({ tur: 'kaydediliyor' }, fileId);
-      try {
-        const u = await uploadRecord(this.deps, rec);
-        this.retry.delete(fileId);
-        await this.hooks.done(u);
-        if (!last || last.tur === 'kaydedildi') { last = { tur: 'kaydedildi' }; lastId = fileId; }
-      } catch (e) {
-        const d = describeError(e);
-        if (!d) { this.wanted = []; last = { tur: 'bos' }; lastId = fileId; break; }   // signed out: stop
-        if (d.tur === 'cevrimdisi' || d.tekrar) { this.retry.add(fileId); this.retryLater(); }
-        else this.retry.delete(fileId);
-        // an error outranks a success in the same round (it is what the user must see)
-        if (!last || last.tur === 'kaydedildi' || (last.tur === 'cevrimdisi' && d.tur === 'hata')) { last = d; lastId = fileId; }
+      const rec = stopped ? null : await this.hooks.record(fileId).catch(() => null);
+      if (!rec || isEmptyDiff(rec)) {
+        if (!stopped) this.retry.delete(fileId);
+      } else {
+        this.hooks.status({ tur: 'kaydediliyor' }, fileId);
+        try {
+          const u = await uploadRecord(this.deps, rec);
+          this.retry.delete(fileId);
+          await this.hooks.done(u);
+          if (!last || last.tur === 'kaydedildi') { last = { tur: 'kaydedildi' }; lastId = fileId; }
+        } catch (e) {
+          const d = describeError(e);
+          if (!d) {   // signed out: stop (only the files with a job stay in the queue)
+            stopped = true;
+            this.wanted = this.wanted.filter(id => this.jobs.has(id));
+            last = { tur: 'bos' }; lastId = fileId;
+          } else {
+            if (d.tur === 'cevrimdisi' || d.tekrar) { this.retry.add(fileId); this.retryLater(); }
+            else this.retry.delete(fileId);
+            // an error outranks a success in the same round (it is what the user must see)
+            if (!last || last.tur === 'kaydedildi' || (last.tur === 'cevrimdisi' && d.tur === 'hata')) { last = d; lastId = fileId; }
+          }
+        }
       }
+      // task 5.6: the file's other writes, after its strokes (whatever happened to them)
+      const jobs = this.jobs.get(fileId);
+      this.jobs.delete(fileId);
+      for (const job of jobs ?? []) await job();
     }
     this.running = null;
     if (last) this.hooks.status(last, lastId);

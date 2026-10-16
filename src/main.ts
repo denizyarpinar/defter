@@ -11,7 +11,7 @@ import type { ModeKey } from './model/types';
 import { usesUnits } from './model/units';
 import { markOpened, setReadingSink } from './okuma/okumaDurumu';
 import { sampleBookFolder } from './okuma/ornekKaynak';
-import { closeOkuyucu, forgetBook, initOkuyucu, openOkuyucu } from './okuma/Okuyucu';
+import { closeOkuyucu, forgetBook, initOkuyucu, openOkuyucu, sayfaEklemeOrtami } from './okuma/Okuyucu';
 import { createRoomScene, type LibraryData, type RoomScene, type View } from './scene';
 import { canvas, drawWood, noise } from './scene/textures';
 import { updateHint } from './ui/hint';
@@ -65,6 +65,8 @@ const writer = () => etkinYazici(durum, saver);
 
 // dev only (task 5.5): window.defterDosyaDene(kitapAdi) creates a test PDF; needs ?dosyaOlustur=1
 if (import.meta.env.DEV) void import('./drive/dosyaDene').then(m => m.installDosyaDene(() => writer() ? driveLoc : null));
+// dev only (task 5.6): window.defterSayfaDene(kitapAdi, dosyaAdi) adds 2 test pages at the end; needs ?dosyaOlustur=1
+if (import.meta.env.DEV) void import('./drive/sayfaDene').then(m => m.installSayfaDene(() => writer() ? driveLoc : null, sayfaEklemeOrtami));
 
 function olay(o: KitaplikOlayi): void {
   durum = gecis(durum, o);

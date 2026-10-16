@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PDFDocument, PDFName, PDFString } from 'pdf-lib';
-import { PdfConflict, type PdfDrive } from '../drive/pdfYazici';
+import { SessionExpired } from '../drive/drive';
+import { PdfConflict, PdfSampleNoWrite, type PdfDrive } from '../drive/pdfYazici';
 import { remainingDiff, type PenDiff, type PendingRecord } from './bekleyenFark';
 import type { PageStrokes, Stroke } from './cizgi';
 import { DriveUploader, MAX_TRIES, uploadRecord, type UploadStatus, type Uploaded } from './pdfKayit';
@@ -124,6 +125,25 @@ describe('DriveUploader', () => {
     }, { idle: 30_000, retry: 60_000 });
     return { ...d, up, statuses, done, setRecord: (r: PendingRecord | null) => { record = r; } };
   }
+
+  it('sirada (task 5.6): a job runs after the file\'s strokes; a sample file is refused at once', async () => {
+    const s = setup(await samplePdf());
+    const order: string[] = [];
+    const strokes = s.up.request(['f']).then(() => order.push('kalem'));
+    const job = s.up.sirada('f', async () => { order.push(`iş:${s.log.filter(l => l === 'upload').length}`); return 7; });
+    expect(await job).toBe(7);
+    await strokes;
+    expect(order).toEqual(['iş:1', 'kalem']);   // the job saw the strokes' upload done; the round ends after it
+    await expect(s.up.sirada('ornek:kitap#x/ozet.pdf', async () => 1)).rejects.toBeInstanceOf(PdfSampleNoWrite);
+    expect(s.log.filter(l => l === 'upload')).toHaveLength(1);
+  });
+
+  it('sirada: signed out during the strokes\' upload → the job still runs (it is not left waiting)', async () => {
+    const s = setup(await samplePdf());
+    s.drive.canEdit = async () => { throw new SessionExpired(); };
+    const job = s.up.sirada('f', async () => 'bitti');
+    await expect(job).resolves.toBe('bitti');
+  });
 
   it('sample library: Drive is never asked', async () => {
     const s = setup(await samplePdf());
