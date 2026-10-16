@@ -15,6 +15,8 @@ import { strokeHit, type Pt } from './silgi';
 // Task 4.8a: the file as loaded is kept as ids (base); diff() = the model now − base, which goes to
 // the device (bekleyenKayit.ts). A pending record found when the file loads is applied to it (not in the
 // undo history). "Kaydedilmedi" = the difference is not empty (everything undone: clean again).
+// Task 4.8b: after an upload the file moves to its new version (rebase): new key, new base, the
+// history keeps working (same stroke objects, keys renamed).
 
 export type FileState = 'yukleniyor' | 'hazir' | 'hata';
 
@@ -191,6 +193,36 @@ export class PenModel {
     f.saved = rev;
     f.base = baseOf(f.pages);
     f.restored = null;
+  }
+
+  // Task 4.8b: the file was uploaded. uploaded = all Defter strokes in the new version (newKey);
+  // remaining = what changed during the upload (remainingDiff), applied on top. The model's own stroke
+  // objects are kept where the id is the same (undo / redo find them); strokes another device added come in.
+  rebase(oldKey: string, newKey: string, uploaded: PageStrokes, remaining: PenDiff): void {
+    const f = this.files.get(oldKey);
+    if (f?.state !== 'hazir') return;
+    const mine = new Map<string, Stroke>();
+    for (const list of f.pages.values()) for (const s of list) mine.set(s.id, s);
+    const pages: PageStrokes = new Map();
+    for (const [i, list] of uploaded) pages.set(i, list.map(s => mine.get(s.id) ?? s));
+    f.base = baseOf(pages);
+    applyDiff(pages, {
+      eklenen: remaining.eklenen.map(e => ({ sayfa: e.sayfa, stroke: mine.get(e.stroke.id) ?? e.stroke })),
+      silinenIdler: remaining.silinenIdler
+    });
+    f.pages = pages;
+    f.restored = null;
+    if (newKey === oldKey) return;
+    this.files.delete(oldKey);
+    this.files.set(newKey, f);
+    const re = (p: { key: string }) => { if (p.key === oldKey) p.key = newKey; };
+    this.history.each(op => { if (op.tur === 'ekle') re(op); else op.removed.forEach(re); });
+    this.erasing?.forEach(re);
+  }
+
+  // The files whose strokes are not as in the file
+  dirtyFileIds(): string[] {
+    return [...this.files.keys()].filter(k => this.isDirty(k)).map(fileIdOf);
   }
 
   // Task 4.8a: the model now − the file as loaded (empty while not loaded)

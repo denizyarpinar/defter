@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { applyDiff, baseOf, computeDiff, isEmptyDiff } from './bekleyenFark';
+import { applyDiff, baseOf, computeDiff, isEmptyDiff, remainingDiff, touchedPages, type PenDiff } from './bekleyenFark';
 import type { PageStrokes, Stroke } from './cizgi';
 
 // Task 4.8a: the net difference between the model and the file as loaded
@@ -67,5 +67,42 @@ describe('applyDiff', () => {
     const d = computeDiff(baseOf(loaded), now);
     applyDiff(loaded, d);
     expect(idsOf(loaded)).toEqual({ 0: ['b', 'x'], 1: ['c'], 4: ['y'] });
+  });
+});
+
+// Task 4.8b
+describe('remainingDiff', () => {
+  const add = (sayfa: number, id: string) => ({ sayfa, stroke: stroke(id) });
+  const del = (sayfa: number, id: string) => ({ sayfa, id });
+  const diff = (eklenen: PenDiff['eklenen'], silinenIdler: PenDiff['silinenIdler'] = []): PenDiff => ({ eklenen, silinenIdler });
+
+  it('nothing changed during the upload → nothing left', () => {
+    const sent = diff([add(0, 'a')], [del(1, 'x')]);
+    expect(isEmptyDiff(remainingDiff(sent, sent))).toBe(true);
+  });
+
+  it('drawn and erased (old strokes) during the upload stay', () => {
+    const sent = diff([add(0, 'a')]);
+    const now = diff([add(0, 'a'), add(2, 'b')], [del(1, 'x')]);
+    expect(remainingDiff(sent, now)).toEqual(diff([add(2, 'b')], [del(1, 'x')]));
+  });
+
+  it('a sent stroke erased during the upload → deleted', () => {
+    const sent = diff([add(0, 'a'), add(0, 'b')]);
+    expect(remainingDiff(sent, diff([add(0, 'b')]))).toEqual(diff([], [del(0, 'a')]));
+  });
+
+  it('a sent deletion undone during the upload → the stroke comes back from the file', () => {
+    const sent = diff([], [del(3, 'x')]);
+    const back = stroke('x');
+    expect(remainingDiff(sent, diff([]), [{ sayfa: 3, stroke: back }])).toEqual(diff([{ sayfa: 3, stroke: back }]));
+    // still deleted → nothing
+    expect(isEmptyDiff(remainingDiff(sent, sent, [{ sayfa: 3, stroke: back }]))).toBe(true);
+  });
+});
+
+describe('touchedPages', () => {
+  it('each page once, sorted', () => {
+    expect(touchedPages({ eklenen: [{ sayfa: 4, stroke: stroke('a') }, { sayfa: 0, stroke: stroke('b') }], silinenIdler: [{ sayfa: 4, id: 'c' }, { sayfa: 2, id: 'd' }] })).toEqual([0, 2, 4]);
   });
 });

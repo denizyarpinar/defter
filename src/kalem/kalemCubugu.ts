@@ -1,3 +1,5 @@
+import { esc } from '../ui/dom';
+import type { UploadStatus } from './pdfKayit';
 import type { StrokeTool } from './cizgi';
 import type { PenTool } from './kalemModu';
 
@@ -62,20 +64,25 @@ export function strokeStyle(p: PenPrefs): { arac: StrokeTool; renk: string; kali
   return { arac: t, renk: p.renk[t], kalinlik: SIZES[t][p.boy[t]], opaklik: t === 'kalem' ? 1 : HL_OPACITY };
 }
 
+// Task 4.8b: saving to Drive. kilit: acik = uploads run; kapali = safety lock (no ?kalemYaz=1);
+// ornek = sample library (never). durum: the uploader's last status.
+export interface SaveView { kilit: 'acik' | 'kapali' | 'ornek'; durum: UploadStatus }
+
 // onDevice (task 4.8a): the unsaved strokes are kept on the device (IndexedDB works)
-export interface ToolbarState { preparing: boolean; dirty: boolean; onDevice: boolean; canUndo: boolean; canRedo: boolean }
+export interface ToolbarState { preparing: boolean; dirty: boolean; onDevice: boolean; canUndo: boolean; canRedo: boolean; kayit: SaveView }
 
 export interface ToolbarActions {
   close(): void;
   undo(): void;
   redo(): void;
   toolChanged(): void;
+  save(): void;   // "Kaydet" / "Tekrar dene"
 }
 
 export class PenToolbar {
   prefs = loadPrefs();
   eraser = false;
-  private state: ToolbarState = { preparing: false, dirty: false, onDevice: true, canUndo: false, canRedo: false };
+  private state: ToolbarState = { preparing: false, dirty: false, onDevice: true, canUndo: false, canRedo: false, kayit: { kilit: 'kapali', durum: { tur: 'bos' } } };
 
   constructor(private el: HTMLElement, act: ToolbarActions) {
     el.addEventListener('click', e => {
@@ -84,6 +91,7 @@ export class PenToolbar {
       if (b.dataset.kapat !== undefined) { act.close(); return; }
       if (b.dataset.geri !== undefined) { act.undo(); return; }
       if (b.dataset.ileri !== undefined) { act.redo(); return; }
+      if (b.dataset.kaydet !== undefined) { act.save(); return; }
       const p = this.prefs;
       if (b.dataset.arac) {
         const was = this.tool;
@@ -120,11 +128,7 @@ export class PenToolbar {
       const w = t === 'kalem' ? h : Math.round(h * 1.8);
       return `<button type="button" class="sz${i === p.boy[t] ? ' on' : ''}" data-boy="${i}" aria-label="${SIZE_NAMES[i]}" title="${SIZE_NAMES[i]}" aria-pressed="${i === p.boy[t]}"><i style="width:${w}px;height:${h}px"></i></button>`;
     }).join('');
-    const status = this.state.preparing ? '<span class="o-tdurum">Kalem hazırlanıyor…</span>'
-      : !this.state.dirty ? ''
-      // task 4.8a: kept on the device until it goes to Drive (4.8b)
-      : this.state.onDevice ? '<span class="o-tdurum kaydedilmedi" title="Çizimler henüz PDF\'e kaydedilmedi; bu cihazda saklanıyor">Kaydedilmedi <small>cihazda</small></span>'
-      : '<span class="o-tdurum kaydedilmedi" title="Çizimler henüz PDF\'e kaydedilmedi ve bu cihaza da kaydedilemiyor">Kaydedilmedi</span>';
+    const status = saveStatus(this.state);
     const st = this.state;
     const history = `<button type="button" data-geri title="Geri al (Ctrl+Z)"${st.canUndo ? '' : ' disabled'}>↶ Geri al</button>`
       + `<button type="button" data-ileri title="Yinele (Ctrl+Shift+Z)"${st.canRedo ? '' : ' disabled'}>↷ Yinele</button>`;
@@ -134,7 +138,36 @@ export class PenToolbar {
     this.el.innerHTML = `<div class="o-tgrp">${tool('kalem', 'Kalem')}${tool('fosforlu', 'Fosforlu')}${tool('silgi', 'Silgi')}</div>`
       + `<span class="sep"></span>${options}`
       + `<span class="sep"></span><div class="o-tgrp">${history}</div>`
-      + status
+      + `<span class="sep"></span><div class="o-tgrp o-kayit">${saveButton(this.state)}${status}</div>`
       + '<button type="button" class="o-tkapat" data-kapat>Kalemi kapat</button>';
   }
+}
+
+const DEVICE_TITLE = "Çizimler henüz PDF'e kaydedilmedi; bu cihazda saklanıyor";
+
+// Task 4.8b: what the tool bar says about saving (first what is going on, then what is waiting)
+export function saveStatus(st: ToolbarState): string {
+  if (st.preparing) return '<span class="o-tdurum">Kalem hazırlanıyor…</span>';
+  const k = st.kayit, d = k.durum;
+  const unsaved = !st.dirty ? ''
+    : st.onDevice ? `<span class="o-tdurum kaydedilmedi" title="${DEVICE_TITLE}">Kaydedilmedi <small>cihazda</small></span>`
+    : `<span class="o-tdurum kaydedilmedi" title="Çizimler henüz PDF'e kaydedilmedi ve bu cihaza da kaydedilemiyor">Kaydedilmedi</span>`;
+  if (k.kilit === 'kapali') return `${unsaved}<span class="o-tipucu">Drive'a yazma kapalı (test)</span>`;
+  if (k.kilit === 'ornek') return `${unsaved}<span class="o-tipucu">Örnek kitaplık: Drive'a kaydedilmez</span>`;
+  if (d.tur === 'kaydediliyor') return '<span class="o-tdurum">Kaydediliyor…</span>';
+  if (d.tur === 'hata' && st.dirty) return `<span class="o-tdurum hata" title="${esc(d.mesaj)}">Kaydedilemedi</span>`;
+  if (d.tur === 'cevrimdisi' && st.dirty) return `<span class="o-tdurum kaydedilmedi" title="İnternet yok. Çizimler bu cihazda; bağlanınca kaydedilecek.">Çevrimdışı <small>cihazda</small></span>`;
+  if (st.dirty) return unsaved;
+  if (d.tur === 'kaydedildi') return '<span class="o-tdurum kaydedildi">Kaydedildi</span>';
+  return '';
+}
+
+// "Kaydet" (44 px); after an error "Tekrar dene". Disabled when locked, while saving, or with nothing to save.
+export function saveButton(st: ToolbarState): string {
+  const k = st.kayit;
+  const retry = k.kilit === 'acik' && k.durum.tur === 'hata' && st.dirty;
+  const off = k.kilit !== 'acik' || k.durum.tur === 'kaydediliyor' || !st.dirty;
+  const title = k.kilit === 'kapali' ? "Drive'a yazma kapalı (test: adrese ?kalemYaz=1 ekle)"
+    : k.kilit === 'ornek' ? "Örnek kitaplıkta çizimler Drive'a kaydedilmez" : "Çizimleri Drive'daki PDF'e kaydet";
+  return `<button type="button" class="o-kaydet" data-kaydet title="${title}"${off ? ' disabled' : ''}>${retry ? 'Tekrar dene' : 'Kaydet'}</button>`;
 }

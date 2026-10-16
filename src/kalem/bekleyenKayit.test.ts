@@ -113,13 +113,30 @@ describe('PendingSaver', () => {
     warn.mockRestore();
   });
 
-  it('clearPending (task 4.8b): removes a record against the old version, keeps one against the new', async () => {
+  it('uploaded (task 4.8b): removes a record that went whole, keeps one against the new version', async () => {
     const store = new FakeStore();
     const saver = new PendingSaver(store, () => null);
-    store.recs.set('f', rec('f', { eklenen: [{ sayfa: 0, stroke: stroke('a') }] }, 'eski'));
+    const sent = { eklenen: [{ sayfa: 0, stroke: stroke('a') }], silinenIdler: [] };
+    store.recs.set('f', rec('f', sent, 'eski'));
     store.recs.set('g', rec('g', { eklenen: [{ sayfa: 0, stroke: stroke('b') }] }, 'yeni'));
-    await saver.clearPending('f', 'yeni');
-    await saver.clearPending('g', 'yeni');
+    await saver.uploaded('f', 'yeni', sent);
+    await saver.uploaded('g', 'yeni', { eklenen: [], silinenIdler: [] });
     expect([...store.recs.keys()]).toEqual(['g']);
+  });
+
+  it('uploaded: what was drawn / erased during the upload stays, against the new version', async () => {
+    const store = new FakeStore();
+    const written: [string, boolean][] = [];
+    const saver = new PendingSaver(store, () => null, (id, has) => written.push([id, has]));
+    const sent = { eklenen: [{ sayfa: 0, stroke: stroke('a') }, { sayfa: 1, stroke: stroke('b') }], silinenIdler: [] };
+    // meanwhile: 'b' erased, 'c' drawn (the record is still against the old version)
+    store.recs.set('f', { ...rec('f', { eklenen: [{ sayfa: 0, stroke: stroke('a') }, { sayfa: 0, stroke: stroke('c') }] }, 'eski'), baskaSurum: { oncekiModifiedTime: '0' } });
+    await saver.uploaded('f', 'yeni', sent);
+    const r = store.recs.get('f')!;
+    expect(r.kaynakModifiedTime).toBe('yeni');
+    expect(r.baskaSurum).toBeUndefined();
+    expect(r.eklenen.map(e => e.stroke.id)).toEqual(['c']);
+    expect(r.silinenIdler).toEqual([{ sayfa: 1, id: 'b' }]);
+    expect(written).toEqual([['f', true]]);
   });
 });

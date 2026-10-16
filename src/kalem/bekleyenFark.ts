@@ -62,3 +62,31 @@ export function applyDiff(pages: PageStrokes, d: PenDiff): void {
     ids.add(stroke.id);
   }
 }
+
+// A stroke the upload removed from the file (it was in the Drive version, the difference deleted it)
+export interface RemovedStroke { sayfa: number; stroke: Stroke }
+
+// Task 4.8b: what is still to upload after `sent` went to Drive. `now` is the difference against the
+// same (old) version as `sent`, taken after the upload (strokes may have been drawn or erased meanwhile):
+// - added now, not sent → still added;  deleted now, not sent → still deleted
+// - sent as added, no longer added (erased / undone meanwhile) → now in the file: deleted
+// - sent as deleted, no longer deleted (undone meanwhile) → gone from the file: added again
+//   (its stroke from `removed`, what the upload took out of the file; not there → nothing to bring back)
+export function remainingDiff(sent: PenDiff, now: PenDiff, removed: readonly RemovedStroke[] = []): PenDiff {
+  const sentAdded = new Set(sent.eklenen.map(e => e.stroke.id));
+  const sentDeleted = new Set(sent.silinenIdler.map(d => d.id));
+  const nowAdded = new Set(now.eklenen.map(e => e.stroke.id));
+  const nowDeleted = new Set(now.silinenIdler.map(d => d.id));
+  const eklenen = now.eklenen.filter(e => !sentAdded.has(e.stroke.id));
+  for (const r of removed) {
+    if (sentDeleted.has(r.stroke.id) && !nowDeleted.has(r.stroke.id)) eklenen.push({ sayfa: r.sayfa, stroke: r.stroke });
+  }
+  const silinenIdler = now.silinenIdler.filter(d => !sentDeleted.has(d.id));
+  for (const e of sent.eklenen) if (!nowAdded.has(e.stroke.id)) silinenIdler.push({ sayfa: e.sayfa, id: e.stroke.id });
+  return { eklenen, silinenIdler };
+}
+
+// The pages a difference touches (sorted, each once)
+export function touchedPages(d: PenDiff): number[] {
+  return [...new Set([...d.eklenen.map(e => e.sayfa), ...d.silinenIdler.map(s => s.sayfa)])].sort((a, b) => a - b);
+}

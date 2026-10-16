@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { validateStroke } from './cizgi';
-import { COLORS, DEFAULT_PREFS, HL_OPACITY, SIZES, parsePrefs, strokeStyle } from './kalemCubugu';
+import { COLORS, DEFAULT_PREFS, HL_OPACITY, SIZES, parsePrefs, saveButton, saveStatus, strokeStyle, type SaveView, type ToolbarState } from './kalemCubugu';
 
 // Task 4.6: the remembered pen choice
 
@@ -71,5 +71,45 @@ describe('the new palette (task 4.7b)', () => {
   it('the exact colours', () => {
     expect(COLORS.kalem.map(c => c[0])).toEqual(['#222222', '#1d3a8a', '#e02020', '#2f7a46', '#f07a00', '#7b2fbf']);
     expect(COLORS.fosforlu.map(c => c[0])).toEqual(['#f5d33a', '#8fd16a', '#f59ac0', '#7cc4f5', '#ffb347']);
+  });
+});
+
+// Task 4.8b: saving to Drive in the tool bar
+describe('saveStatus / saveButton', () => {
+  const st = (over: Partial<ToolbarState> = {}, kayit: Partial<SaveView> = {}): ToolbarState => ({
+    preparing: false, dirty: true, onDevice: true, canUndo: true, canRedo: false,
+    ...over, kayit: { kilit: 'acik', durum: { tur: 'bos' }, ...kayit }
+  });
+  const disabled = (html: string) => html.includes(' disabled');
+
+  it('lock closed: the hint, Kaydet disabled', () => {
+    const s = st({}, { kilit: 'kapali' });
+    expect(saveStatus(s)).toContain("Drive'a yazma kapalı (test)");
+    expect(saveStatus(s)).toContain('Kaydedilmedi');
+    expect(disabled(saveButton(s))).toBe(true);
+  });
+
+  it('sample library: never saved, Kaydet disabled', () => {
+    const s = st({}, { kilit: 'ornek' });
+    expect(saveStatus(s)).toContain('Örnek kitaplık');
+    expect(disabled(saveButton(s))).toBe(true);
+  });
+
+  it('lock open: Kaydet only with something to save, not while saving', () => {
+    expect(disabled(saveButton(st()))).toBe(false);
+    expect(disabled(saveButton(st({ dirty: false })))).toBe(true);
+    expect(disabled(saveButton(st({}, { durum: { tur: 'kaydediliyor' } })))).toBe(true);
+    expect(saveStatus(st({}, { durum: { tur: 'kaydediliyor' } }))).toContain('Kaydediliyor…');
+  });
+
+  it('saved, offline, error', () => {
+    expect(saveStatus(st({ dirty: false }, { durum: { tur: 'kaydedildi' } }))).toContain('Kaydedildi');
+    expect(saveStatus(st({}, { durum: { tur: 'kaydedildi' } }))).toContain('Kaydedilmedi');   // drawn again since
+    expect(saveStatus(st({}, { durum: { tur: 'cevrimdisi' } }))).toContain('Çevrimdışı');
+    const err = st({}, { durum: { tur: 'hata', mesaj: 'Bu PDF\'e yazma iznin yok; "x"', tekrar: false } });
+    expect(saveStatus(err)).toContain('Kaydedilemedi');
+    expect(saveStatus(err)).toContain('&quot;x&quot;');
+    expect(saveButton(err)).toContain('Tekrar dene');
+    expect(disabled(saveButton(err))).toBe(false);
   });
 });

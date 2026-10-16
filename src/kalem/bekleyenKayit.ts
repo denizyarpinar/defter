@@ -1,10 +1,11 @@
 import type { PendingStore } from './bekleyenDepo';
-import { isEmptyDiff, type PendingRecord } from './bekleyenFark';
+import { isEmptyDiff, remainingDiff, type PenDiff, type PendingRecord, type RemovedStroke } from './bekleyenFark';
 
 // Task 4.8a: writes the pending records to the device. A change marks its file; 300 ms after the last
 // change (or at once: flush, when the page hides / closes or the reader closes) the records are taken
 // from the model at once (synchronously: the model may be cleared right after), then written one after
 // another (one queue, never two writes at the same time). An empty difference removes the record.
+// Task 4.8b: after an upload to Drive, uploaded() moves the record to the new version (what is left of it).
 
 export const SAVE_DELAY_MS = 300;
 
@@ -43,15 +44,21 @@ export class PendingSaver {
     });
   }
 
-  // Task 4.8b: the file was uploaded to Drive; yuklenenModifiedTime = its new version. The record (made
-  // against an older version) goes, after the writes queued before it. A record already against the new
-  // version (strokes drawn after the upload, model rebased) is kept. Not called yet.
-  clearPending(fileId: string, yuklenenModifiedTime: string): Promise<void> {
+  // Task 4.8b: `sent` was uploaded to Drive; yuklenenModifiedTime = the file's new version. After the
+  // writes queued before it, the record (against the old version) keeps only what is still to upload
+  // (remainingDiff: strokes drawn / erased / undone during the upload), now against the new version;
+  // nothing left → it goes. A record already against the new version (the model was rebased) stays.
+  uploaded(fileId: string, yuklenenModifiedTime: string, sent: PenDiff, removed: readonly RemovedStroke[] = []): Promise<void> {
     return this.enqueue(async () => {
       const rec = await this.store.get(fileId);
       if (!rec || rec.kaynakModifiedTime === yuklenenModifiedTime) return;
-      await this.store.delete(fileId);
-      this.written(fileId, false);
+      const rest = remainingDiff(sent, rec, removed);
+      const has = !isEmptyDiff(rest);
+      if (has) {
+        const { baskaSurum: _, ...keep } = rec;
+        await this.store.put({ ...keep, ...rest, kaynakModifiedTime: yuklenenModifiedTime, guncelleme: new Date().toISOString() });
+      } else await this.store.delete(fileId);
+      this.written(fileId, has);
     });
   }
 

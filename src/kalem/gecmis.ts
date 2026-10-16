@@ -33,6 +33,12 @@ export class UndoStack<Op> {
   get canUndo(): boolean { return this.done.length > 0; }
   get canRedo(): boolean { return this.undone.length > 0; }
 
+  // Every operation, done and undone (task 4.8b: a file's key changes after an upload)
+  each(fn: (op: Op) => void): void {
+    this.done.forEach(fn);
+    this.undone.forEach(fn);
+  }
+
   clear(): void {
     this.done = [];
     this.undone = [];

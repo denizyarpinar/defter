@@ -1,7 +1,8 @@
 import { SessionExpired } from '../drive/drive';
+import { drivePdfApi } from '../drive/pdfYazici';
 import { penLayerSvg } from '../kalem/cizimKatmani';
 import { IdbPendingStore } from '../kalem/bekleyenDepo';
-import type { PendingRecord } from '../kalem/bekleyenFark';
+import { remainingDiff, type PendingRecord } from '../kalem/bekleyenFark';
 import { PendingSaver } from '../kalem/bekleyenKayit';
 import { PenModel, fileIdOf, versionOf, type Place } from '../kalem/cizimModeli';
 import { locative } from '../kalem/gecmis';
@@ -9,6 +10,7 @@ import { penLayerMode } from '../kalem/defterNotu';
 import { PenToolbar, strokeStyle } from '../kalem/kalemCubugu';
 import { PenInput } from '../kalem/kalemModu';
 import type { PenViewport } from '../kalem/koordinat';
+import { DriveUploader, driveWriteEnabled, type UploadStatus, type Uploaded } from '../kalem/pdfKayit';
 import { PdfYazilamaz } from '../kalem/pdfNotlari';
 import type { Book, ChapterStatus, PageMark } from '../model/types';
 import { bookUnits, usesUnits } from '../model/units';
@@ -19,7 +21,7 @@ import { ST } from '../ui/reader';
 import { toast } from '../ui/toast';
 import { CanvasBudget, deviceLimits, shareBudget } from './canvasButcesi';
 import { SingleFlight } from './cizimKuyrugu';
-import { getPdf } from './pdfOnbellek';
+import { getPdf, putPdf } from './pdfOnbellek';
 import { SourceResolver } from './kaynakCoz';
 import { visiblePages } from './kitapDuzen';
 import { BookView } from './kitapModu';
@@ -40,6 +42,7 @@ import { ZoomController } from './zoomKontrol';
 // Task 3.5: the page on screen becomes the ribbon, topics get "okunuyor" / "okundu" (okumaDurumu.ts).
 // Task 4.6: pen mode (kalemModu.ts): live drawing into an in-memory model per PDF file (cizimModeli.ts), not saved yet.
 // Task 4.7: eraser and undo / redo (one history for the reader session, all files).
+// Task 4.8b: the pending strokes are uploaded into the PDF on Drive (pdfKayit.ts); safety lock ?kalemYaz=1.
 
 const PEN_LAYER = penLayerMode();   // task 4.5: ?cizimKontrol=1 / ?defterNot=goster
 
@@ -135,6 +138,16 @@ const erasedFiles = new Set<string>();  // the files the eraser drag going on to
 let restoreTold = -1;                   // the session the "restored" toast was shown in
 let storeWarned = false;
 
+// Task 4.8b: upload to Drive. When: pen off, another material / topic, reader closed, 30 s after the last
+// change, "Kaydet", a file with a record from before opens, back online. Never on pagehide (keepalive
+// limit): the record stays on the device. Safety lock until the real test (4.8c): only with ?kalemYaz=1.
+const uploader = new DriveUploader(driveWriteEnabled(), {
+  drive: drivePdfApi,
+  bytes: async (id, mt) => new Uint8Array(await getPdf(id, mt)),   // same version cached → no download
+}, { record: uploadSource, done: fileUploaded, status: uploadStatus });
+let saveState: UploadStatus = { tur: 'bos' };
+let lastSaveToast = '';
+
 export const isOkuyucuOpen = () => open;
 
 export function initOkuyucu(): void {
@@ -148,7 +161,8 @@ export function initOkuyucu(): void {
   // capture + stop: Esc must close only the reader, not the book behind it
   // the page hides / closes: what changed is written at once (no 300 ms wait)
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') void saver.flush(); });
-  addEventListener('pagehide', () => { void saver.flush(); });
+  addEventListener('pagehide', () => { void saver.flush(); });   // no upload here (task 4.8b)
+  addEventListener('online', () => { if (open) uploadNow(); });
   void pendingStore.listIds().then(ids => {
     for (const id of ids) pendingIds.add(id);
     // the reader opened before the list came: its pages look again
@@ -240,6 +254,7 @@ export function initOkuyucu(): void {
     close: () => setPen(false),
     undo: () => undoRedo(false),
     redo: () => undoRedo(true),
+    save: () => uploadNow(),
     toolChanged: () => { pen.hideCursor(); showTool(); },
   });
   $('#oPenBtn').addEventListener('click', () => setPen(!penOn));
@@ -264,7 +279,7 @@ export function initOkuyucu(): void {
       const p = pages[pg.index];
       if (!p?.pdfSayfa) return;
       penModel.add(fileKey(p), p.pdfSayfa - 1, s);
-      saver.changed(p.dosyaId!);
+      changed(p.dosyaId!);
       mounted.get(pg.index)?.layer?.();
       renderTools();
     },
@@ -275,7 +290,7 @@ export function initOkuyucu(): void {
     },
     eraseEnd: () => {
       penModel.eraseEnd();
-      for (const id of erasedFiles) saver.changed(id);
+      for (const id of erasedFiles) changed(id);
       erasedFiles.clear();
       renderTools();
     },
@@ -626,6 +641,7 @@ function useMark(t: OpenTopic, mark: PageMark): PageMark | null {
 async function showMaterial(start?: PageMark | null): Promise<void> {
   if (!topic || !content) return;
   const t = topic, my = ++session;
+  uploadNow();   // task 4.8b: another material / topic
   mainCount = 0;
   zoom.reset();
   releaseAll();
@@ -721,7 +737,9 @@ export function closeOkuyucu(): void {
   session++;
   cancelAnimationFrame(fpsRaf); fpsRaf = 0;
   setPen(false);
+  const dirty = penModel.dirtyFileIds();
   void saver.flush();   // task 4.8a: the records are taken now, before the model goes
+  void uploader.request(dirty);   // task 4.8b: goes on after the reader closed (from the device's records)
   penModel.clear();     // the strokes and the undo history are gone (the unsaved ones are on the device)
   penFileNames.clear();
   renderTools();
@@ -1144,6 +1162,7 @@ function setPen(on: boolean): void {
   penOn = on;
   pen.active = on;
   if (!on) { pen.cancel(); pen.hideCursor(); }
+  if (!on && open) uploadNow();   // task 4.8b: pen off
   const el = $('#okuyucu');
   el.classList.toggle('kalem', on);
   // no Apple Pencil seen yet: one finger draws, so the list must not scroll under it
@@ -1164,7 +1183,8 @@ function setPen(on: boolean): void {
 
 function renderTools(): void {
   const dirty = penModel.dirty;
-  toolbar?.set({ preparing: penOn && penModel.loading, dirty, onDevice: pendingStore.ok, canUndo: penModel.canUndo, canRedo: penModel.canRedo });
+  const kilit = isSampleId(folder) ? 'ornek' : uploader.enabled ? 'acik' : 'kapali';
+  toolbar?.set({ preparing: penOn && penModel.loading, dirty, onDevice: pendingStore.ok, canUndo: penModel.canUndo, canRedo: penModel.canRedo, kayit: { kilit, durum: saveState } });
   // reading mode (no tool bar): a dot on the pen button
   const btn = document.querySelector<HTMLElement>('#oPenBtn');
   if (btn) {
@@ -1184,6 +1204,80 @@ function pendingSnapshot(fileId: string): PendingRecord | null {
   };
   if (prev?.baskaSurum) rec.baskaSurum = prev.baskaSurum;
   return rec;
+}
+
+// A file's strokes changed: on the device in 300 ms, to Drive 30 s after the last change
+function changed(fileId: string): void {
+  saver.changed(fileId);
+  uploader.soon(fileId);
+}
+
+// Task 4.8b: upload these files (default: the loaded ones with unsaved strokes) now
+function uploadNow(fileIds: string[] = penModel.dirtyFileIds()): void {
+  if (fileIds.length) void uploader.request(fileIds);
+}
+
+// The record to upload: from the model when it has the file (freshest), else the device's
+async function uploadSource(fileId: string): Promise<PendingRecord | null> {
+  const snap = pendingSnapshot(fileId);
+  if (snap) return snap;
+  await saver.flush();
+  return pendingStore.get(fileId);
+}
+
+// The upload worked. The cache gets the new bytes; then, without an await in between, everything in
+// memory moves to the new version: the pages (their key → the model's key), the caches, the model
+// (rebase: what was drawn / erased during the upload stays unsaved). The pdf.js document that is open
+// is NOT reloaded: only Defter's notes changed, and the canvas doesn't draw those (noView); the pen layer
+// draws them from the model. Reloading would redraw every canvas (blinking, iPad memory) for nothing.
+async function fileUploaded(u: Uploaded): Promise<void> {
+  await putPdf(u.fileId, u.modifiedTime, u.bytes);
+  const id = u.fileId, oldKey = `${id}@${u.kaynakModifiedTime}`, newKey = `${id}@${u.modifiedTime}`;
+  moveVersion(id, u.kaynakModifiedTime, u.modifiedTime);
+  if (penModel.state(oldKey) === 'hazir') {
+    penModel.rebase(oldKey, newKey, u.pages, remainingDiff(u.sent, penModel.diff(oldKey), u.removed));
+    for (const m of mounted.values()) if (m.pdf && fileKey(m.pdf) === newKey) m.layer?.();
+    saver.changed(id);
+    void saver.flush();   // the record follows the model now (nothing left: it goes)
+  } else {
+    void saver.uploaded(id, u.modifiedTime, u.sent, u.removed);
+  }
+  renderTools();
+}
+
+// The file id's version oldMt → newMt everywhere in memory (pages, page cache, topic cache, file names)
+function moveVersion(id: string, oldMt: string, newMt: string): void {
+  if (oldMt === newMt) return;
+  const move = (f: { modifiedTime?: string } | null) => { if (f?.modifiedTime === oldMt) f.modifiedTime = newMt; };
+  const movePage = (p: BookPage) => { if (p.dosyaId === id) move(p); };
+  pages.forEach(movePage);
+  prepared?.pages.forEach(movePage);
+  const from = `${id}@${oldMt}`, to = `${id}@${newMt}`;
+  for (const [k, v] of [...pageCache]) {
+    v.pages.forEach(movePage);
+    const nk = k.split(',').map(x => x === from ? to : x).join(',');
+    if (nk !== k) { pageCache.delete(k); pageCache.set(nk, v); }
+  }
+  for (const t of topicCache.values()) {
+    t.then(m => {
+      if (m) for (const list of Object.values(m)) for (const it of list) for (const f of [it.file, it.cozum]) if (f?.id === id) move(f);
+    }, () => {});
+  }
+  const name = penFileNames.get(from);
+  if (name !== undefined) { penFileNames.delete(from); penFileNames.set(to, name); }
+}
+
+// The uploader's status → tool bar; errors and "offline" told once as a toast, success when the reader is closed
+function uploadStatus(s: UploadStatus): void {
+  saveState = s;
+  if (s.tur === 'hata' || s.tur === 'cevrimdisi') {
+    const text = s.tur === 'hata' ? s.mesaj : 'İnternet yok. Çizimler bu cihazda; bağlanınca Drive\'a kaydedilecek.';
+    if (text !== lastSaveToast) { lastSaveToast = text; toast(text); }
+  } else if (s.tur === 'kaydedildi') {
+    lastSaveToast = '';
+    if (!open) toast('Çizimler Drive\'a kaydedildi.');
+  }
+  renderTools();
 }
 
 // The device's store failed: told once (the strokes stay in memory while the reader is open)
@@ -1211,7 +1305,7 @@ function undoRedo(redo: boolean): void {
   const c = redo ? penModel.redo() : penModel.undo();
   renderTools();
   if (!c) return;
-  for (const key of new Set(c.places.map(p => p.key))) saver.changed(fileIdOf(key));
+  for (const key of new Set(c.places.map(p => p.key))) changed(fileIdOf(key));
   for (const p of c.places) relayer(p.key, p.page);
   if (c.places.length && !c.places.some(onScreen)) toast(`${whereText(c.places[0])} ${redo ? 'yinelendi' : 'geri alındı'}.`);
 }
@@ -1270,6 +1364,7 @@ function loadFile(p: BookPage, quiet = false): void {
         if (restoreTold !== session) { restoreTold = session; toast('Kaydedilmemiş çizimler geri yüklendi.'); }
         // made against another version: written again (now against this one, marked baskaSurum)
         if (r.kaynakModifiedTime !== p.modifiedTime) saver.changed(p.dosyaId!);
+        uploadNow([p.dosyaId!]);   // task 4.8b: left from before → tried once now
       }
     }
     renderTools();

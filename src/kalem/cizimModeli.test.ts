@@ -427,3 +427,44 @@ describe('PenModel difference and pending record', () => {
     }
   });
 });
+
+// Task 4.8b: after an upload the file moves to its new version
+describe('PenModel.rebase', () => {
+  it('new key and base, strokes drawn during the upload stay, another device\'s come in, undo still works', async () => {
+    const m = await ready(new Map([[0, [stroke('eski')]]]));
+    m.add('f@1', 0, stroke('a'));
+    const sent = m.diff('f@1');
+    m.add('f@1', 1, stroke('b'));   // during the upload
+    const now = m.diff('f@1');
+    const { remainingDiff } = await import('./bekleyenFark');
+    // the uploaded file: eski, a, and 'o' from another device
+    const uploaded: PageStrokes = new Map([[0, [stroke('eski'), stroke('a'), stroke('o')]]]);
+    m.rebase('f@1', 'f@2', uploaded, remainingDiff(sent, now));
+    expect(m.state('f@1')).toBeUndefined();
+    expect(m.keyOf('f')).toBe('f@2');
+    expect(ids(m, 'f@2', 0)).toEqual(['eski', 'a', 'o']);
+    expect(ids(m, 'f@2', 1)).toEqual(['b']);
+    expect(m.diff('f@2').eklenen.map(e => e.stroke.id)).toEqual(['b']);
+    expect(m.dirtyFileIds()).toEqual(['f']);
+    // undo 'b', then 'a' (uploaded: its undo becomes a deletion to upload)
+    m.undo();
+    expect(m.dirty).toBe(false);
+    m.undo();
+    expect(ids(m, 'f@2', 0)).toEqual(['eski', 'o']);
+    expect(m.diff('f@2').silinenIdler).toEqual([{ sayfa: 0, id: 'a' }]);
+    m.redo();
+    expect(m.dirty).toBe(false);
+  });
+
+  it('a sent stroke erased during the upload stays deleted (to be removed from Drive next time)', async () => {
+    const m = await ready();
+    m.add('f@1', 0, stroke('a', { noktalar: [0, 50, 100, 50] }));
+    const sent = m.diff('f@1');
+    m.eraseAt('f@1', 0, at(50, 0), at(50, 100), 2);
+    m.eraseEnd();
+    const { remainingDiff } = await import('./bekleyenFark');
+    m.rebase('f@1', 'f@2', new Map([[0, [stroke('a', { noktalar: [0, 50, 100, 50] })]]]), remainingDiff(sent, m.diff('f@1')));
+    expect(ids(m, 'f@2', 0)).toEqual([]);
+    expect(m.diff('f@2')).toEqual({ eklenen: [], silinenIdler: [{ sayfa: 0, id: 'a' }] });
+  });
+});

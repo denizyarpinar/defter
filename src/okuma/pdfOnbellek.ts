@@ -118,3 +118,14 @@ export async function getPdf(id: string, modifiedTime: string): Promise<ArrayBuf
   }
   return data;
 }
+
+// Task 4.8b: the file was uploaded (new version): its bytes go into the cache under the new key;
+// the old version of the same file is removed. A failing cache only means a download next time.
+export async function putPdf(id: string, modifiedTime: string, bytes: Uint8Array): Promise<void> {
+  if (isSampleId(id)) return;
+  try {
+    await writeCached(id, modifiedTime, bytes.slice().buffer);
+  } catch (e) {
+    console.warn('Yüklenen PDF önbelleğe yazılamadı.', e);
+  }
+}
