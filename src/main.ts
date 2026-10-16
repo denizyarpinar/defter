@@ -2,6 +2,9 @@ import './styles.css';
 import { AuthError, prepareAuth, rememberUser, rememberedUser, signIn, signOut } from './drive/auth';
 import { getUser, setAccountHint, setSessionExpiredHandler } from './drive/drive';
 import { LibraryNotFound, loadDriveLibrary, type DriveLocation } from './drive/driveLibrary';
+import { urlKilidiAcik } from './drive/pdfOlustur';
+import { bekleyenFotoDepo } from './defter/bekleyenFoto';
+import { acilisToastMetni } from './defter/fotoEklemeMetin';
 import { ReadingSaver, driveReadingApi } from './drive/okumaKaydi';
 import { DriveSaver } from './drive/save';
 import { daysSinceOpened, shelfOf } from './model/library';
@@ -171,10 +174,23 @@ async function loadFromDrive(): Promise<void> {
     if (!await useData(r, new DriveSaver(r.loc, data!, { saving: showSaving, saved: showSaved, failed: showSaveError, warn: toast }), r.loc)) return;
     olay({ tur: 'driveGeldi' });
     if (r.warnings.length) toast(r.warnings[0]);
+    remindPendingPhotos();
   } catch (e) {
     if (!current()) return;
     olay(e instanceof LibraryNotFound ? { tur: 'bulunamadi' } : { tur: 'driveHata', mesaj: errorText(e) });
   }
+}
+
+// Task 5.8f: photos waiting on the device → one short toast per page load, once the Drive library is here
+// (after the welcome / warning toasts). Only while adding is possible (?dosyaOlustur=1).
+let photosReminded = false;
+function remindPendingPhotos(): void {
+  if (photosReminded || !urlKilidiAcik()) return;
+  photosReminded = true;
+  bekleyenFotoDepo.hepsi().then(ks => {
+    const text = acilisToastMetni(ks);
+    if (text) setTimeout(() => toast(text), 4000);
+  }, e => console.warn('Bekleyen fotoğraflara bakılamadı.', e));
 }
 
 function retryDrive(): void {
@@ -278,7 +294,7 @@ initReader(() => {
     refreshReader();   // status / ribbon on the contents page
   }, resume);
 });
-initOkuyucu();
+initOkuyucu(() => writer() ? driveLoc : null);
 
 // Wooden desk + paper texture for the reading view (same as the prototype).
 function readerTextures(): void {

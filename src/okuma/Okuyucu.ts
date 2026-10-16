@@ -11,10 +11,17 @@ import { PenToolbar, strokeStyle } from '../kalem/kalemCubugu';
 import { PenInput } from '../kalem/kalemModu';
 import type { PenViewport } from '../kalem/koordinat';
 import { DriveUploader, type UploadDeps, type UploadStatus, type Uploaded } from '../kalem/pdfKayit';
-import type { KonuEklemeOrtami } from '../defter/konuyaEkle';
-import type { EklenenSayfalar } from '../defter/ozeteEkle';
+import { OZET_ADI, type KonuEklemeOrtami } from '../defter/konuyaEkle';
+import { SayfaYazmaYok, type EklenenSayfalar } from '../defter/ozeteEkle';
+import { bekleyenFotoDepo } from '../defter/bekleyenFoto';
+import type { BekleyenJpeg } from '../defter/bekleyenFotoKayit';
+import { FotoEkleyici } from '../defter/fotoEkleme';
+import { seritDurumu } from '../defter/fotoEklemeMetin';
+import type { DriveFile } from '../drive/drive';
+import type { DriveLocation } from '../drive/driveLibrary';
 import { PdfYazilamaz } from '../kalem/pdfNotlari';
-import { urlKilidiAcik } from '../drive/pdfOlustur';
+import { drivePdfOlusturApi, urlKilidiAcik } from '../drive/pdfOlustur';
+import { FotoDurumKutusu } from '../ui/fotoDurum';
 import type { Book, ChapterStatus, PageMark } from '../model/types';
 import { bookUnits, usesUnits } from '../model/units';
 import { esc } from '../ui/dom';
@@ -78,6 +85,7 @@ let resolver: { folderId: string; r: SourceResolver } | null = null;
 // surum 2: the open topic and what is shown of it
 interface OpenTopic {
   title: string;
+  klasor: string;         // the topic's folder, from the book's folder
   materials: TopicMaterials;
   kind: MaterialKind;
   fileIndex: number;      // Übungen / Ödevler: the chosen file
@@ -155,7 +163,13 @@ let lastSaveToast = '';
 
 export const isOkuyucuOpen = () => open;
 
-export function initOkuyucu(): void {
+// Task 5.8f: where the Drive library is (main.ts: writer() ? driveLoc : null); the box under the material bar
+let driveLocation: () => DriveLocation | null = () => null;
+let photoBox: FotoDurumKutusu;
+
+export function initOkuyucu(yer: () => DriveLocation | null): void {
+  driveLocation = yer;
+  photoBox = new FotoDurumKutusu($('#oBar'));
   // task 4.8c, development only (not in the build): window.defterSurumler() lists the open PDF's revisions
   if (import.meta.env.DEV) {
     void import('../drive/surumler').then(m => m.installRevisionHelper(() => {
@@ -621,6 +635,7 @@ async function openTopic(unit: number, topicIndex: number, resume?: Resume): Pro
   current = { unit, topic: topicIndex };
   autoTopicStatus(book, unit, topicIndex, 'girildi');
   topic = null;
+  photoBox.seritGoster(null);
   zoom.reset();
   releaseAll();
   clearPages();
@@ -633,7 +648,8 @@ async function openTopic(unit: number, topicIndex: number, resume?: Resume): Pro
     if (!m) { setMessage(`Konu klasörü bulunamadı: ${t.klasor}. Drive'da kitabın klasöründe bu klasörü oluştur ve yenile.`); return; }
     const kind = resume?.materyal && m[resume.materyal].length ? resume.materyal : defaultKind(m);
     if (!kind) { setMessage('Henüz materyal yok.'); return; }
-    topic = { title: t.baslik, materials: m, kind, fileIndex: 0, solution: false };
+    topic = { title: t.baslik, klasor: t.klasor ?? '', materials: m, kind, fileIndex: 0, solution: false };
+    void photoStrip(topic);
   } catch (e) {
     if (my === session) loadFailed(e);
     return;
@@ -744,9 +760,62 @@ function openPhotoPanel(files: File[]): void {
     acikDosyaId: onScreen,
     sayfaSayisi: knownPageCount,
     ornek: isSampleId(folder),
-    kilitAcik: urlKilidiAcik()
+    kilitAcik: urlKilidiAcik(),
+    // task 5.8f: saved on the device first (a failure rejects: the panel stays open), then to Drive
+    ekle: async (jpegler: BekleyenJpeg[], hedef: DriveFile | null) => {
+      const b = book;
+      if (!driveLocation() || !b) throw new SayfaYazmaYok();
+      const konuKlasorId = await topicFolderId(t);
+      await photoAdder.baslat({ kitapAdi: b.id, konuKlasorId, konuBaslik: t.title, hedefFileId: hedef?.id, hedefAd: hedef?.name ?? OZET_ADI, jpegler });
+    }
   };
   import('../ui/fotoPanel').then(m => m.acFotoPanel(ctx, files)).catch(e => { console.warn(e); toast('Fotoğraf paneli açılamadı. Sayfayı yenileyip tekrar dene.'); });
+}
+
+// Task 5.8f: adding the photos (fotoEkleme.ts) with the pen's queue and caches (sayfaEklemeOrtami).
+// The result is a toast; an error a card under the material bar (or a toast when the reader is closed).
+const photoAdder = new FotoEkleyici({
+  depo: bekleyenFotoDepo,
+  ortam: () => ({ yer: driveLocation(), dosyaDrive: drivePdfOlusturApi, olusturDrive: drivePdfOlusturApi, ...sayfaEklemeOrtami() }),
+  ui: {
+    durum: m => photoBox?.durum(m),
+    basari: (k, m) => { photoBox?.kartKaldir(k.islemId); toast(m); },
+    hata: (k, m) => {
+      if (open && photoBox) photoBox.kartGoster(k.islemId, m, () => photoAdder.sirayaKoy(k));
+      else toast(m);
+    },
+  },
+});
+
+// The open topic's folder id (the resolver has it from opening the topic: no request)
+async function topicFolderId(t: OpenTopic): Promise<string> {
+  let id: string | null;
+  try {
+    id = resolver && resolver.folderId === folder ? await resolver.r.resolveFolder(t.klasor) : null;
+  } catch (e) {
+    throw e instanceof TypeError ? new Error('Konu klasörüne ulaşılamadı. İnternet bağlantını kontrol edip tekrar dene.') : e;
+  }
+  if (!id) throw new Error(`Konu klasörü Drive'da bulunamadı: ${t.klasor}. Kitaplığı yenileyip tekrar dene.`);
+  return id;
+}
+
+// A topic opened: its photos waiting on the device → the strip. Only where adding is possible.
+async function photoStrip(t: OpenTopic): Promise<void> {
+  if (!open || isSampleId(folder) || !urlKilidiAcik() || !driveLocation() || !t.klasor.trim()) return;
+  let ks;
+  try {
+    ks = await bekleyenFotoDepo.konuIcin(await topicFolderId(t));
+  } catch (e) {
+    console.warn('Bekleyen fotoğraflara bakılamadı.', e);
+    return;
+  }
+  if (topic !== t || !open) return;
+  const d = seritDurumu(ks, photoAdder.calisanlar(), photoBox.kartliIdler());
+  photoBox.seritGoster(d.goster ? {
+    metin: d.metin,
+    simdi: () => { photoBox.seritGoster(null); for (const k of d.kayitlar) photoAdder.sirayaKoy(k); },
+    sonra: () => photoBox.seritGoster(null),
+  } : null);
 }
 
 // Pages of a summary file in its current version, when the reader has made its pages already.
@@ -793,6 +862,7 @@ export function closeOkuyucu(): void {
   penFileNames.clear();
   renderTools();
   closeToc();
+  photoBox.temizle();   // task 5.8f: the uploads go on; their records stay on the device
   releaseAll();
   zoom.reset();
   void content?.close();

@@ -2,17 +2,18 @@ import type { DriveFile } from '../drive/drive';
 import { KIRP_VARSAYILAN } from '../defter/ayarlar';
 import { hazirlaKirpli, onizlemeHazirla, type KirpliGorsel } from '../defter/gorsel';
 import { GorselHatasi } from '../defter/gorselHesap';
+import type { BekleyenJpeg } from '../defter/bekleyenFotoKayit';
 import { boyutYazi, cikar, ekleDurumu, hedefHesapla, tasi } from '../defter/fotoPanelDurumu';
 import type { Kose4 } from '../defter/kirp/kirpHesap';
 import { kipDegistir, kirpYazi, type KirpKarari, type KirpKip } from '../defter/kirp/kirpKarar';
 import { acKoseDuzenleyici, type KoseDuzenleyici } from './koseDuzenleyici';
 import { toast } from './toast';
 
-// Task 5.8a: "Fotoğraf ekle" panel over the reader. A draft: "Ekle" writes nothing,
-// it logs what it would do. Photos are prepared one at a time (iPad memory).
+// Task 5.8a: "Fotoğraf ekle" panel over the reader. Photos are prepared one at a time (iPad memory).
 // Task 5.8c: the page is cropped by default; each thumbnail has a crop / whole-photo toggle.
 // The original File and the corners are kept, only the current JPEG is in memory.
 // Task 5.8d: tapping a thumbnail opens the corner editor (corners by hand); "elle" badge.
+// Task 5.8f: "Ekle" saves the photos on the device (b.ekle) and closes; if saving fails it stays open with the error.
 
 export interface FotoPanelBaglam {
   konuAdi: string;
@@ -21,6 +22,9 @@ export interface FotoPanelBaglam {
   sayfaSayisi: (fileId: string) => number | undefined;
   ornek: boolean;
   kilitAcik: boolean;
+  // task 5.8f: saves the photos on the device and starts the adding; rejects (Turkish message) when
+  // nothing was saved. hedef null: a new ozet.pdf.
+  ekle(jpegler: BekleyenJpeg[], hedef: DriveFile | null): Promise<void>;
 }
 
 interface Oge {
@@ -61,6 +65,8 @@ export function acFotoPanel(b: FotoPanelBaglam, dosyalar: File[]): void {
   let kapandi = false;
   let seciliId: string | null = null;
   let duzenleyici: KoseDuzenleyici | null = null;
+  let kaydediliyor = false;
+  let hataMetni: string | null = null;   // saving on the device failed
   // every preparation (new photos and toggles) runs on this chain: one big image at a time
   let zincir: Promise<unknown> = Promise.resolve();
   const sirada = <T>(is: () => Promise<T>): Promise<T> => {
@@ -146,9 +152,12 @@ export function acFotoPanel(b: FotoPanelBaglam, dosyalar: File[]): void {
       hedefSatir.replaceChildren(lbl, el('span', '', h.metin));
     } else hedefSatir.replaceChildren(el('span', '', h.metin));
     const e = ekleDurumu({ ornek: b.ornek, kilitAcik: b.kilitAcik, hazirSayisi: ogeler.length, hazirlaniyor: calisiyor || ogeler.some(o => o.mesgul) });
-    ekle.disabled = !e.aktif;
-    not.textContent = e.aciklama ?? '';
-    not.hidden = !e.aciklama;
+    ekle.disabled = !e.aktif || kaydediliyor;
+    ekle.textContent = kaydediliyor ? 'Kaydediliyor…' : 'Ekle';
+    const notMetni = e.aciklama ?? hataMetni;
+    not.textContent = notMetni ?? '';
+    not.hidden = !notMetni;
+    not.classList.toggle('fp-hata', !e.aciklama && !!hataMetni);
   }
 
   // one at a time; new files chosen meanwhile join the same batch
@@ -247,19 +256,23 @@ export function acFotoPanel(b: FotoPanelBaglam, dosyalar: File[]): void {
   vazgec.onclick = kapat;
   kok.addEventListener('click', e => { if (e.target === kok) kapat(); });
   addEventListener('keydown', tus, true);
-  ekle.onclick = () => {
+  ekle.onclick = async () => {
+    if (kaydediliyor || ekle.disabled) return;
     const h = hedef();
-    console.log('[5.8a taslak] Drive\'a yazılmadı.', {
-      hedef: h.hedef ? { ad: h.hedef.name, id: h.hedef.id } : 'yeni ozet.pdf',
-      tur: h.tur,
-      eskiSayfa: h.eskiSayfa ?? 'bilinmiyor',
-      yeniSayfa: ogeler.length,
-      jpegler: ogeler.map((o, i) => ({
-        sira: i + 1, dosya: o.ad, px: `${o.hazir.gorsel.width}×${o.hazir.gorsel.height}`, boyut: boyutYazi(o.hazir.gorsel.yeniBoyut), bayt: o.hazir.gorsel.yeniBoyut,
-        kirp: kirpYazi(o.hazir.kip, o.hazir.kirpilamadi, o.elle), guven: o.hazir.guven
-      }))
-    });
-    toast('Taslak: eklenmedi');
+    kaydediliyor = true;
+    hataMetni = null;
+    ciz();
+    console.info('Fotoğraf ekle:', ogeler.map((o, i) =>
+      `${i + 1}. ${o.ad} ${o.hazir.gorsel.width}×${o.hazir.gorsel.height} ${boyutYazi(o.hazir.gorsel.yeniBoyut)} ${kirpYazi(o.hazir.kip, o.hazir.kirpilamadi, o.elle)}`).join(' · '));
+    try {
+      await b.ekle(ogeler.map(o => o.hazir.gorsel), h.hedef);
+    } catch (e) {
+      kaydediliyor = false;
+      hataMetni = e instanceof Error ? e.message : 'Fotoğraflar kaydedilemedi. Tekrar dene.';
+      if (!kapandi) ciz();
+      return;
+    }
+    kaydediliyor = false;
     kapat();
   };
 
