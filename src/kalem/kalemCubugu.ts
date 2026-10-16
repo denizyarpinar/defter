@@ -145,20 +145,25 @@ export class PenToolbar {
 
 const DEVICE_TITLE = "Çizimler henüz PDF'e kaydedilmedi; bu cihazda saklanıyor";
 
+// Task 4.9b: every status has a long text and a short one; on a phone (styles.css, < 600 px) only
+// the short one shows (with a coloured dot), the full text stays in the title.
+const pill = (cls: string, long: string, short: string, title: string) =>
+  `<span class="${cls}" title="${title}"><span class="o-uzun">${long}</span><span class="o-kisa">${short}</span></span>`;
+
 // Task 4.8b: what the tool bar says about saving (first what is going on, then what is waiting)
 export function saveStatus(st: ToolbarState): string {
-  if (st.preparing) return '<span class="o-tdurum">Kalem hazırlanıyor…</span>';
+  if (st.preparing) return pill('o-tdurum', 'Kalem hazırlanıyor…', 'Hazırlanıyor…', 'Kalem hazırlanıyor…');
   const k = st.kayit, d = k.durum;
   const unsaved = !st.dirty ? ''
-    : st.onDevice ? `<span class="o-tdurum kaydedilmedi" title="${DEVICE_TITLE}">Kaydedilmedi <small>cihazda</small></span>`
-    : `<span class="o-tdurum kaydedilmedi" title="Çizimler henüz PDF'e kaydedilmedi ve bu cihaza da kaydedilemiyor">Kaydedilmedi</span>`;
-  if (k.kilit === 'kapali') return `${unsaved}<span class="o-tipucu">Drive'a yazma kapalı (test)</span>`;
-  if (k.kilit === 'ornek') return `${unsaved}<span class="o-tipucu">Örnek kitaplık: Drive'a kaydedilmez</span>`;
-  if (d.tur === 'kaydediliyor') return '<span class="o-tdurum">Kaydediliyor…</span>';
-  if (d.tur === 'hata' && st.dirty) return `<span class="o-tdurum hata" title="${esc(d.mesaj)}">Kaydedilemedi</span>`;
-  if (d.tur === 'cevrimdisi' && st.dirty) return `<span class="o-tdurum kaydedilmedi" title="İnternet yok. Çizimler bu cihazda; bağlanınca kaydedilecek.">Çevrimdışı <small>cihazda</small></span>`;
+    : st.onDevice ? pill('o-tdurum kaydedilmedi', 'Kaydedilmedi <small>cihazda</small>', 'Cihazda', DEVICE_TITLE)
+    : pill('o-tdurum kaydedilmedi', 'Kaydedilmedi', 'Kaydedilmedi', "Çizimler henüz PDF'e kaydedilmedi ve bu cihaza da kaydedilemiyor");
+  if (k.kilit === 'kapali') return unsaved + pill('o-tipucu', "Drive'a yazma kapalı (test)", 'Test', "Drive'a yazma kapalı (test)");
+  if (k.kilit === 'ornek') return unsaved + pill('o-tipucu', "Örnek kitaplık: Drive'a kaydedilmez", 'Örnek', "Örnek kitaplık: Drive'a kaydedilmez");
+  if (d.tur === 'kaydediliyor') return pill('o-tdurum', 'Kaydediliyor…', 'Kaydediliyor…', 'Kaydediliyor…');
+  if (d.tur === 'hata' && st.dirty) return pill('o-tdurum hata', 'Kaydedilemedi', 'Hata', `Kaydedilemedi: ${esc(d.mesaj)}`);
+  if (d.tur === 'cevrimdisi' && st.dirty) return pill('o-tdurum kaydedilmedi', 'Çevrimdışı <small>cihazda</small>', 'Çevrimdışı', 'İnternet yok. Çizimler bu cihazda; bağlanınca kaydedilecek.');
   if (st.dirty) return unsaved;
-  if (d.tur === 'kaydedildi') return '<span class="o-tdurum kaydedildi">Kaydedildi</span>';
+  if (d.tur === 'kaydedildi') return pill('o-tdurum kaydedildi', 'Kaydedildi', 'Kaydedildi', 'Kaydedildi');
   return '';
 }
 

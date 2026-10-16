@@ -53,3 +53,46 @@ describe('kalem-testi.pdf', () => {
     }
   });
 });
+
+// Task 4.9b: the sample library's first summary has a few hand-drawn Defter notes
+const summaryUrl = Object.values(import.meta.glob<string>('/public/demo/demo-ozet-notlu.pdf', { eager: true, query: '?inline', import: 'default' }))[0];
+const summaryBytes = () => Uint8Array.from(atob(summaryUrl.split(',')[1]), c => c.charCodeAt(0));
+
+describe('demo-ozet-notlu.pdf', () => {
+  it('the slides with 7 Defter notes (pen with pressure, highlighter), nothing else', async () => {
+    const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+    const doc = await pdfjs.getDocument({ data: summaryBytes() }).promise;
+    try {
+      expect(doc.numPages).toBe(pages(read('demo-slayt.pdf')));
+      const annots = (await Promise.all(Array.from({ length: doc.numPages }, async (_, i) => (await doc.getPage(i + 1)).getAnnotations()))).flat();
+      expect(annots.length).toBe(7);
+      for (const a of annots) { expect(isDefterAnnotation(a)).toBe(true); expect(a.hasAppearance).toBe(true); }
+    } finally {
+      await doc.loadingTask.destroy();
+    }
+    const { readDefterStrokes } = await import('../kalem/pdfNotlari');
+    const strokes = await readDefterStrokes(summaryBytes());
+    expect([...strokes.keys()]).toEqual([2, 3]);   // slides 3 and 4
+    const all = [...strokes.values()].flat();
+    const pens = all.filter(s => s.arac === 'kalem'), hls = all.filter(s => s.arac === 'fosforlu');
+    expect([pens.length, hls.length]).toEqual([4, 3]);
+    for (const s of pens) {
+      expect(s.basinc?.length).toBe(s.noktalar.length / 2);
+      expect(new Set(s.basinc).size).toBeGreaterThan(3);   // the pressure changes along the line
+    }
+    for (const s of hls) expect(s.opaklik).toBeLessThan(1);
+  });
+});
+
+// Task 4.9b: the sample library points only at files that exist; the pen test file is for tests only
+const sampleIndex = Object.values(import.meta.glob<string>('/public/ornek/index.json', { eager: true, query: '?raw', import: 'default' }))[0];
+
+describe('public/ornek/index.json', () => {
+  it('every demo file exists, kalem-testi.pdf is not listed, the first summary has notes', () => {
+    const index = JSON.parse(sampleIndex) as { klasorler: Record<string, Record<string, Record<string, string>>> };
+    const targets = Object.values(index.klasorler).flatMap(book => Object.values(book).flatMap(topic => Object.values(topic)));
+    for (const t of targets) expect(files[`/public/${t}`], t).toBeDefined();
+    expect(targets).not.toContain('demo/kalem-testi.pdf');
+    expect(index.klasorler['programlamaya-giris']['Unite-01-Temeller/Konu-01-Degiskenler']['ozet.pdf']).toBe('demo/demo-ozet-notlu.pdf');
+  });
+});

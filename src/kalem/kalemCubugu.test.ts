@@ -112,4 +112,20 @@ describe('saveStatus / saveButton', () => {
     expect(saveButton(err)).toContain('Tekrar dene');
     expect(disabled(saveButton(err))).toBe(false);
   });
+
+  // Task 4.9b: on a phone only the short text shows; the full text stays in the title
+  it('every status has a title and a short text (≤ 13 characters)', () => {
+    const states = [
+      st({ preparing: true }), st({}, { kilit: 'kapali' }), st({}, { kilit: 'ornek' }), st({ onDevice: false }),
+      st({}, { durum: { tur: 'kaydediliyor' } }), st({ dirty: false }, { durum: { tur: 'kaydedildi' } }),
+      st({}, { durum: { tur: 'cevrimdisi' } }), st({}, { durum: { tur: 'hata', mesaj: 'x', tekrar: true } })
+    ];
+    for (const s of states) {
+      const html = saveStatus(s);
+      const pills = [...html.matchAll(/<span class="(o-tdurum|o-tipucu)[^"]*" title="([^"]+)"><span class="o-uzun">(.+?)<\/span><span class="o-kisa">([^<]+)<\/span><\/span>/g)];
+      expect(pills.length).toBeGreaterThan(0);
+      expect(html.replace(/<span class="(o-tdurum|o-tipucu)[^"]*" title="[^"]+"><span class="o-uzun">.+?<\/span><span class="o-kisa">[^<]+<\/span><\/span>/g, '')).toBe('');
+      for (const p of pills) expect(p[4].length).toBeLessThanOrEqual(13);
+    }
+  });
 });

@@ -2,7 +2,10 @@
 //   demo-dikey.pdf  64 pages, A4 portrait: a made-up course text with figures
 //   demo-slayt.pdf  24 slides, 16:9 landscape
 //   kalem-testi.pdf  6 pages with notes (task 4.4): Defter's own Ink notes + notes from "other apps";
-//                    pages 3–6 rotated / cropped, for the pen layer's alignment (task 4.5)
+//                    pages 3–6 rotated / cropped, for the pen layer's alignment (task 4.5). For the
+//                    tests only: the sample library doesn't list it (task 4.9b).
+//   demo-ozet-notlu.pdf  demo-slayt.pdf + a few hand-drawn Defter notes (task 4.9b): the sample
+//                    library's first summary, so a visitor sees what the pen looks like
 // All text is written for this script: no copyrighted content, free to share.
 // The first two need no packages: a small PDF writer with the PDF's built-in Helvetica fonts
 // (ASCII text only, so nothing has to be embedded). kalem-testi.pdf is made with pdf-lib, and its
@@ -176,7 +179,7 @@ function writePdf(file, pages, title) {
   parts.push(Buffer.from(xref, 'latin1'));
   const bytes = Buffer.concat(parts);
   writeFileSync(file, bytes);
-  return bytes.length;
+  return bytes;
 }
 
 // ---- content (written for this demo) ----
@@ -691,12 +694,13 @@ function slides() {
 }
 
 mkdirSync(OUT, { recursive: true });
+const written = {};
 for (const [name, pages, title] of [
   ['demo-dikey.pdf', portrait(), `${COURSE} (demo document)`],
   ['demo-slayt.pdf', slides(), `${COURSE} (demo slides)`]
 ]) {
-  const size = writePdf(join(OUT, name), pages, title);
-  console.log(`public/demo/${name}: ${pages.length} pages, ${(size / 1024).toFixed(0)} kB`);
+  written[name] = writePdf(join(OUT, name), pages, title);
+  console.log(`public/demo/${name}: ${pages.length} pages, ${(written[name].length / 1024).toFixed(0)} kB`);
 }
 
 // ---- kalem-testi.pdf (task 4.4) ----
@@ -705,7 +709,7 @@ for (const [name, pages, title] of [
 
 const FIXED = new Date(Date.UTC(2026, 9, 15, 12, 0, 0));
 
-async function penTest() {
+async function penTest(writeDefterStrokes) {
   const doc = await PDFDocument.create();
   doc.setTitle(`${COURSE} (pen test)`);
   doc.setAuthor('Defter demo');
@@ -812,26 +816,114 @@ async function penTest() {
 
   const base = await doc.save({ useObjectStreams: false });
 
-  const vite = await createServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'error' });
-  try {
-    const { writeDefterStrokes } = await vite.ssrLoadModule('/src/kalem/pdfNotlari.ts');
-    const pen = (id, noktalar) => ({ id, arac: 'kalem', renk: '#d32f2f', kalinlik: 3, opaklik: 1, noktalar });
-    return await writeDefterStrokes(base, new Map([
-      [0, [
-        pen('demo-kalem-1', [80, 520, 120, 490, 160, 525, 200, 485, 240, 520, 270, 500]),
-        { id: 'demo-fosforlu-1', arac: 'fosforlu', renk: '#ffeb3b', kalinlik: 14, opaklik: 0.4, noktalar: [70, 664, 505, 664] }
-      ]],
-      // task 4.7c: an Apple Pencil stroke, light → hard → light (its width follows the pressure)
-      [1, [{ ...pen('demo-kalem-2', [330, 520, 370, 600, 410, 520, 450, 600, 490, 520]), basinc: [0.1, 0.4, 1, 0.4, 0.1] }]],
-      ...alignStrokes
-    ]), { simdi: FIXED });
-  } finally {
-    await vite.close();
+  const pen = (id, noktalar) => ({ id, arac: 'kalem', renk: '#d32f2f', kalinlik: 3, opaklik: 1, noktalar });
+  return await writeDefterStrokes(base, new Map([
+    [0, [
+      pen('demo-kalem-1', [80, 520, 120, 490, 160, 525, 200, 485, 240, 520, 270, 500]),
+      { id: 'demo-fosforlu-1', arac: 'fosforlu', renk: '#ffeb3b', kalinlik: 14, opaklik: 0.4, noktalar: [70, 664, 505, 664] }
+    ]],
+    // task 4.7c: an Apple Pencil stroke, light → hard → light (its width follows the pressure)
+    [1, [{ ...pen('demo-kalem-2', [330, 520, 370, 600, 410, 520, 450, 600, 490, 520]), basinc: [0.1, 0.4, 1, 0.4, 0.1] }]],
+    ...alignStrokes
+  ]), { simdi: FIXED });
+}
+
+// ---- demo-ozet-notlu.pdf (task 4.9b) ----
+// The slides with a few notes as a student would make them with an Apple Pencil: the chapter title
+// underlined, one sentence highlighted, a short arrow in the margin and a circle around a column.
+// "Hand-drawn": a point every ~2 pt, a slow wave plus a little jitter, pressure that rises, wanders
+// and fades. A seeded random generator, so the file is the same on every run.
+
+function mulberry32(seed) {
+  return () => {
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+const r2 = v => Math.round(v * 100) / 100;
+
+// path(t) for t in 0..1, in slide coordinates (origin top left) → PDF points (+ pressure for the pen)
+function handDrawn(path, length, seed, { wave = 0.6, jitter = 0.25, pressure = true } = {}) {
+  const rnd = mulberry32(seed);
+  const n = Math.max(2, Math.ceil(length / 2));
+  const phase = rnd() * Math.PI * 2, waves = 1.5 + rnd() * 1.5;
+  const noktalar = [], basinc = [];
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    const [x, y] = path(t);
+    // the wave and the jitter push the point sideways a little (along y is enough at this size)
+    const off = Math.sin(phase + t * waves * Math.PI * 2) * wave + (rnd() - 0.5) * 2 * jitter;
+    noktalar.push(r2(x), r2(SLIDE[1] - (y + off)));
+    if (pressure) {
+      // presses in, wanders a little, lifts off
+      const p = 0.35 + 0.45 * Math.min(1, t / 0.15) - 0.3 * Math.max(0, (t - 0.8) / 0.2) + 0.08 * Math.sin(phase + t * 7) + (rnd() - 0.5) * 0.04;
+      basinc.push(Math.round(Math.min(1, Math.max(0.05, p)) * 100) / 100);
+    }
   }
+  return pressure ? { noktalar, basinc } : { noktalar };
+}
+
+const line = (x0, y0, x1, y1) => t => [x0 + (x1 - x0) * t, y0 + (y1 - y0) * t];
+
+function summaryNotes() {
+  const RED = '#e02020', BLUE = '#1d3a8a', YELLOW = '#f5d33a';
+  const pen = (id, renk, shape) => ({ id, arac: 'kalem', renk, kalinlik: 2.2, opaklik: 1, ...shape });
+  const ch = CHAPTERS[0];
+
+  // slide 3: the section title (x 80, baseline 286, 46 pt bold) → a line under it, drifting up a bit
+  const titleW = textWidth(ch.title, 46, 'B');
+  const underline = pen('demo-ozet-alti-ciz', RED,
+    handDrawn(line(76, 298, 80 + titleW + 6, 295.5), titleW + 10, 11, { wave: 0.7 }));
+
+  // slide 4: the bullets as slides() lays them out (x 78, from y 130, 18 pt, leading 26, 400 wide)
+  const bulletLines = [];
+  let y = 130;
+  for (const t of ch.paras.slice(1, 4).map(firstSentence)) {
+    bulletLines.push(wrap(t, 18, 400).map((l, i) => ({ text: l, base: y + 18 + i * 26 })));
+    y += wrap(t, 18, 400).length * 26 + 14;
+  }
+  // the second bullet (implication), every line of it in yellow; the pen sits a little above the baseline
+  const highlights = bulletLines[1].map((l, i) => {
+    const w = textWidth(l.text, 18);
+    return { id: `demo-ozet-fosforlu-${i + 1}`, arac: 'fosforlu', renk: YELLOW, kalinlik: 20, opaklik: 0.35,
+      ...handDrawn(line(75, l.base - 5.5, 78 + w + 3, l.base - 6.2), w + 6, 21 + i, { wave: 0.5, jitter: 0.15, pressure: false }) };
+  });
+  // a short arrow in the left margin, pointing at that bullet: the shaft, then the head in one go
+  const tipY = bulletLines[1][0].base - 6, tipX = 50;
+  const shaft = pen('demo-ozet-ok', BLUE, handDrawn(line(12, tipY + 14, tipX, tipY + 1), 41, 31, { wave: 0.4 }));
+  const head = pen('demo-ozet-ok-ucu', BLUE, handDrawn(t => t < 0.5
+    ? line(tipX - 9, tipY - 6, tipX + 0.5, tipY + 0.5)(t * 2)
+    : line(tipX + 0.5, tipY + 0.5, tipX - 7, tipY + 9)((t - 0.5) * 2), 26, 32, { wave: 0.2, jitter: 0.15 }));
+
+  // the truth table (figure box 570, 160, 304 × 230): a loop around the head of "if p then q"
+  const cx = 570 + 304 / 5 * 4.5, cy = 175.5, rx = 38, ry = 15;
+  const start = -0.6;   // starts top right, goes round once and a little past the start
+  const loop = pen('demo-ozet-yuvarlak', RED, handDrawn(t => {
+    const a = start - t * (Math.PI * 2 + 0.45);
+    const k = 1 + 0.05 * Math.sin(t * Math.PI * 2) + 0.06 * t;   // a bit wider at the end: it doesn't close exactly
+    return [cx + Math.cos(a) * rx * k, cy + Math.sin(a) * ry * k];
+  }, 2 * Math.PI * Math.sqrt((rx * rx + ry * ry) / 2) * 1.07, 41, { wave: 0.3, jitter: 0.2 }));
+
+  return new Map([[2, [underline]], [3, [...highlights, shaft, head, loop]]]);
 }
 
 {
-  const bytes = await penTest();
-  writeFileSync(join(OUT, 'kalem-testi.pdf'), bytes);
-  console.log(`public/demo/kalem-testi.pdf: 6 pages, ${(bytes.length / 1024).toFixed(0)} kB`);
+  const vite = await createServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'error' });
+  try {
+    const { writeDefterStrokes } = await vite.ssrLoadModule('/src/kalem/pdfNotlari.ts');
+    const pen = await penTest(writeDefterStrokes);
+    writeFileSync(join(OUT, 'kalem-testi.pdf'), pen);
+    console.log(`public/demo/kalem-testi.pdf: 6 pages, ${(pen.length / 1024).toFixed(0)} kB`);
+
+    const notes = summaryNotes();
+    const summary = await writeDefterStrokes(new Uint8Array(written['demo-slayt.pdf']), notes, { simdi: FIXED });
+    writeFileSync(join(OUT, 'demo-ozet-notlu.pdf'), summary);
+    const count = [...notes.values()].reduce((a, s) => a + s.length, 0);
+    console.log(`public/demo/demo-ozet-notlu.pdf: demo-slayt.pdf + ${count} Defter notes, ${(summary.length / 1024).toFixed(0)} kB`);
+  } finally {
+    await vite.close();
+  }
 }
