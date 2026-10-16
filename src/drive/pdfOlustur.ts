@@ -16,7 +16,8 @@ export type OlusanPdf = UploadResult;   // id, modifiedTime, headRevisionId
 
 export interface KlasorBilgisi { id: string; name: string; mimeType: string; trashed: boolean; parents: string[]; canAddChildren: boolean }
 export interface KlasorOgesi { id: string; name: string }
-export interface YeniPdfMeta { id: string; name: string; parents: string[]; mimeType: 'application/pdf'; appProperties: { defter: '1' } }
+// defterIslem (5.10c): the adding that created the file, so a later try with the same islemId knows it
+export interface YeniPdfMeta { id: string; name: string; parents: string[]; mimeType: 'application/pdf'; appProperties: { defter: '1'; defterIslem?: string } }
 
 export interface PdfOlusturDrive {
   klasorBilgisi(id: string): Promise<KlasorBilgisi>;
@@ -24,7 +25,7 @@ export interface PdfOlusturDrive {
   yeniId(): Promise<string>;                                    // files.generateIds
   yukleMultipart(meta: YeniPdfMeta, bytes: Uint8Array): Promise<OlusanPdf>;
   yukleResumable(meta: YeniPdfMeta, bytes: Uint8Array): Promise<OlusanPdf>;
-  dosyaBilgisi(id: string): Promise<OlusanPdf & { size?: string }>;
+  dosyaBilgisi(id: string): Promise<OlusanPdf & { size?: string; appProperties?: Record<string, string> }>;
 }
 
 // ---- errors (Turkish, say what to do) ----
@@ -119,9 +120,9 @@ export const drivePdfOlusturApi: PdfOlusturDrive = {
     return resumableUpload(`${UPLOAD}files?uploadType=resumable&fields=${FIELDS}`, 'POST', JSON.stringify(meta), bytes, yuklemeYaniti);
   },
   async dosyaBilgisi(id) {
-    const res = await ok(await driveFetch(`files/${encodeURIComponent(id)}?fields=${FIELDS},size`), WHAT);
-    const j = await res.json() as Partial<OlusanPdf> & { size?: string };
-    return { id: j.id ?? id, modifiedTime: j.modifiedTime ?? '', headRevisionId: j.headRevisionId ?? '', size: j.size };
+    const res = await ok(await driveFetch(`files/${encodeURIComponent(id)}?fields=${FIELDS},size,appProperties`), WHAT);
+    const j = await res.json() as Partial<OlusanPdf> & { size?: string; appProperties?: Record<string, string> };
+    return { id: j.id ?? id, modifiedTime: j.modifiedTime ?? '', headRevisionId: j.headRevisionId ?? '', size: j.size, appProperties: j.appProperties };
   }
 };
 
@@ -130,6 +131,7 @@ export const drivePdfOlusturApi: PdfOlusturDrive = {
 export interface CreatePdfSecenek {
   bekleMs?: number;             // wait before a retry
   deneme?: number;              // upload tries at most
+  defterIslem?: string;         // written into appProperties (5.10c; not islemId: konuyaEkle passes that one through)
 }
 
 const MAX_DERINLIK = 10;
@@ -188,7 +190,10 @@ export async function createPdf(
 
     let id: string;
     try { id = await drive.yeniId(); } catch (e) { throw e instanceof IdAlinamadi || tekrarlanabilir(e) ? new IdAlinamadi() : e; }
-    const meta: YeniPdfMeta = { id, name: ad, parents: [parentId], mimeType: 'application/pdf', appProperties: { defter: '1' } };
+    const meta: YeniPdfMeta = {
+      id, name: ad, parents: [parentId], mimeType: 'application/pdf',
+      appProperties: secenek.defterIslem ? { defter: '1', defterIslem: secenek.defterIslem } : { defter: '1' }
+    };
     const yukle = () => bytes.byteLength > RESUMABLE_LIMIT ? drive.yukleResumable(meta, bytes) : drive.yukleMultipart(meta, bytes);
     const max = secenek.deneme ?? 3;
     for (let deneme = 1; ; deneme++) {
