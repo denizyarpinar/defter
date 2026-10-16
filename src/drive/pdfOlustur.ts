@@ -11,7 +11,6 @@ import { multipartPdfBody, readResult, RESUMABLE_LIMIT, resumableUpload, UPLOAD,
 //   Drive then answers "already exists" and the file with that id is checked (size). Listing the folder
 //   again is only a backup check (Drive's list can be late).
 // - Never deletes, never writes over a file. Marked with appProperties defter: "1".
-// - Temporary lock (until the real tests in 5.9): works only with ?dosyaOlustur=1 in the URL.
 
 export type OlusanPdf = UploadResult;   // id, modifiedTime, headRevisionId
 
@@ -29,10 +28,6 @@ export interface PdfOlusturDrive {
 }
 
 // ---- errors (Turkish, say what to do) ----
-
-export class DosyaOlusturKilitli extends Error {
-  constructor() { super('Drive\'a yazma (Faz 5) şimdilik kilitli; denemek için adrese ?dosyaOlustur=1 ekle.'); }
-}
 
 export class DosyaYazmaYok extends Error {
   constructor() { super('Drive kitaplığı açık değil, dosya oluşturulmadı. Google ile giriş yap ve kitaplığın yüklenmesini bekle.'); }
@@ -133,12 +128,10 @@ export const drivePdfOlusturApi: PdfOlusturDrive = {
 // ---- createPdf ----
 
 export interface CreatePdfSecenek {
-  kilitAcik?: () => boolean;    // default: ?dosyaOlustur=1 in the URL
   bekleMs?: number;             // wait before a retry
   deneme?: number;              // upload tries at most
 }
 
-export const urlKilidiAcik = () => typeof location !== 'undefined' && new URLSearchParams(location.search).get('dosyaOlustur') === '1';
 const MAX_DERINLIK = 10;
 const ayniAd = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();   // the reader matches names this way too
 
@@ -185,7 +178,6 @@ export async function createPdf(
   secenek: CreatePdfSecenek = {}
 ): Promise<OlusanPdf> {
   // checks without any request
-  if (!(secenek.kilitAcik ?? urlKilidiAcik)()) throw new DosyaOlusturKilitli();
   if (!yer || isSampleId(parentId)) throw new DosyaYazmaYok();
   pdfMi(ad, bytes);
   try {

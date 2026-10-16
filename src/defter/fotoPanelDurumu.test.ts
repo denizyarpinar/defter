@@ -91,22 +91,17 @@ describe('hedefHesapla', () => {
 });
 
 describe('ekleDurumu', () => {
-  const d = { ornek: false, kilitAcik: true, hazirSayisi: 2, hazirlaniyor: false };
+  const d = { ornek: false, hazirSayisi: 2, hazirlaniyor: false };
   it('sample library: off, with a note', () => {
     const e = ekleDurumu({ ...d, ornek: true });
     expect(e.aktif).toBe(false);
     expect(e.aciklama).toMatch(/Örnek kitaplıkta/);
   });
-  it('lock closed: off, says how to open it', () => {
-    const e = ekleDurumu({ ...d, kilitAcik: false });
-    expect(e.aktif).toBe(false);
-    expect(e.aciklama).toMatch(/\?dosyaOlustur=1/);
-  });
   it('no photos or still preparing: off, no note', () => {
     expect(ekleDurumu({ ...d, hazirSayisi: 0 })).toEqual({ aktif: false, aciklama: null });
     expect(ekleDurumu({ ...d, hazirlaniyor: true })).toEqual({ aktif: false, aciklama: null });
   });
-  it('lock open, photos ready: on', () => {
+  it('photos ready: on', () => {
     expect(ekleDurumu(d)).toEqual({ aktif: true, aciklama: null });
   });
 });

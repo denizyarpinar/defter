@@ -21,7 +21,6 @@ export interface FotoPanelBaglam {
   acikDosyaId: string | null;
   sayfaSayisi: (fileId: string) => number | undefined;
   ornek: boolean;
-  kilitAcik: boolean;
   // task 5.8f: saves the photos on the device and starts the adding; rejects (Turkish message) when
   // nothing was saved. hedef null: a new ozet.pdf.
   ekle(jpegler: BekleyenJpeg[], hedef: DriveFile | null): Promise<void>;
@@ -151,7 +150,7 @@ export function acFotoPanel(b: FotoPanelBaglam, dosyalar: File[]): void {
       lbl.append(sec);
       hedefSatir.replaceChildren(lbl, el('span', '', h.metin));
     } else hedefSatir.replaceChildren(el('span', '', h.metin));
-    const e = ekleDurumu({ ornek: b.ornek, kilitAcik: b.kilitAcik, hazirSayisi: ogeler.length, hazirlaniyor: calisiyor || ogeler.some(o => o.mesgul) });
+    const e = ekleDurumu({ ornek: b.ornek, hazirSayisi: ogeler.length, hazirlaniyor: calisiyor || ogeler.some(o => o.mesgul) });
     ekle.disabled = !e.aktif || kaydediliyor;
     ekle.textContent = kaydediliyor ? 'Kaydediliyor…' : 'Ekle';
     const notMetni = e.aciklama ?? hataMetni;

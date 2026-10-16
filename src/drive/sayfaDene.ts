@@ -4,7 +4,7 @@ import { drivePdfOlusturApi } from './pdfOlustur';
 
 // Task 5.6, development only (loaded from main.ts under import.meta.env.DEV, not in the build):
 // window.defterSayfaDene(kitapAdi, dosyaAdi) adds 2 test pages (1 portrait, 1 landscape photo) at the end
-// of that PDF in the book's folder. Needs ?dosyaOlustur=1 in the URL (ozeteSayfaEkle's lock).
+// of that PDF in the book's folder.
 // Prints the page count before / after, the new version and the file's Drive revisions (defterSurumler).
 
 const link = (id: string) => `https://drive.google.com/file/d/${id}/view`;

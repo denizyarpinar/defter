@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { PDFDict, PDFDocument, PDFName, PDFString, type PDFPage } from 'pdf-lib';
 import { DriveError, FOLDER_MIME } from '../drive/drive';
 import type { DriveLocation } from '../drive/driveLibrary';
-import { DosyaOlusturKilitli, YerDisi, type KlasorBilgisi } from '../drive/pdfOlustur';
+import { YerDisi, type KlasorBilgisi } from '../drive/pdfOlustur';
 import { PdfReadOnly, PdfSampleNoWrite, type PdfDrive, type Revision } from '../drive/pdfYazici';
 import type { PendingRecord } from '../kalem/bekleyenFark';
 import type { Stroke } from '../kalem/cizgi';
@@ -116,12 +116,12 @@ function fakeDrive(start: Uint8Array) {
   return { file, revisions, log, drive, deps, ortam, degisenler };
 }
 
-const ACIK: SayfaEklemeSecenek = { kilitAcik: () => true, bekleMs: 0 };
+const HIZLI: SayfaEklemeSecenek = { bekleMs: 0 };
 
 describe('ozeteSayfaEkle', () => {
   it('pages +N at the end; old pages, Defter strokes and the other note stay the same', async () => {
     const d = fakeDrive(baslangic);
-    const s = await ozeteSayfaEkle('P', [dik, yatay], d.ortam, { ...ACIK, islemId: 'is-1' });
+    const s = await ozeteSayfaEkle('P', [dik, yatay], d.ortam, { ...HIZLI, islemId: 'is-1' });
     expect([s.eskiSayfa, s.yeniSayfa, s.zatenVardi]).toEqual([3, 5, false]);
     expect(await sayfaSayisi(d.file.bytes)).toBe(5);
     expect(await eskiSayfalar(d.file.bytes, 3)).toEqual(await eskiSayfalar(baslangic, 3));
@@ -135,7 +135,7 @@ describe('ozeteSayfaEkle', () => {
   it('answer lost after the upload arrived: the next try sees the pages, no double pages', async () => {
     const d = fakeDrive(baslangic);
     d.file.kayip = 1;
-    const s = await ozeteSayfaEkle('P', [dik, yatay], d.ortam, ACIK);
+    const s = await ozeteSayfaEkle('P', [dik, yatay], d.ortam, HIZLI);
     expect(s.zatenVardi).toBe(true);
     expect([s.eskiSayfa, s.yeniSayfa]).toEqual([3, 5]);
     expect(await sayfaSayisi(d.file.bytes)).toBe(5);
@@ -144,20 +144,20 @@ describe('ozeteSayfaEkle', () => {
 
   it('called again later with the same islemId: nothing uploaded, page count the same', async () => {
     const d = fakeDrive(baslangic);
-    await ozeteSayfaEkle('P', [dik], d.ortam, { ...ACIK, islemId: 'ayni' });
-    const s = await ozeteSayfaEkle('P', [dik], d.ortam, { ...ACIK, islemId: 'ayni' });
+    await ozeteSayfaEkle('P', [dik], d.ortam, { ...HIZLI, islemId: 'ayni' });
+    const s = await ozeteSayfaEkle('P', [dik], d.ortam, { ...HIZLI, islemId: 'ayni' });
     expect(s.zatenVardi).toBe(true);
     expect(await sayfaSayisi(d.file.bytes)).toBe(4);
     expect(d.log.filter(l => l === 'upload')).toHaveLength(1);
     // another adding (new id) does add
-    await ozeteSayfaEkle('P', [dik], d.ortam, ACIK);
+    await ozeteSayfaEkle('P', [dik], d.ortam, HIZLI);
     expect(await sayfaSayisi(d.file.bytes)).toBe(5);
   });
 
   it('conflict: the newest file is downloaded again and the pages go on top of it', async () => {
     const d = fakeDrive(baslangic);
     d.file.cakisma = 2;
-    const s = await ozeteSayfaEkle('P', [dik, yatay], d.ortam, ACIK);
+    const s = await ozeteSayfaEkle('P', [dik, yatay], d.ortam, HIZLI);
     expect(d.log.filter(l => l.startsWith('bytes'))).toEqual(['bytes:t1', 'bytes:t2', 'bytes:t3']);
     expect(s.yeniSayfa).toBe(5);
     // the other device's strokes are in the result too
@@ -168,7 +168,7 @@ describe('ozeteSayfaEkle', () => {
   it('conflict 3 times: clear error, nothing uploaded', async () => {
     const d = fakeDrive(baslangic);
     d.file.cakisma = 3;
-    await expect(ozeteSayfaEkle('P', [dik], d.ortam, ACIK)).rejects.toThrow(SayfaEklemeCakisma);
+    await expect(ozeteSayfaEkle('P', [dik], d.ortam, HIZLI)).rejects.toThrow(SayfaEklemeCakisma);
     expect(d.log).not.toContain('upload');
     expect(new SayfaEklemeCakisma().message).toMatch(/Biraz sonra tekrar dene/);
   });
@@ -176,28 +176,26 @@ describe('ozeteSayfaEkle', () => {
   it('offline: tried again; always offline → SayfaEklemeAgHatasi, nothing uploaded', async () => {
     const a = fakeDrive(baslangic);
     a.file.offline = 1;
-    expect((await ozeteSayfaEkle('P', [dik], a.ortam, ACIK)).yeniSayfa).toBe(4);
+    expect((await ozeteSayfaEkle('P', [dik], a.ortam, HIZLI)).yeniSayfa).toBe(4);
     const b = fakeDrive(baslangic);
     b.file.offline = 10;
-    await expect(ozeteSayfaEkle('P', [dik], b.ortam, ACIK)).rejects.toThrow(SayfaEklemeAgHatasi);
+    await expect(ozeteSayfaEkle('P', [dik], b.ortam, HIZLI)).rejects.toThrow(SayfaEklemeAgHatasi);
     expect(b.log).not.toContain('upload');
   });
 
   it('backup (keepForever) only before the first write', async () => {
     const d = fakeDrive(baslangic);
-    await ozeteSayfaEkle('P', [dik], d.ortam, ACIK);
-    await ozeteSayfaEkle('P', [yatay], d.ortam, ACIK);
+    await ozeteSayfaEkle('P', [dik], d.ortam, HIZLI);
+    await ozeteSayfaEkle('P', [yatay], d.ortam, HIZLI);
     expect(d.log.filter(l => l.startsWith('keep'))).toEqual(['keep:r1']);
     expect(d.revisions.filter(r => r.keepForever).map(r => r.id)).toEqual(['r1']);
     expect(await sayfaSayisi(d.file.bytes)).toBe(5);
   });
 
-  it('lock closed / Drive library not open / sample file: no request at all', async () => {
+  it('Drive library not open / sample file: no request at all', async () => {
     const d = fakeDrive(baslangic);
-    await expect(ozeteSayfaEkle('P', [dik], d.ortam, { kilitAcik: () => false })).rejects.toThrow(DosyaOlusturKilitli);
-    await expect(ozeteSayfaEkle('P', [dik], d.ortam)).rejects.toThrow(DosyaOlusturKilitli);   // no ?dosyaOlustur=1
-    await expect(ozeteSayfaEkle('P', [dik], { ...d.ortam, yer: null }, ACIK)).rejects.toThrow(SayfaYazmaYok);
-    await expect(ozeteSayfaEkle('ornek:kitap#x/ozet.pdf', [dik], d.ortam, ACIK)).rejects.toThrow(PdfSampleNoWrite);
+    await expect(ozeteSayfaEkle('P', [dik], { ...d.ortam, yer: null }, HIZLI)).rejects.toThrow(SayfaYazmaYok);
+    await expect(ozeteSayfaEkle('ornek:kitap#x/ozet.pdf', [dik], d.ortam, HIZLI)).rejects.toThrow(PdfSampleNoWrite);
     expect(d.log).toEqual([]);
     expect(d.file.n).toBe(1);
   });
@@ -212,7 +210,7 @@ describe('ozeteSayfaEkle', () => {
       [await sig.save(), 'dijital imzalı'],
     ] as const) {
       const d = fakeDrive(bytes);
-      const e = await ozeteSayfaEkle('P', [dik], d.ortam, ACIK).catch(x => x);
+      const e = await ozeteSayfaEkle('P', [dik], d.ortam, HIZLI).catch(x => x);
       expect(e).toBeInstanceOf(PdfYazilamaz);
       expect(e.message).toContain(metin);
       expect(d.log).not.toContain('upload');
@@ -223,14 +221,14 @@ describe('ozeteSayfaEkle', () => {
   it('no write permission → PdfReadOnly; missing file → DosyaBulunamadi; not a PDF / outside the books → no write', async () => {
     const a = fakeDrive(baslangic);
     a.file.canEdit = false;
-    await expect(ozeteSayfaEkle('P', [dik], a.ortam, ACIK)).rejects.toThrow(PdfReadOnly);
+    await expect(ozeteSayfaEkle('P', [dik], a.ortam, HIZLI)).rejects.toThrow(PdfReadOnly);
     const b = fakeDrive(baslangic);
     b.file.yok = true;
-    await expect(ozeteSayfaEkle('P', [dik], b.ortam, ACIK)).rejects.toThrow(DosyaBulunamadi);
+    await expect(ozeteSayfaEkle('P', [dik], b.ortam, HIZLI)).rejects.toThrow(DosyaBulunamadi);
     const c = fakeDrive(baslangic);
-    await expect(ozeteSayfaEkle('W', [dik], c.ortam, ACIK)).rejects.toThrow(PdfDosyasiDegil);
-    await expect(ozeteSayfaEkle('X', [dik], c.ortam, ACIK)).rejects.toThrow(YerDisi);
-    await expect(ozeteSayfaEkle('yok', [dik], c.ortam, ACIK)).rejects.toThrow(DosyaBulunamadi);
+    await expect(ozeteSayfaEkle('W', [dik], c.ortam, HIZLI)).rejects.toThrow(PdfDosyasiDegil);
+    await expect(ozeteSayfaEkle('X', [dik], c.ortam, HIZLI)).rejects.toThrow(YerDisi);
+    await expect(ozeteSayfaEkle('yok', [dik], c.ortam, HIZLI)).rejects.toThrow(DosyaBulunamadi);
     for (const d of [a, b, c]) expect(d.log).not.toContain('upload');
   });
 });
@@ -241,7 +239,7 @@ describe('pages at the end and the pen', () => {
 
   it('a pending pen record made before the adding still lands on its page', async () => {
     const d = fakeDrive(baslangic);
-    await ozeteSayfaEkle('P', [dik, yatay], d.ortam, ACIK);
+    await ozeteSayfaEkle('P', [dik, yatay], d.ortam, HIZLI);
     // drawn on page 2 (index 1) against version t1, uploaded after the pages were added (t2)
     const u = await uploadRecord(d.deps, rec({ eklenen: [{ sayfa: 1, stroke: stroke('yeni') }], silinenIdler: [{ sayfa: 0, id: 'o' }] }));
     expect(u.modifiedTime).toBe('t3');
@@ -272,7 +270,7 @@ describe('pages at the end and the pen', () => {
       return orig(id, b);
     };
     const kalem = up.request(['P']);
-    const sayfa = ozeteSayfaEkle('P', [dik], { ...d.ortam, sirada: (id, job) => up.sirada(id, job) }, ACIK)
+    const sayfa = ozeteSayfaEkle('P', [dik], { ...d.ortam, sirada: (id, job) => up.sirada(id, job) }, HIZLI)
       .then(s => { olaylar.push('sayfa bitti'); return s; });
     await Promise.all([kalem, sayfa]);
     expect(olaylar).toEqual(['yükleme', 'kalem bitti', 'yükleme', 'sayfa bitti']);

@@ -1,5 +1,5 @@
 import { FOLDER_MIME, listChildren, type DriveFile } from '../drive/drive';
-import { AyniIsimVar, createPdf, DosyaOlusturKilitli, urlKilidiAcik, type PdfOlusturDrive } from '../drive/pdfOlustur';
+import { AyniIsimVar, createPdf, type PdfOlusturDrive } from '../drive/pdfOlustur';
 import { PdfSampleNoWrite } from '../drive/pdfYazici';
 import { pdfLib, SAVE_OPTIONS } from '../kalem/pdfNotlari';
 import { classifyTopic } from '../okuma/konuKesfi';
@@ -83,7 +83,6 @@ export async function konuyaFotografEkle(
   konuKlasorId: string, jpegler: readonly Jpeg[], o: KonuEklemeOrtami, secenek: KonuEklemeSecenek = {}
 ): Promise<KonuyaEklendi> {
   // checks without any request
-  if (!(secenek.kilitAcik ?? urlKilidiAcik)()) throw new DosyaOlusturKilitli();
   if (isSampleId(konuKlasorId) || (secenek.hedefFileId && isSampleId(secenek.hedefFileId))) throw new PdfSampleNoWrite();
   if (!o.yer) throw new SayfaYazmaYok();
   const islemId = secenek.islemId ?? crypto.randomUUID();

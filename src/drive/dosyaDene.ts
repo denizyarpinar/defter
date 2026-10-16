@@ -4,7 +4,7 @@ import { AyniIsimVar, createPdf, drivePdfOlusturApi } from './pdfOlustur';
 
 // Task 5.5, development only (loaded from main.ts under import.meta.env.DEV, not in the build):
 // window.defterDosyaDene(kitapAdi) creates a 1-page test PDF "deneme-5.5.pdf" in that book's folder.
-// A second call shows the "same name" error. createPdf itself needs ?dosyaOlustur=1 in the URL.
+// A second call shows the "same name" error.
 
 const AD = 'deneme-5.5.pdf';
 const link = (id: string) => `https://drive.google.com/file/d/${id}/view`;

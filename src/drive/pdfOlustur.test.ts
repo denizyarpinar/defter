@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { driveFetch, FOLDER_MIME } from './drive';
 import type { DriveLocation } from './driveLibrary';
 import {
-  AyniIsimVar, createPdf, DosyaOlusturAgHatasi, DosyaOlusturKilitli, DosyaYazmaYok, drivePdfOlusturApi,
+  AyniIsimVar, createPdf, DosyaOlusturAgHatasi, DosyaYazmaYok, drivePdfOlusturApi,
   IdAlinamadi, PdfDegil, YerDisi, YetkiYok, type CreatePdfSecenek
 } from './pdfOlustur';
 import { PdfUploadSession, RESUMABLE_LIMIT } from './pdfYazici';
@@ -93,7 +93,7 @@ function fakeDrive(opts: { davranis?: Davranis[]; idHata?: boolean; sayfa?: numb
 }
 
 const loc: DriveLocation = { rootId: 'R', libraryFileId: null, bookFolderIds: new Map([['mat-1', 'B']]), bookFileIds: new Map() };
-const ACIK: CreatePdfSecenek = { kilitAcik: () => true, bekleMs: 0 };
+const HIZLI: CreatePdfSecenek = { bekleMs: 0 };
 const pdf = (n = 20) => { const b = new Uint8Array(n).fill(32); b.set([37, 80, 68, 70, 45]); return b; };   // "%PDF-" + spaces
 const calls = () => fetchMock.mock.calls.map(([url, init]) => `${init?.method ?? 'GET'} ${url}`);
 const posts = () => calls().filter(c => c.startsWith('POST'));
@@ -103,17 +103,10 @@ const pdfFiles = (items: Map<string, Item>) => [...items.values()].filter(i => i
 beforeEach(() => { fetchMock.mockReset(); });
 
 describe('createPdf: refused before any request', () => {
-  it('lock closed (no ?dosyaOlustur=1)', async () => {
-    fakeDrive();
-    await expect(createPdf(drivePdfOlusturApi, loc, 'C', 'ozet.pdf', pdf())).rejects.toBeInstanceOf(DosyaOlusturKilitli);
-    await expect(createPdf(drivePdfOlusturApi, loc, 'C', 'ozet.pdf', pdf(), { kilitAcik: () => false })).rejects.toBeInstanceOf(DosyaOlusturKilitli);
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
   it('writer() locked / demo (no Drive library): yer null', async () => {
     fakeDrive();
-    await expect(createPdf(drivePdfOlusturApi, null, 'C', 'ozet.pdf', pdf(), ACIK)).rejects.toBeInstanceOf(DosyaYazmaYok);
-    await expect(createPdf(drivePdfOlusturApi, loc, 'ornek:demo', 'ozet.pdf', pdf(), ACIK)).rejects.toBeInstanceOf(DosyaYazmaYok);
+    await expect(createPdf(drivePdfOlusturApi, null, 'C', 'ozet.pdf', pdf(), HIZLI)).rejects.toBeInstanceOf(DosyaYazmaYok);
+    await expect(createPdf(drivePdfOlusturApi, loc, 'ornek:demo', 'ozet.pdf', pdf(), HIZLI)).rejects.toBeInstanceOf(DosyaYazmaYok);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -122,7 +115,7 @@ describe('createPdf: refused before any request', () => {
     ['ozet.pdf', new TextEncoder().encode('hello world')], ['ozet.pdf', new Uint8Array(0)]
   ])('not a PDF: %j', async (ad, bytes) => {
     fakeDrive();
-    await expect(createPdf(drivePdfOlusturApi, loc, 'C', ad, bytes, ACIK)).rejects.toBeInstanceOf(PdfDegil);
+    await expect(createPdf(drivePdfOlusturApi, loc, 'C', ad, bytes, HIZLI)).rejects.toBeInstanceOf(PdfDegil);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
@@ -133,21 +126,21 @@ describe('createPdf: place', () => {
     ['B2', 'a book in another Kitaplık tree'], ['T', 'a trashed folder'], ['P', 'a file, not a folder'], ['YOK', 'a missing folder']
   ])('%s (%s) → refused, nothing uploaded', async parent => {
     fakeDrive();
-    await expect(createPdf(drivePdfOlusturApi, loc, parent, 'ozet.pdf', pdf(), ACIK)).rejects.toThrow();
+    await expect(createPdf(drivePdfOlusturApi, loc, parent, 'ozet.pdf', pdf(), HIZLI)).rejects.toThrow();
     expect(posts()).toEqual([]);
   });
 
   it('outside places are YerDisi', async () => {
     fakeDrive();
     for (const p of ['X', 'K', 'R', 'B2', 'T', 'P']) {
-      await expect(createPdf(drivePdfOlusturApi, loc, p, 'ozet.pdf', pdf(), ACIK)).rejects.toBeInstanceOf(YerDisi);
+      await expect(createPdf(drivePdfOlusturApi, loc, p, 'ozet.pdf', pdf(), HIZLI)).rejects.toBeInstanceOf(YerDisi);
     }
   });
 
   it('the book folder and its subfolders are allowed', async () => {
     const { items } = fakeDrive();
     for (const [p, ad] of [['B', 'a.pdf'], ['U', 'b.pdf'], ['C', 'c.pdf']]) {
-      await createPdf(drivePdfOlusturApi, loc, p, ad, pdf(), ACIK);
+      await createPdf(drivePdfOlusturApi, loc, p, ad, pdf(), HIZLI);
       items.delete('yeni1');   // the fake gives the same id every time
     }
     expect(posts().length).toBe(3);
@@ -156,7 +149,7 @@ describe('createPdf: place', () => {
   it('no permission to add files → YetkiYok, nothing uploaded', async () => {
     const { items } = fakeDrive();
     items.get('C')!.canAdd = false;
-    await expect(createPdf(drivePdfOlusturApi, loc, 'C', 'ozet.pdf', pdf(), ACIK)).rejects.toBeInstanceOf(YetkiYok);
+    await expect(createPdf(drivePdfOlusturApi, loc, 'C', 'ozet.pdf', pdf(), HIZLI)).rejects.toBeInstanceOf(YetkiYok);
     expect(posts()).toEqual([]);
   });
 });
@@ -165,7 +158,7 @@ describe('createPdf: same name', () => {
   it('same name (other case too) → AyniIsimVar with the existing id, no upload', async () => {
     fakeDrive();
     for (const ad of ['orijinal.pdf', 'Orijinal.PDF']) {
-      const e = await createPdf(drivePdfOlusturApi, loc, 'C', ad, pdf(), ACIK).catch(x => x);
+      const e = await createPdf(drivePdfOlusturApi, loc, 'C', ad, pdf(), HIZLI).catch(x => x);
       expect(e).toBeInstanceOf(AyniIsimVar);
       expect((e as AyniIsimVar).mevcutId).toBe('P');
     }
@@ -177,7 +170,7 @@ describe('createPdf: same name', () => {
     const { items } = fakeDrive({ sayfa: 2 });
     for (let i = 0; i < 3; i++) items.set('d' + i, { name: `ders-${i}.pdf`, parent: 'B', mimeType: 'application/pdf' });
     items.set('z', { name: 'ozet.pdf', parent: 'B', mimeType: 'application/pdf' });
-    const e = await createPdf(drivePdfOlusturApi, loc, 'B', 'ozet.pdf', pdf(), ACIK).catch(x => x);
+    const e = await createPdf(drivePdfOlusturApi, loc, 'B', 'ozet.pdf', pdf(), HIZLI).catch(x => x);
     expect(e).toBeInstanceOf(AyniIsimVar);
     expect(calls().filter(c => c.includes('pageToken')).length).toBeGreaterThan(0);
     expect(posts()).toEqual([]);
@@ -187,7 +180,7 @@ describe('createPdf: same name', () => {
 describe('createPdf: upload', () => {
   it('up to 5 MB: one multipart POST with id, parents, PDF type, defter mark', async () => {
     const { items } = fakeDrive();
-    const r = await createPdf(drivePdfOlusturApi, loc, 'C', 'ozet.pdf', pdf(), ACIK);
+    const r = await createPdf(drivePdfOlusturApi, loc, 'C', 'ozet.pdf', pdf(), HIZLI);
     expect(r).toEqual({ id: 'yeni1', modifiedTime: 't-yeni1', headRevisionId: 'r-yeni1' });
     expect(posts()).toEqual(['POST https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,modifiedTime,headRevisionId']);
     const post = fetchMock.mock.calls.find(([, i]) => i?.method === 'POST')!;
@@ -202,7 +195,7 @@ describe('createPdf: upload', () => {
 
   it('over 5 MB: resumable session (POST) and PUT to it', async () => {
     fakeDrive();
-    const r = await createPdf(drivePdfOlusturApi, loc, 'C', 'ozet.pdf', pdf(RESUMABLE_LIMIT + 1), ACIK);
+    const r = await createPdf(drivePdfOlusturApi, loc, 'C', 'ozet.pdf', pdf(RESUMABLE_LIMIT + 1), HIZLI);
     expect(r.id).toBe('yeni1');
     expect(calls().slice(-2)).toEqual([
       'POST https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id,modifiedTime,headRevisionId',
@@ -215,13 +208,13 @@ describe('createPdf: upload', () => {
 
   it('resumable without a Location header: PdfUploadSession, no PUT', async () => {
     fakeDrive({ location: null });
-    await expect(createPdf(drivePdfOlusturApi, loc, 'C', 'ozet.pdf', pdf(RESUMABLE_LIMIT + 1), ACIK)).rejects.toBeInstanceOf(PdfUploadSession);
+    await expect(createPdf(drivePdfOlusturApi, loc, 'C', 'ozet.pdf', pdf(RESUMABLE_LIMIT + 1), HIZLI)).rejects.toBeInstanceOf(PdfUploadSession);
     expect(calls().some(c => c.startsWith('PUT'))).toBe(false);
   });
 
   it('generateIds fails → IdAlinamadi, no POST', async () => {
     fakeDrive({ idHata: true });
-    await expect(createPdf(drivePdfOlusturApi, loc, 'C', 'ozet.pdf', pdf(), ACIK)).rejects.toBeInstanceOf(IdAlinamadi);
+    await expect(createPdf(drivePdfOlusturApi, loc, 'C', 'ozet.pdf', pdf(), HIZLI)).rejects.toBeInstanceOf(IdAlinamadi);
     expect(posts()).toEqual([]);
   });
 });
@@ -233,7 +226,7 @@ describe('createPdf: retry never makes two files', () => {
     const cocuklar = drivePdfOlusturApi.cocuklar;
     let n = 0;
     const api = { ...drivePdfOlusturApi, cocuklar: async (id: string) => (n++ === 0 ? cocuklar(id) : (await cocuklar(id)).filter(f => f.id !== 'yeni1')) };
-    const r = await createPdf(api, loc, 'C', 'ozet.pdf', pdf(), ACIK);
+    const r = await createPdf(api, loc, 'C', 'ozet.pdf', pdf(), HIZLI);
     expect(r.id).toBe('yeni1');
     expect(posts().length).toBe(2);   // same id both times
     const ids = await Promise.all(fetchMock.mock.calls.filter(([, i]) => i?.method === 'POST')
@@ -246,13 +239,13 @@ describe('createPdf: retry never makes two files', () => {
   it('409 but the size differs → DosyaOlusturAgHatasi', async () => {
     const { items } = fakeDrive({ davranis: ['agAmaYanlisBoyut'] });
     const api = { ...drivePdfOlusturApi, cocuklar: async () => [] };   // backup check sees nothing
-    await expect(createPdf(api, loc, 'C', 'ozet.pdf', pdf(), ACIK)).rejects.toBeInstanceOf(DosyaOlusturAgHatasi);
+    await expect(createPdf(api, loc, 'C', 'ozet.pdf', pdf(), HIZLI)).rejects.toBeInstanceOf(DosyaOlusturAgHatasi);
     expect(pdfFiles(items)).toHaveLength(1);
   });
 
   it('backup check: the list already shows our file → accepted without a second upload', async () => {
     const { items } = fakeDrive({ davranis: ['agAmaOlustu'] });
-    const r = await createPdf(drivePdfOlusturApi, loc, 'C', 'ozet.pdf', pdf(), ACIK);
+    const r = await createPdf(drivePdfOlusturApi, loc, 'C', 'ozet.pdf', pdf(), HIZLI);
     expect(r.id).toBe('yeni1');
     expect(posts().length).toBe(1);
     expect(pdfFiles(items)).toHaveLength(1);
@@ -269,13 +262,13 @@ describe('createPdf: retry never makes two files', () => {
         return cocuklar(id);
       }
     };
-    await expect(createPdf(api, loc, 'C', 'ozet.pdf', pdf(), ACIK)).rejects.toBeInstanceOf(AyniIsimVar);
+    await expect(createPdf(api, loc, 'C', 'ozet.pdf', pdf(), HIZLI)).rejects.toBeInstanceOf(AyniIsimVar);
     expect(posts().length).toBe(1);
   });
 
   it('network error, nothing arrived: second upload with the same id, one file', async () => {
     const { items } = fakeDrive({ davranis: ['ag', '500'] });
-    const r = await createPdf(drivePdfOlusturApi, loc, 'C', 'ozet.pdf', pdf(), ACIK);
+    const r = await createPdf(drivePdfOlusturApi, loc, 'C', 'ozet.pdf', pdf(), HIZLI);
     expect(r.id).toBe('yeni1');
     expect(posts().length).toBe(3);
     expect(pdfFiles(items)).toHaveLength(1);
@@ -283,19 +276,19 @@ describe('createPdf: retry never makes two files', () => {
 
   it('3 network errors → DosyaOlusturAgHatasi, nothing created', async () => {
     const { items } = fakeDrive({ davranis: ['ag', 'ag', 'ag'] });
-    await expect(createPdf(drivePdfOlusturApi, loc, 'C', 'ozet.pdf', pdf(), ACIK)).rejects.toBeInstanceOf(DosyaOlusturAgHatasi);
+    await expect(createPdf(drivePdfOlusturApi, loc, 'C', 'ozet.pdf', pdf(), HIZLI)).rejects.toBeInstanceOf(DosyaOlusturAgHatasi);
     expect(posts().length).toBe(3);
     expect(pdfFiles(items)).toHaveLength(0);
   });
 
   it('403 is not retried', async () => {
     fakeDrive({ davranis: ['403'] });
-    await expect(createPdf(drivePdfOlusturApi, loc, 'C', 'ozet.pdf', pdf(), ACIK)).rejects.toThrow(/izin vermedi/);
+    await expect(createPdf(drivePdfOlusturApi, loc, 'C', 'ozet.pdf', pdf(), HIZLI)).rejects.toThrow(/izin vermedi/);
     expect(posts().length).toBe(1);
   });
 
   it('no connection at all: Turkish network error', async () => {
     fetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
-    await expect(createPdf(drivePdfOlusturApi, loc, 'C', 'ozet.pdf', pdf(), ACIK)).rejects.toBeInstanceOf(DosyaOlusturAgHatasi);
+    await expect(createPdf(drivePdfOlusturApi, loc, 'C', 'ozet.pdf', pdf(), HIZLI)).rejects.toBeInstanceOf(DosyaOlusturAgHatasi);
   });
 });

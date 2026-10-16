@@ -53,14 +53,12 @@ export function hedefHesapla(g: HedefGirdi): Hedef {
 
 export interface EkleDurumGirdi {
   ornek: boolean;          // sample library: never writes
-  kilitAcik: boolean;      // ?dosyaOlustur=1
   hazirSayisi: number;     // prepared photos
   hazirlaniyor: boolean;   // photos are still being prepared
 }
 
 export function ekleDurumu(g: EkleDurumGirdi): { aktif: boolean; aciklama: string | null } {
   if (g.ornek) return { aktif: false, aciklama: 'Örnek kitaplıkta Drive\'a ekleme yok. Bu sadece taslağın görünümü.' };
-  if (!g.kilitAcik) return { aktif: false, aciklama: 'Ekleme şimdilik kilitli. Denemek için adrese ?dosyaOlustur=1 ekle.' };
   return { aktif: g.hazirSayisi > 0 && !g.hazirlaniyor, aciklama: null };
 }
 

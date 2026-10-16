@@ -1,6 +1,6 @@
 import { DriveError } from '../drive/drive';
 import type { DriveLocation } from '../drive/driveLibrary';
-import { DosyaOlusturKilitli, tekrarlanabilir, urlKilidiAcik, YerDisi, yerKontrol, type PdfOlusturDrive } from '../drive/pdfOlustur';
+import { tekrarlanabilir, YerDisi, yerKontrol, type PdfOlusturDrive } from '../drive/pdfOlustur';
 import { PdfConflict, PdfSampleNoWrite, uploadPdf } from '../drive/pdfYazici';
 import type { UploadDeps } from '../kalem/pdfKayit';
 import { SAVE_OPTIONS, yazilabilirAc } from '../kalem/pdfNotlari';
@@ -16,7 +16,7 @@ import { MESAJLAR, sayfalariEkle, type Jpeg } from './sayfaEkle';
 //   A try that finds pages with that id in the newest file doesn't add them again (an earlier upload
 //   arrived but its answer was lost) and counts as done. A caller trying again later passes the same id.
 // - Existing pages, their notes (Defter's and others') and ribbons stay: pages are only added after them.
-// - Temporary lock as in 5.5: only with ?dosyaOlustur=1 in the URL, only with the Drive library open.
+// - Only with the Drive library open.
 
 export const EK_ID = 'DefterEkId';
 export const MAX_DENEME = 3;
@@ -119,7 +119,6 @@ export interface SayfaEklemeOrtami {
 
 export interface SayfaEklemeSecenek {
   islemId?: string;             // the same id when trying again later (5.8: stored with the photos)
-  kilitAcik?: () => boolean;    // default: ?dosyaOlustur=1 in the URL
   bekleMs?: number;
   deneme?: number;
 }
@@ -141,7 +140,6 @@ export async function ozeteSayfaEkle(
   fileId: string, jpegler: readonly Jpeg[], o: SayfaEklemeOrtami, secenek: SayfaEklemeSecenek = {}
 ): Promise<EklenenSayfalar> {
   // checks without any request
-  if (!(secenek.kilitAcik ?? urlKilidiAcik)()) throw new DosyaOlusturKilitli();
   if (isSampleId(fileId)) throw new PdfSampleNoWrite();
   if (!o.yer) throw new SayfaYazmaYok();
   const yer = o.yer;

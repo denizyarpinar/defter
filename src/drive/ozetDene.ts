@@ -9,7 +9,7 @@ import { denemeJpeg } from './sayfaDene';
 // Task 5.7, development only (loaded from main.ts under import.meta.env.DEV, not in the build):
 // - window.defterOzetDurum(kitapAdi): every topic of the book: has it a summary, which files. Reads only.
 // - window.defterOzetDene(kitapAdi, konuYolu): 2 test photos into that topic (konuyaFotografEkle):
-//   a new ozet.pdf, or added to the summary that is there. Needs ?dosyaOlustur=1 in the URL.
+//   a new ozet.pdf, or added to the summary that is there.
 
 const link = (id: string) => `https://drive.google.com/file/d/${id}/view`;
 

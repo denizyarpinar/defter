@@ -1,5 +1,5 @@
 import { SessionExpired } from '../drive/drive';
-import { DosyaOlusturAgHatasi, DosyaOlusturKilitli, DosyaYazmaYok, IdAlinamadi, YerDisi, YetkiYok } from '../drive/pdfOlustur';
+import { DosyaOlusturAgHatasi, DosyaYazmaYok, IdAlinamadi, YerDisi, YetkiYok } from '../drive/pdfOlustur';
 import { PdfReadOnly, PdfUploadSession } from '../drive/pdfYazici';
 import { PdfYazilamaz } from '../kalem/pdfNotlari';
 import type { BekleyenFoto } from './bekleyenFotoKayit';
@@ -34,7 +34,6 @@ export function kisaNeden(e: unknown): string {
   if (e instanceof PdfDosyasiDegil) return 'Hedef dosya PDF değil';
   if (e instanceof PdfReadOnly || e instanceof YetkiYok) return 'Drive\'da bu dosyaya ya da klasöre yazma iznin yok';
   if (e instanceof SayfaEklemeCakisma) return 'PDF başka bir cihazda değişip duruyor; biraz sonra tekrar dene';
-  if (e instanceof DosyaOlusturKilitli) return 'Ekleme şimdilik kilitli (adrese ?dosyaOlustur=1 ekle)';
   if (e instanceof SayfaYazmaYok || e instanceof DosyaYazmaYok) return 'Drive kitaplığı açık değil; Google ile giriş yap';
   if (e instanceof SessionExpired) return 'Oturumun süresi doldu; tekrar Google ile giriş yap';
   if (e instanceof YerDisi) return 'Konu klasörü kitaplığın dışında görünüyor';

@@ -20,7 +20,7 @@ import { seritDurumu } from '../defter/fotoEklemeMetin';
 import type { DriveFile } from '../drive/drive';
 import type { DriveLocation } from '../drive/driveLibrary';
 import { PdfYazilamaz, readDefterStrokes } from '../kalem/pdfNotlari';
-import { drivePdfOlusturApi, urlKilidiAcik } from '../drive/pdfOlustur';
+import { drivePdfOlusturApi } from '../drive/pdfOlustur';
 import { FotoDurumKutusu } from '../ui/fotoDurum';
 import type { Book, ChapterStatus, PageMark } from '../model/types';
 import { bookUnits, usesUnits } from '../model/units';
@@ -761,7 +761,6 @@ function openPhotoPanel(files: File[]): void {
     acikDosyaId: onScreen,
     sayfaSayisi: knownPageCount,
     ornek: isSampleId(folder),
-    kilitAcik: urlKilidiAcik(),
     // task 5.8f: saved on the device first (a failure rejects: the panel stays open), then to Drive
     ekle: async (jpegler: BekleyenJpeg[], hedef: DriveFile | null) => {
       const b = book;
@@ -802,7 +801,7 @@ async function topicFolderId(t: OpenTopic): Promise<string> {
 
 // A topic opened: its photos waiting on the device → the strip. Only where adding is possible.
 async function photoStrip(t: OpenTopic): Promise<void> {
-  if (!open || isSampleId(folder) || !urlKilidiAcik() || !driveLocation() || !t.klasor.trim()) return;
+  if (!open || isSampleId(folder) || !driveLocation() || !t.klasor.trim()) return;
   let ks;
   try {
     ks = await bekleyenFotoDepo.konuIcin(await topicFolderId(t));

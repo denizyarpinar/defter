@@ -206,7 +206,7 @@ Kitaplık/
 - Yeni dosya sadece `kitaplar/<kitap>/` altında oluşturulur ve sadece PDF olabilir. Başka yerde, başka türde dosya oluşturulmaz (kitaplik.json istisnası aynen kalır).
 - Oluşturmadan önce aynı klasörde aynı isimde dosya (büyük/küçük harf duyarsız, tüm sayfalar) var mı bakılır. Varsa hata verilir; üzerine yazılmaz, yeniden adlandırma yok (5.5).
 - Çift dosya koruması: generateIds ile önceden alınan id + tekrar denemede aynı id (5.5). Drive "zaten var" derse boyut eşleşiyorsa oluşmuş kabul edilir. Klasörü yeniden listeleme sadece yedek kontrol.
-- Kod: `src/drive/pdfOlustur.ts` (createPdf). Faz 5 yazma kilidi (`?dosyaOlustur=1`): yeni dosya oluşturma ve var olan PDF'e sayfa ekleme için; 5.9 gerçek testlerinden sonra kalkar.
+- Kod: `src/drive/pdfOlustur.ts` (createPdf). Faz 5 yazma kilidi (`?dosyaOlustur=1`) 5.9b'de kaldırıldı (gerçek testler tamam).
 - Uygulamanın oluşturduğu dosyalar işaretlenir: appProperties `defter: "1"`.
 - Konuda özet yoksa, defter fotoğraflarından o konunun klasörüne yeni bir `ozet.pdf` oluşturulabilir. "Özet yok" kuralı onaylandı: karar okuyucuyla aynı yerden (`classifyTopic`) gelir; `ozet.pdf` varsa o, yoksa `brifing.pdf`/`sorular.pdf`; hiçbiri yoksa yeni `ozet.pdf`. Özet varsa yeni `ozet.pdf` oluşturulmaz; sayfalar var olana eklenir (kod: `src/defter/konuyaEkle.ts`).
 - Hiçbir dosya silinmez, çöpe atılmaz, taşınmaz (değişmedi).
@@ -235,3 +235,4 @@ Kitaplık/
 - İki sekmede aynı dosya: iki ayrı çizim modeli ve bekleyen kayıt; birbirini görmüyorlar.
 - Hiç açılmayan dosyaların bekleyen kayıtları: yükleme dosya açılınca tetikleniyor; kaydı olan ama bir daha açılmayan dosya cihazda bekler.
 - README: Features tablosundaki eski durum metni (unread / studied / review) ve Almanca özet; Faz 5 görsel güncellemesiyle birlikte.
+- Brifing + sorular aynı listede görünürken sorular.pdf'e sayfa eklenirse açık listede sorular'ın sayfa sayısı konu yeniden açılana kadar eski kalır.

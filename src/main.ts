@@ -2,7 +2,6 @@ import './styles.css';
 import { AuthError, prepareAuth, rememberUser, rememberedUser, signIn, signOut } from './drive/auth';
 import { getUser, setAccountHint, setSessionExpiredHandler } from './drive/drive';
 import { LibraryNotFound, loadDriveLibrary, type DriveLocation } from './drive/driveLibrary';
-import { urlKilidiAcik } from './drive/pdfOlustur';
 import { bekleyenFotoDepo } from './defter/bekleyenFoto';
 import { acilisToastMetni } from './defter/fotoEklemeMetin';
 import { ReadingSaver, driveReadingApi } from './drive/okumaKaydi';
@@ -66,11 +65,11 @@ let durum: KitaplikDurumu = ilkDurum(startWithSample);
 // Every write to Drive goes through this: null unless the Drive library is on screen.
 const writer = () => etkinYazici(durum, saver);
 
-// dev only (task 5.5): window.defterDosyaDene(kitapAdi) creates a test PDF; needs ?dosyaOlustur=1
+// dev only (task 5.5): window.defterDosyaDene(kitapAdi) creates a test PDF
 if (import.meta.env.DEV) void import('./drive/dosyaDene').then(m => m.installDosyaDene(() => writer() ? driveLoc : null));
-// dev only (task 5.6): window.defterSayfaDene(kitapAdi, dosyaAdi) adds 2 test pages at the end; needs ?dosyaOlustur=1
+// dev only (task 5.6): window.defterSayfaDene(kitapAdi, dosyaAdi) adds 2 test pages at the end
 if (import.meta.env.DEV) void import('./drive/sayfaDene').then(m => m.installSayfaDene(() => writer() ? driveLoc : null, sayfaEklemeOrtami));
-// dev only (task 5.7): window.defterOzetDurum(kitapAdi), window.defterOzetDene(kitapAdi, konuYolu); the second needs ?dosyaOlustur=1
+// dev only (task 5.7): window.defterOzetDurum(kitapAdi), window.defterOzetDene(kitapAdi, konuYolu)
 if (import.meta.env.DEV) void import('./drive/ozetDene').then(m => m.installOzetDene(() => writer() ? driveLoc : null, () => data?.books ?? null, sayfaEklemeOrtami));
 // dev only (task 5.8e): window.defterBekleyenFoto() lists the pending photo records; .dene() / .hata(id) / .sil(id); no Drive
 if (import.meta.env.DEV) void import('./defter/bekleyenFotoDene').then(m => m.installBekleyenFoto());
@@ -182,10 +181,10 @@ async function loadFromDrive(): Promise<void> {
 }
 
 // Task 5.8f: photos waiting on the device → one short toast per page load, once the Drive library is here
-// (after the welcome / warning toasts). Only while adding is possible (?dosyaOlustur=1).
+// (after the welcome / warning toasts).
 let photosReminded = false;
 function remindPendingPhotos(): void {
-  if (photosReminded || !urlKilidiAcik()) return;
+  if (photosReminded) return;
   photosReminded = true;
   bekleyenFotoDepo.hepsi().then(ks => {
     const text = acilisToastMetni(ks);

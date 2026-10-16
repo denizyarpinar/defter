@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { SessionExpired } from '../drive/drive';
-import { DosyaOlusturAgHatasi, DosyaOlusturKilitli } from '../drive/pdfOlustur';
+import { DosyaOlusturAgHatasi } from '../drive/pdfOlustur';
 import { PdfReadOnly } from '../drive/pdfYazici';
 import { BekleyenFotoHatasi, GecisHatasi, yeniKayit, type BekleyenFoto } from './bekleyenFotoKayit';
 import { FotoEkleyici, type FotoEklemeUI } from './fotoEkleme';
@@ -43,7 +43,6 @@ describe('kisaNeden / kartMetni', () => {
   it('the others', () => {
     expect(kisaNeden(new PdfReadOnly())).toContain('yazma iznin yok');
     expect(kisaNeden(new SayfaEklemeCakisma())).toContain('başka bir cihazda');
-    expect(kisaNeden(new DosyaOlusturKilitli())).toContain('?dosyaOlustur=1');
     expect(kisaNeden(new SessionExpired())).toContain('Google ile giriş');
     expect(kisaNeden(new GecisHatasi('x', 'yukleniyor', 'yukleniyor'))).toContain('şu an ekleniyor');
     expect(kisaNeden(new BekleyenFotoHatasi('kota'))).toBe('Cihazda yer kalmadı; fotoğraflar kaydedilemedi. Biraz yer aç ve tekrar dene');

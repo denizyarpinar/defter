@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { PDFDocument, PDFName, type PDFString } from 'pdf-lib';
 import { DriveError, FOLDER_MIME, type DriveFile } from '../drive/drive';
 import type { DriveLocation } from '../drive/driveLibrary';
-import { DosyaOlusturAgHatasi, DosyaOlusturKilitli, IdZatenVar, type KlasorBilgisi, type PdfOlusturDrive, type YeniPdfMeta } from '../drive/pdfOlustur';
+import { DosyaOlusturAgHatasi, IdZatenVar, type KlasorBilgisi, type PdfOlusturDrive, type YeniPdfMeta } from '../drive/pdfOlustur';
 import { PdfSampleNoWrite, type PdfDrive } from '../drive/pdfYazici';
 import { HedefOzetDegil, konuyaFotografEkle, ozetKarari, OzetSecilmeli, type KonuEklemeOrtami, type KonuEklemeSecenek } from './konuyaEkle';
 import { EK_ID, SayfaYazmaYok } from './ozeteEkle';
@@ -47,7 +47,7 @@ describe('ozetKarari', () => {
 interface Item { name: string; parent: string; mimeType: string; bytes?: Uint8Array; n: number; kept?: boolean }
 
 const YER: DriveLocation = { rootId: 'R', libraryFileId: null, bookFolderIds: new Map([['mat-1', 'B']]), bookFileIds: new Map() };
-const KILIT: KonuEklemeSecenek = { kilitAcik: () => true, bekleMs: 0 };
+const HIZLI: KonuEklemeSecenek = { bekleMs: 0 };
 
 async function fakeDrive(konu: Record<string, number> = {}) {
   const items = new Map<string, Item>([
@@ -130,7 +130,7 @@ async function pdfBilgi(bytes: Uint8Array) {
 describe('konuyaFotografEkle', () => {
   it('no summary: one POST, ozet.pdf in the topic folder, every page marked; the reader lists again', async () => {
     const d = await fakeDrive({ 'orijinal.pdf': 2 });
-    const r = await konuyaFotografEkle('C', [dik, yatay], d.ortam, { ...KILIT, islemId: 'is-1' });
+    const r = await konuyaFotografEkle('C', [dik, yatay], d.ortam, { ...HIZLI, islemId: 'is-1' });
     expect(r).toMatchObject({ tur: 'yeni', ad: 'ozet.pdf', eskiSayfa: 0, yeniSayfa: 2, zatenVardi: false });
     expect(d.yazmalar()).toEqual(['POST:ozet.pdf']);
     expect(d.ozetler()).toEqual([r.fileId]);
@@ -140,7 +140,7 @@ describe('konuyaFotografEkle', () => {
 
   it('a summary: added at its end (5.6), no POST', async () => {
     const d = await fakeDrive({ 'orijinal.pdf': 2, 'OZET.pdf': 3 });
-    const r = await konuyaFotografEkle('C', [dik, yatay], d.ortam, { ...KILIT, islemId: 'is-2' });
+    const r = await konuyaFotografEkle('C', [dik, yatay], d.ortam, { ...HIZLI, islemId: 'is-2' });
     expect(r).toMatchObject({ tur: 'eklendi', fileId: 'OZET.pdf', eskiSayfa: 3, yeniSayfa: 5, zatenVardi: false });
     expect(d.yazmalar()).toEqual(['PATCH:OZET.pdf']);
     expect(await pdfBilgi(d.items.get('OZET.pdf')!.bytes!)).toEqual([null, null, null, 'is-2', 'is-2']);
@@ -149,15 +149,15 @@ describe('konuyaFotografEkle', () => {
 
   it('brifing + sorular and no target: OzetSecilmeli, nothing written; with a target: added to it', async () => {
     const d = await fakeDrive({ 'brifing.pdf': 1, 'sorular.pdf': 1 });
-    const e = await konuyaFotografEkle('C', [dik], d.ortam, KILIT).catch(x => x);
+    const e = await konuyaFotografEkle('C', [dik], d.ortam, HIZLI).catch(x => x);
     expect(e).toBeInstanceOf(OzetSecilmeli);
     expect(e.message).toBe('Bu konuda birden çok özet dosyası var (brifing.pdf, sorular.pdf). Hangisine ekleneceğini seç.');
     expect(d.yazmalar()).toEqual([]);
-    const r = await konuyaFotografEkle('C', [dik], d.ortam, { ...KILIT, hedefFileId: 'sorular.pdf' });
+    const r = await konuyaFotografEkle('C', [dik], d.ortam, { ...HIZLI, hedefFileId: 'sorular.pdf' });
     expect(r).toMatchObject({ tur: 'eklendi', fileId: 'sorular.pdf', yeniSayfa: 2 });
     // a target that is not this topic's summary (another topic's file, the original): nothing written
     for (const hedefFileId of ['baska', 'orijinal.pdf']) {
-      await expect(konuyaFotografEkle('C', [dik], d.ortam, { ...KILIT, hedefFileId })).rejects.toThrow(HedefOzetDegil);
+      await expect(konuyaFotografEkle('C', [dik], d.ortam, { ...HIZLI, hedefFileId })).rejects.toThrow(HedefOzetDegil);
     }
     expect(d.yazmalar()).toEqual(['PATCH:sorular.pdf']);
   });
@@ -168,7 +168,7 @@ describe('konuyaFotografEkle', () => {
     // the topic listing doesn't show it yet, createPdf's same-name check does
     const ilk = d.ortam.liste!;
     d.ortam.liste = async p => (await ilk(p)).filter(x => x.id !== 'geldi');
-    const r = await konuyaFotografEkle('C', [dik, yatay], d.ortam, { ...KILIT, islemId: 'is-3' });
+    const r = await konuyaFotografEkle('C', [dik, yatay], d.ortam, { ...HIZLI, islemId: 'is-3' });
     expect(r).toMatchObject({ tur: 'eklendi', fileId: 'geldi', eskiSayfa: 1, yeniSayfa: 3, zatenVardi: false });
     expect(d.yazmalar()).toEqual(['PATCH:geldi']);
     expect(d.ozetler()).toEqual(['geldi']);
@@ -178,29 +178,27 @@ describe('konuyaFotografEkle', () => {
   it('created but the answer lost, then tried again with the same islemId: one file, no double pages', async () => {
     const d = await fakeDrive();
     d.ayar.kayip = 1;   // the file arrives, then the connection is gone (every retry fails too)
-    await expect(konuyaFotografEkle('C', [dik, yatay], d.ortam, { ...KILIT, islemId: 'ayni' })).rejects.toThrow(DosyaOlusturAgHatasi);
+    await expect(konuyaFotografEkle('C', [dik, yatay], d.ortam, { ...HIZLI, islemId: 'ayni' })).rejects.toThrow(DosyaOlusturAgHatasi);
     expect(d.ozetler()).toHaveLength(1);
     d.ayar.agYok = false;
     // a) the listing shows it: the summary path, pages already there
-    const a = await konuyaFotografEkle('C', [dik, yatay], d.ortam, { ...KILIT, islemId: 'ayni' });
+    const a = await konuyaFotografEkle('C', [dik, yatay], d.ortam, { ...HIZLI, islemId: 'ayni' });
     expect(a).toMatchObject({ tur: 'eklendi', yeniSayfa: 2, zatenVardi: true });
     // b) the topic listing is late: createPdf → AyniIsimVar → the summary path, pages already there
     const id = d.ozetler()[0];
     const ilk = d.ortam.liste!;
     d.ortam.liste = async p => (await ilk(p)).filter(x => x.id !== id);
-    const b = await konuyaFotografEkle('C', [dik, yatay], d.ortam, { ...KILIT, islemId: 'ayni' });
+    const b = await konuyaFotografEkle('C', [dik, yatay], d.ortam, { ...HIZLI, islemId: 'ayni' });
     expect(b).toMatchObject({ tur: 'eklendi', fileId: id, yeniSayfa: 2, zatenVardi: true });
     expect(d.ozetler()).toEqual([id]);
     expect(await pdfBilgi(d.items.get(id)!.bytes!)).toEqual(['ayni', 'ayni']);
     expect(d.yazmalar()).toEqual(['POST:ozet.pdf']);   // nothing written after the first try
   });
 
-  it('lock closed / Drive library not open / sample: no request at all (not even a listing)', async () => {
+  it('Drive library not open / sample: no request at all (not even a listing)', async () => {
     const d = await fakeDrive();
-    await expect(konuyaFotografEkle('C', [dik], d.ortam, { kilitAcik: () => false })).rejects.toThrow(DosyaOlusturKilitli);
-    await expect(konuyaFotografEkle('C', [dik], d.ortam)).rejects.toThrow('Drive\'a yazma (Faz 5) şimdilik kilitli; denemek için adrese ?dosyaOlustur=1 ekle.');
-    await expect(konuyaFotografEkle('C', [dik], { ...d.ortam, yer: null }, KILIT)).rejects.toThrow(SayfaYazmaYok);
-    await expect(konuyaFotografEkle('ornek:kitap#Konu-01', [dik], d.ortam, KILIT)).rejects.toThrow(PdfSampleNoWrite);
+    await expect(konuyaFotografEkle('C', [dik], { ...d.ortam, yer: null }, HIZLI)).rejects.toThrow(SayfaYazmaYok);
+    await expect(konuyaFotografEkle('ornek:kitap#Konu-01', [dik], d.ortam, HIZLI)).rejects.toThrow(PdfSampleNoWrite);
     expect(d.log).toEqual([]);
     expect(d.olaylar).toEqual([]);
   });
