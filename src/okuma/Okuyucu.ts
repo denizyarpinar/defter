@@ -1003,6 +1003,7 @@ function mountPdf(i: number, p: BookPage, box: HTMLElement, cssW: number, cssH: 
   };
   // The pen layer: from the pen model once the file's strokes are loaded (task 4.6, also after the
   // pen is turned off: unsaved strokes stay on screen), else from pdf.js getAnnotations (task 4.5).
+  // Task 4.7c: a file with Defter notes gets its model loaded in reading mode too (pressure).
   let layerGen = 0;
   const showLayer = (g: number, svg: string, vp: PenViewport) => {
     if (g !== layerGen || !mine()) return;
@@ -1025,7 +1026,11 @@ function mountPdf(i: number, p: BookPage, box: HTMLElement, cssW: number, cssH: 
       if (m.vp) showLayer(g, svg(m.vp), m.vp);
       else content.viewport(p).then(vp => showLayer(g, svg(vp), vp), failed);
     } else if (PEN_LAYER !== 'kapali') {
-      content.defterNotes(p).then(n => showLayer(g, penLayerSvg(n.inks, n.viewport, PEN_LAYER), n.viewport), failed);
+      content.defterNotes(p).then(n => {
+        showLayer(g, penLayerSvg(n.inks, n.viewport, PEN_LAYER), n.viewport);
+        // task 4.7c: Defter notes here → the file's strokes with their pressure (pdf-lib, loaded only now)
+        if (n.inks.length && PEN_LAYER === 'normal' && mine()) loadFile(p, true);
+      }, failed);
     }
   };
   const m: Mounted = { release, detail, detailWant, wake, box, pdf: p, layer };
@@ -1178,24 +1183,36 @@ function loadVisibleFiles(): void {
 // file key → its name (for the undo toast when the file is not open now)
 const penFileNames = new Map<string, string>();
 
-function loadFile(p: BookPage): void {
+// quiet (task 4.7c): reading mode, the file has Defter notes; it is read for the Apple Pencil's
+// pressure (only pdf-lib gives it), its layer then draws from the model. A failure there is not
+// told (the page keeps the pdf.js strokes) until the pen is turned on.
+function loadFile(p: BookPage, quiet = false): void {
   const key = fileKey(p);
-  if (penModel.state(key)) return;
   if (p.ad) penFileNames.set(key, p.ad);
+  if (penModel.state(key)) {
+    if (!quiet) tellError(p, key);   // it failed in reading mode: told now, once
+    return;
+  }
   void penModel.ensure(key, async () => new Uint8Array(await getPdf(p.dosyaId!, p.modifiedTime!))).then(() => {
     if (!open) return;
-    const err = penModel.takeError(key);
-    if (err instanceof SessionExpired) { closeOkuyucu(); return; }
-    if (err) {
-      console.warn(`Kalem: "${p.ad}" okunamadı.`, err);
-      const name = p.ad ?? 'PDF';
-      toast(err instanceof PdfYazilamaz
-        ? `Kalem bu dosyada çalışmıyor (${name}). ${err.message}`
-        : `Kalem bu dosyada açılamadı (${name}). İnternet bağlantını kontrol et; kalemi kapatıp açınca tekrar denenir.`);
+    if (penModel.state(key) === 'hata') {
+      if (!quiet || penOn) tellError(p, key);
     } else {
       for (const m of mounted.values()) if (m.pdf && fileKey(m.pdf) === key) m.layer?.();
     }
     renderTools();
   });
   renderTools();
+}
+
+// The file's error, once (takeError)
+function tellError(p: BookPage, key: string): void {
+  const err = penModel.takeError(key);
+  if (err instanceof SessionExpired) { closeOkuyucu(); return; }
+  if (!err) return;
+  console.warn(`Kalem: "${p.ad}" okunamadı.`, err);
+  const name = p.ad ?? 'PDF';
+  toast(err instanceof PdfYazilamaz
+    ? `Kalem bu dosyada çalışmıyor (${name}). ${err.message}`
+    : `Kalem bu dosyada açılamadı (${name}). İnternet bağlantını kontrol et; kalemi kapatıp açınca tekrar denenir.`);
 }

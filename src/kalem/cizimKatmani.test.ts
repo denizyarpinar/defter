@@ -10,9 +10,52 @@ const pen = (lines: number[][], extra: Partial<DefterInk> = {}): DefterInk =>
 
 const svgs = (markup: string) => [...markup.matchAll(/<svg class="o-cizim (\w+)" viewBox="([^"]+)"[^>]*>(.*?)<\/svg>/g)]
   .map(m => ({ cls: m[1], viewBox: m[2], body: m[3] }));
-// every point of every path / circle, in order: [[x, y], …] per shape
-const shapes = (body: string) => [...body.matchAll(/<path d="M([^"]+)"|<circle cx="([^"]+)" cy="([^"]+)"/g)]
-  .map(m => m[1] ? m[1].split('L').map(p => p.split(' ').map(Number)) : [[Number(m[2]), Number(m[3])]]);
+// every path: its points (start, Q controls and ends) in order, closed or not
+const paths = (body: string) => [...body.matchAll(/<path d="([^"]+)"/g)].map(m => {
+  const n = m[1].replace(/[MQZ]/g, ' ').trim().split(/\s+/).map(Number);
+  const pts: [number, number][] = [];
+  for (let i = 0; i + 1 < n.length; i += 2) pts.push([n[i], n[i + 1]]);
+  return { d: m[1], pts, closed: m[1].endsWith('Z') };
+});
+// distance from p to the polyline
+function distTo(p: [number, number], line: number[][]): number {
+  let best = Infinity;
+  for (let i = 0; i < line.length; i++) {
+    const a = line[i], b = line[Math.min(i + 1, line.length - 1)];
+    const dx = b[0] - a[0], dy = b[1] - a[1], len = dx * dx + dy * dy;
+    const t = len ? Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / len)) : 0;
+    best = Math.min(best, Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy));
+  }
+  return best;
+}
+// A filled outline around the line: it reaches both ends, and stays inside the line's box grown by
+// the widest half-width (1.5 × width / 2), plus a little: the curve through the points rounds a sharp
+// corner and goes a hair past it (more when the points are far apart: the test PDF's L is drawn
+// with a point every 2 pt, like a pen).
+function expectOutline(o: { pts: [number, number][]; closed: boolean }, line: number[][], width: number) {
+  expect(o.closed).toBe(true);
+  const r = width * 0.75 + 0.2;
+  const xs = line.map(p => p[0]), ys = line.map(p => p[1]);
+  for (const [x, y] of o.pts) {
+    expect(x).toBeGreaterThanOrEqual(Math.min(...xs) - r);
+    expect(x).toBeLessThanOrEqual(Math.max(...xs) + r);
+    expect(y).toBeGreaterThanOrEqual(Math.min(...ys) - r);
+    expect(y).toBeLessThanOrEqual(Math.max(...ys) + r);
+  }
+  for (const end of [line[0], line[line.length - 1]]) {
+    expect(Math.min(...o.pts.map(p => Math.hypot(p[0] - end[0], p[1] - end[1])))).toBeLessThanOrEqual(r);
+  }
+}
+// a polyline with a point every 0.5 (like the pen gives them)
+function dense(line: number[][]): number[] {
+  const out: number[] = [];
+  for (let i = 0; i + 1 < line.length; i++) {
+    const [a, b] = [line[i], line[i + 1]], n = Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 0.5);
+    for (let k = 0; k < n; k++) out.push(a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n);
+  }
+  const last = line[line.length - 1];
+  return [...out, last[0], last[1]];
+}
 
 describe('defterInks', () => {
   it('only Defter Ink notes; rawWidth before width; color and opacity', () => {
@@ -35,35 +78,64 @@ describe('penLayerSvg', () => {
     expect(penLayerSvg([pen([[1, 2, 3, 4]])], flat, 'kapali')).toBe('');
   });
 
-  it('a stroke is a round path in viewport coordinates; the viewBox is the page at scale 1', () => {
+  it('task 4.7c: a pen stroke is its outline, filled, in viewport coordinates; the viewBox is the page at scale 1', () => {
     const [s] = svgs(penLayerSvg([pen([[10, 20, 30, 40.123]])], flat, 'normal'));
     expect(s.cls).toBe('kalem');
     expect(s.viewBox).toBe('0 0 100 200');
-    expect(shapes(s.body)).toEqual([[[10, 180], [30, 159.88]]]);
-    expect(s.body).toContain('stroke="rgb(211,47,47)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"');
-    expect(s.body).toContain('fill="none"');
-    expect(s.body).not.toContain('opacity');
+    const [o] = paths(s.body);
+    expectOutline(o, [[10, 180], [30, 159.877]], 3);
+    expect(o.d).toContain('Q');
+    expect(o.d).not.toContain('L');
+    expect(s.body).toContain('fill="rgb(211,47,47)"/>');
+    expect(s.body).not.toMatch(/stroke|opacity/);
+  });
+
+  it('task 4.7c: a dense stroke stays within its half-width; with pressure, hard is wider than light', () => {
+    const line = dense([[10, 100], [40, 110], [70, 100], [90, 120]]);
+    const onScreen = [[10, 100], [40, 90], [70, 100], [90, 80]];
+    const reach = (pressure?: number[]) => {
+      const [o] = paths(svgs(penLayerSvg([pen([line], { width: 4, pressure })], flat, 'normal'))[0].body);
+      return Math.max(...o.pts.map(q => distTo(q, onScreen)));
+    };
+    const all = (p: number) => Array(line.length / 2).fill(p);
+    expect(reach(all(1))).toBeGreaterThan(2.5);          // 1.5 × 4 / 2 = 3
+    expect(reach(all(1))).toBeLessThanOrEqual(3.15);
+    expect(reach(all(0.1))).toBeLessThan(1.8);           // 0.5 × 4 / 2 = 1, more at the sharp corners (smoothing)
+    expect(reach(all(1))).toBeGreaterThan(reach(all(0.1)) + 1);
+    expect(reach()).toBeLessThanOrEqual(3.15);           // simulated pressure (mouse, finger, old strokes)
   });
 
   it('a single point is a round dot as wide as the line', () => {
     const [s] = svgs(penLayerSvg([pen([[50, 50]], { width: 6 })], flat, 'normal'));
-    expect(s.body).toBe('<circle cx="50" cy="150" r="3" fill="rgb(211,47,47)"/>');
+    const [o] = paths(s.body);
+    expect(o.closed).toBe(true);
+    for (const [x, y] of o.pts) {
+      const r = Math.hypot(x - 50, y - 150);
+      expect(r).toBeGreaterThan(2.9);
+      expect(r).toBeLessThanOrEqual(3.01);
+    }
   });
 
-  it('highlighter (opacity < 1) in its own SVG under the pen; every stroke keeps its opacity', () => {
-    const hl = pen([[0, 10, 90, 10]], { color: 'rgb(255,235,59)', width: 14, opacity: 0.4 });
+  it('highlighter (opacity < 1) in its own SVG under the pen: a smooth line from the first to the last point', () => {
+    const hl = pen([[0, 10, 30, 30, 60, 10, 90, 30]], { color: 'rgb(255,235,59)', width: 14, opacity: 0.4 });
     const out = svgs(penLayerSvg([pen([[1, 1, 2, 2]]), hl, pen([[5, 5]])], flat, 'normal'));
     expect(out.map(s => s.cls)).toEqual(['fosforlu', 'kalem']);
-    expect(out[0].body).toContain('stroke-width="14"');
-    expect(out[0].body).toContain('opacity="0.4"');
-    expect(shapes(out[1].body)).toHaveLength(2);
+    expect(out[0].body).toContain('fill="none" stroke="rgb(255,235,59)" stroke-width="14" stroke-linecap="round" stroke-linejoin="round" opacity="0.4"');
+    const [line] = paths(out[0].body);
+    expect(line.closed).toBe(false);
+    expect(line.pts[0]).toEqual([0, 190]);
+    expect(line.pts[line.pts.length - 1]).toEqual([90, 170]);
+    expect(line.d).not.toContain('L');
+    // the corners are controls: the line goes round them, through the midpoints
+    expect(line.pts).toContainEqual([45, 180]);
+    expect(paths(out[1].body)).toHaveLength(2);
   });
 
   it('?cizimKontrol=1: one SVG, thin dashed cyan, no fill, no opacity', () => {
     const hl = pen([[0, 10, 90, 10]], { width: 14, opacity: 0.4 });
     const out = svgs(penLayerSvg([pen([[1, 1, 2, 2]]), hl, pen([[5, 5]])], flat, 'kontrol'));
     expect(out.map(s => s.cls)).toEqual(['kontrol']);
-    expect(shapes(out[0].body)).toHaveLength(3);
+    expect(paths(out[0].body)).toHaveLength(3);
     for (const el of out[0].body.split('/>').filter(Boolean)) {
       expect(el).toContain('stroke="#00bcd4" stroke-width="1" vector-effect="non-scaling-stroke" stroke-dasharray');
       expect(el).toContain('fill="none"');
@@ -102,20 +174,18 @@ describe('kalem-testi.pdf: the layer lands on the notes', () => {
         expect(h).toBeCloseTo(size[1], 1);
       }
       const want = (pts: number[]) => pts.reduce<number[][]>((a, v, i) => (i % 2 ? a[a.length - 1].push(v) : a.push([v]), a), []).map(([x, y]) => at(x, y));
-      const near = (got: number[][][], exp: number[][][]) => {
-        expect(got.length).toBe(exp.length);
-        got.forEach((g, i) => {
-          expect(g.length).toBe(exp[i].length);
-          g.forEach(([x, y], j) => { expect(x).toBeCloseTo(exp[i][j][0], 1); expect(y).toBeCloseTo(exp[i][j][1], 1); });
-        });
-      };
-      near(shapes(out[0].body), [want([ox - 2, oy + 384, ox + 215, oy + 384])]);
+      const near = (got: [number, number], exp: number[]) => { expect(got[0]).toBeCloseTo(exp[0], 1); expect(got[1]).toBeCloseTo(exp[1], 1); };
+      // highlighter: from its first point to its last
+      const [hl] = paths(out[0].body);
+      const hlWant = want([ox - 2, oy + 384, ox + 215, oy + 384]);
+      near(hl.pts[0], hlWant[0]);
+      near(hl.pts[hl.pts.length - 1], hlWant[1]);
       expect(out[0].body).toContain('stroke-width="14"');   // rawWidth (pdf.js says 1 for this flat note)
-      near(shapes(out[1].body), [
-        want([ox, oy + 300, ox, oy + 120, ox + 200, oy + 120, ox + 260, oy + 200]),
-        want([ox + 300, oy + 300])
-      ]);
-      expect(out[1].body).toContain('<circle');
+      // pen (task 4.7c): outlines around the line and the dot
+      const pens = paths(out[1].body);
+      expect(pens).toHaveLength(2);
+      expectOutline(pens[0], want([ox, oy + 300, ox, oy + 120, ox + 200, oy + 120, ox + 260, oy + 200]), 3);
+      expectOutline(pens[1], want([ox + 300, oy + 300]), 6);
     } finally {
       await doc.loadingTask.destroy();
     }

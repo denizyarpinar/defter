@@ -212,7 +212,7 @@ export class PenModel {
 
   // For the SVG layer (penLayerSvg)
   inks(key: string, page: number): DefterInk[] {
-    return this.strokes(key, page).map(s => ({ lines: [s.noktalar], color: s.renk, width: s.kalinlik, opacity: s.opaklik }));
+    return this.strokes(key, page).map(s => ({ lines: [s.noktalar], color: s.renk, width: s.kalinlik, opacity: s.opaklik, pressure: s.basinc }));
   }
 
   clear(): void {

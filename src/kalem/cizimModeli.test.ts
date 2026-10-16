@@ -37,6 +37,10 @@ describe('kalem-testi.pdf → the model', () => {
     for (let i = 0; i < 6; i++) all += m.strokes('kalem-testi@1', i).length;
     expect(all).toBe(15);
     expect(m.dirty).toBe(false);
+    // task 4.7c: page 2's stroke has the Pencil's pressure; the layer gets it, the others have none
+    expect(m.strokes('kalem-testi@1', 1)[0].basinc).toEqual([0.1, 0.4, 1, 0.4, 0.1]);
+    expect(m.inks('kalem-testi@1', 1)[0].pressure).toEqual([0.1, 0.4, 1, 0.4, 0.1]);
+    expect(m.inks('kalem-testi@1', 0).map(i => i.pressure)).toEqual([undefined, undefined]);
   });
 });
 

@@ -1,8 +1,11 @@
 // A pen stroke (Faz 4, task 4.3). Coordinates are in PDF user space (pt, unrotated page),
 // so they don't depend on zoom or page rotation; turning them into screen pixels is the
 // drawing layer's job (pdf.js viewport).
-// The width is constant along the stroke for now. Pressure can be added later as an optional
-// field (e.g. basinc?: number[], one 0–1 value per point) without changing these fields.
+// Task 4.7c: a pen stroke may have the Apple Pencil's pressure (basinc, one 0–1 value per point);
+// its width then follows it (cizgiSekli.ts). Without it (mouse, finger, older strokes) the
+// pressure is simulated from the speed. The highlighter has no pressure: constant width.
+
+import { MAX_WIDTH_FACTOR } from './cizgiSekli';
 
 export type StrokeTool = 'kalem' | 'fosforlu';
 export const STROKE_TOOLS: readonly StrokeTool[] = ['kalem', 'fosforlu'];
@@ -11,10 +14,14 @@ export interface Stroke {
   id: string;           // unique; the caller makes it (crypto.randomUUID)
   arac: StrokeTool;
   renk: string;         // '#rrggbb'
-  kalinlik: number;     // line width in pt, > 0
+  kalinlik: number;     // line width in pt at medium pressure, > 0
   opaklik: number;      // 0 < x ≤ 1
   noktalar: number[];   // x,y,x,y… in PDF user space (pt)
+  basinc?: number[];    // pen only: 0–1 per point, 2 decimals (rounded when drawn, so it stays as saved)
 }
+
+// 2 decimals: what is stored, so the live stroke is the saved one
+export const roundPressure = (p: number) => Math.round(Math.min(1, Math.max(0, p)) * 100) / 100;
 
 // Page index (0-based) → the Defter strokes on that page.
 export type PageStrokes = Map<number, Stroke[]>;
@@ -34,9 +41,15 @@ export function validateStroke(s: Stroke): void {
   if (s.arac === 'fosforlu' && s.opaklik === 1) bad(`fosforlu opaklığı 1'den küçük olmalı`);
   if (s.noktalar.length < 2 || s.noktalar.length % 2 !== 0) bad('nokta sayısı');
   if (!s.noktalar.every(Number.isFinite)) bad('nokta sayı değil');
+  if (s.basinc !== undefined) {
+    if (s.arac !== 'kalem') bad('fosforluda basınç olmaz');
+    if (!Array.isArray(s.basinc) || s.basinc.length !== s.noktalar.length / 2) bad('basınç sayısı nokta sayısına eşit değil');
+    if (!s.basinc.every(p => Number.isFinite(p) && p >= 0 && p <= 1)) bad('basınç 0–1 arasında değil');
+  }
 }
 
-// The stroke's bounds, grown by half the line width (round caps reach that far) plus 1 pt.
+// The stroke's bounds, grown by half the widest the line can get (round caps reach that far) plus 1 pt.
+// Pen: up to 1.5 × kalinlik at full pressure (cizgiSekli.ts).
 export function strokeBounds(s: Stroke): [number, number, number, number] {
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   for (let i = 0; i < s.noktalar.length; i += 2) {
@@ -46,7 +59,7 @@ export function strokeBounds(s: Stroke): [number, number, number, number] {
     if (y < y0) y0 = y;
     if (y > y1) y1 = y;
   }
-  const pad = s.kalinlik / 2 + 1;
+  const pad = s.kalinlik * (s.arac === 'kalem' ? MAX_WIDTH_FACTOR : 1) / 2 + 1;
   return [x0 - pad, y0 - pad, x1 + pad, y1 + pad];
 }
 

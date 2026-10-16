@@ -1,4 +1,5 @@
-import type { Stroke } from './cizgi';
+import { roundPressure, type Stroke } from './cizgi';
+import { curveToSvg, strokeCurve } from './cizgiSekli';
 import { InputRouter } from './girdi';
 import { pushPoint, screenToViewport, toPdf, type PenViewport } from './koordinat';
 import { eraserRadius, type Pt } from './silgi';
@@ -11,6 +12,9 @@ import { eraserRadius, type Pt } from './silgi';
 // point to the new one goes to the host. A grey circle shows the eraser (also on hover for pen / mouse).
 // Task 4.7b: the eraser follows the pointer onto the next page (book: the other side; PDF: below / above).
 // A pen stroke stays on the page it started on.
+// Task 4.7c: the live path is the stroke's final shape (cizgiSekli.ts: the pen's outline, filled, its
+// width from the Apple Pencil's pressure; the highlighter's smoothed line), so nothing changes when
+// the pen lifts. Predicted points (getPredictedEvents, where the browser has it) are only drawn.
 
 const SVG = 'http://www.w3.org/2000/svg';
 
@@ -44,8 +48,10 @@ interface Live {
   style: ReturnType<PenHost['style']>;
   svg: SVGSVGElement;
   path: SVGPathElement;
-  pdf: number[];     // PDF user space
-  view: number[];    // viewBox units (what the path draws)
+  pdf: number[];            // PDF user space
+  basinc: number[] | null;  // Apple Pencil only (mouse / finger pressure isn't real: simulated when drawn)
+  predicted: number[];      // PDF user space, drawn but not kept
+  predTimer: number;        // clears the predicted points when the pen stops
   raf: number;
 }
 
@@ -164,13 +170,15 @@ export class PenInput {
     svg.setAttribute('preserveAspectRatio', 'none');
     svg.setAttribute('aria-hidden', 'true');
     const path = document.createElementNS(SVG, 'path');
-    for (const [k, v] of Object.entries({
-      fill: 'none', stroke: style.renk, 'stroke-width': num(style.kalinlik), 'stroke-linecap': 'round', 'stroke-linejoin': 'round'
-    })) path.setAttribute(k, v);
-    if (style.opaklik < 1) path.setAttribute('opacity', num(style.opaklik));
+    // as the layer draws it (cizimKatmani.ts): pen filled, highlighter stroked
+    const attrs: Record<string, string> = style.arac === 'kalem'
+      ? { fill: style.renk }
+      : { fill: 'none', stroke: style.renk, 'stroke-width': num(style.kalinlik), 'stroke-linecap': 'round', 'stroke-linejoin': 'round', opacity: num(style.opaklik) };
+    for (const [k, v] of Object.entries(attrs)) path.setAttribute(k, v);
     svg.append(path);
     box.append(svg);
-    this.live = { id: e.pointerId, pen: e.pointerType === 'pen', box, page, style, svg, path, pdf: [], view: [], raf: 0 };
+    const pen = e.pointerType === 'pen';
+    this.live = { id: e.pointerId, pen, box, page, style, svg, path, pdf: [], basinc: pen && style.arac === 'kalem' ? [] : null, predicted: [], predTimer: 0, raf: 0 };
     this.addPoint(e);
     this.paint();
   }
@@ -196,9 +204,19 @@ export class PenInput {
     const l = this.live;
     if (!l || l.id !== e.pointerId) return;
     const evs = typeof e.getCoalescedEvents === 'function' ? e.getCoalescedEvents() : [];
-    let added = false;
-    for (const ev of evs.length ? evs : [e]) added = this.addPoint(ev) || added;
-    if (added && !l.raf) l.raf = requestAnimationFrame(() => { l.raf = 0; if (this.live === l) this.paint(); });
+    let changed = false;
+    for (const ev of evs.length ? evs : [e]) changed = this.addPoint(ev) || changed;
+    // where the pen is about to be (Chrome / Edge; not in Safari): drawn ahead, replaced on every move
+    const pred = typeof e.getPredictedEvents === 'function' ? e.getPredictedEvents() : [];
+    if (pred.length || l.predicted.length) {
+      l.predicted = [];
+      for (const ev of pred) l.predicted.push(...this.toPdfPoint(ev, l));
+      changed = true;
+      // the pen stopped (no new move): the guess would stay ahead of it as a tail, so it goes
+      clearTimeout(l.predTimer);
+      if (l.predicted.length) l.predTimer = window.setTimeout(() => { if (this.live === l) { l.predicted = []; this.paint(); } }, 50);
+    }
+    if (changed && !l.raf) l.raf = requestAnimationFrame(() => { l.raf = 0; if (this.live === l) this.paint(); });
   }
 
   private up(e: PointerEvent, ok: boolean): void {
@@ -220,7 +238,9 @@ export class PenInput {
     cancelAnimationFrame(l.raf);
     l.svg.remove();
     // a single tap is a dot: one point
-    this.host.add(l.page, { id: newId(), ...l.style, noktalar: l.pdf });
+    const s: Stroke = { id: newId(), ...l.style, noktalar: l.pdf };
+    if (l.basinc) s.basinc = l.basinc;
+    this.host.add(l.page, s);
   }
 
   // The eraser moves to (cx, cy). Over another page: the old page is erased up to its edge, the new
@@ -281,20 +301,26 @@ export class PenInput {
     c.circle.setAttribute('r', num(eraserRadius(rect.width, vp.width)));
   }
 
+  private toPdfPoint(e: PointerEvent, l: Live): [number, number] {
+    const [vx, vy] = screenToViewport(e.clientX, e.clientY, l.box.getBoundingClientRect(), l.page.viewport);
+    return toPdf(l.page.viewport, vx, vy);
+  }
+
   private addPoint(e: PointerEvent): boolean {
     const l = this.live!;
-    const [vx, vy] = screenToViewport(e.clientX, e.clientY, l.box.getBoundingClientRect(), l.page.viewport);
-    const [x, y] = toPdf(l.page.viewport, vx, vy);
+    const [x, y] = this.toPdfPoint(e, l);
     if (!pushPoint(l.pdf, x, y)) return false;
-    l.view.push(vx, vy);
+    l.basinc?.push(roundPressure(e.pressure));   // rounded now: the live stroke is the saved one
     return true;
   }
 
+  // The stroke's shape so far (not finished: last = false) plus the predicted points
   private paint(): void {
-    const l = this.live!, v = l.view;
-    // one point: a zero-length line, drawn as a round dot by the round cap
-    let d = `M${num(v[0])} ${num(v[1])}` + (v.length === 2 ? `L${num(v[0])} ${num(v[1])}` : '');
-    for (let i = 2; i < v.length; i += 2) d += `L${num(v[i])} ${num(v[i + 1])}`;
-    l.path.setAttribute('d', d);
+    const l = this.live!;
+    const noktalar = l.predicted.length ? l.pdf.concat(l.predicted) : l.pdf;
+    let basinc = l.basinc ?? undefined;
+    if (basinc && l.predicted.length) basinc = basinc.concat(Array(l.predicted.length / 2).fill(basinc[basinc.length - 1]));
+    const curve = strokeCurve({ arac: l.style.arac, noktalar, basinc, kalinlik: l.style.kalinlik }, false);
+    l.path.setAttribute('d', curveToSvg(curve, (x, y) => l.page.viewport.convertToViewportPoint(x, y)));
   }
 }

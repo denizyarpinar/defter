@@ -1,12 +1,16 @@
 import type { PDFArray, PDFContext, PDFDict, PDFDocument, PDFObject, PDFRef } from 'pdf-lib';
 import { TITLE } from './defterNotu';
 import { hexToRgb, rgbToHex, strokeBounds, validateStroke, type PageStrokes, type Stroke, type StrokeTool } from './cizgi';
+import { curveBounds, curveToPdf, strokeCurve, type Curve } from './cizgiSekli';
 
 // Pen strokes as PDF Ink annotations (Faz 4, task 4.3). Nothing calls this yet.
 // - Only Ink annotations marked with /DefterId are ours: read, replaced and removed here.
 //   Page content streams, other annotations, form fields, metadata and page order stay as they are.
 // - Every note gets an appearance stream (/AP /N), so Drive preview, iPad and Windows show it.
 //   Highlighter: opacity < 1 and blend mode Multiply in the appearance's ExtGState.
+// - Task 4.7c: the appearance is the shape the app draws (cizgiSekli.ts): pen = the filled outline
+//   (its width follows the pressure), highlighter = the smoothed centre line. /InkList stays the
+//   plain centre line (for other programs) and the pressure goes in /DefterBasinc.
 // - Notes hang on the page object (/Annots, /P), not on a page number: a page inserted later
 //   (Faz 5) doesn't move them to another page.
 // - pdf-lib is loaded only when this runs (dynamic import), so it stays out of the first bundle.
@@ -84,14 +88,22 @@ function toStroke(L: Lib, ctx: PDFContext, dict: PDFDict): Stroke | null {
   const w = bs && get(ctx, bs, 'W', L.PDFNumber, L)?.asNumber();
   const border = numbers(L, ctx, get(ctx, dict, 'Border', L.PDFArray, L))[2];
   const ca = get(ctx, dict, 'CA', L.PDFNumber, L)?.asNumber();
-  return {
+  const arac: StrokeTool = tool === 'fosforlu' ? 'fosforlu' : 'kalem';
+  const s: Stroke = {
     id,
-    arac: tool === 'fosforlu' ? 'fosforlu' : 'kalem',
+    arac,
     renk: c.length >= 3 ? rgbToHex(c) : c.length === 1 ? rgbToHex([c[0], c[0], c[0]]) : '#000000',
     kalinlik: w ?? border ?? 1,
     opaklik: ca ?? 1,
     noktalar
   };
+  // pressure that doesn't fit the points (another program changed the line) is left out
+  const basinc = get(ctx, dict, 'DefterBasinc', L.PDFArray, L);
+  if (basinc && arac === 'kalem') {
+    const p = numbers(L, ctx, basinc);
+    if (p.length === noktalar.length / 2 && p.every(v => v >= 0 && v <= 1)) s.basinc = p;
+  }
+  return s;
 }
 
 // Page index → the Defter strokes on it. Pages without any are not in the map.
@@ -153,22 +165,33 @@ function pdfDate(d: Date): string {
   return `D:${d.getUTCFullYear()}${p(d.getUTCMonth() + 1)}${p(d.getUTCDate())}${p(d.getUTCHours())}${p(d.getUTCMinutes())}${p(d.getUTCSeconds())}Z`;
 }
 
-// The appearance: the stroke as a path with round caps and joins, in page coordinates.
-// BBox = Rect and the matrix is identity, so the form lands exactly where it was drawn.
-function appearance(s: Stroke): string {
+// The appearance, in page coordinates (BBox = Rect, identity matrix: the form lands where it was drawn).
+// Pen: the outline, filled (nonzero rule: where the outline crosses itself it stays filled).
+// Highlighter: the smoothed centre line with round caps and joins (a single point: a round dot).
+function appearance(s: Stroke, curve: Curve): string {
   const [r, g, b] = hexToRgb(s.renk).map(r3);
-  const pts = s.noktalar.map(r2);
-  const path = [`${pts[0]} ${pts[1]} m`];
-  if (pts.length === 2) path.push(`${pts[0]} ${pts[1]} l`);   // a single point: a round dot
-  for (let i = 2; i < pts.length; i += 2) path.push(`${pts[i]} ${pts[i + 1]} l`);
-  return `q /GS0 gs 1 J 1 j ${r2(s.kalinlik)} w ${r} ${g} ${b} RG\n${path.join('\n')}\nS Q\n`;
+  const path = curveToPdf(curve);
+  if (s.arac === 'kalem') return `q /GS0 gs ${r} ${g} ${b} rg\n${path}\nf Q\n`;
+  return `q /GS0 gs 1 J 1 j ${r2(s.kalinlik)} w ${r} ${g} ${b} RG\n${path}\nS Q\n`;
+}
+
+// Rect: the points' bounds (strokeBounds), grown to the drawn curve's where it reaches further
+// (the smoothed curve can bulge a little past a sharp corner). Outward rounding: nothing is cut off.
+function inkRect(s: Stroke, curve: Curve): number[] {
+  const a = strokeBounds(s), c = curveBounds(curve);
+  const pad = (s.arac === 'kalem' ? 0 : s.kalinlik / 2) + 1;
+  return [
+    Math.floor(Math.min(a[0], c[0] - pad) * 100) / 100, Math.floor(Math.min(a[1], c[1] - pad) * 100) / 100,
+    Math.ceil(Math.max(a[2], c[2] + pad) * 100) / 100, Math.ceil(Math.max(a[3], c[3] + pad) * 100) / 100
+  ];
 }
 
 function addInk(L: Lib, ctx: PDFContext, pageRef: PDFRef, s: Stroke, date: string): PDFRef {
-  const rect = strokeBounds(s).map(r2);
+  const curve = strokeCurve(s);
+  const rect = inkRect(s, curve);
   const gs: Record<string, number | string> = { Type: 'ExtGState', CA: s.opaklik, ca: s.opaklik };
   if (s.arac === 'fosforlu') gs.BM = 'Multiply';
-  const ap = ctx.register(ctx.flateStream(appearance(s), {
+  const ap = ctx.register(ctx.flateStream(appearance(s, curve), {
     Type: 'XObject', Subtype: 'Form', FormType: 1, BBox: rect,
     Resources: { ExtGState: { GS0: gs } }
   }));
@@ -186,6 +209,7 @@ function addInk(L: Lib, ctx: PDFContext, pageRef: PDFRef, s: Stroke, date: strin
     T: L.PDFString.of(TITLE),
     DefterId: L.PDFHexString.fromText(s.id),
     DefterArac: tool,
+    ...(s.basinc ? { DefterBasinc: s.basinc } : {}),
     AP: { N: ap }
   }));
 }

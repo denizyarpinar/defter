@@ -774,6 +774,16 @@ async function penTest() {
     { title: 'Pen test - page 5: rotated 270', rotate: 270 },
     { title: 'Pen test - page 6: CropBox from 120 160', crop: [120, 160, 400, 560] }
   ];
+  // task 4.7c: a pen gives a point every 0.5-3 pt; drawn through only its 4 corners, the smooth
+  // curve would round each corner widely. So the L gets a point every 2 pt along its sides.
+  const penLike = pts => {
+    const out = [pts[0], pts[1]];
+    for (let k = 0; k + 3 < pts.length; k += 2) {
+      const [x0, y0, x1, y1] = pts.slice(k, k + 4), n = Math.ceil(Math.hypot(x1 - x0, y1 - y0) / 2);
+      for (let j = 1; j <= n; j++) out.push(Math.round((x0 + (x1 - x0) * j / n) * 100) / 100, Math.round((y0 + (y1 - y0) * j / n) * 100) / 100);
+    }
+    return out;
+  };
   const alignStrokes = [];
   for (const [n, a] of alignPages.entries()) {
     const page = doc.addPage([595.28, 841.89]);
@@ -795,7 +805,7 @@ async function penTest() {
     guide(page, penPts); guide(page, hlPts); guide(page, dotPts);
     alignStrokes.push([2 + n, [
       { id: `demo-hiza-fosforlu-${n + 3}`, arac: 'fosforlu', renk: '#ffeb3b', kalinlik: 14, opaklik: 0.4, noktalar: hlPts },
-      { id: `demo-hiza-kalem-${n + 3}`, arac: 'kalem', renk: '#d32f2f', kalinlik: 3, opaklik: 1, noktalar: penPts },
+      { id: `demo-hiza-kalem-${n + 3}`, arac: 'kalem', renk: '#d32f2f', kalinlik: 3, opaklik: 1, noktalar: penLike(penPts) },
       { id: `demo-hiza-nokta-${n + 3}`, arac: 'kalem', renk: '#d32f2f', kalinlik: 6, opaklik: 1, noktalar: dotPts }
     ]]);
   }
@@ -811,7 +821,8 @@ async function penTest() {
         pen('demo-kalem-1', [80, 520, 120, 490, 160, 525, 200, 485, 240, 520, 270, 500]),
         { id: 'demo-fosforlu-1', arac: 'fosforlu', renk: '#ffeb3b', kalinlik: 14, opaklik: 0.4, noktalar: [70, 664, 505, 664] }
       ]],
-      [1, [pen('demo-kalem-2', [330, 520, 370, 600, 410, 520, 450, 600, 490, 520])]],
+      // task 4.7c: an Apple Pencil stroke, light → hard → light (its width follows the pressure)
+      [1, [{ ...pen('demo-kalem-2', [330, 520, 370, 600, 410, 520, 450, 600, 490, 520]), basinc: [0.1, 0.4, 1, 0.4, 0.1] }]],
       ...alignStrokes
     ]), { simdi: FIXED });
   } finally {

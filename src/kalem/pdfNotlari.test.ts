@@ -36,6 +36,15 @@ function annotDicts(doc: PDFDocument, page: PDFPage): PDFDict[] {
 }
 const isOurs = (d: PDFDict) => d.get(N('DefterId')) !== undefined;
 
+const apText = (ap: PDFRawStream) => new TextDecoder().decode(decodePDFRawStream(ap).decode());
+// every x y pair of the path operators (m, l, c) in an appearance stream
+const pathPoints = (draw: string) => draw.split('\n').filter(l => / [mlc]$/.test(l)).flatMap(l => {
+  const n = l.split(' ').slice(0, -1).map(Number);
+  const out: [number, number][] = [];
+  for (let i = 0; i + 1 < n.length; i += 2) out.push([n[i], n[i + 1]]);
+  return out;
+});
+
 function contentBytes(doc: PDFDocument, page: PDFPage): number[][] {
   const c = page.node.Contents();
   const streams = c instanceof PDFArray ? c.asArray().map(r => doc.context.lookup(r)) : [c];
@@ -60,6 +69,7 @@ function expectSame(a: PageStrokes, b: PageStrokes) {
       expect(g.opaklik).toBeCloseTo(s.opaklik, 3);
       expect(g.noktalar.length).toBe(s.noktalar.length);
       g.noktalar.forEach((v, j) => expect(v).toBeCloseTo(s.noktalar[j], 1));
+      expect(g.basinc).toEqual(s.basinc);
     });
   }
 }
@@ -130,6 +140,7 @@ describe('writeDefterStrokes / readDefterStrokes', () => {
     const doc = await PDFDocument.load(out);
     const ctx = doc.context;
     const [pen, marker] = annotDicts(doc, doc.getPage(0));
+    const apOf = (d: PDFDict) => ctx.lookup((d.get(N('AP')) as PDFDict).get(N('N'))) as PDFRawStream;
     for (const d of [pen, marker]) {
       expect(d.get(N('Subtype'))).toBe(N('Ink'));
       expect((d.get(N('F')) as PDFNumber).asNumber()).toBe(4);
@@ -154,20 +165,67 @@ describe('writeDefterStrokes / readDefterStrokes', () => {
         expect(pts[i + 1] + w / 2).toBeLessThanOrEqual(rect[3]);
       }
 
-      const draw = new TextDecoder().decode(decodePDFRawStream(ap).decode());
-      expect(draw).toMatch(/1 J 1 j/);   // round caps and joins
-      expect(draw).toMatch(/ l\nS Q\n$/);   // the path is stroked
+      // task 4.7c: curves (c), no straight segments; every point of the drawing (controls too) inside Rect
+      const draw = apText(ap);
+      expect(draw).toMatch(/ c\n/);
+      expect(draw).not.toMatch(/ l\n/);
+      for (const [x, y] of pathPoints(draw)) {
+        expect(x).toBeGreaterThanOrEqual(rect[0]);
+        expect(y).toBeGreaterThanOrEqual(rect[1]);
+        expect(x).toBeLessThanOrEqual(rect[2]);
+        expect(y).toBeLessThanOrEqual(rect[3]);
+      }
     }
+    // pen: the outline filled (closed, f, fill colour rg); highlighter: the smoothed line stroked with round caps
+    const penDraw = apText(apOf(pen)), markerDraw = apText(apOf(marker));
+    expect(penDraw).toMatch(/^q \/GS0 gs 0\.102 0\.169 0\.235 rg\n[\d. -]+ m\n/);
+    expect(penDraw).toMatch(/\nh\nf Q\n$/);
+    expect(penDraw).not.toMatch(/\bS\b|RG|\bw\b/);
+    expect(markerDraw).toMatch(/1 J 1 j 12 w 1 0\.922 0\.231 RG\n/);
+    expect(markerDraw).toMatch(/ c\nS Q\n$/);
+    expect(markerDraw).not.toMatch(/\bf\b|\bh\b/);
 
-    const gs = (d: PDFDict) => {
-      const ap = ctx.lookup((d.get(N('AP')) as PDFDict).get(N('N'))) as PDFRawStream;
-      return ((ap.dict.get(N('Resources')) as PDFDict).get(N('ExtGState')) as PDFDict).get(N('GS0')) as PDFDict;
-    };
+    const gs = (d: PDFDict) => ((apOf(d).dict.get(N('Resources')) as PDFDict).get(N('ExtGState')) as PDFDict).get(N('GS0')) as PDFDict;
     expect((marker.get(N('CA')) as PDFNumber).asNumber()).toBeLessThan(1);
     expect(gs(marker).get(N('BM'))).toBe(N('Multiply'));
     expect((gs(marker).get(N('CA')) as PDFNumber).asNumber()).toBe(0.4);
     expect(marker.get(N('DefterArac'))).toBe(N('fosforlu'));
     expect(gs(pen).get(N('BM'))).toBeUndefined();
+  });
+
+  it('task 4.7c: pressure goes to /DefterBasinc and comes back; no pressure → no key', async () => {
+    const pressed = stroke('p', { basinc: [0.1, 0.55, 1] });
+    const out = await writeDefterStrokes(await samplePdf(), new Map([[0, [pressed, stroke('q'), hl('r')]]]));
+    const read = (await readDefterStrokes(out)).get(0)!;
+    expect(read.map(s => s.basinc)).toEqual([[0.1, 0.55, 1], undefined, undefined]);
+    const doc = await PDFDocument.load(out);
+    const [a, b, c] = annotDicts(doc, doc.getPage(0));
+    const nums = (v: unknown) => (v as PDFArray).asArray().map(n => (n as PDFNumber).asNumber());
+    expect(nums(a.get(N('DefterBasinc')))).toEqual([0.1, 0.55, 1]);
+    expect(b.get(N('DefterBasinc'))).toBeUndefined();
+    expect(c.get(N('DefterBasinc'))).toBeUndefined();
+    // /InkList stays the plain centre line (other programs)
+    expect(nums((a.get(N('InkList')) as PDFArray).get(0))).toEqual([100, 100, 150.12, 180.46, 210, 120]);
+    // the pressure changes the drawing
+    const ap = (d: PDFDict) => apText(doc.context.lookup((d.get(N('AP')) as PDFDict).get(N('N'))) as PDFRawStream);
+    expect(ap(a)).not.toBe(ap(b));
+  });
+
+  it('task 4.7c: pressure that does not fit the points (another program changed the line) is left out', async () => {
+    const out = await writeDefterStrokes(await samplePdf(), new Map([[0, [stroke('p', { basinc: [0.1, 0.5, 1] })]]]));
+    const doc = await PDFDocument.load(out);
+    const [a] = annotDicts(doc, doc.getPage(0));
+    a.set(N('DefterBasinc'), doc.context.obj([0.5, 0.5]));
+    const read = (await readDefterStrokes(await doc.save())).get(0)!;
+    expect(read[0].basinc).toBeUndefined();
+    expect(read[0].noktalar).toHaveLength(6);
+  });
+
+  it('task 4.7c: invalid pressure is not written', async () => {
+    const src = await samplePdf();
+    await expect(writeDefterStrokes(src, new Map([[0, [stroke('a', { basinc: [0.5, 0.5] })]]]))).rejects.toThrow(/basınç sayısı/);
+    await expect(writeDefterStrokes(src, new Map([[0, [stroke('a', { basinc: [0.5, 1.2, 0.5] })]]]))).rejects.toThrow(/0–1/);
+    await expect(writeDefterStrokes(src, new Map([[0, [stroke('a', { arac: 'fosforlu', opaklik: 0.4, basinc: [0.5, 0.5, 0.5] })]]]))).rejects.toThrow(/fosforluda/);
   });
 
   it('notes stay on their page when a page is inserted before it (Faz 5)', async () => {
