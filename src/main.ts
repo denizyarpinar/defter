@@ -67,6 +67,8 @@ const writer = () => etkinYazici(durum, saver);
 if (import.meta.env.DEV) void import('./drive/dosyaDene').then(m => m.installDosyaDene(() => writer() ? driveLoc : null));
 // dev only (task 5.6): window.defterSayfaDene(kitapAdi, dosyaAdi) adds 2 test pages at the end; needs ?dosyaOlustur=1
 if (import.meta.env.DEV) void import('./drive/sayfaDene').then(m => m.installSayfaDene(() => writer() ? driveLoc : null, sayfaEklemeOrtami));
+// dev only (task 5.7): window.defterOzetDurum(kitapAdi), window.defterOzetDene(kitapAdi, konuYolu); the second needs ?dosyaOlustur=1
+if (import.meta.env.DEV) void import('./drive/ozetDene').then(m => m.installOzetDene(() => writer() ? driveLoc : null, () => data?.books ?? null, sayfaEklemeOrtami));
 
 function olay(o: KitaplikOlayi): void {
   durum = gecis(durum, o);

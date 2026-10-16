@@ -206,9 +206,9 @@ Kitaplık/
 - Yeni dosya sadece `kitaplar/<kitap>/` altında oluşturulur ve sadece PDF olabilir. Başka yerde, başka türde dosya oluşturulmaz (kitaplik.json istisnası aynen kalır).
 - Oluşturmadan önce aynı klasörde aynı isimde dosya (büyük/küçük harf duyarsız, tüm sayfalar) var mı bakılır. Varsa hata verilir; üzerine yazılmaz, yeniden adlandırma yok (5.5).
 - Çift dosya koruması: generateIds ile önceden alınan id + tekrar denemede aynı id (5.5). Drive "zaten var" derse boyut eşleşiyorsa oluşmuş kabul edilir. Klasörü yeniden listeleme sadece yedek kontrol.
-- Kod: `src/drive/pdfOlustur.ts` (createPdf). Geçici kilit: sadece adreste `?dosyaOlustur=1` varken çalışır; 5.9 gerçek testlerinden sonra kalkar.
+- Kod: `src/drive/pdfOlustur.ts` (createPdf). Faz 5 yazma kilidi (`?dosyaOlustur=1`): yeni dosya oluşturma ve var olan PDF'e sayfa ekleme için; 5.9 gerçek testlerinden sonra kalkar.
 - Uygulamanın oluşturduğu dosyalar işaretlenir: appProperties `defter: "1"`.
-- Konuda özet yoksa, defter fotoğraflarından o konunun klasörüne yeni bir `ozet.pdf` oluşturulabilir. "Özet yok" = konu klasöründe ne `ozet.pdf` ne `brifing.pdf` ne de `sorular.pdf` var. Biri bile varsa yeni `ozet.pdf` oluşturulmaz; sayfalar var olana eklenir.
+- Konuda özet yoksa, defter fotoğraflarından o konunun klasörüne yeni bir `ozet.pdf` oluşturulabilir. "Özet yok" kuralı onaylandı: karar okuyucuyla aynı yerden (`classifyTopic`) gelir; `ozet.pdf` varsa o, yoksa `brifing.pdf`/`sorular.pdf`; hiçbiri yoksa yeni `ozet.pdf`. Özet varsa yeni `ozet.pdf` oluşturulmaz; sayfalar var olana eklenir (kod: `src/defter/konuyaEkle.ts`).
 - Hiçbir dosya silinmez, çöpe atılmaz, taşınmaz (değişmedi).
 
 ### PDF'e sayfa ekleme

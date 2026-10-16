@@ -11,7 +11,8 @@ import { PenToolbar, strokeStyle } from '../kalem/kalemCubugu';
 import { PenInput } from '../kalem/kalemModu';
 import type { PenViewport } from '../kalem/koordinat';
 import { DriveUploader, type UploadDeps, type UploadStatus, type Uploaded } from '../kalem/pdfKayit';
-import type { EklenenSayfalar, SayfaEklemeOrtami } from '../defter/ozeteEkle';
+import type { KonuEklemeOrtami } from '../defter/konuyaEkle';
+import type { EklenenSayfalar } from '../defter/ozeteEkle';
 import { PdfYazilamaz } from '../kalem/pdfNotlari';
 import type { Book, ChapterStatus, PageMark } from '../model/types';
 import { bookUnits, usesUnits } from '../model/units';
@@ -1279,8 +1280,15 @@ function moveVersion(id: string, oldMt: string, newMt: string): void {
 }
 
 // Task 5.6: adding pages at the end of a file (ozeteEkle.ts) goes through the pen's queue and cache.
-export function sayfaEklemeOrtami(): Pick<SayfaEklemeOrtami, 'deps' | 'sirada' | 'degisti'> {
-  return { deps: uploadDeps, sirada: (id, job) => uploader.sirada(id, job), degisti: pagesAdded };
+// Task 5.7: a new ozet.pdf (konuyaEkle.ts): its bytes into the cache, the topics are listed again.
+export function sayfaEklemeOrtami(): Pick<KonuEklemeOrtami, 'deps' | 'sirada' | 'degisti' | 'yeniDosya' | 'konuDegisti'> {
+  return {
+    deps: uploadDeps, sirada: (id, job) => uploader.sirada(id, job), degisti: pagesAdded,
+    yeniDosya: f => putPdf(f.id, f.modifiedTime, f.bytes),
+    // a topic folder got a new file: every topic is listed again when it opens (a cheap listing).
+    // An open reader keeps its tabs until the topic is opened again (task 5.8 refreshes it).
+    konuDegisti: () => topicCache.clear(),
+  };
 }
 
 // Pages were added at the end of a file: its new bytes go into the cache (the old version goes), the page

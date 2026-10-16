@@ -31,7 +31,7 @@ export interface PdfOlusturDrive {
 // ---- errors (Turkish, say what to do) ----
 
 export class DosyaOlusturKilitli extends Error {
-  constructor() { super('Yeni dosya oluşturma şimdilik kilitli. Denemek için adresin sonuna ?dosyaOlustur=1 ekle ve sayfayı yenile.'); }
+  constructor() { super('Drive\'a yazma (Faz 5) şimdilik kilitli; denemek için adrese ?dosyaOlustur=1 ekle.'); }
 }
 
 export class DosyaYazmaYok extends Error {

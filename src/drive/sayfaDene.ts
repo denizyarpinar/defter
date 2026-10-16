@@ -10,7 +10,7 @@ import { drivePdfOlusturApi } from './pdfOlustur';
 const link = (id: string) => `https://drive.google.com/file/d/${id}/view`;
 
 // A "photo" with a short text on it
-async function denemeJpeg(w: number, h: number, yazi: string): Promise<{ bytes: Uint8Array }> {
+export async function denemeJpeg(w: number, h: number, yazi: string): Promise<{ bytes: Uint8Array }> {
   const c = document.createElement('canvas');
   c.width = w; c.height = h;
   const g = c.getContext('2d')!;
