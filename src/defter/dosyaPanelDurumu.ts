@@ -118,17 +118,17 @@ export function hataMetni(e: unknown): string {
   return `Dosya eklenemedi: ${kisaNeden(e)}.`;
 }
 
-// ---- task 6.1c: one Word / PowerPoint file → converted in the panel (lock ?ofisCevir=1) ----
+// ---- task 6.1c: one Word / PowerPoint file → converted in the panel (no lock since 6.1e) ----
 
 export type OfisCeviriAlt = 'word' | 'powerpoint';
 
 // ofis: the panel opens at once and converts; hazirla: today's way (dosyaHazirla: PDF, image, or its own
-// refusal, e.g. Keynote/Pages or Word with the lock closed); ret: a toast.
+// refusal, e.g. Keynote/Pages or Word in the sample library); ret: a toast.
 export type TekDosyaYolu = { yol: 'ofis'; alt: OfisCeviriAlt } | { yol: 'hazirla' } | { yol: 'ret'; metin: string };
 
 // drive: the Drive library is open (not the sample library). Empty / too big: checked first, as dosyaHazirla does.
-export function tekDosyaYolu(tur: DosyaTuruSonucu, o: { kilitAcik: boolean; drive: boolean; bayt: number }): TekDosyaYolu {
-  if (tur.tur !== 'ofis' || !tur.cevrilebilir || !o.kilitAcik || !o.drive) return { yol: 'hazirla' };
+export function tekDosyaYolu(tur: DosyaTuruSonucu, o: { drive: boolean; bayt: number }): TekDosyaYolu {
+  if (tur.tur !== 'ofis' || !tur.cevrilebilir || !o.drive) return { yol: 'hazirla' };
   if (tur.alt !== 'word' && tur.alt !== 'powerpoint') return { yol: 'hazirla' };
   if (o.bayt === 0) return { yol: 'ret', metin: BOS_DOSYA_METIN };
   const boyut = boyutMetni(o.bayt);

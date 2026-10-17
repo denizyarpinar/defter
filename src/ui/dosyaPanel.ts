@@ -22,10 +22,11 @@ import { toast } from './toast';
 // The look is the photo panel's (.fp classes); the logic is in dosyaPanelDurumu.ts.
 // Task 5.10g: chosen images are a list (numbered thumbnails, ‹ › ×, "+ Fotoğraf ekle"), no cropping;
 // "Ekle" makes one PDF of them (fotograflardanPdf). The page is put back after the iPad keyboard.
-// Task 6.1c (lock ?ofisCevir=1): one Word / PowerPoint file is converted as soon as the panel opens; target and
+// Task 6.1c: one Word / PowerPoint file is converted as soon as the panel opens; target and
 // name can be changed meanwhile, "Ekle" waits for the PDF. Vazgeç / Esc / the reader closing cancel it (the core
-// trashes its temporary file); a tap outside does NOT while converting (iPad). The PDF stays in memory, so
-// "Tekrar dene" after a failed adding sends the same bytes; "Tekrar çevir" only after a conversion error.
+// trashes its temporary file). A tap outside closes this panel only after a conversion error (6.1e): not while
+// converting, not with the PDF ready (iPad). The PDF stays in memory, so "Tekrar dene" after a failed adding sends
+// the same bytes; "Tekrar çevir" only after a conversion error a new try can fix (not the Google permission).
 
 export interface DosyaPanelBaglam {
   konuAdi: string;
@@ -364,8 +365,9 @@ export function acDosyaPanel(b: DosyaPanelBaglam, kaynak: DosyaPanelKaynak): voi
     if (f.length) void hazirla(f);
   };
   vazgec.onclick = kapat;
-  // while converting, a tap outside does nothing (an iPad touch must not throw away a long conversion)
-  kok.addEventListener('click', e => { if (e.target === kok && ceviri !== 'cevriliyor') kapat(); });
+  // Word / PowerPoint: a tap outside does nothing while converting or with the PDF ready (an iPad touch must not
+  // throw away the converted PDF); only after a conversion error it closes, as the other panels always do
+  kok.addEventListener('click', e => { if (e.target === kok && (!ofis || ceviri === 'hata')) kapat(); });
   tekrarCevir.onclick = () => { if (!ekleniyor) void cevirBaslat(); };
   if (ofis) b.kapanis?.addEventListener('abort', kapat);
   addEventListener('keydown', tus, true);

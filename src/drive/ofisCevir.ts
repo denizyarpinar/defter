@@ -14,7 +14,7 @@ import { RESUMABLE_LIMIT, UPLOAD } from './pdfYazici';
 //   files.delete is never used. A failed trashing does not spoil the PDF (copeAtildi: false).
 // - Before every conversion, temporary files older than 1 hour (left from a crash) are swept to the trash.
 //   A failed sweep does not stop the conversion (console.warn, on purpose).
-// - Temporary lock: works only with ?ofisCevir=1 in the URL. Only in the Drive library (yer not null).
+// - Only in the Drive library (yer not null). The temporary lock was removed in task 6.1e.
 
 export const GOOGLE_DOC = 'application/vnd.google-apps.document';
 export const GOOGLE_SLIDES = 'application/vnd.google-apps.presentation';
@@ -49,13 +49,7 @@ function kaynakMimesi(ad: string, mime: string): string {
   return KAYNAK_MIME[uzanti] ?? (mime || 'application/octet-stream');
 }
 
-export const ofisCevirKilitAcik = () => typeof location !== 'undefined' && new URLSearchParams(location.search).get('ofisCevir') === '1';
-
 // ---- errors (Turkish, say what to do) ----
-
-export class OfisKilitli extends Error {
-  constructor() { super('Word/PowerPoint çevirme şimdilik kilitli; denemek için adrese ?ofisCevir=1 ekle.'); }
-}
 
 export class OfisDesteklenmiyor extends Error {
   constructor(ad: string) { super(`"${ad}" PDF'e çevrilemez. Sadece Word (docx, doc, odt, rtf) ve PowerPoint (pptx, ppt, odp) çevrilir; dosyayı PDF olarak kaydedip ekle.`); }
@@ -65,13 +59,19 @@ export class OfisCokBuyuk extends Error {
   constructor() { super('Bu dosyanın PDF\'i Drive\'ın 10 MB sınırını aşıyor, çevrilemedi. Dosyayı kendi bilgisayarında PDF olarak kaydedip ekle.'); }
 }
 
+// neden: izin = the Google permission (scope) is not enough ("Tekrar çevir" can't help);
+// ag = no connection; sunucu = Drive answered with an error (429 / 5xx / a missing answer)
+export type OfisYuklenemediNeden = 'izin' | 'ag' | 'sunucu';
+
 export class OfisYuklenemedi extends Error {
   readonly durum?: number;
-  constructor(durum?: number, kapsam = false) {
-    super(kapsam
+  readonly neden: OfisYuklenemediNeden;
+  constructor(durum?: number, neden: OfisYuklenemediNeden = durum ? 'sunucu' : 'ag') {
+    super(neden === 'izin'
       ? 'Google izni (kapsam) çevirme için yetmiyor. Dur ve Deniz\'e söyle; yeni izin istenmez.'
       : `Dosya Drive'da çevrilemedi: bağlantı ya da Drive sorunu${durum ? ` (hata ${durum})` : ''}. İnternet bağlantını kontrol edip tekrar dene.`);
     this.durum = durum;
+    this.neden = neden;
   }
 }
 
@@ -94,11 +94,9 @@ export class OfisGeciciDegil extends Error {
 // ---- options ----
 
 export interface OfisSecenek {
-  kilitAcik?: () => boolean;    // default: ?ofisCevir=1 in the URL
   simdi?: () => number;         // clock for the sweep (tests)
 }
 
-const kilitKontrol = (s: OfisSecenek) => { if (!(s.kilitAcik ?? ofisCevirKilitAcik)()) throw new OfisKilitli(); };
 const iptalMi = (e: unknown) => e instanceof Error && e.name === 'AbortError';
 const iptalKontrol = (signal?: AbortSignal) => { if (signal?.aborted) throw new OfisIptal(); };
 const fileUrl = (id: string) => `files/${encodeURIComponent(id)}`;
@@ -108,8 +106,7 @@ const fileUrl = (id: string) => `files/${encodeURIComponent(id)}`;
 const COP = 'Geçici çeviri dosyası çöpe atılırken';
 
 // Reads the file first; trashes it only if it is our temporary Google file and not trashed yet.
-export async function copeAtGecici(id: string, secenek: OfisSecenek = {}): Promise<void> {
-  kilitKontrol(secenek);
+export async function copeAtGecici(id: string): Promise<void> {
   const res = await ok(await driveFetch(`${fileUrl(id)}?fields=id,mimeType,trashed,appProperties`), COP);
   const j = await res.json() as { mimeType?: string; trashed?: boolean; appProperties?: Record<string, string> };
   if (j.appProperties?.defterGecici !== '1' || !googleTuruMu(j.mimeType) || j.trashed !== false) throw new OfisGeciciDegil();
@@ -122,8 +119,7 @@ export async function copeAtGecici(id: string, secenek: OfisSecenek = {}): Promi
 
 // Temporary files older than 1 hour (at most 20) → trash. Returns how many were trashed.
 // One file failing does not stop the others.
-export async function supurGecici(simdi: number, secenek: OfisSecenek = {}): Promise<number> {
-  kilitKontrol(secenek);
+export async function supurGecici(simdi: number): Promise<number> {
   const sinir = simdi - SUPURME_YASI_MS;
   const q = `appProperties has { key='defterGecici' and value='1' } and (mimeType='${GOOGLE_DOC}' or mimeType='${GOOGLE_SLIDES}')`
     + ` and trashed=false and createdTime < '${new Date(sinir).toISOString()}'`;
@@ -135,7 +131,7 @@ export async function supurGecici(simdi: number, secenek: OfisSecenek = {}): Pro
     const t = Date.parse(f.createdTime ?? '');
     if (!(t < sinir)) continue;   // newer than 1 hour (or no date): maybe another conversion is using it
     try {
-      await copeAtGecici(f.id, secenek);
+      await copeAtGecici(f.id);
       n++;
     } catch (e) {
       console.warn(`Eski geçici çeviri dosyası çöpe atılamadı (${f.name ?? f.id}): ${e instanceof Error ? e.message : e}`);
@@ -145,9 +141,9 @@ export async function supurGecici(simdi: number, secenek: OfisSecenek = {}): Pro
 }
 
 // trashing after a conversion: a failure only warns
-async function copeAtSessiz(id: string, secenek: OfisSecenek): Promise<boolean> {
+async function copeAtSessiz(id: string): Promise<boolean> {
   try {
-    await copeAtGecici(id, secenek);
+    await copeAtGecici(id);
     return true;
   } catch (e) {
     console.warn(`Geçici çeviri dosyası çöpe atılamadı (${id}); bir sonraki çeviride süpürülür: ${e instanceof Error ? e.message : e}`);
@@ -161,7 +157,7 @@ interface GeciciMeta { name: string; parents: string[]; mimeType: string; appPro
 
 async function yuklemeHatasi(res: Response): Promise<Error> {
   const text = await res.text().catch(() => '');
-  if (/insufficient.*scope|ACCESS_TOKEN_SCOPE_INSUFFICIENT/i.test(text)) return new OfisYuklenemedi(res.status, true);
+  if (/insufficient.*scope|ACCESS_TOKEN_SCOPE_INSUFFICIENT/i.test(text)) return new OfisYuklenemedi(res.status, 'izin');
   if (res.status === 400) return new OfisCevrilemedi(res.status);   // Drive could not turn the file into a Google file
   return new OfisYuklenemedi(res.status);
 }
@@ -187,7 +183,7 @@ async function yukle(meta: GeciciMeta, dosya: Blob, mime: string, signal?: Abort
       });
       if (!bas.ok) throw await yuklemeHatasi(bas);
       const oturum = bas.headers.get('Location');
-      if (!oturum || !oturum.startsWith('https://')) throw new OfisYuklenemedi();
+      if (!oturum || !oturum.startsWith('https://')) throw new OfisYuklenemedi(undefined, 'sunucu');
       res = await driveFetch(oturum, { method: 'PUT', headers: { 'Content-Type': mime }, body: dosya, signal });
     }
   } catch (e) {
@@ -197,7 +193,7 @@ async function yukle(meta: GeciciMeta, dosya: Blob, mime: string, signal?: Abort
   }
   if (!res.ok) throw await yuklemeHatasi(res);
   const id = (await res.json() as { id?: string }).id;
-  if (!id) throw new OfisYuklenemedi();
+  if (!id) throw new OfisYuklenemedi(undefined, 'sunucu');
   return id;
 }
 
@@ -241,7 +237,6 @@ export interface OfisSonuc {
 export async function ofisuPdfeCevir(g: OfisGirdi, yer: DriveLocation | null, secenek: OfisSecenek = {}): Promise<OfisSonuc> {
   const t0 = performance.now();
   // checks without any request
-  kilitKontrol(secenek);
   if (!yer || isSampleId(g.klasorId)) throw new DosyaYazmaYok();
   const tur = cevirTuru(g.ad, g.dosya.type);
   if (!tur) throw new OfisDesteklenmiyor(g.ad);
@@ -251,7 +246,7 @@ export async function ofisuPdfeCevir(g: OfisGirdi, yer: DriveLocation | null, se
   iptalKontrol(g.signal);
 
   try {
-    await supurGecici((secenek.simdi ?? Date.now)(), secenek);
+    await supurGecici((secenek.simdi ?? Date.now)());
   } catch (e) {
     console.warn(`Eski geçici çeviri dosyaları süpürülemedi (çeviri sürüyor): ${e instanceof Error ? e.message : e}`);
   }
@@ -268,9 +263,9 @@ export async function ofisuPdfeCevir(g: OfisGirdi, yer: DriveLocation | null, se
     iptalKontrol(g.signal);
     bytes = await disaAktar(geciciId, g.signal);
   } catch (e) {
-    await copeAtSessiz(geciciId, secenek);
+    await copeAtSessiz(geciciId);
     throw e;
   }
-  const copeAtildi = await copeAtSessiz(geciciId, secenek);
+  const copeAtildi = await copeAtSessiz(geciciId);
   return { bytes, geciciId, copeAtildi, sureMs: performance.now() - t0 };
 }

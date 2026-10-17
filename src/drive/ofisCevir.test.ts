@@ -4,7 +4,7 @@ import { driveFetch, FOLDER_MIME } from './drive';
 import type { DriveLocation } from './driveLibrary';
 import {
   cevirTuru, copeAtGecici, GOOGLE_DOC, GOOGLE_SLIDES, OfisCevrilemedi, OfisCokBuyuk, OfisDesteklenmiyor, OfisGeciciDegil,
-  OfisIptal, OfisKilitli, OfisYuklenemedi, ofisuPdfeCevir, supurGecici, SUPURME_YASI_MS, type OfisGirdi, type OfisSecenek
+  OfisIptal, OfisYuklenemedi, ofisuPdfeCevir, supurGecici, SUPURME_YASI_MS, type OfisGirdi, type OfisSecenek
 } from './ofisCevir';
 import { DosyaYazmaYok, YerDisi } from './pdfOlustur';
 import { RESUMABLE_LIMIT } from './pdfYazici';
@@ -108,7 +108,7 @@ function fakeDrive(opts: { yukleme?: Yukleme; export?: Export; copHata?: boolean
 }
 
 const loc: DriveLocation = { rootId: 'R', libraryFileId: null, bookFolderIds: new Map([['mat-1', 'B']]), bookFileIds: new Map() };
-const ACIK: OfisSecenek = { kilitAcik: () => true, simdi: () => SIMDI };
+const SECENEK: OfisSecenek = { simdi: () => SIMDI };
 const girdi = (ad = 'odev.docx', o: Partial<OfisGirdi> = {}): OfisGirdi =>
   ({ dosya: new Blob([new Uint8Array(100)]), ad, klasorId: 'C', islemId: 'islem-1', ...o });
 const calls = () => fetchMock.mock.calls.map(([url, init]) => `${init?.method ?? 'GET'} ${url}`);
@@ -148,38 +148,29 @@ describe('cevirTuru', () => {
 });
 
 describe('ofisuPdfeCevir: refused before any request', () => {
-  it('locked (no ?ofisCevir=1): no Drive call at all', async () => {
-    fakeDrive();
-    await expect(ofisuPdfeCevir(girdi(), loc, { kilitAcik: () => false })).rejects.toBeInstanceOf(OfisKilitli);
-    await expect(ofisuPdfeCevir(girdi(), loc)).rejects.toBeInstanceOf(OfisKilitli);   // default: URL without the key
-    await expect(copeAtGecici('g1', { kilitAcik: () => false })).rejects.toBeInstanceOf(OfisKilitli);
-    await expect(supurGecici(SIMDI, { kilitAcik: () => false })).rejects.toBeInstanceOf(OfisKilitli);
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
   it('sample library / no Drive (yer null), sample folder', async () => {
     fakeDrive();
-    await expect(ofisuPdfeCevir(girdi(), null, ACIK)).rejects.toBeInstanceOf(DosyaYazmaYok);
-    await expect(ofisuPdfeCevir(girdi('a.docx', { klasorId: 'ornek:demo' }), loc, ACIK)).rejects.toBeInstanceOf(DosyaYazmaYok);
+    await expect(ofisuPdfeCevir(girdi(), null, SECENEK)).rejects.toBeInstanceOf(DosyaYazmaYok);
+    await expect(ofisuPdfeCevir(girdi('a.docx', { klasorId: 'ornek:demo' }), loc, SECENEK)).rejects.toBeInstanceOf(DosyaYazmaYok);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it.each(['sunum.key', 'not.pages', 'ders.pdf', 'resim.png'])('%s → OfisDesteklenmiyor', async ad => {
     fakeDrive();
-    await expect(ofisuPdfeCevir(girdi(ad), loc, ACIK)).rejects.toBeInstanceOf(OfisDesteklenmiyor);
+    await expect(ofisuPdfeCevir(girdi(ad), loc, SECENEK)).rejects.toBeInstanceOf(OfisDesteklenmiyor);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('aborted before the start → OfisIptal, no request', async () => {
     fakeDrive();
     const ab = new AbortController(); ab.abort();
-    await expect(ofisuPdfeCevir(girdi('a.docx', { signal: ab.signal }), loc, ACIK)).rejects.toBeInstanceOf(OfisIptal);
+    await expect(ofisuPdfeCevir(girdi('a.docx', { signal: ab.signal }), loc, SECENEK)).rejects.toBeInstanceOf(OfisIptal);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it.each(['X', 'K', 'R', 'B2'])('folder %s outside kitaplar/<kitap>/ → YerDisi, only reads', async k => {
     fakeDrive();
-    await expect(ofisuPdfeCevir(girdi('a.docx', { klasorId: k }), loc, ACIK)).rejects.toThrow(k === 'B2' ? Error : YerDisi);
+    await expect(ofisuPdfeCevir(girdi('a.docx', { klasorId: k }), loc, SECENEK)).rejects.toThrow(k === 'B2' ? Error : YerDisi);
     expect(yazmalar()).toEqual([]);
   });
 });
@@ -187,7 +178,7 @@ describe('ofisuPdfeCevir: refused before any request', () => {
 describe('ofisuPdfeCevir: upload, export, trash', () => {
   it('small file → multipart: metadata, content type, export, temporary file trashed', async () => {
     const { items, yuklenen } = fakeDrive();
-    const r = await ofisuPdfeCevir(girdi('Ödev 3.docx'), loc, ACIK);
+    const r = await ofisuPdfeCevir(girdi('Ödev 3.docx'), loc, SECENEK);
     expect(r.bytes).toEqual(PDF);
     expect(r.copeAtildi).toBe(true);
     expect(r.geciciId).toBe('g1');
@@ -211,9 +202,9 @@ describe('ofisuPdfeCevir: upload, export, trash', () => {
 
   it('presentation types; .odp / .ppt / .rtf without a browser type get their own type', async () => {
     const { yuklenen } = fakeDrive();
-    await ofisuPdfeCevir(girdi('sunum.odp'), loc, ACIK);
-    await ofisuPdfeCevir(girdi('eski.ppt'), loc, ACIK);
-    await ofisuPdfeCevir(girdi('not.rtf'), loc, ACIK);
+    await ofisuPdfeCevir(girdi('sunum.odp'), loc, SECENEK);
+    await ofisuPdfeCevir(girdi('eski.ppt'), loc, SECENEK);
+    await ofisuPdfeCevir(girdi('not.rtf'), loc, SECENEK);
     expect(yuklenen.map(y => [y.meta.mimeType, y.contentType])).toEqual([
       [GOOGLE_SLIDES, 'application/vnd.oasis.opendocument.presentation'],
       [GOOGLE_SLIDES, 'application/vnd.ms-powerpoint'],
@@ -224,7 +215,7 @@ describe('ofisuPdfeCevir: upload, export, trash', () => {
   it('> 5 MB → resumable (session + PUT), same metadata', async () => {
     const { yuklenen, items } = fakeDrive();
     const dosya = new Blob([new Uint8Array(RESUMABLE_LIMIT + 1)]);
-    const r = await ofisuPdfeCevir(girdi('buyuk.pptx', { dosya }), loc, ACIK);
+    const r = await ofisuPdfeCevir(girdi('buyuk.pptx', { dosya }), loc, SECENEK);
     expect(calls().some(c => c.includes('uploadType=resumable'))).toBe(true);
     expect(calls().some(c => c.includes('uploadType=multipart'))).toBe(false);
     expect(calls().some(c => c.startsWith('PUT https://'))).toBe(true);
@@ -238,64 +229,67 @@ describe('ofisuPdfeCevir: upload, export, trash', () => {
 
   it('exactly 5 MB is still multipart', async () => {
     fakeDrive();
-    await ofisuPdfeCevir(girdi('a.docx', { dosya: new Blob([new Uint8Array(RESUMABLE_LIMIT)]) }), loc, ACIK);
+    await ofisuPdfeCevir(girdi('a.docx', { dosya: new Blob([new Uint8Array(RESUMABLE_LIMIT)]) }), loc, SECENEK);
     expect(calls().some(c => c.includes('uploadType=multipart'))).toBe(true);
   });
 
   it('trashing fails → the PDF still comes back, copeAtildi false', async () => {
     fakeDrive({ copHata: true });
-    const r = await ofisuPdfeCevir(girdi(), loc, ACIK);
+    const r = await ofisuPdfeCevir(girdi(), loc, SECENEK);
     expect(r.bytes).toEqual(PDF);
     expect(r.copeAtildi).toBe(false);
   });
 
   it('export 403 exportSizeLimitExceeded → OfisCokBuyuk, temporary file trashed', async () => {
     const { items } = fakeDrive({ export: 'buyuk' });
-    await expect(ofisuPdfeCevir(girdi('cok.pptx'), loc, ACIK)).rejects.toBeInstanceOf(OfisCokBuyuk);
+    await expect(ofisuPdfeCevir(girdi('cok.pptx'), loc, SECENEK)).rejects.toBeInstanceOf(OfisCokBuyuk);
     expect(items.get('g1')!.trashed).toBe(true);
   });
 
   it('export 400 → OfisCevrilemedi + trashed; export 500 → OfisYuklenemedi + trashed; not a PDF → OfisCevrilemedi', async () => {
     let d = fakeDrive({ export: '400' });
-    await expect(ofisuPdfeCevir(girdi(), loc, ACIK)).rejects.toBeInstanceOf(OfisCevrilemedi);
+    await expect(ofisuPdfeCevir(girdi(), loc, SECENEK)).rejects.toBeInstanceOf(OfisCevrilemedi);
     expect(d.items.get('g1')!.trashed).toBe(true);
     d = fakeDrive({ export: '500' });
-    await expect(ofisuPdfeCevir(girdi(), loc, ACIK)).rejects.toBeInstanceOf(OfisYuklenemedi);
+    await expect(ofisuPdfeCevir(girdi(), loc, SECENEK)).rejects.toBeInstanceOf(OfisYuklenemedi);
     expect(d.items.get('g1')!.trashed).toBe(true);
     d = fakeDrive({ export: 'pdfDegil' });
-    await expect(ofisuPdfeCevir(girdi(), loc, ACIK)).rejects.toBeInstanceOf(OfisCevrilemedi);
+    await expect(ofisuPdfeCevir(girdi(), loc, SECENEK)).rejects.toBeInstanceOf(OfisCevrilemedi);
     expect(d.items.get('g1')!.trashed).toBe(true);
   });
 
   it('upload 400 (Drive cannot convert) → OfisCevrilemedi, nothing to trash', async () => {
     const { items } = fakeDrive({ yukleme: '400' });
-    await expect(ofisuPdfeCevir(girdi('bozuk.docx'), loc, ACIK)).rejects.toBeInstanceOf(OfisCevrilemedi);
+    await expect(ofisuPdfeCevir(girdi('bozuk.docx'), loc, SECENEK)).rejects.toBeInstanceOf(OfisCevrilemedi);
     expect(geciciler(items)).toEqual([]);
     expect(calls().some(c => c.startsWith('PATCH'))).toBe(false);
   });
 
   it('upload 400 on the resumable session → OfisCevrilemedi', async () => {
     fakeDrive({ yukleme: '400' });
-    await expect(ofisuPdfeCevir(girdi('a.pptx', { dosya: new Blob([new Uint8Array(RESUMABLE_LIMIT + 1)]) }), loc, ACIK)).rejects.toBeInstanceOf(OfisCevrilemedi);
+    await expect(ofisuPdfeCevir(girdi('a.pptx', { dosya: new Blob([new Uint8Array(RESUMABLE_LIMIT + 1)]) }), loc, SECENEK)).rejects.toBeInstanceOf(OfisCevrilemedi);
   });
 
-  it.each([['500'], ['ag'], ['kapsam']] as const)('upload %s → OfisYuklenemedi', async y => {
+  it.each([['500', 'sunucu'], ['ag', 'ag'], ['kapsam', 'izin']] as const)('upload %s → OfisYuklenemedi (neden %s)', async (y, neden) => {
     fakeDrive({ yukleme: y });
-    const e = await ofisuPdfeCevir(girdi(), loc, ACIK).catch(x => x);
+    const e = await ofisuPdfeCevir(girdi(), loc, SECENEK).catch(x => x);
     expect(e).toBeInstanceOf(OfisYuklenemedi);
+    expect(e.neden).toBe(neden);
     if (y === 'kapsam') expect(e.message).toMatch(/izni/);
   });
 
   it('resumable session without Location → OfisYuklenemedi, no PUT', async () => {
     fakeDrive({ yukleme: 'oturumYok' });
-    await expect(ofisuPdfeCevir(girdi('a.pptx', { dosya: new Blob([new Uint8Array(RESUMABLE_LIMIT + 1)]) }), loc, ACIK)).rejects.toBeInstanceOf(OfisYuklenemedi);
+    const e = await ofisuPdfeCevir(girdi('a.pptx', { dosya: new Blob([new Uint8Array(RESUMABLE_LIMIT + 1)]) }), loc, SECENEK).catch(x => x);
+    expect(e).toBeInstanceOf(OfisYuklenemedi);
+    expect(e.neden).toBe('sunucu');
     expect(calls().some(c => c.startsWith('PUT'))).toBe(false);
   });
 
   it('aborted after the upload → OfisIptal, temporary file trashed, no export', async () => {
     const ab = new AbortController();
     const { items } = fakeDrive({ ab, abortNe: 'yukleme' });
-    await expect(ofisuPdfeCevir(girdi('a.docx', { signal: ab.signal }), loc, ACIK)).rejects.toBeInstanceOf(OfisIptal);
+    await expect(ofisuPdfeCevir(girdi('a.docx', { signal: ab.signal }), loc, SECENEK)).rejects.toBeInstanceOf(OfisIptal);
     expect(calls().some(c => c.includes('/export'))).toBe(false);
     expect(items.get('g1')!.trashed).toBe(true);
   });
@@ -303,7 +297,7 @@ describe('ofisuPdfeCevir: upload, export, trash', () => {
   it('aborted during the export → OfisIptal, temporary file trashed', async () => {
     const ab = new AbortController();
     const { items } = fakeDrive({ ab, abortNe: 'export' });
-    await expect(ofisuPdfeCevir(girdi('a.docx', { signal: ab.signal }), loc, ACIK)).rejects.toBeInstanceOf(OfisIptal);
+    await expect(ofisuPdfeCevir(girdi('a.docx', { signal: ab.signal }), loc, SECENEK)).rejects.toBeInstanceOf(OfisIptal);
     expect(items.get('g1')!.trashed).toBe(true);
   });
 });
@@ -313,7 +307,7 @@ describe('copeAtGecici: only our own temporary Google file', () => {
 
   it('marked Google Doc → PATCH trashed:true (never DELETE)', async () => {
     const { items } = fakeDrive({ eski: { E: eski({}) } });
-    await copeAtGecici('E', ACIK);
+    await copeAtGecici('E');
     expect(items.get('E')!.trashed).toBe(true);
     const patch = fetchMock.mock.calls.find(([, init]) => init?.method === 'PATCH')!;
     expect(JSON.parse(String(patch[1]!.body))).toEqual({ trashed: true });
@@ -328,7 +322,7 @@ describe('copeAtGecici: only our own temporary Google file', () => {
     ['already in the trash', { trashed: true }]
   ])('%s → OfisGeciciDegil, no PATCH', async (_, o) => {
     fakeDrive({ eski: { E: eski(o as Partial<Item>) } });
-    await expect(copeAtGecici('E', ACIK)).rejects.toBeInstanceOf(OfisGeciciDegil);
+    await expect(copeAtGecici('E')).rejects.toBeInstanceOf(OfisGeciciDegil);
     expect(calls().some(c => c.startsWith('PATCH'))).toBe(false);
   });
 });
@@ -339,7 +333,7 @@ describe('supurGecici', () => {
 
   it('the query: marked, both Google types, not trashed, older than 1 hour, at most 20', async () => {
     fakeDrive();
-    await supurGecici(SIMDI, ACIK);
+    await supurGecici(SIMDI);
     const u = String(fetchMock.mock.calls[0][0]);
     const p = new URLSearchParams(u.slice(6));
     expect(p.get('q')).toBe(
@@ -360,7 +354,7 @@ describe('supurGecici', () => {
         I: gecici(3 * SUPURME_YASI_MS, { appProperties: { defter: '1' } })
       }
     });
-    expect(await supurGecici(SIMDI, ACIK)).toBe(2);
+    expect(await supurGecici(SIMDI)).toBe(2);
     expect(items.get('E1')!.trashed).toBe(true);
     expect(items.get('E2')!.trashed).toBe(true);
     for (const id of ['Y', 'S', 'P', 'I']) expect(items.get(id)!.trashed).toBeFalsy();
@@ -370,20 +364,20 @@ describe('supurGecici', () => {
     const { items } = fakeDrive({ eski: { E1: gecici(2 * SUPURME_YASI_MS), E2: gecici(2 * SUPURME_YASI_MS) } });
     const asil = fetchMock.getMockImplementation()!;
     fetchMock.mockImplementation(async (url, init) => String(url).startsWith('files/E1') ? new Response('{}', { status: 500 }) : asil(url, init));
-    expect(await supurGecici(SIMDI, ACIK)).toBe(1);
+    expect(await supurGecici(SIMDI)).toBe(1);
     expect(items.get('E2')!.trashed).toBe(true);
   });
 
   it('runs before every conversion: an old leftover is trashed, the new one too', async () => {
     const { items } = fakeDrive({ eski: { E: gecici(2 * SUPURME_YASI_MS) } });
-    await ofisuPdfeCevir(girdi(), loc, ACIK);
+    await ofisuPdfeCevir(girdi(), loc, SECENEK);
     expect(items.get('E')!.trashed).toBe(true);
     expect(items.get('g1')!.trashed).toBe(true);
   });
 
   it('a failing sweep does not stop the conversion', async () => {
     fakeDrive({ araHata: true });
-    const r = await ofisuPdfeCevir(girdi(), loc, ACIK);
+    const r = await ofisuPdfeCevir(girdi(), loc, SECENEK);
     expect(r.bytes).toEqual(PDF);
     expect(console.warn).toHaveBeenCalled();
   });

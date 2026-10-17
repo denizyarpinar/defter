@@ -157,17 +157,16 @@ describe('tekDosyaYolu (6.1c)', () => {
   const ZIP = new Uint8Array([0x50, 0x4b, 3, 4]);
   const docx = dosyaTuru('ders-notu.docx', '', ZIP);
   const pptx = dosyaTuru('sunum.pptx', '', ZIP);
-  const acik = { kilitAcik: true, drive: true, bayt: 120_000 };
-  it('Word / PowerPoint, lock open, Drive library: the panel converts', () => {
+  const acik = { drive: true, bayt: 120_000 };
+  it('Word / PowerPoint in the Drive library: the panel converts', () => {
     expect(tekDosyaYolu(docx, acik)).toEqual({ yol: 'ofis', alt: 'word' });
     expect(tekDosyaYolu(pptx, acik)).toEqual({ yol: 'ofis', alt: 'powerpoint' });
     expect(tekDosyaYolu(dosyaTuru('not.rtf', '', new TextEncoder().encode('{\\rtf1')), acik)).toEqual({ yol: 'ofis', alt: 'word' });
   });
-  it('lock closed / sample library / no Drive: the old way (dosyaHazirla refuses with its text)', () => {
-    expect(tekDosyaYolu(docx, { ...acik, kilitAcik: false })).toEqual({ yol: 'hazirla' });
+  it('sample library / no Drive: the old way (dosyaHazirla refuses with its text)', () => {
     expect(tekDosyaYolu(docx, { ...acik, drive: false })).toEqual({ yol: 'hazirla' });
   });
-  it('Keynote / Pages: the old refusal, even with the lock open', () => {
+  it('Keynote / Pages: the old refusal, even in the Drive library', () => {
     expect(tekDosyaYolu(dosyaTuru('sahte.key', '', ZIP), acik)).toEqual({ yol: 'hazirla' });
     expect(tekDosyaYolu(dosyaTuru('not.pages', '', ZIP), acik)).toEqual({ yol: 'hazirla' });
   });

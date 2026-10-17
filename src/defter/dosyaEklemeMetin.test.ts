@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { SessionExpired } from '../drive/drive';
-import { OfisCevrilemedi, OfisCokBuyuk, OfisDesteklenmiyor, OfisIptal, OfisKilitli, OfisYuklenemedi } from '../drive/ofisCevir';
+import { OfisCevrilemedi, OfisCokBuyuk, OfisDesteklenmiyor, OfisIptal, OfisYuklenemedi } from '../drive/ofisCevir';
 import { DosyaYazmaYok, YerDisi, YetkiYok } from '../drive/pdfOlustur';
 import { MAX_DOSYA_MB } from './ayarlar';
 import {
@@ -84,13 +84,22 @@ describe('ofisHataMetni (6.1c)', () => {
     expect(y.message).toMatch(/tekrar dene/);
     expect(ofisHataMetni(new SessionExpired())?.tekrarCevir).toBe(true);
   });
+  it('Google permission (scope) not enough: no "Tekrar çevir" (6.1e); no connection / Drive error: "Tekrar çevir"', () => {
+    const izin = new OfisYuklenemedi(403, 'izin');
+    expect(izin.message).toMatch(/izni/);
+    expect(ofisHataMetni(izin)).toEqual({ metin: izin.message, tekrarCevir: false });
+    expect(new OfisYuklenemedi().neden).toBe('ag');
+    expect(new OfisYuklenemedi(503).neden).toBe('sunucu');
+    expect(ofisHataMetni(new OfisYuklenemedi())?.tekrarCevir).toBe(true);
+    expect(ofisHataMetni(new OfisYuklenemedi(undefined, 'sunucu'))?.tekrarCevir).toBe(true);
+  });
   it('too big: no "Tekrar çevir", says save as PDF', () => {
     const r = ofisHataMetni(new OfisCokBuyuk());
     expect(r).toEqual({ metin: new OfisCokBuyuk().message, tekrarCevir: false });
     expect(r!.metin).toMatch(/PDF olarak kaydedip ekle/);
   });
   it('things a new try cannot fix: their text, no "Tekrar çevir"', () => {
-    for (const e of [new OfisDesteklenmiyor('a.key'), new OfisKilitli(), new DosyaYazmaYok(), new YerDisi(), new YetkiYok()]) {
+    for (const e of [new OfisDesteklenmiyor('a.key'), new DosyaYazmaYok(), new YerDisi(), new YetkiYok()]) {
       expect(ofisHataMetni(e)).toEqual({ metin: e.message, tekrarCevir: false });
     }
   });

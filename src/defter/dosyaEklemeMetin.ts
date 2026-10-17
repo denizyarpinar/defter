@@ -1,5 +1,5 @@
 import { SessionExpired } from '../drive/drive';
-import { OfisCevrilemedi, OfisCokBuyuk, OfisDesteklenmiyor, OfisIptal, OfisKilitli, OfisYuklenemedi } from '../drive/ofisCevir';
+import { OfisCevrilemedi, OfisCokBuyuk, OfisDesteklenmiyor, OfisIptal, OfisYuklenemedi } from '../drive/ofisCevir';
 import { DosyaYazmaYok, YerDisi, YetkiYok } from '../drive/pdfOlustur';
 import { MAX_DOSYA_MB } from './ayarlar';
 import type { DosyaTuruSonucu } from './dosyaTuru';
@@ -49,8 +49,9 @@ export interface OfisHataMetni { metin: string; tekrarCevir: boolean }
 // tekrarCevir: "Tekrar çevir" can help (Drive / connection); too big, not allowed, no library: it can't.
 export function ofisHataMetni(e: unknown): OfisHataMetni | null {
   if (e instanceof OfisIptal) return null;
+  if (e instanceof OfisYuklenemedi && e.neden === 'izin') return { metin: e.message, tekrarCevir: false };   // a retry can't help
   if (e instanceof OfisCevrilemedi || e instanceof OfisYuklenemedi || e instanceof SessionExpired) return { metin: e.message, tekrarCevir: true };
-  if ([OfisCokBuyuk, OfisDesteklenmiyor, OfisKilitli, DosyaYazmaYok, YerDisi, YetkiYok].some(c => e instanceof c)) {
+  if ([OfisCokBuyuk, OfisDesteklenmiyor, DosyaYazmaYok, YerDisi, YetkiYok].some(c => e instanceof c)) {
     return { metin: (e as Error).message, tekrarCevir: false };
   }
   if (e instanceof TypeError) return { metin: new OfisYuklenemedi().message, tekrarCevir: true };   // fetch failed: no connection

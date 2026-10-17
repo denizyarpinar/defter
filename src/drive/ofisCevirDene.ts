@@ -4,7 +4,7 @@ import { SourceResolver } from '../okuma/kaynakCoz';
 import type { DriveLocation } from './driveLibrary';
 import { ofisuPdfeCevir } from './ofisCevir';
 
-// Task 6.1b, development only (loaded from main.ts under import.meta.env.DEV with ?ofisCevir=1, not in the build):
+// Task 6.1b, development only (loaded from main.ts under import.meta.env.DEV, not in the build):
 // window.defterOfisCevirDene(kitapAdi, konuYolu) — converts a Word/PowerPoint file with ofisuPdfeCevir:
 // the temporary Google file goes into that topic folder and then to the trash. The PDF is NOT added to the topic;
 // bytes, page count (pdf-lib), time and copeAtildi go to the console, a button opens the PDF in a new tab.

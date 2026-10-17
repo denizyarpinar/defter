@@ -834,15 +834,15 @@ async function chooseFiles(files: File[]): Promise<void> {
 }
 
 // Task 5.10e: the chosen file → PDF bytes (dosyaHazirla, lazy) → the panel; refused: a toast.
-// Task 6.1c: Word / PowerPoint with ?ofisCevir=1 in the Drive library → the panel at once, it converts.
+// Task 6.1c: Word / PowerPoint in the Drive library → the panel at once, it converts (no lock since 6.1e).
 async function prepareFile(file: File, tur: DosyaTuruSonucu): Promise<void> {
   const t = topic;
   if (!t || !open) return;
   if (tur.tur === 'ofis') {
     let yol: TekDosyaYolu;
     try {
-      const [{ tekDosyaYolu }, { ofisCevirKilitAcik }] = await Promise.all([import('../defter/dosyaPanelDurumu'), import('../drive/ofisCevir')]);
-      yol = tekDosyaYolu(tur, { kilitAcik: ofisCevirKilitAcik(), drive: !!driveLocation() && !isSampleId(folder), bayt: file.size });
+      const { tekDosyaYolu } = await import('../defter/dosyaPanelDurumu');
+      yol = tekDosyaYolu(tur, { drive: !!driveLocation() && !isSampleId(folder), bayt: file.size });
     } catch (e) {
       console.warn(e);
       toast('Dosya hazırlanamadı. Sayfayı yenileyip tekrar dene.');

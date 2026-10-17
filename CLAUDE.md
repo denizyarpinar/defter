@@ -232,7 +232,8 @@ Kitaplık/
 
 ### Word / PowerPoint
 - Faz 5'te uygulama dönüştürmez: .doc/.docx/.ppt/.pptx/.odt/.odp/.key/.pages/.rtf reddedilir, mesaj "PDF olarak kaydedip ekle". Kullanıcı PDF'e çevirip ekler.
-- 5.11 denemesi: dev-only `window.defterOfisDene()` (`src/drive/ofisDene.ts`), Drive kökünde "Defter-ceviri-deneme" klasörü. Karar: otomatik çeviri Faz 6'ya ertelendi.
+- 5.11 denemesi: dev-only `window.defterOfisDene()`, Drive kökünde "Defter-ceviri-deneme" klasörü. Karar: otomatik çeviri Faz 6'ya ertelendi. `src/drive/ofisDene.ts` 6.1e'de kaldırıldı (git geçmişinde duruyor); Drive'daki Defter-ceviri-deneme klasörüne dokunulmaz.
+- Faz 6 (6.1e) ile tek Word/PowerPoint dosyası Drive kitaplığında çevrilir (bkz. Faz 6); örnek kitaplıkta ve Keynote/Pages için "PDF olarak kaydedip ekle" reddi aynen.
 - Faz 6 kuralı (Deniz kararı, 17 Ekim 2026): otomatik çeviride Drive'da oluşan geçici Google dosyası çöpe atılır (`files.update` ile `trashed=true`; 30 gün geri alınabilir). Bu, "hiçbir dosya silinmez" kuralının tek istisnasıdır ve sadece uygulamanın kendi oluşturduğu ara dosya için geçerlidir.
 
 ### iOS / iPad
@@ -262,10 +263,15 @@ Kitaplık/
 - Çöpe atma hatası PDF'i bozmaz (`copeAtildi: false`, bir sonraki süpürmede tekrar denenir). Çeviri hatasında ve iptalde (yükleme bittiyse) geçici dosya yine çöpe atılır.
 - Süpürme: her çeviriden önce `defterGecici = "1"` + Google türü + `trashed = false` + `createdTime` 1 saatten eski olanlar (en fazla 20) çöpe atılır. Süpürme hatası çeviriyi durdurmaz (console.warn).
 
-### Kilit ve kod
-- Güvenlik kilidi `?ofisCevir=1`: kilit yokken çeviri, çöpe atma ve süpürme hiç Drive isteği yapmaz (OfisKilitli).
-- Kod: `src/drive/ofisCevir.ts` (cevirTuru, ofisuPdfeCevir, copeAtGecici, supurGecici; testli). `dosyaTuru` sonucu `cevrilebilir` alanını taşır (aynı tablo). Arayüz 6.1c'de; bugünkü "PDF olarak kaydedip ekle" reddi şimdilik aynı.
-- Dev: `window.defterOfisCevirDene(kitapAdi, konuYolu)` (sadece `npm run dev` + `?ofisCevir=1`, `src/drive/ofisCevirDene.ts`): dosya seçtirir, o konunun klasöründe çevirir, sonucu loglar; konuya eklemez.
+### Korumalar ve panel (6.1e)
+- `?ofisCevir=1` kilidi 6.1e'de kalktı (Deniz kararı, 6.1d gerçek testlerinden sonra): "Dosya ekle"de seçilen tek Word/PowerPoint dosyası Drive kitaplığında her zaman çevrilir.
+- Kalan korumalar: örnek kitaplıkta çeviri yok ("PDF olarak kaydedip ekle" reddi); yerKontrol (sadece `kitaplar/<kitap>/` altı); copeAtGecici koşulları (yukarıda); en fazla 50 MB (`MAX_DOSYA_MB`); key/pages reddedilir; birden çok dosya seçiminde Word/PPT reddedilir.
+- Panel: çeviri sürerken ve çeviri başarıyla bittikten sonra panel dışına dokunma paneli kapatmaz; Ekle'ye basılıp ekleme bitene ya da Vazgeç/Esc'ye kadar açık kalır (çevrilen PDF kaybolmasın). Çeviri hatasında dışa dokunma paneli kapatır.
+- "Tekrar çevir" sadece yeni denemenin işe yarayabileceği hatalarda görünür. Google izni (kapsam) yetmiyorsa görünmez (`OfisYuklenemedi.neden = 'izin'`; diğerleri `'ag'` | `'sunucu'`).
+
+### Kod
+- `src/drive/ofisCevir.ts` (cevirTuru, ofisuPdfeCevir, copeAtGecici, supurGecici; testli). `dosyaTuru` sonucu `cevrilebilir` alanını taşır (aynı tablo). Panel: `src/ui/dosyaPanel.ts`; karar `tekDosyaYolu` (`src/defter/dosyaPanelDurumu.ts`); hata metni `ofisHataMetni` (`src/defter/dosyaEklemeMetin.ts`).
+- Dev: `window.defterOfisCevirDene(kitapAdi, konuYolu)` (sadece `npm run dev`, `src/drive/ofisCevirDene.ts`): dosya seçtirir, o konunun klasöründe çevirir, sonucu loglar; konuya eklemez.
 
 ## Sonra bakılabilir
 - Oda zaman aşımı: şu an glb yüklemesine toplam 15 sn veriliyor; yavaş bağlantıda (masaüstü lightmap'leri ~3.3 MB) eski odaya düşüyor. Öneri: "15 sn hiç ilerleme yok" kuralı + yükleme göstergesi. Faz 2 kural metni değişeceği için Deniz'in onayı gerekir.
