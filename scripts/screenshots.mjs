@@ -6,7 +6,9 @@
 // PNGs are shot at devicePixelRatio 2 (smooth edges), then scaled to 1600 px and saved with a
 // 256-colour palette (< 800 kB each).
 //
-// Writes to docs/: oda-gunduz.png, oda-aksam.png, raf.png, kitap.png, once-sonra.png, demo.gif.
+// Writes to docs/: oda-gunduz.png, oda-aksam.png, raf.png, kitap.png, once-sonra.png, demo.gif,
+// and (Faz 5.12) foto-ekle.png, kose-duzelt.png, dosya-ekle.png from made-up images (no lecture material).
+// SHOTS=faz5 makes only the three Faz 5 images (no ffmpeg needed; the other files stay as they are).
 // Click points are for a 1600×1000 window and the sample library in public/ornek/: if the room
 // framing or the books change, check BOOKCASE and BOOK below (run once, look at docs/raf.png).
 
@@ -166,10 +168,108 @@ async function recordGif(browser) {
   if (process.env.GIF_KEEP) log(`  kareler: ${dir}`); else rmSync(dir, { recursive: true, force: true });
 }
 
+// ---- Faz 5.12: photo panel, corner editor, file panel (sample library: "Ekle" stays off) ----
+
+// Made-up input images (nothing from a lecture): a notebook page lying a bit skewed on a dark desk,
+// and three "board" images for the file panel's list. Written to a temp folder, never to the repo.
+async function faz5Inputs(dir) {
+  const W = 2400, H = 1800;
+  const page = [[620, 170], [1830, 250], [1760, 1650], [540, 1580]];   // corners, clockwise
+  let s = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">
+    <defs><linearGradient id="w" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4a3222"/><stop offset="1" stop-color="#2c1d13"/></linearGradient></defs>
+    <rect width="${W}" height="${H}" fill="url(#w)"/>`;
+  for (let y = 40; y < H; y += 90) s += `<path d="M0 ${y} Q ${W / 2} ${y + 25} ${W} ${y - 10}" stroke="#5a3d2a" stroke-width="10" fill="none" opacity=".5"/>`;
+  s += `<polygon points="${page.map(p => p.join(',')).join(' ')}" fill="#000" opacity=".35" transform="translate(18,22)"/>`;
+  s += `<polygon points="${page.map(p => p.join(',')).join(' ')}" fill="#fbf8ef"/>`;
+  // lines, margin and text in the page's own frame (a 1200×1400 sheet), mapped with an affine fit of three corners
+  const [p0, p1, , p3] = page, sw = 1200, sh = 1400;
+  const m = [(p1[0] - p0[0]) / sw, (p1[1] - p0[1]) / sw, (p3[0] - p0[0]) / sh, (p3[1] - p0[1]) / sh, p0[0], p0[1]];
+  s += `<g transform="matrix(${m.join(' ')})">`;
+  for (let y = 150; y < sh - 40; y += 56) s += `<line x1="0" y1="${y}" x2="${sw}" y2="${y}" stroke="#a9c8e8" stroke-width="3"/>`;
+  s += `<line x1="140" y1="0" x2="140" y2="${sh}" stroke="#e08a8a" stroke-width="4"/>`;
+  const hand = 'font-family="Segoe Print, Segoe Script, Comic Sans MS, cursive" fill="#1d3557"';
+  const lines = ['Aussagenlogik – özet', '', 'Aussage: wahr oder falsch (doğru/yanlış)', 'Junktoren: ¬  ∧  ∨  →  ↔', 'De Morgan: ¬(a ∧ b) ≡ ¬a ∨ ¬b', '', 'a  b  | a → b', '0  0  |   1', '0  1  |   1', '1  0  |   0', '1  1  |   1'];
+  lines.forEach((t, i) => { if (t) s += `<text x="170" y="${140 + i * 56}" font-size="${i ? 36 : 50}" ${hand}${i ? '' : ' font-weight="700"'}>${t}</text>`; });
+  s += `<ellipse cx="560" cy="${140 + 9 * 56 - 12}" rx="150" ry="34" stroke="#d62828" stroke-width="5" fill="none"/></g></svg>`;
+  const files = [join(dir, 'defter-foto.jpg')];
+  await sharp(Buffer.from(s)).jpeg({ quality: 88 }).toFile(files[0]);
+  const boards = [['#264653', 'Übung 3 – Aufgabe 1'], ['#2a9d8f', 'Übung 3 – Aufgabe 2'], ['#e76f51', 'Übung 3 – Lösungsskizze']];
+  for (const [i, [bg, t]] of boards.entries()) {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1200"><rect width="1600" height="1200" fill="${bg}"/>
+      <text x="120" y="220" font-family="Segoe Print, Comic Sans MS, cursive" font-size="90" fill="#fff">${t}</text>
+      <path d="M140 420 L 700 420 M140 560 L 1100 560 M140 700 L 900 700" stroke="#fff" stroke-width="14" stroke-linecap="round" opacity=".85"/>
+      <circle cx="1250" cy="850" r="190" stroke="#fff" stroke-width="14" fill="none" opacity=".85"/></svg>`;
+    const f = join(dir, `tahta-${i + 1}.jpg`);
+    await sharp(Buffer.from(svg)).jpeg({ quality: 88 }).toFile(f);
+    files.push(f);
+  }
+  return files;
+}
+
+const PRG_BOOK = { x: 618, y: 350 };   // shelf view: "Programlamaya Giriş"
+const TOPIC = 'Değişkenler ve veri tipleri';
+
+async function faz5Shots(browser) {
+  const dir = mkdtempSync(join(tmpdir(), 'defter-faz5-'));
+  try {
+    const [photo, ...boards] = await faz5Inputs(dir);
+    const page = await browser.newPage({ viewport: VIEW, deviceScaleFactor: 2 });
+    await openRoom(page);
+    await setMode(page, 'Gündüz');
+    await openShelf(page);
+    await page.mouse.click(PRG_BOOK.x, PRG_BOOK.y);
+    await page.waitForSelector('#reader:not([hidden])', { timeout: 10_000 });
+    await page.waitForTimeout(1500);
+    await page.locator('[data-t]', { hasText: TOPIC }).first().click();
+    await page.waitForSelector('#oFoto', { state: 'visible', timeout: 15_000 });
+    await page.waitForTimeout(2500);   // the summary's first pages
+
+    // 1. photo panel: the notebook photo (cropped) and one board image
+    await page.setInputFiles('#oFotoInput', [photo, boards[0]]);
+    await page.waitForSelector('#fotoPanel .fp-oge:nth-child(2)', { timeout: 30_000 });
+    await page.waitForFunction(() => !document.querySelector('#fotoPanel .fp-mesgul') && !document.querySelector('#fotoPanel .fp-durum:not([hidden])'), null, { timeout: 30_000 });
+    await page.mouse.move(0, 0);
+    await page.waitForTimeout(500);
+    await savePng(await page.screenshot(), 'foto-ekle.png');
+
+    // 2. corner editor of the first photo
+    await page.locator('#fotoPanel .fp-duzelt').first().click();
+    await page.waitForSelector('.kd', { timeout: 10_000 });
+    await page.waitForFunction(() => { const y = document.querySelector('.kd-yukleniyor'); return !y || y.hidden || getComputedStyle(y).display === 'none'; }, null, { timeout: 30_000 });
+    await page.mouse.move(0, 0);
+    await page.waitForTimeout(800);
+    await savePng(await page.screenshot(), 'kose-duzelt.png');
+    await page.keyboard.press('Escape');   // the editor
+    await page.waitForTimeout(400);
+    await page.locator('#fotoPanel .fp-vazgec').click();
+    await page.waitForSelector('#fotoPanel', { state: 'detached', timeout: 10_000 });
+
+    // 3. file panel with three images (one PDF)
+    await page.setInputFiles('#oDosyaInput', boards);
+    await page.waitForSelector('#dosyaPanel', { timeout: 30_000 });
+    await page.waitForTimeout(2500);   // thumbnails
+    await page.mouse.move(0, 0);
+    await savePng(await page.screenshot(), 'dosya-ekle.png');
+    await page.close();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 // ---- main ----
 
 const server = await startPreview();
 const browser = await chromium.launch({ channel: 'chrome', headless: true, args: GPU_ARGS });
+if (process.env.SHOTS === 'faz5') {
+  // only the three Faz 5 images (no GIF, no ffmpeg; the other files in docs/ stay as they are)
+  try {
+    await faz5Shots(browser);
+  } finally {
+    await browser.close();
+    server.kill();
+  }
+  process.exit(0);
+}
 try {
   mkdirSync(DOCS, { recursive: true });
   const page = await browser.newPage({ viewport: VIEW, deviceScaleFactor: 2 });
@@ -197,6 +297,8 @@ try {
   const old = await page.screenshot();
   await page.close();
   await savePng(await beforeAfter(browser, old, day), 'once-sonra.png');
+
+  await faz5Shots(browser);
 
   log('demo.gif kaydediliyor…');
   await recordGif(browser);

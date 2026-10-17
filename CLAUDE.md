@@ -79,8 +79,8 @@ Kitaplık/
 - Faz 2 Görsel kalite: hazır modeller + PBR dokular, Blender'da ışık pişirme
 - Faz 3 Okuma: pdf.js, kitap/PDF modu, yakınlaştırma
 - Faz 4 Kalem: çizimleri PDF'e kaydetme (MVP)
-- Faz 5 Defter ve ekleme: fotoğraf notu, dönüştürme, özelleştirme  ← ŞU AN
-- Faz 6 Akıllı özellikler: OCR, arama, quiz/özet
+- Faz 5 Defter ve ekleme: defter fotoğrafı (otomatik kırpma), Dosya ekle (PDF, görsel → PDF)  ← bitti (5.12), main'e birleştirme Deniz onayıyla
+- Faz 6 Akıllı özellikler: Word/PPT otomatik çeviri (Drive), OCR, arama, quiz/özet
 
 ## Faz 2 — Görsel kalite kuralları
 
@@ -219,14 +219,32 @@ Kitaplık/
 ### Cihazda saklama
 - Eklenmeyi bekleyen fotoğraflar yükleme bitene kadar IndexedDB'de saklanır; hiçbir hatada silinmez.
 
-### Word / PowerPoint
-- Uygulama dönüştürmez; kullanıcı PDF'e çevirip ekler.
-- Drive ile dönüştürme sadece ayrı deneme adımında (5.11) ve demo dosyayla denenir.
+### Dosya ekle (5.10)
+- Okuyucudaki "Dosya ekle": dosya sadece açık konunun klasörüne (`kitaplar/<kitap>/` altında) ve sadece PDF olarak eklenir. Görsel → tek sayfalı PDF; birden çok görsel → tek PDF (sırala/sil/+, kırpma yok). Kod: `src/defter/dosyaTuru.ts`, `dosyaHazirla.ts`, `konuyaDosyaEkle.ts`, `src/ui/dosyaPanel.ts`.
+- Hedefler: Übungen (`Uebungen/`), Ödevler (`Oedevler/`), Çözüm (`X_cozum.pdf`, `X.pdf`'in klasörüne), Orijinal (sadece `orijinal.pdf` yoksa), Özet (sadece hiç özet yoksa; tek `brifing.pdf` de özet sayılır).
+- Klasör oluşturulmaz: `Uebungen/` ya da `Oedevler/` yoksa o hedef gri (seçilemez); yine de istenirse hata (KlasorYok).
+- Aynı ad (büyük/küçük harf duyarsız) = uyarı; üzerine yazılmaz, otomatik yeniden adlandırma yok; kullanıcı adı değiştirir. `_cozum` ile biten ad Übungen/Ödevler'e normal dosya olarak eklenmez (AdCozumGibi).
+- Kilit: aynı sekmede aynı konu + hedef + ad için aynı anda tek ekleme (kilitAnahtari → EklemeSuruyor).
+- islemId: hedef + ad (+ görsel listesi) için bir kez üretilir, bunlar değişmedikçe aynı kalır; `appProperties.defterIslem`'e yazılır. Tekrar denemede aynı ad + aynı islemId + aynı boyut → "zaten eklenmiş" (çift dosya yok). generateIds ile önceden alınan id kuralı (5.5) aynen geçerli.
+- Sınırlar: en fazla 50 MB (`MAX_DOSYA_MB`); boş dosya, bozuk PDF ve desteklenmeyen tür reddedilir; başında fazla bayt olan PDF pdf-lib ile temizlenip yüklenir.
+- Dosya önce cihaza kaydedilmez (fotoğraftan farklı). Hata olursa panel açık kalır + "Tekrar dene" (aynı islemId).
+- Eklenen dosya açık okuyucuda hemen görünür (5.10f).
 
-### Geçici varsayılanlar (kolay değiştirilebilir sabitler; Deniz testlerde görüp onaylayacak)
-- İki dosyalı özette (brifing + sorular) sayfa, açık olan dosyanın sonuna eklenir.
-- "Dosya ekle" ile gelen görsel PDF'e çevrilir.
-- Fotoğraf: sayfa otomatik kırpılır + perspektif düzeltme (saf TS, src/defter/kirp/), istenirse tüm fotoğraf; güven düşükse tüm fotoğraf; uzun kenar 2000 px, JPEG 0.85, filtre yok.
+### Word / PowerPoint
+- Faz 5'te uygulama dönüştürmez: .doc/.docx/.ppt/.pptx/.odt/.odp/.key/.pages/.rtf reddedilir, mesaj "PDF olarak kaydedip ekle". Kullanıcı PDF'e çevirip ekler.
+- 5.11 denemesi: dev-only `window.defterOfisDene()` (`src/drive/ofisDene.ts`), Drive kökünde "Defter-ceviri-deneme" klasörü. Karar: otomatik çeviri Faz 6'ya ertelendi.
+- Faz 6 kuralı (Deniz kararı, 17 Ekim 2026): otomatik çeviride Drive'da oluşan geçici Google dosyası çöpe atılır (`files.update` ile `trashed=true`; 30 gün geri alınabilir). Bu, "hiçbir dosya silinmez" kuralının tek istisnasıdır ve sadece uygulamanın kendi oluşturduğu ara dosya için geçerlidir.
+
+### iOS / iPad
+- Fotoğraf ve dosya seçici dokunuşun içinde açılır (`input.click()` tıklama olayında); panel seçimden sonra açılır (iPad Safari kuralı).
+- Klavye / görünür alan (5.10g-ek, ek2): `#app` ve `#reader` `position: fixed; inset: 0` kalır. Dokunmatik ekranda panel üste yaslıdır; odak `preventScroll` ile verilir; klavye kapanınca sayfa kaydırması 0'a döner (`src/ui/gorunurAlan.ts`, `klavyeKaydirma.ts`). Sayfa kilidi ve `--gorunur-h` yedeği denendi, kötüleştirdi, kaldırıldı; geri getirme.
+- `?olcum=1`: görünür alan ölçümleri küçük bir kutuda (Vercel'de de açılır; iPad testi için).
+
+### Onaylanan varsayılanlar (5.9 ve 5.10 testlerinde Deniz onayladı; kolay değiştirilebilir sabitler)
+- İki dosyalı özette (brifing + sorular) fotoğraf sayfaları açık olan dosyanın sonuna eklenir.
+- "Dosya ekle" ile gelen görsel PDF'e çevrilir; birden çok görsel → tek PDF, kırpma yok.
+- Fotoğraf: sayfa otomatik kırpılır + perspektif düzeltme (saf TS, src/defter/kirp/), istenirse tüm fotoğraf; güven düşükse tüm fotoğraf; uzun kenar 2000 px, JPEG 0.85, renkli, filtre yok.
+- Uebungen/Oedevler yoksa hedef gri, klasör oluşturulmaz; aynı ad = uyarı + kullanıcı değiştirir; dosya önce cihaza kaydedilmez, hata olursa panel açık + Tekrar dene.
 
 ## Sonra bakılabilir
 - Oda zaman aşımı: şu an glb yüklemesine toplam 15 sn veriliyor; yavaş bağlantıda (masaüstü lightmap'leri ~3.3 MB) eski odaya düşüyor. Öneri: "15 sn hiç ilerleme yok" kuralı + yükleme göstergesi. Faz 2 kural metni değişeceği için Deniz'in onayı gerekir.
@@ -234,5 +252,7 @@ Kitaplık/
 - gifsicle: sadece `npm run screenshots` için devDependency, `npm audit`'teki 20 uyarının kaynağı. Kaldırılması ya da başka araçla değiştirilmesi.
 - İki sekmede aynı dosya: iki ayrı çizim modeli ve bekleyen kayıt; birbirini görmüyorlar.
 - Hiç açılmayan dosyaların bekleyen kayıtları: yükleme dosya açılınca tetikleniyor; kaydı olan ama bir daha açılmayan dosya cihazda bekler.
-- README: Features tablosundaki eski durum metni (unread / studied / review) ve Almanca özet; Faz 5 görsel güncellemesiyle birlikte.
 - Brifing + sorular aynı listede görünürken sorular.pdf'e sayfa eklenirse açık listede sorular'ın sayfa sayısı konu yeniden açılana kadar eski kalır.
+- İki sekme ya da iki cihaz aynı anda aynı dosyayı aynı konuya eklerse çift dosya oluşabilir (kilit sadece sekme içinde).
+- Testler ara sıra 1 hata veriyor (647'den 1; hangi test olduğu bilinmiyor); kaynağı bulunmalı.
+- Telefonda dosya seçim kutusu 56 px'e kadar daralıyor.
