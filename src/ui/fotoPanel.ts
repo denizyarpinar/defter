@@ -1,9 +1,9 @@
 import type { DriveFile } from '../drive/drive';
-import { KIRP_VARSAYILAN } from '../defter/ayarlar';
+import { KIRP_VARSAYILAN, RENK_DUZELT_VARSAYILAN } from '../defter/ayarlar';
 import { hazirlaKirpli, onizlemeHazirla, type KirpliGorsel } from '../defter/gorsel';
 import { GorselHatasi } from '../defter/gorselHesap';
 import type { BekleyenJpeg } from '../defter/bekleyenFotoKayit';
-import { boyutYazi, cikar, ekleDurumu, hedefHesapla, tasi } from '../defter/fotoPanelDurumu';
+import { boyutYazi, cikar, ekleDurumu, hedefHesapla, renkEtiketi, tasi } from '../defter/fotoPanelDurumu';
 import type { Kose4 } from '../defter/kirp/kirpHesap';
 import { kipDegistir, kirpYazi, type KirpKarari, type KirpKip } from '../defter/kirp/kirpKarar';
 import { gorunurAlaniDuzelt } from './gorunurAlan';
@@ -15,6 +15,8 @@ import { toast } from './toast';
 // The original File and the corners are kept, only the current JPEG is in memory.
 // Task 5.8d: tapping a thumbnail opens the corner editor (corners by hand); "elle" badge.
 // Task 5.8f: "Ekle" saves the photos on the device (b.ekle) and closes; if saving fails it stays open with the error.
+// Task 6.2c: "Renk düzelt" (filter E) per photo, on by default; the thumbnail shows the filtered page.
+// The corner editor still works on the unfiltered photo.
 
 export interface FotoPanelBaglam {
   konuAdi: string;
@@ -31,12 +33,16 @@ interface Oge {
   hazir: KirpliGorsel; file: File; ad: string; url: string; mesgul: boolean;
   otoKoseler: Kose4 | null;   // found automatically at the first preparation (the editor's "Otomatik")
   elle: boolean;              // corners set in the corner editor
+  renk: boolean;              // "Renk düzelt" asked (hazir.renkDuzelt: what was actually done)
 }
 
 const jpegUrl = (h: KirpliGorsel) => URL.createObjectURL(new Blob([h.gorsel.bytes as BlobPart], { type: 'image/jpeg' }));
 
 // crop: corner brackets; whole photo: a filled frame
 const SIMGE_KIRP = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg>';
+// colour fix: a half-filled circle (on) / an empty one (off)
+const SIMGE_RENK = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/></svg>';
+const SIMGE_RENK_YOK = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2"/></svg>';
 const SIMGE_TUMU = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="13" rx="1.5" fill="currentColor" opacity=".35" stroke="currentColor" stroke-width="1.8"/></svg>';
 
 export const FOTO_PANEL_ID = 'fotoPanel';   // Okuyucu.ts checks it by this id (no import: the panel is lazy)
@@ -133,8 +139,14 @@ export function acFotoPanel(b: FotoPanelBaglam, dosyalar: File[]): void {
       gecis.setAttribute('aria-pressed', String(kirp));
       gecis.disabled = o.mesgul;
       gecis.onclick = () => void degistir(o);
+      const renk = dugme('fp-renk', '', renkEtiketi(o.renk, i + 1));
+      renk.innerHTML = o.renk ? SIMGE_RENK : SIMGE_RENK_YOK;
+      renk.setAttribute('aria-pressed', String(o.renk));
+      renk.title = 'Renk düzelt';
+      renk.disabled = o.mesgul;
+      renk.onclick = () => void renkDegistir(o);
       const resim = el('div', 'fp-resim');
-      resim.append(duzelt, gecis);
+      resim.append(duzelt, gecis, renk);
       if (o.hazir.kirpilamadi && !kirp) resim.append(el('span', 'fp-rozet', 'Kırpılamadı'));
       else if (o.elle && kirp) resim.append(el('span', 'fp-rozet fp-rozet-elle', 'elle'));
       li.append(resim, el('span', 'fp-no', String(i + 1)), x, oklar, el('small', 'fp-boyut', boyutYazi(o.hazir.gorsel.yeniBoyut)));
@@ -171,9 +183,9 @@ export function acFotoPanel(b: FotoPanelBaglam, dosyalar: File[]): void {
     while (bekleyen.length && !kapandi) {
       const f = bekleyen.shift()!;
       try {
-        const h = await sirada(() => hazirlaKirpli(f, KIRP_VARSAYILAN ? 'kirp' : 'tumu'));
+        const h = await sirada(() => hazirlaKirpli(f, KIRP_VARSAYILAN ? 'kirp' : 'tumu', undefined, { renkDuzelt: RENK_DUZELT_VARSAYILAN }));
         if (kapandi) break;
-        ogeler.push({ hazir: h, file: f, ad: f.name, url: jpegUrl(h), mesgul: false, otoKoseler: h.koseler, elle: false });
+        ogeler.push({ hazir: h, file: f, ad: f.name, url: jpegUrl(h), mesgul: false, otoKoseler: h.koseler, elle: false, renk: RENK_DUZELT_VARSAYILAN });
       } catch (e) {
         if (kapandi) break;
         toast(e instanceof GorselHatasi ? `${f.name}: ${e.message}` : `${f.name} hazırlanamadı. Başka bir fotoğraf seç.`);
@@ -196,6 +208,12 @@ export function acFotoPanel(b: FotoPanelBaglam, dosyalar: File[]): void {
     await yenidenHazirla(o, kip, o.hazir);
   }
 
+  // "Renk düzelt": the same File again, same mode and corners, with the filter on or off
+  async function renkDegistir(o: Oge): Promise<void> {
+    if (o.mesgul) return;
+    await yenidenHazirla(o, o.hazir.kip, o.hazir, o.elle, !o.renk);
+  }
+
   // the corner editor; Uygula → crop with the chosen (sorted) corners
   async function koseDuzelt(o: Oge): Promise<void> {
     if (o.mesgul || duzenleyici || kapandi) return;
@@ -212,16 +230,17 @@ export function acFotoPanel(b: FotoPanelBaglam, dosyalar: File[]): void {
     await yenidenHazirla(o, 'kirp', { ...o.hazir, kip: 'kirp', koseler: s.koseler, kirpilamadi: false }, s.elle);
   }
 
-  async function yenidenHazirla(o: Oge, kip: KirpKip, onceki: KirpKarari, elle = o.elle): Promise<void> {
+  async function yenidenHazirla(o: Oge, kip: KirpKip, onceki: KirpKarari, elle = o.elle, renk = o.renk): Promise<void> {
     o.mesgul = true;
     ciz();
     try {
-      const h = await sirada(() => hazirlaKirpli(o.file, kip, onceki));
+      const h = await sirada(() => hazirlaKirpli(o.file, kip, onceki, { renkDuzelt: renk }));
       if (kapandi || !ogeler.includes(o)) return;
       URL.revokeObjectURL(o.url);   // the old JPEG goes before the new one is kept
       o.hazir = h;
       o.url = jpegUrl(h);
       o.elle = elle;
+      o.renk = renk;
     } catch (e) {
       if (kapandi) return;
       toast(e instanceof GorselHatasi ? `${o.ad}: ${e.message}` : `${o.ad} hazırlanamadı. Tekrar dene.`);
@@ -264,9 +283,9 @@ export function acFotoPanel(b: FotoPanelBaglam, dosyalar: File[]): void {
     hataMetni = null;
     ciz();
     console.info('Fotoğraf ekle:', ogeler.map((o, i) =>
-      `${i + 1}. ${o.ad} ${o.hazir.gorsel.width}×${o.hazir.gorsel.height} ${boyutYazi(o.hazir.gorsel.yeniBoyut)} ${kirpYazi(o.hazir.kip, o.hazir.kirpilamadi, o.elle)}`).join(' · '));
+      `${i + 1}. ${o.ad} ${o.hazir.gorsel.width}×${o.hazir.gorsel.height} ${boyutYazi(o.hazir.gorsel.yeniBoyut)} ${kirpYazi(o.hazir.kip, o.hazir.kirpilamadi, o.elle)}${o.hazir.renkDuzelt ? ' renk düzeltildi' : ''}`).join(' · '));
     try {
-      await b.ekle(ogeler.map(o => o.hazir.gorsel), h.hedef);
+      await b.ekle(ogeler.map(o => ({ ...o.hazir.gorsel, renkDuzelt: o.hazir.renkDuzelt })), h.hedef);
     } catch (e) {
       kaydediliyor = false;
       hataMetni = e instanceof Error ? e.message : 'Fotoğraflar kaydedilemedi. Tekrar dene.';

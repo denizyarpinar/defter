@@ -246,6 +246,7 @@ Kitaplık/
 - "Dosya ekle" ile gelen görsel PDF'e çevrilir; birden çok görsel → tek PDF, kırpma yok.
 - Fotoğraf: sayfa otomatik kırpılır + perspektif düzeltme (saf TS, src/defter/kirp/), istenirse tüm fotoğraf; güven düşükse tüm fotoğraf; uzun kenar 2000 px, JPEG 0.85, renkli, filtre yok.
 - Uebungen/Oedevler yoksa hedef gri, klasör oluşturulmaz; aynı ad = uyarı + kullanıcı değiştirir; dosya önce cihaza kaydedilmez, hata olursa panel açık + Tekrar dene.
+- Defter fotoğraflarında Renk düzelt (filtre E) varsayılan açık, fotoğraf başına kapatılabilir (6.2c; `RENK_DUZELT_VARSAYILAN`). "Dosya ekle" görselleri filtrelenmez.
 
 ## Faz 6 — Word/PowerPoint çeviri kuralları
 

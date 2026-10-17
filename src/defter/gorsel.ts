@@ -1,4 +1,5 @@
 import { JPEG_KALITE, MAX_KENAR } from './ayarlar';
+import { renkDuzelt } from './filtre/filtreler';
 import { GorselHatasi, hataTuru, hedefBoyut } from './gorselHesap';
 import type { Kose4 } from './kirp/kirpHesap';
 import { ilkKarar, kirpPenceresi, type KirpKarari, type KirpKip } from './kirp/kirpKarar';
@@ -46,14 +47,37 @@ export async function hazirlaGorsel(file: File): Promise<HazirGorsel> {
   if (file.size === 0) throw new GorselHatasi('bos');
   const src = await coz(file);
   try {
-    return await tumunuHazirla(src, file);
+    return (await tumunuHazirla(src, file)).gorsel;   // "Dosya ekle" too: never filtered
   } finally {
     src.close();
   }
 }
 
+// Task 6.2c: filter E on the finished page, just before the JPEG step. Its buffers are local and go
+// when it returns (one photo at a time). A failure leaves the canvas as it was: false.
+function renkDuzeltTuvale(canvas: HTMLCanvasElement): boolean {
+  try {
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return false;
+    const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    img.data.set(renkDuzelt(img).data);
+    ctx.putImageData(img, 0, 0);
+    return true;
+  } catch (e) {
+    console.warn('Renk düzeltilemedi, fotoğraf olduğu gibi kullanılıyor.', e);
+    return false;
+  }
+}
+
+interface Hazir { gorsel: HazirGorsel; renkDuzelt: boolean }
+
+async function jpegHazirla(canvas: HTMLCanvasElement, src: Kaynak, file: File, renk: boolean): Promise<Hazir> {
+  const renkDuzelt = renk && renkDuzeltTuvale(canvas);
+  return { gorsel: await jpegBilgisi(canvas, src, file), renkDuzelt };
+}
+
 // The whole photo, shrunk to MAX_KENAR (what hazirlaGorsel has always done).
-async function tumunuHazirla(src: Kaynak, file: File): Promise<HazirGorsel> {
+async function tumunuHazirla(src: Kaynak, file: File, renk = false): Promise<Hazir> {
   const canvas = document.createElement('canvas');
   try {
     if (!(src.width > 0 && src.height > 0)) throw new GorselHatasi(hataTuru(file));
@@ -67,7 +91,7 @@ async function tumunuHazirla(src: Kaynak, file: File): Promise<HazirGorsel> {
     ctx.fillStyle = '#fff';   // JPEG has no transparency: a see-through PNG would turn black
     ctx.fillRect(0, 0, width, height);
     ctx.drawImage(src.image, 0, 0, width, height);
-    return await jpegBilgisi(canvas, src, file);
+    return await jpegHazirla(canvas, src, file, renk);
   } finally {
     canvas.width = canvas.height = 0;
   }
@@ -81,7 +105,7 @@ async function jpegBilgisi(canvas: HTMLCanvasElement, src: Kaynak, file: File): 
 }
 
 // Task 5.8c: only the page's part of the full-resolution photo → straightened page, long edge ≤ MAX_KENAR.
-async function kirpiliHazirla(src: Kaynak, file: File, k: Kose4): Promise<HazirGorsel> {
+async function kirpiliHazirla(src: Kaynak, file: File, k: Kose4, renk = false): Promise<Hazir> {
   const p = kirpPenceresi(k, src);
   const canvas = document.createElement('canvas');
   let out: HTMLCanvasElement | null = null;
@@ -96,8 +120,8 @@ async function kirpiliHazirla(src: Kaynak, file: File, k: Kose4): Promise<HazirG
     ctx.fillRect(0, 0, p.width, p.height);
     ctx.drawImage(src.image, p.sx, p.sy, p.sw, p.sh, 0, 0, p.width, p.height);
     out = duzelt(canvas, p.koseler, MAX_KENAR);
-    canvas.width = canvas.height = 0;   // before the JPEG step: one big canvas at a time
-    return await jpegBilgisi(out, src, file);
+    canvas.width = canvas.height = 0;   // before the filter and JPEG steps: one big canvas at a time
+    return await jpegHazirla(out, src, file, renk);
   } finally {
     canvas.width = canvas.height = 0;
     if (out) out.width = out.height = 0;
@@ -131,12 +155,15 @@ export async function onizlemeHazirla(file: File, maxKenar = ONIZLEME_KENAR): Pr
   }
 }
 
-export interface KirpliGorsel extends KirpKarari { gorsel: HazirGorsel }
+// renkDuzelt: filter E was applied (task 6.2c); false when not asked or when it failed
+export interface KirpliGorsel extends KirpKarari { gorsel: HazirGorsel; renkDuzelt: boolean }
 
 // Task 5.8c: the photo panel's preparation. Without koseler the corners are found first (method B
 // on a small copy) and ilkKarar picks the mode; with koseler (the thumbnail's toggle) they are
 // reused and the asked mode is made. If the perspective step fails: the whole photo, "kırpılamadı".
-export async function hazirlaKirpli(file: File, kip: KirpKip, onceki?: KirpKarari): Promise<KirpliGorsel> {
+// Task 6.2c: secenek.renkDuzelt (only the photo panel asks for it) → filter E before the JPEG.
+export async function hazirlaKirpli(file: File, kip: KirpKip, onceki?: KirpKarari, secenek: { renkDuzelt?: boolean } = {}): Promise<KirpliGorsel> {
+  const renk = secenek.renkDuzelt === true;
   if (file.size === 0) throw new GorselHatasi('bos');
   const src = await coz(file);
   try {
@@ -149,14 +176,14 @@ export async function hazirlaKirpli(file: File, kip: KirpKip, onceki?: KirpKarar
     }
     if (karar.kip === 'kirp' && karar.koseler) {
       try {
-        return { ...karar, gorsel: await kirpiliHazirla(src, file, karar.koseler) };
+        return { ...karar, ...await kirpiliHazirla(src, file, karar.koseler, renk) };
       } catch (e) {
         if (e instanceof GorselHatasi) throw e;
         console.warn('Sayfa kırpılamadı, fotoğrafın tamamı kullanılıyor.', e);
         karar = { ...karar, kip: 'tumu', kirpilamadi: true };
       }
     }
-    return { ...karar, kip: 'tumu', gorsel: await tumunuHazirla(src, file) };
+    return { ...karar, kip: 'tumu', ...await tumunuHazirla(src, file, renk) };
   } finally {
     src.close();
   }

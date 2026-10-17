@@ -67,3 +67,8 @@ export function boyutYazi(bayt: number): string {
   if (bayt < 1024 * 1024) return `${Math.max(1, Math.round(bayt / 1024))} KB`;
   return `${(bayt / 1024 / 1024).toFixed(1).replace('.', ',')} MB`;
 }
+
+// Task 6.2c: the thumbnail's "Renk düzelt" toggle (no: the photo's number in the panel)
+export function renkEtiketi(acik: boolean, no: number): string {
+  return acik ? `${no}. fotoğraf: renk düzeltiliyor – kapat` : `${no}. fotoğraf: renk düzeltme kapalı – aç`;
+}
