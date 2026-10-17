@@ -11,7 +11,7 @@ import { listeAdi, listeBilgisi, listeBoyutMetni } from '../defter/gorselListesi
 import type { DosyaEklendi, DosyaHedefi } from '../defter/konuyaDosyaEkle';
 import type { MaterialKind, TopicMaterials } from '../okuma/konuKesfi';
 import { closePdf, pdfjs } from '../okuma/pdf';
-import { arkaSayfayiKilitle } from './gorunurAlan';
+import { gorunurAlaniDuzelt } from './gorunurAlan';
 import { panelKlavyeTakibi } from './klavyeKaydirma';
 import { toast } from './toast';
 
@@ -150,7 +150,6 @@ export function acDosyaPanel(b: DosyaPanelBaglam, kaynak: DosyaPanelKaynak): voi
   document.body.append(kok);
   // iPad: the panel stays in the visible part while the keyboard is open; the page is put back after it
   const klavye = panelKlavyeTakibi(kok);
-  const kilidiAc = arkaSayfayiKilitle();   // task 5.10g-ek: the page behind can't move while the panel is open
   adKutu.addEventListener('blur', klavye.sifirla);
 
   function secHedef(h: PanelHedef): void {
@@ -289,7 +288,7 @@ export function acDosyaPanel(b: DosyaPanelBaglam, kaynak: DosyaPanelKaynak): voi
     adKutu.removeEventListener('blur', klavye.sifirla);
     kok.remove();
     klavye.durdur();
-    kilidiAc();   // task 5.10g-ek: also fixes the page once more (the same way as the photo panel)
+    gorunurAlaniDuzelt('dosya paneli kapandı');   // task 5.10g-ek2: the page back to the top (as the photo panel)
   }
 
   function tus(e: KeyboardEvent): void {
@@ -340,7 +339,7 @@ export function acDosyaPanel(b: DosyaPanelBaglam, kaynak: DosyaPanelKaynak): voi
   };
 
   ciz();
-  vazgec.focus();
+  vazgec.focus({ preventScroll: true });   // task 5.10g-ek2: focusing never moves the page (iPad)
   if (hazir) void sayfaSayisi(hazir).then(n => { sayfa = n; if (!kapandi) ciz(); });
   else if (kaynak.tur === 'gorseller') void hazirla(kaynak.dosyalar);
   void b.klasorler().then(k => { klasor = k; if (!kapandi && !ekleniyor) ciz(); }, () => {});

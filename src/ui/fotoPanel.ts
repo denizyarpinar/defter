@@ -6,7 +6,7 @@ import type { BekleyenJpeg } from '../defter/bekleyenFotoKayit';
 import { boyutYazi, cikar, ekleDurumu, hedefHesapla, tasi } from '../defter/fotoPanelDurumu';
 import type { Kose4 } from '../defter/kirp/kirpHesap';
 import { kipDegistir, kirpYazi, type KirpKarari, type KirpKip } from '../defter/kirp/kirpKarar';
-import { arkaSayfayiKilitle } from './gorunurAlan';
+import { gorunurAlaniDuzelt } from './gorunurAlan';
 import { acKoseDuzenleyici, type KoseDuzenleyici } from './koseDuzenleyici';
 import { toast } from './toast';
 
@@ -101,7 +101,6 @@ export function acFotoPanel(b: FotoPanelBaglam, dosyalar: File[]): void {
   kart.append(baslik, durum, liste, arti, input, hedefSatir, not, alt);
   kok.append(kart);
   document.body.append(kok);
-  const kilidiAc = arkaSayfayiKilitle();   // task 5.10g-ek: the page behind can't move while the panel is open
 
   const hedef = () => hedefHesapla({ ozetDosyalari: b.ozetDosyalari, acikDosyaId: b.acikDosyaId, seciliId, sayfaSayisi: b.sayfaSayisi, yeniSayfa: ogeler.length });
 
@@ -241,7 +240,7 @@ export function acFotoPanel(b: FotoPanelBaglam, dosyalar: File[]): void {
     ogeler = [];
     removeEventListener('keydown', tus, true);
     kok.remove();
-    kilidiAc();   // task 5.10g-ek: as the file panel (iPad): unlock + fix the page
+    gorunurAlaniDuzelt('fotoğraf paneli kapandı');   // task 5.10g-ek2: as the file panel (iPad)
   }
 
   function tus(e: KeyboardEvent): void {

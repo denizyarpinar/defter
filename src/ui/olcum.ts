@@ -2,6 +2,7 @@ import { alanDurumu } from './gorunurAlan';
 
 // Task 5.10g-ek: ?olcum=1 — a small box in the corner with the numbers of the page's position
 // (iPad Safari: the screen stayed moved up after the keyboard / photo picker). Only for diagnosis.
+// Task 5.10g-ek2: bottom left (at the top it was cut by Safari's bar); the key numbers in the first line.
 
 const n = (x: number | undefined | null) => x == null ? '–' : String(Math.round(x * 10) / 10);
 
@@ -10,7 +11,7 @@ export function installOlcum(): void {
   kutu.id = 'olcum';
   kutu.setAttribute('aria-hidden', 'true');
   Object.assign(kutu.style, {
-    position: 'fixed', right: '4px', top: 'calc(env(safe-area-inset-top, 0px) + 4px)', zIndex: '10001', margin: '0', padding: '4px 6px',
+    position: 'fixed', left: '4px', bottom: 'calc(env(safe-area-inset-bottom, 0px) + 4px)', zIndex: '10001', margin: '0', padding: '4px 6px',
     font: '10px/1.3 ui-monospace, Menlo, monospace', color: '#fff', background: 'rgba(0, 0, 0, .55)', borderRadius: '4px',
     pointerEvents: 'none', whiteSpace: 'pre', maxWidth: '60vw', overflow: 'hidden'
   } satisfies Partial<CSSStyleDeclaration>);
@@ -29,16 +30,16 @@ export function installOlcum(): void {
     const cs = app ? getComputedStyle(app) : null;
     const ae = document.activeElement as HTMLElement | null;
     kutu.textContent = [
+      vv ? `vv offsetTop ${n(vv.offsetTop)} · pageTop ${n(vv.pageTop)} · scrollY ${n(scrollY)}` : `vv yok · scrollY ${n(scrollY)}`,
       `olay: ${olay} (#${sayac})`,
-      `scrollY ${n(scrollY)} · html.scrollTop ${n(de.scrollTop)} · body.scrollTop ${n(document.body.scrollTop)}`,
+      `html.scrollTop ${n(de.scrollTop)} · body.scrollTop ${n(document.body.scrollTop)}`,
       `innerHeight ${n(innerHeight)} · html.clientHeight ${n(de.clientHeight)}`,
-      vv ? `vv offsetTop ${n(vv.offsetTop)} pageTop ${n(vv.pageTop)} h ${n(vv.height)} scale ${n(vv.scale)}` : 'vv yok',
+      vv ? `vv h ${n(vv.height)} · scale ${n(vv.scale)}` : 'vv yok',
       `#reader ${rect('#reader')}`,
       `#okuyucu ${rect('#okuyucu')}`,
       `#app top ${cs?.top ?? '–'} h ${cs?.height ?? '–'}`,
-      `yükseklik: --gorunur-h ${de.style.getPropertyValue('--gorunur-h') || 'yok (100%)'} · ust ${de.style.getPropertyValue('--gorunur-ust') || '0'}`,
       `dvh: ${CSS.supports('height', '100dvh') ? 'var' : 'yok'} · 100vh=${n(vhPx())}px`,
-      `klavye ${alanDurumu.klavyeAcik ? 'açık' : 'kapalı'} · en büyük vv h ${n(alanDurumu.enBuyukH)} · kilit ${alanDurumu.kilit ? 'var' : 'yok'}`,
+      `klavye ${alanDurumu.klavyeAcik ? 'açık' : 'kapalı'} · en büyük vv h ${n(alanDurumu.enBuyukH)}`,
       `ad kutusu: ${adKutusu()}`,
       `düzeltme ${alanDurumu.duzeltme} · sıfırlama ${alanDurumu.sifirlama} · son: ${alanDurumu.sonOlay}`,
       `odak: ${ae ? ae.tagName.toLowerCase() + (ae.id ? '#' + ae.id : '') : '–'}`,

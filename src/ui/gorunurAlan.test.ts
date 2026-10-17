@@ -1,29 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { alanHesapla, klavyeAcikMi, KLAVYE_PAYI, yaziAlaniMi } from './gorunurAlan';
+import { klavyeAcikMi, klavyeKapandiMi, KLAVYE_PAYI, yaziAlaniMi } from './gorunurAlan';
 
-// Task 5.10g-ek: the visible part the fixed roots use (iPad Safari after the keyboard / photo picker).
-
-const vv = (offsetTop: number, height: number, scale = 1) => ({ offsetTop, height, scale });
-
-describe('alanHesapla', () => {
-  it('normal: the whole screen', () => {
-    expect(alanHesapla({ vv: vv(0, 1180), innerHeight: 1180, klavyeAcik: false })).toEqual({ ust: 0, yukseklik: 1180 });
-  });
-  it('stale layout after the keyboard (moved 60 px, smaller): follows the visible part', () => {
-    expect(alanHesapla({ vv: vv(60.4, 1049.6), innerHeight: 1180, klavyeAcik: false })).toEqual({ ust: 60, yukseklik: 1050 });
-  });
-  it('keyboard open: nothing changes (null)', () => {
-    expect(alanHesapla({ vv: vv(300, 700), innerHeight: 1180, klavyeAcik: true })).toBeNull();
-  });
-  it('no visualViewport, or a page zoom: the layout height, at the top', () => {
-    expect(alanHesapla({ vv: null, innerHeight: 900, klavyeAcik: false })).toEqual({ ust: 0, yukseklik: 900 });
-    expect(alanHesapla({ vv: vv(200, 450, 2), innerHeight: 900, klavyeAcik: false })).toEqual({ ust: 0, yukseklik: 900 });
-    expect(alanHesapla({ vv: vv(0, 0), innerHeight: 900, klavyeAcik: false })).toEqual({ ust: 0, yukseklik: 900 });
-  });
-  it('a negative offset (rubber band) is not used', () => {
-    expect(alanHesapla({ vv: vv(-12, 1180), innerHeight: 1180, klavyeAcik: false })).toEqual({ ust: 0, yukseklik: 1180 });
-  });
-});
+// Task 5.10g-ek / ek2: when is the iPad keyboard open / closed (the page goes back to the top after it).
 
 describe('yaziAlaniMi', () => {
   it('text fields: yes', () => {
@@ -55,5 +33,17 @@ describe('klavyeAcikMi', () => {
   it('height not known: the focus alone', () => {
     expect(klavyeAcikMi({ odakYazi: true, vvH: null, enBuyukH: 1180 })).toBe(true);
     expect(klavyeAcikMi({ odakYazi: true, vvH: 1180, enBuyukH: 0 })).toBe(true);
+  });
+});
+
+describe('klavyeKapandiMi', () => {
+  it('was open, height back at the tallest: closed now', () => {
+    expect(klavyeKapandiMi({ oncekiAcik: true, vvH: 1180, enBuyukH: 1180 })).toBe(true);
+    expect(klavyeKapandiMi({ oncekiAcik: true, vvH: 1128, enBuyukH: 1180 })).toBe(true);   // Safari's bar shown again
+  });
+  it('still small, or was not open: no', () => {
+    expect(klavyeKapandiMi({ oncekiAcik: true, vvH: 760, enBuyukH: 1180 })).toBe(false);
+    expect(klavyeKapandiMi({ oncekiAcik: false, vvH: 1180, enBuyukH: 1180 })).toBe(false);
+    expect(klavyeKapandiMi({ oncekiAcik: true, vvH: 1180, enBuyukH: 0 })).toBe(false);
   });
 });
