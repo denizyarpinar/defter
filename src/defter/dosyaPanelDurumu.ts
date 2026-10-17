@@ -1,7 +1,10 @@
 import type { DriveFile } from '../drive/drive';
 import { AyniIsimVar, PdfDegil } from '../drive/pdfOlustur';
 import { MATERIAL_LABEL, type MaterialKind, type TopicMaterials } from '../okuma/konuKesfi';
+import { BOS_DOSYA_METIN, boyutMetni } from './dosyaEklemeMetin';
 import type { HazirKaynak } from './dosyaHazirla';
+import type { DosyaTuruSonucu } from './dosyaTuru';
+import { boyutYazi } from './fotoPanelDurumu';
 import { kisaNeden } from './fotoEklemeMetin';
 import {
   AdCozumGibi, AdGecersiz, cozumAdi, dosyaAdiHazirla, EklemeSuruyor, HedefBulunamadi, KlasorYok, OzetZatenVar, PdfHazirlanamadi,
@@ -113,4 +116,35 @@ export function hataMetni(e: unknown): string {
   const kendi = [AdGecersiz, AdCozumGibi, KlasorYok, OzetZatenVar, HedefBulunamadi, EklemeSuruyor, PdfHazirlanamadi, AyniIsimVar, PdfDegil];
   if (kendi.some(c => e instanceof c)) return (e as Error).message;
   return `Dosya eklenemedi: ${kisaNeden(e)}.`;
+}
+
+// ---- task 6.1c: one Word / PowerPoint file → converted in the panel (no lock since 6.1e) ----
+
+export type OfisCeviriAlt = 'word' | 'powerpoint';
+
+// ofis: the panel opens at once and converts; hazirla: today's way (dosyaHazirla: PDF, image, or its own
+// refusal, e.g. Keynote/Pages or Word in the sample library); ret: a toast.
+export type TekDosyaYolu = { yol: 'ofis'; alt: OfisCeviriAlt } | { yol: 'hazirla' } | { yol: 'ret'; metin: string };
+
+// drive: the Drive library is open (not the sample library). Empty / too big: checked first, as dosyaHazirla does.
+export function tekDosyaYolu(tur: DosyaTuruSonucu, o: { drive: boolean; bayt: number }): TekDosyaYolu {
+  if (tur.tur !== 'ofis' || !tur.cevrilebilir || !o.drive) return { yol: 'hazirla' };
+  if (tur.alt !== 'word' && tur.alt !== 'powerpoint') return { yol: 'hazirla' };
+  if (o.bayt === 0) return { yol: 'ret', metin: BOS_DOSYA_METIN };
+  const boyut = boyutMetni(o.bayt);
+  if (boyut) return { yol: 'ret', metin: boyut };
+  return { yol: 'ofis', alt: tur.alt };
+}
+
+export const OFIS_ETIKETI: Record<OfisCeviriAlt, string> = { word: 'Word → PDF', powerpoint: 'PowerPoint → PDF' };
+
+export type CeviriDurumu = 'cevriliyor' | 'hazir' | 'hata';
+
+// "ders-notu.docx · 123 KB · Word → PDF · Çevriliyor… 12 sn"; ready: "… · 3 sayfa"; error: "… · Çevrilemedi"
+// sayfa (hazir): undefined = being counted, null = not readable
+export function ofisBilgi(g: { ad: string; bayt: number; alt: OfisCeviriAlt; durum: CeviriDurumu; sn?: number; sayfa?: number | null }): string {
+  const son = g.durum === 'cevriliyor' ? `Çevriliyor… ${g.sn ?? 0} sn`
+    : g.durum === 'hata' ? 'Çevrilemedi'
+    : g.sayfa === undefined ? 'sayfa sayılıyor…' : sayfaYazi(g.sayfa);
+  return [g.ad, boyutYazi(g.bayt), OFIS_ETIKETI[g.alt], son].join(' · ');
 }

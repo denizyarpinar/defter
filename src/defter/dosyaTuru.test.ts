@@ -85,29 +85,29 @@ describe('dosyaTuru: images', () => {
 
 describe('dosyaTuru: Office', () => {
   it('docx (ZIP) and old doc (OLE) → word', () => {
-    expect(dosyaTuru('odev.docx', '', ZIP)).toEqual({ tur: 'ofis', alt: 'word' });
-    expect(dosyaTuru('odev.doc', '', OLE)).toEqual({ tur: 'ofis', alt: 'word' });
-    expect(dosyaTuru('odev.odt', '', ZIP)).toEqual({ tur: 'ofis', alt: 'word' });
-    expect(dosyaTuru('odev.rtf', '', dolgu(b('{\\rtf1')))).toEqual({ tur: 'ofis', alt: 'word' });
+    expect(dosyaTuru('odev.docx', '', ZIP)).toEqual({ tur: 'ofis', alt: 'word', cevrilebilir: true });
+    expect(dosyaTuru('odev.doc', '', OLE)).toEqual({ tur: 'ofis', alt: 'word', cevrilebilir: true });
+    expect(dosyaTuru('odev.odt', '', ZIP)).toEqual({ tur: 'ofis', alt: 'word', cevrilebilir: true });
+    expect(dosyaTuru('odev.rtf', '', dolgu(b('{\\rtf1')))).toEqual({ tur: 'ofis', alt: 'word', cevrilebilir: true });
   });
 
   it('pptx, ppt, odp → powerpoint; upper case', () => {
-    expect(dosyaTuru('SUNUM.PPTX', '', ZIP)).toEqual({ tur: 'ofis', alt: 'powerpoint' });
-    expect(dosyaTuru('sunum.ppt', '', OLE)).toEqual({ tur: 'ofis', alt: 'powerpoint' });
-    expect(dosyaTuru('sunum.odp', '', ZIP)).toEqual({ tur: 'ofis', alt: 'powerpoint' });
+    expect(dosyaTuru('SUNUM.PPTX', '', ZIP)).toEqual({ tur: 'ofis', alt: 'powerpoint', cevrilebilir: true });
+    expect(dosyaTuru('sunum.ppt', '', OLE)).toEqual({ tur: 'ofis', alt: 'powerpoint', cevrilebilir: true });
+    expect(dosyaTuru('sunum.odp', '', ZIP)).toEqual({ tur: 'ofis', alt: 'powerpoint', cevrilebilir: true });
   });
 
   it('Keynote and Pages', () => {
-    expect(dosyaTuru('sunum.key', '', ZIP)).toEqual({ tur: 'ofis', alt: 'keynote' });
-    expect(dosyaTuru('not.pages', '', ZIP)).toEqual({ tur: 'ofis', alt: 'pages' });
+    expect(dosyaTuru('sunum.key', '', ZIP)).toEqual({ tur: 'ofis', alt: 'keynote', cevrilebilir: false });
+    expect(dosyaTuru('not.pages', '', ZIP)).toEqual({ tur: 'ofis', alt: 'pages', cevrilebilir: false });
   });
 
   it('by MIME only', () => {
     expect(dosyaTuru('dosya', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', ZIP))
-      .toEqual({ tur: 'ofis', alt: 'word' });
+      .toEqual({ tur: 'ofis', alt: 'word', cevrilebilir: true });
     expect(dosyaTuru('dosya', 'application/vnd.openxmlformats-officedocument.presentationml.presentation', ZIP))
-      .toEqual({ tur: 'ofis', alt: 'powerpoint' });
-    expect(dosyaTuru('dosya', 'application/msword', OLE)).toEqual({ tur: 'ofis', alt: 'word' });
+      .toEqual({ tur: 'ofis', alt: 'powerpoint', cevrilebilir: true });
+    expect(dosyaTuru('dosya', 'application/msword', OLE)).toEqual({ tur: 'ofis', alt: 'word', cevrilebilir: true });
   });
 
   it('a plain ZIP is not Office', () => {

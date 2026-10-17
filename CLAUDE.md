@@ -203,7 +203,7 @@ Kitaplık/
 ## Faz 5 — Defter ve ekleme kuralları
 
 ### Yeni dosya
-- Yeni dosya sadece `kitaplar/<kitap>/` altında oluşturulur ve sadece PDF olabilir. Başka yerde, başka türde dosya oluşturulmaz (kitaplik.json istisnası aynen kalır).
+- Yeni dosya sadece `kitaplar/<kitap>/` altında oluşturulur ve sadece PDF olabilir. Başka yerde, başka türde dosya oluşturulmaz (kitaplik.json istisnası aynen kalır). Tek PDF-dışı istisna: Faz 6'daki geçici Google çeviri dosyası.
 - Oluşturmadan önce aynı klasörde aynı isimde dosya (büyük/küçük harf duyarsız, tüm sayfalar) var mı bakılır. Varsa hata verilir; üzerine yazılmaz, yeniden adlandırma yok (5.5).
 - Çift dosya koruması: generateIds ile önceden alınan id + tekrar denemede aynı id (5.5). Drive "zaten var" derse boyut eşleşiyorsa oluşmuş kabul edilir. Klasörü yeniden listeleme sadece yedek kontrol.
 - Kod: `src/drive/pdfOlustur.ts` (createPdf). Faz 5 yazma kilidi (`?dosyaOlustur=1`) 5.9b'de kaldırıldı (gerçek testler tamam).
@@ -232,7 +232,8 @@ Kitaplık/
 
 ### Word / PowerPoint
 - Faz 5'te uygulama dönüştürmez: .doc/.docx/.ppt/.pptx/.odt/.odp/.key/.pages/.rtf reddedilir, mesaj "PDF olarak kaydedip ekle". Kullanıcı PDF'e çevirip ekler.
-- 5.11 denemesi: dev-only `window.defterOfisDene()` (`src/drive/ofisDene.ts`), Drive kökünde "Defter-ceviri-deneme" klasörü. Karar: otomatik çeviri Faz 6'ya ertelendi.
+- 5.11 denemesi: dev-only `window.defterOfisDene()`, Drive kökünde "Defter-ceviri-deneme" klasörü. Karar: otomatik çeviri Faz 6'ya ertelendi. `src/drive/ofisDene.ts` 6.1e'de kaldırıldı (git geçmişinde duruyor); Drive'daki Defter-ceviri-deneme klasörüne dokunulmaz.
+- Faz 6 (6.1e) ile tek Word/PowerPoint dosyası Drive kitaplığında çevrilir (bkz. Faz 6); örnek kitaplıkta ve Keynote/Pages için "PDF olarak kaydedip ekle" reddi aynen.
 - Faz 6 kuralı (Deniz kararı, 17 Ekim 2026): otomatik çeviride Drive'da oluşan geçici Google dosyası çöpe atılır (`files.update` ile `trashed=true`; 30 gün geri alınabilir). Bu, "hiçbir dosya silinmez" kuralının tek istisnasıdır ve sadece uygulamanın kendi oluşturduğu ara dosya için geçerlidir.
 
 ### iOS / iPad
@@ -245,6 +246,32 @@ Kitaplık/
 - "Dosya ekle" ile gelen görsel PDF'e çevrilir; birden çok görsel → tek PDF, kırpma yok.
 - Fotoğraf: sayfa otomatik kırpılır + perspektif düzeltme (saf TS, src/defter/kirp/), istenirse tüm fotoğraf; güven düşükse tüm fotoğraf; uzun kenar 2000 px, JPEG 0.85, renkli, filtre yok.
 - Uebungen/Oedevler yoksa hedef gri, klasör oluşturulmaz; aynı ad = uyarı + kullanıcı değiştirir; dosya önce cihaza kaydedilmez, hata olursa panel açık + Tekrar dene.
+
+## Faz 6 — Word/PowerPoint çeviri kuralları
+
+### Geçici Google dosyası (6.1b)
+- Çeviri: dosya Drive'a Google türüne çevrilerek yüklenir (docx/doc/odt/rtf → Google Doküman, pptx/ppt/odp → Google Slayt), `files.export` ile PDF alınır, sonra geçici dosya çöpe atılır.
+- Yer: hedef konu klasörü (`kitaplar/<kitap>/` altında, yerKontrol ile). Yeni klasör oluşturulmaz.
+- Ad: `~çeviri – <dosya adı>`. appProperties: `defter: "1"`, `defterGecici: "1"`, `defterIslem: <islemId>`.
+- ≤ 5 MB multipart, > 5 MB resumable. PDF'i 10 MB'ı aşan dosya: Drive 403 `exportSizeLimitExceeded` → OfisCokBuyuk.
+- key/pages reddedilir. Eski .doc/.ppt kabul edilir ama test edilmedi; Drive çeviremezse anlaşılır hata (OfisCevrilemedi).
+- Çeviri sadece Drive kitaplığında (writer() null değilse); örnek kitaplıkta hiç çağrılmaz.
+
+### Çöp istisnası
+- "Hiçbir dosya silinmez" kuralının tek istisnası (Deniz kararı, 17 Ekim 2026; bkz. Faz 5 → Word / PowerPoint): sadece uygulamanın kendi geçici Google dosyası çöpe atılır.
+- Önce metadata okunur; sadece `appProperties.defterGecici = "1"` + Google türü (`vnd.google-apps.document` | `vnd.google-apps.presentation`) + `trashed = false` ise `files.update` ile `trashed: true`. Koşul tutmazsa dokunulmaz (OfisGeciciDegil). `files.delete` asla.
+- Çöpe atma hatası PDF'i bozmaz (`copeAtildi: false`, bir sonraki süpürmede tekrar denenir). Çeviri hatasında ve iptalde (yükleme bittiyse) geçici dosya yine çöpe atılır.
+- Süpürme: her çeviriden önce `defterGecici = "1"` + Google türü + `trashed = false` + `createdTime` 1 saatten eski olanlar (en fazla 20) çöpe atılır. Süpürme hatası çeviriyi durdurmaz (console.warn).
+
+### Korumalar ve panel (6.1e)
+- `?ofisCevir=1` kilidi 6.1e'de kalktı (Deniz kararı, 6.1d gerçek testlerinden sonra): "Dosya ekle"de seçilen tek Word/PowerPoint dosyası Drive kitaplığında her zaman çevrilir.
+- Kalan korumalar: örnek kitaplıkta çeviri yok ("PDF olarak kaydedip ekle" reddi); yerKontrol (sadece `kitaplar/<kitap>/` altı); copeAtGecici koşulları (yukarıda); en fazla 50 MB (`MAX_DOSYA_MB`); key/pages reddedilir; birden çok dosya seçiminde Word/PPT reddedilir.
+- Panel: çeviri sürerken ve çeviri başarıyla bittikten sonra panel dışına dokunma paneli kapatmaz; Ekle'ye basılıp ekleme bitene ya da Vazgeç/Esc'ye kadar açık kalır (çevrilen PDF kaybolmasın). Çeviri hatasında dışa dokunma paneli kapatır.
+- "Tekrar çevir" sadece yeni denemenin işe yarayabileceği hatalarda görünür. Google izni (kapsam) yetmiyorsa görünmez (`OfisYuklenemedi.neden = 'izin'`; diğerleri `'ag'` | `'sunucu'`).
+
+### Kod
+- `src/drive/ofisCevir.ts` (cevirTuru, ofisuPdfeCevir, copeAtGecici, supurGecici; testli). `dosyaTuru` sonucu `cevrilebilir` alanını taşır (aynı tablo). Panel: `src/ui/dosyaPanel.ts`; karar `tekDosyaYolu` (`src/defter/dosyaPanelDurumu.ts`); hata metni `ofisHataMetni` (`src/defter/dosyaEklemeMetin.ts`).
+- Dev: `window.defterOfisCevirDene(kitapAdi, konuYolu)` (sadece `npm run dev`, `src/drive/ofisCevirDene.ts`): dosya seçtirir, o konunun klasöründe çevirir, sonucu loglar; konuya eklemez.
 
 ## Sonra bakılabilir
 - Oda zaman aşımı: şu an glb yüklemesine toplam 15 sn veriliyor; yavaş bağlantıda (masaüstü lightmap'leri ~3.3 MB) eski odaya düşüyor. Öneri: "15 sn hiç ilerleme yok" kuralı + yükleme göstergesi. Faz 2 kural metni değişeceği için Deniz'in onayı gerekir.

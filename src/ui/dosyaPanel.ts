@@ -1,8 +1,9 @@
 import type { DriveFile } from '../drive/drive';
-import type { HazirDosya } from '../defter/dosyaHazirla';
+import { ofisHataMetni, type OfisHataMetni } from '../defter/dosyaEklemeMetin';
+import { pdfAdi, type HazirDosya } from '../defter/dosyaHazirla';
 import {
-  adDurumu, cozumAdaylari, dosyaHedefi, ekleDurumu, hataMetni, hedefSecenekleri, islemAnahtari, kaynakEtiketi, sayfaYazi,
-  varsayilanHedef, type KlasorBilgisi, type PanelHedef
+  adDurumu, cozumAdaylari, dosyaHedefi, ekleDurumu, hataMetni, hedefSecenekleri, islemAnahtari, kaynakEtiketi, ofisBilgi, sayfaYazi,
+  varsayilanHedef, type CeviriDurumu, type KlasorBilgisi, type OfisCeviriAlt, type PanelHedef
 } from '../defter/dosyaPanelDurumu';
 import { boyutYazi, cikar, tasi } from '../defter/fotoPanelDurumu';
 import { hazirlaGorsel } from '../defter/gorsel';
@@ -21,6 +22,11 @@ import { toast } from './toast';
 // The look is the photo panel's (.fp classes); the logic is in dosyaPanelDurumu.ts.
 // Task 5.10g: chosen images are a list (numbered thumbnails, ‹ › ×, "+ Fotoğraf ekle"), no cropping;
 // "Ekle" makes one PDF of them (fotograflardanPdf). The page is put back after the iPad keyboard.
+// Task 6.1c: one Word / PowerPoint file is converted as soon as the panel opens; target and
+// name can be changed meanwhile, "Ekle" waits for the PDF. Vazgeç / Esc / the reader closing cancel it (the core
+// trashes its temporary file). A tap outside closes this panel only after a conversion error (6.1e): not while
+// converting, not with the PDF ready (iPad). The PDF stays in memory, so "Tekrar dene" after a failed adding sends
+// the same bytes; "Tekrar çevir" only after a conversion error a new try can fix (not the Google permission).
 
 export interface DosyaPanelBaglam {
   konuAdi: string;
@@ -30,10 +36,14 @@ export interface DosyaPanelBaglam {
   klasorler(): Promise<KlasorBilgisi | null>;   // Uebungen / Oedevler there? (one Drive listing; null: not known)
   ekle(hedef: DosyaHedefi, ad: string, islemId: string, bytes: Uint8Array): Promise<DosyaEklendi>;   // rejects on any error
   bitti(r: DosyaEklendi, hedef: DosyaHedefi): void;   // after the panel closed; hedef: what was chosen
+  cevir(dosya: File, signal: AbortSignal): Promise<Uint8Array>;   // task 6.1c: Word / PowerPoint → PDF bytes
+  kapanis?: AbortSignal;   // the reader closed: a conversion is cancelled, the panel closes
 }
 
 // pdf: one prepared file (dosyaHazirla); gorseller: images, prepared in the panel
-export type DosyaPanelKaynak = { tur: 'pdf'; hazir: HazirDosya } | { tur: 'gorseller'; dosyalar: File[] };
+// ofis: a Word / PowerPoint file, converted in the panel (6.1c)
+export type DosyaPanelKaynak = { tur: 'pdf'; hazir: HazirDosya } | { tur: 'gorseller'; dosyalar: File[] }
+  | { tur: 'ofis'; dosya: File; alt: OfisCeviriAlt };
 
 export const DOSYA_PANEL_ID = 'dosyaPanel';   // Okuyucu.ts checks it by this id (no import: the panel is lazy)
 
@@ -69,11 +79,12 @@ async function sayfaSayisi(h: HazirDosya): Promise<number | null> {
 
 export function acDosyaPanel(b: DosyaPanelBaglam, kaynak: DosyaPanelKaynak): void {
   if (document.getElementById(DOSYA_PANEL_ID)) return;
-  const hazir = kaynak.tur === 'pdf' ? kaynak.hazir : null;
+  let hazir = kaynak.tur === 'pdf' ? kaynak.hazir : null;   // ofis: set when the conversion is done
+  const ofis = kaynak.tur === 'ofis' ? kaynak : null;
   let klasor: KlasorBilgisi | null = null;
   let sayfa: number | null | undefined;   // undefined: being counted
   let hedef: PanelHedef | null = varsayilanHedef(hedefSecenekleri(b.materials, null), b.acikSekme);
-  let girilen = hazir?.ad ?? '';
+  let girilen = hazir?.ad ?? (ofis ? pdfAdi(ofis.dosya.name) : '');
   let cozumOf: DriveFile | null = null;
   let ekleniyor = false;
   let hata: string | null = null;
@@ -89,6 +100,13 @@ export function acDosyaPanel(b: DosyaPanelBaglam, kaynak: DosyaPanelKaynak): voi
   let adElle = false;
   let surum = 0;
   let yapilanPdf: { surum: number; bytes: Uint8Array } | null = null;
+  // the conversion (6.1c): every try has its own number, a late answer of an older try is ignored
+  let ceviri: CeviriDurumu | null = null;
+  let ceviriSn = 0;
+  let ceviriHata: OfisHataMetni | null = null;
+  let ceviriAc: AbortController | null = null;
+  let sayac: ReturnType<typeof setInterval> | undefined;
+  let deneme = 0;
 
   const kok = el('div', 'fp');
   kok.id = DOSYA_PANEL_ID;
@@ -142,9 +160,11 @@ export function acDosyaPanel(b: DosyaPanelBaglam, kaynak: DosyaPanelKaynak): voi
   const not = el('p', 'fp-not');
   const vazgec = dugme('fp-vazgec', 'Vazgeç');
   const ekle = dugme('fp-ekle', 'Ekle');
+  const tekrarCevir = dugme('fp-vazgec', 'Tekrar çevir');
+  tekrarCevir.hidden = true;
   const alt = el('div', 'fp-alt');
-  alt.append(vazgec, ekle);
-  if (hazir) kart.append(baslik, bilgi, hedefler, cozumSatir, adSatir, uyari, not, alt);
+  alt.append(vazgec, tekrarCevir, ekle);
+  if (hazir || ofis) kart.append(baslik, bilgi, hedefler, cozumSatir, adSatir, uyari, not, alt);
   else kart.append(baslik, bilgi, liste, arti, input, hedefler, cozumSatir, adSatir, uyari, not, alt);
   kok.append(kart);
   document.body.append(kok);
@@ -193,7 +213,9 @@ export function acDosyaPanel(b: DosyaPanelBaglam, kaynak: DosyaPanelKaynak): voi
   }
 
   function ciz(): void {
-    if (hazir) {
+    if (ofis) {
+      bilgi.textContent = ofisBilgi({ ad: ofis.dosya.name, bayt: ofis.dosya.size, alt: ofis.alt, durum: ceviri ?? 'cevriliyor', sn: ceviriSn, sayfa });
+    } else if (hazir) {
       bilgi.textContent = [hazir.ad, boyutYazi(hazir.bytes.byteLength), kaynakEtiketi(hazir.kaynak),
         sayfa === undefined ? 'sayfa sayılıyor…' : sayfaYazi(sayfa)].join(' · ');
     } else {
@@ -229,15 +251,17 @@ export function acDosyaPanel(b: DosyaPanelBaglam, kaynak: DosyaPanelKaynak): voi
     uyari.textContent = ad?.hata ?? '';
     uyari.hidden = !ad?.hata;
     const secenek = secenekler.find(s => s.hedef === hedef) ?? null;
-    const hazirDegil = !hazir && (calisiyor || !gorseller.length);
+    const hazirDegil = ofis ? !hazir : !hazir && (calisiyor || !gorseller.length);
     const e = ekleDurumu({ ornek: b.ornek, secenek, ad: ad ?? { duzenlenebilir: false, ad: '', hata: null }, ekleniyor, hataVar: !!hata, hazirDegil });
     ekle.disabled = !e.aktif;
     ekle.textContent = e.metin;
     vazgec.disabled = ekleniyor;
-    const notMetni = e.aciklama ?? hata ?? (hedef ? null : 'Bu dosya bu konuda hiçbir yere eklenemiyor.');
+    const notMetni = e.aciklama ?? hata ?? ceviriHata?.metin ?? (hedef ? null : 'Bu dosya bu konuda hiçbir yere eklenemiyor.');
     not.textContent = notMetni ?? '';
     not.hidden = !notMetni;
-    not.classList.toggle('fp-hata', !e.aciklama && !!hata);
+    not.classList.toggle('fp-hata', !e.aciklama && !!(hata ?? ceviriHata));
+    tekrarCevir.hidden = !(ceviri === 'hata' && ceviriHata?.tekrarCevir);
+    tekrarCevir.disabled = ekleniyor;
   }
 
   // one image at a time (iPad memory); files chosen meanwhile join the same batch; no cropping
@@ -268,6 +292,42 @@ export function acDosyaPanel(b: DosyaPanelBaglam, kaynak: DosyaPanelKaynak): voi
     if (!kapandi) ciz();
   }
 
+  // Word / PowerPoint → PDF (a new try: a new AbortController, the counter from 0)
+  async function cevirBaslat(): Promise<void> {
+    if (!ofis) return;
+    const n = ++deneme;
+    ceviriAc?.abort();
+    const ac = new AbortController();
+    ceviriAc = ac;
+    ceviri = 'cevriliyor';
+    ceviriSn = 0;
+    ceviriHata = null;
+    clearInterval(sayac);
+    sayac = setInterval(() => { ceviriSn++; if (!kapandi) ciz(); }, 1000);
+    ciz();
+    let bytes: Uint8Array;
+    try {
+      bytes = await b.cevir(ofis.dosya, ac.signal);
+    } catch (e) {
+      if (n !== deneme || kapandi) return;
+      clearInterval(sayac);
+      const m = ofisHataMetni(e);
+      ceviri = 'hata';
+      ceviriHata = m;
+      if (m) console.warn('Dosya çevrilemedi.', e);
+      ciz();
+      return;
+    }
+    if (n !== deneme || kapandi) return;
+    clearInterval(sayac);
+    hazir = { ad: pdfAdi(ofis.dosya.name), bytes, kaynak: 'pdf' };
+    ceviri = 'hazir';
+    sayfa = undefined;
+    ciz();
+    const h = hazir;
+    void sayfaSayisi(h).then(x => { if (hazir === h) { sayfa = x; if (!kapandi) ciz(); } });
+  }
+
   // the PDF of the list as it is now (the same version: the same bytes)
   async function listePdf(): Promise<Uint8Array> {
     if (yapilanPdf?.surum !== surum) {
@@ -281,6 +341,9 @@ export function acDosyaPanel(b: DosyaPanelBaglam, kaynak: DosyaPanelKaynak): voi
   function kapat(): void {
     if (ekleniyor) return;
     kapandi = true;
+    ceviriAc?.abort();   // a conversion going on: cancelled (the core trashes its temporary file)
+    clearInterval(sayac);
+    b.kapanis?.removeEventListener('abort', kapat);
     bekleyen = [];
     for (const g of gorseller) URL.revokeObjectURL(g.url);
     gorseller = [];
@@ -302,7 +365,11 @@ export function acDosyaPanel(b: DosyaPanelBaglam, kaynak: DosyaPanelKaynak): voi
     if (f.length) void hazirla(f);
   };
   vazgec.onclick = kapat;
-  kok.addEventListener('click', e => { if (e.target === kok) kapat(); });
+  // Word / PowerPoint: a tap outside does nothing while converting or with the PDF ready (an iPad touch must not
+  // throw away the converted PDF); only after a conversion error it closes, as the other panels always do
+  kok.addEventListener('click', e => { if (e.target === kok && (!ofis || ceviri === 'hata')) kapat(); });
+  tekrarCevir.onclick = () => { if (!ekleniyor) void cevirBaslat(); };
+  if (ofis) b.kapanis?.addEventListener('abort', kapat);
   addEventListener('keydown', tus, true);
   ekle.onclick = async () => {
     if (ekleniyor || ekle.disabled || !hedef) return;
@@ -341,6 +408,7 @@ export function acDosyaPanel(b: DosyaPanelBaglam, kaynak: DosyaPanelKaynak): voi
   ciz();
   vazgec.focus({ preventScroll: true });   // task 5.10g-ek2: focusing never moves the page (iPad)
   if (hazir) void sayfaSayisi(hazir).then(n => { sayfa = n; if (!kapandi) ciz(); });
+  else if (ofis) void cevirBaslat();
   else if (kaynak.tur === 'gorseller') void hazirla(kaynak.dosyalar);
   void b.klasorler().then(k => { klasor = k; if (!kapandi && !ekleniyor) ciz(); }, () => {});
 }

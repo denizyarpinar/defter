@@ -6,7 +6,8 @@ export type DosyaTuruAdi = 'pdf' | 'gorsel' | 'ofis' | 'desteklenmeyen';
 
 // alt — pdf: 'onEkli' (%PDF- not at the start); gorsel: jpeg | png | heic | webp | gif;
 // ofis: word | powerpoint | keynote | pages; desteklenmeyen: 'bozukPdf' (looks like a PDF, isn't one)
-export interface DosyaTuruSonucu { tur: DosyaTuruAdi; alt?: string }
+// cevrilebilir (ofis only, task 6.1b): Drive can turn it into a PDF (word, powerpoint); keynote / pages can't
+export interface DosyaTuruSonucu { tur: DosyaTuruAdi; alt?: string; cevrilebilir?: boolean }
 
 // How many bytes the caller reads from the start of the file (PDF readers allow up to 1024 bytes before %PDF-)
 export const ILK_BAYT_SAYISI = 1024;
@@ -63,6 +64,16 @@ function ofisMime(mime: string): string | null {
   return null;
 }
 
+export type OfisAlt = 'word' | 'powerpoint' | 'keynote' | 'pages';
+
+// Office kind by extension, else by MIME; null: not an Office file. ofisCevir.ts (cevirTuru) uses this too.
+export function ofisAlt(ad: string, mime: string): OfisAlt | null {
+  const kucukAd = ad.trim().toLowerCase();
+  const nokta = kucukAd.lastIndexOf('.');
+  const uzanti = nokta >= 0 ? kucukAd.slice(nokta + 1) : '';
+  return (OFIS_UZANTI.get(uzanti) ?? ofisMime(mime.trim().toLowerCase())) as OfisAlt | null;
+}
+
 export function dosyaTuru(ad: string, mime: string, ilkBaytlar: Uint8Array): DosyaTuruSonucu {
   const kucukAd = ad.trim().toLowerCase();
   const tip = mime.trim().toLowerCase();
@@ -79,8 +90,8 @@ export function dosyaTuru(ad: string, mime: string, ilkBaytlar: Uint8Array): Dos
   if (gorsel) return { tur: 'gorsel', alt: gorsel };
 
   // (3) Office by extension or MIME (ZIP/OLE bytes with an Office extension end up here too)
-  const ofis = OFIS_UZANTI.get(uzanti) ?? ofisMime(tip);
-  if (ofis) return { tur: 'ofis', alt: ofis };
+  const ofis = ofisAlt(ad, mime);
+  if (ofis) return { tur: 'ofis', alt: ofis, cevrilebilir: ofis === 'word' || ofis === 'powerpoint' };
 
   // (4) says it is a PDF, but the bytes are not
   if (uzanti === 'pdf' || tip === 'application/pdf') return { tur: 'desteklenmeyen', alt: 'bozukPdf' };
