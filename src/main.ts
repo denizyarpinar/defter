@@ -25,6 +25,7 @@ import { hideLogin, initLogin, setLoginBusy, setRememberedName, showLogin } from
 import { initTopBar, initUserBox, updateCrumb, updateModeButtons, updateUserBox, type LightMode } from './ui/topBar';
 import { installErrorBox } from './ui/hataKutusu';
 import { installPageZoomGuard } from './ui/sayfaZoom';
+import { installGorunurAlan } from './ui/gorunurAlan';
 import { toast } from './ui/toast';
 
 const app = document.querySelector<HTMLElement>('#app')!;
@@ -36,6 +37,11 @@ installErrorBox();
 
 // iPad: the browser must not zoom the page (the viewport tag alone doesn't stop it); see ui/sayfaZoom.ts.
 installPageZoomGuard(() => scene?.resize());
+
+// iPad: after the keyboard / photo picker the page must not stay moved up (task 5.10g-ek, ui/gorunurAlan.ts);
+// ?olcum=1: the numbers in a small box (also on Vercel, for the iPad test)
+installGorunurAlan();
+if (new URLSearchParams(location.search).get('olcum') === '1') void import('./ui/olcum').then(m => m.installOlcum());
 
 // dev only (task 5.3, 5.8c): ?gorselTest=1 photo → JPEG trial panel; writes nothing, not in the build
 if (import.meta.env.DEV && new URLSearchParams(location.search).get('gorselTest') === '1') {

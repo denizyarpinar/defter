@@ -11,6 +11,7 @@ import { listeAdi, listeBilgisi, listeBoyutMetni } from '../defter/gorselListesi
 import type { DosyaEklendi, DosyaHedefi } from '../defter/konuyaDosyaEkle';
 import type { MaterialKind, TopicMaterials } from '../okuma/konuKesfi';
 import { closePdf, pdfjs } from '../okuma/pdf';
+import { arkaSayfayiKilitle } from './gorunurAlan';
 import { panelKlavyeTakibi } from './klavyeKaydirma';
 import { toast } from './toast';
 
@@ -149,6 +150,7 @@ export function acDosyaPanel(b: DosyaPanelBaglam, kaynak: DosyaPanelKaynak): voi
   document.body.append(kok);
   // iPad: the panel stays in the visible part while the keyboard is open; the page is put back after it
   const klavye = panelKlavyeTakibi(kok);
+  const kilidiAc = arkaSayfayiKilitle();   // task 5.10g-ek: the page behind can't move while the panel is open
   adKutu.addEventListener('blur', klavye.sifirla);
 
   function secHedef(h: PanelHedef): void {
@@ -287,6 +289,7 @@ export function acDosyaPanel(b: DosyaPanelBaglam, kaynak: DosyaPanelKaynak): voi
     adKutu.removeEventListener('blur', klavye.sifirla);
     kok.remove();
     klavye.durdur();
+    kilidiAc();   // task 5.10g-ek: also fixes the page once more (the same way as the photo panel)
   }
 
   function tus(e: KeyboardEvent): void {
