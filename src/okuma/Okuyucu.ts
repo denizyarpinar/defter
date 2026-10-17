@@ -1,4 +1,4 @@
-import { SessionExpired } from '../drive/drive';
+import { listChildren, SessionExpired } from '../drive/drive';
 import { drivePdfApi } from '../drive/pdfYazici';
 import { penLayerSvg } from '../kalem/cizimKatmani';
 import { IdbPendingStore } from '../kalem/bekleyenDepo';
@@ -17,6 +17,9 @@ import { bekleyenFotoDepo } from '../defter/bekleyenFoto';
 import type { BekleyenFoto, BekleyenJpeg } from '../defter/bekleyenFotoKayit';
 import { FotoEkleyici } from '../defter/fotoEkleme';
 import { seritDurumu } from '../defter/fotoEklemeMetin';
+import { DOSYA_ACCEPT } from '../defter/dosyaTuru';
+import type { HazirDosya } from '../defter/dosyaHazirla';
+import type { DosyaHedefi } from '../defter/konuyaDosyaEkle';
 import type { DriveFile } from '../drive/drive';
 import type { DriveLocation } from '../drive/driveLibrary';
 import { PdfYazilamaz, readDefterStrokes } from '../kalem/pdfNotlari';
@@ -57,6 +60,8 @@ import { ZoomController } from './zoomKontrol';
 // Task 4.9d: the ?kalemYaz=1 safety lock is gone (real Drive tests done in 4.8c); the sample library never uploads.
 
 const PEN_LAYER = penLayerMode();   // task 4.5: ?cizimKontrol=1 / ?defterNot=goster
+// Task 5.10e: "Dosya ekle" is a draft; its button shows only with ?dosyaEkle=1 (until the real tests)
+const DOSYA_EKLE = new URLSearchParams(location.search).get('dosyaEkle') === '1';
 
 const MAX_WIDTH = 760;   // prototype #pdfView: min(760px, 100vw − 32px)
 const SIDE = 16;
@@ -198,7 +203,7 @@ export function initOkuyucu(yer: () => DriveLocation | null): void {
   });
 
   addEventListener('keydown', e => {
-    if (!open || document.getElementById('fotoPanel')) return;   // task 5.8a: the photo panel has the keys
+    if (!open || document.getElementById('fotoPanel') || document.getElementById('dosyaPanel')) return;   // task 5.8a / 5.10e: the panel has the keys
     if (e.key === 'Escape') { e.stopPropagation(); if (tocOpen) closeToc(); else closeOkuyucu(); return; }
     // pen mode: Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z and Ctrl+Y redo (not while typing somewhere)
     if (penOn && (e.ctrlKey || e.metaKey) && !e.altKey && !typing(e.target)) {
@@ -248,6 +253,17 @@ export function initOkuyucu(yer: () => DriveLocation | null): void {
     const files = [...(fotoInput.files ?? [])];
     fotoInput.value = '';   // the same photo can be chosen again
     if (files.length) openPhotoPanel(files);
+  });
+  // Task 5.10e: "Dosya ekle" (draft, ?dosyaEkle=1). The picker opens inside the tap; the file is prepared
+  // (dosyaHazirla) before the panel: a refused one only gets a toast.
+  const dosyaBtn = $('#oDosya'), dosyaInput = $<HTMLInputElement>('#oDosyaInput');
+  dosyaBtn.hidden = !DOSYA_EKLE;
+  dosyaInput.accept = DOSYA_ACCEPT;
+  dosyaBtn.addEventListener('click', () => { if (topic && DOSYA_EKLE) dosyaInput.click(); });
+  dosyaInput.addEventListener('change', () => {
+    const file = dosyaInput.files?.[0];
+    dosyaInput.value = '';   // the same file can be chosen again
+    if (file) void prepareFile(file);
   });
 
   // Kitap / PDF; the choice is remembered
@@ -770,6 +786,61 @@ function openPhotoPanel(files: File[]): void {
     }
   };
   import('../ui/fotoPanel').then(m => m.acFotoPanel(ctx, files)).catch(e => { console.warn(e); toast('Fotoğraf paneli açılamadı. Sayfayı yenileyip tekrar dene.'); });
+}
+
+// Task 5.10e: the chosen file → PDF bytes (dosyaHazirla, lazy) → the panel; refused: a toast
+async function prepareFile(file: File): Promise<void> {
+  const t = topic;
+  if (!t || !open) return;
+  photoBox.durum('Dosya hazırlanıyor…');
+  let hazir: HazirDosya;
+  try {
+    const m = await import('../defter/dosyaHazirla');
+    try {
+      hazir = await m.dosyaHazirla(file);
+    } catch (e) {
+      if (e instanceof m.DosyaHazirlanamadi) { toast(e.message); return; }
+      throw e;
+    }
+  } catch (e) {
+    console.warn('Dosya hazırlanamadı.', e);
+    toast('Dosya hazırlanamadı. Sayfayı yenileyip tekrar dene.');
+    return;
+  } finally {
+    photoBox.durum(null);
+  }
+  if (topic !== t || !open) return;
+  openFilePanel(t, hazir);
+}
+
+// The file panel, with what the reader knows about the topic. Only the new PDF's bytes go into the cache;
+// no konuDegisti: the reader's refresh after a file (5.8g knows only Özet) comes in 5.10f, for now a toast.
+function openFilePanel(t: OpenTopic, hazir: HazirDosya): void {
+  const ctx = {
+    konuAdi: t.title,
+    materials: t.materials,
+    acikSekme: t.kind,
+    ornek: isSampleId(folder),
+    klasorler: async () => {
+      if (isSampleId(folder) || !driveLocation()) return null;
+      try {
+        const [{ altKlasorBul }, kok] = await Promise.all([import('../defter/konuyaDosyaEkle'), topicFolderId(t).then(listChildren)]);
+        return { Uebungen: !!altKlasorBul(kok, 'Uebungen'), Oedevler: !!altKlasorBul(kok, 'Oedevler') };
+      } catch (e) {
+        console.warn('Konu klasörü listelenemedi.', e);
+        return null;
+      }
+    },
+    ekle: async (hedef: DosyaHedefi, ad: string, islemId: string) => {
+      const [{ konuyaDosyaEkle }, konu] = await Promise.all([import('../defter/konuyaDosyaEkle'), topicFolderId(t)]);
+      return konuyaDosyaEkle({ konu, hedef, ad, bytes: hazir.bytes, islemId },
+        { yer: driveLocation(), olusturDrive: drivePdfOlusturApi, yeniDosya: sayfaEklemeOrtami().yeniDosya });
+    },
+    bitti: (r: { ad: string; uyari?: 'kalemYazamaz' }) => {
+      void import('../defter/dosyaPanelDurumu').then(m => toast(m.eklendiMetni(r.ad, r.uyari)));
+    },
+  };
+  import('../ui/dosyaPanel').then(m => m.acDosyaPanel(ctx, hazir)).catch(e => { console.warn(e); toast('Dosya paneli açılamadı. Sayfayı yenileyip tekrar dene.'); });
 }
 
 // Task 5.8f: adding the photos (fotoEkleme.ts) with the pen's queue and caches (sayfaEklemeOrtami).

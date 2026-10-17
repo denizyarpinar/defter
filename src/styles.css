@@ -372,6 +372,23 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 .fp-ekle { border: 1px solid var(--accent); background: var(--accent); color: #fff }
 .fp-ekle:disabled { opacity: .4 }
 .fp-not.fp-hata { opacity: 1; color: #ffb4a2 }
+/* task 5.10e: "Dosya ekle" button next to "Fotoğraf ekle" (only with ?dosyaEkle=1) + its panel (draft) */
+.o-foto.o-dosya { margin-left: 0 }
+.o-dosya[hidden] { display: none }
+.dp-bilgi { margin: 0; opacity: .8; overflow-wrap: anywhere }
+.dp-hedefler { margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 2px }
+.dp-baslik2 { padding: 0; margin-bottom: 6px; font-weight: 600 }
+.dp-hedef { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; min-height: 44px; padding: 0 10px; border-radius: 10px; cursor: pointer }
+.dp-hedef:has(input:checked) { background: rgba(255, 255, 255, .1) }
+.dp-hedef input { width: 20px; height: 20px; margin: 0; accent-color: var(--accent) }
+.dp-hedef.dp-pasif { opacity: .45; cursor: default }
+.dp-neden { font-size: 12px; opacity: .9 }
+.dp-neden[hidden], .dp-cozum[hidden], .dp-ad[hidden], .dp-uyari[hidden] { display: none }
+.dp-ad { display: flex; flex-direction: column; gap: 6px; font-weight: 600 }
+.dp-ad input { box-sizing: border-box; width: 100%; min-height: 44px; padding: 0 12px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, .22);
+  background: rgba(0, 0, 0, .25); color: #f5ecdf; font: 400 16px var(--ui) }
+.dp-ad input:read-only { opacity: .7; background: rgba(255, 255, 255, .04) }
+.dp-uyari { margin: -6px 0 0; font-size: 13px; color: #ffb4a2 }
 /* task 5.8f: under the material bar — status, error cards, the waiting photos strip */
 .fd { display: flex; flex-direction: column; gap: 6px; padding: 6px 12px 6px 16px; color: #f5ecdf; font: 14px var(--ui) }
 .fd[hidden], .fd [hidden] { display: none }
