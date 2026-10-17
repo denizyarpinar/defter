@@ -81,6 +81,10 @@ if (import.meta.env.DEV) void import('./drive/ozetDene').then(m => m.installOzet
 if (import.meta.env.DEV) void import('./drive/dosyaEkleDene').then(m => m.installDosyaEkleDene(() => writer() ? driveLoc : null, () => data?.books ?? null, sayfaEklemeOrtami));
 // dev only (task 5.11): window.defterOfisDene() converts a Word/PowerPoint file with Drive and shows the PDF; adds nothing to a topic
 if (import.meta.env.DEV) void import('./drive/ofisDene').then(m => m.installOfisDene(() => writer() ? driveLoc : null));
+// dev only (task 6.1b, needs ?ofisCevir=1): window.defterOfisCevirDene(kitapAdi, konuYolu) converts with ofisuPdfeCevir; adds nothing to a topic
+if (import.meta.env.DEV && new URLSearchParams(location.search).get('ofisCevir') === '1') {
+  void import('./drive/ofisCevirDene').then(m => m.installOfisCevirDene(() => writer() ? driveLoc : null, () => data?.books ?? null));
+}
 // dev only (task 5.8e): window.defterBekleyenFoto() lists the pending photo records; .dene() / .hata(id) / .sil(id); no Drive
 if (import.meta.env.DEV) void import('./defter/bekleyenFotoDene').then(m => m.installBekleyenFoto());
 // dev only (task 5.8b): ?kirpTest=1 compares two page-cropping methods on real photos; writes nothing
