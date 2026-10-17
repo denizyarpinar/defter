@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { GOSTER_OTOMATIK, gosterIndeksi, sayfaListesiniGenislet, yeniIndeks, yenilemeKarari, type EklemeSonucu, type OkuyucuDurumu } from './eklemeYenileme';
+import type { DriveFile } from '../drive/drive';
+import {
+  acikIndeks, dosyaEklemeKarari, dosyaGosterHedefi, eklenenMateryal, GOSTER_OTOMATIK, gosterIndeksi, konuBirlestir, sayfaListesiniGenislet, yeniIndeks,
+  yenilemeKarari, type EklemeSonucu, type EklenenDosya, type OkuyucuDurumu
+} from './eklemeYenileme';
+import type { Material, TopicMaterials } from './konuKesfi';
 
 // Task 5.8g: what the open reader refreshes after photos were added, and where "Göster" goes.
 
@@ -75,5 +80,94 @@ describe('gosterIndeksi', () => {
     const list = [...pdf('BR', 3), ...pdf('SO', 2)];
     expect(gosterIndeksi(list, { fileId: 'SO', ad: 'sorular.pdf', sayfa: 2 })).toBe(4);
     expect(gosterIndeksi(list, { fileId: 'SO', ad: 'sorular.pdf', sayfa: 3 })).toBe(-1);
+  });
+});
+
+// Task 5.10f: a whole file was added; the topic is read again, "Göster" goes to the new file.
+
+const f = (id: string, name = `${id}.pdf`): DriveFile => ({ id, name, mimeType: 'application/pdf', modifiedTime: 't1' } as DriveFile);
+const mat = (file: DriveFile, cozum: DriveFile | null = null): Material => ({ file, cozum });
+const konu = (x: Partial<TopicMaterials> = {}): TopicMaterials => ({ orijinal: [], ozet: [], uebungen: [], oedevler: [], ...x });
+
+describe('eklenenMateryal', () => {
+  const r = { fileId: 'N', ad: 'yeni.pdf' };
+  it('the target is the material', () => {
+    for (const k of ['orijinal', 'ozet', 'uebungen', 'oedevler'] as const) {
+      expect(eklenenMateryal(k, r, konu())).toEqual({ kind: k, fileId: 'N', ad: 'yeni.pdf', cozumOf: null });
+    }
+  });
+  it('a solution: the material of its X (Übungen or Ödevler)', () => {
+    const m = konu({ uebungen: [mat(f('U1'))], oedevler: [mat(f('O1'))] });
+    expect(eklenenMateryal({ cozumOf: f('O1') }, r, m)).toEqual({ kind: 'oedevler', fileId: 'N', ad: 'yeni.pdf', cozumOf: 'O1' });
+    expect(eklenenMateryal({ cozumOf: f('U1') }, r, m).kind).toBe('uebungen');
+  });
+  it('X not in the topic: kind null', () => {
+    expect(eklenenMateryal({ cozumOf: f('X') }, r, konu()).kind).toBeNull();
+  });
+});
+
+describe('dosyaEklemeKarari', () => {
+  const e: EklenenDosya = { kind: 'uebungen', fileId: 'N', ad: 'a.pdf', cozumOf: null };
+  it('reader open on the topic: read again + Göster', () => {
+    expect(dosyaEklemeKarari(e, { acik: true, ayniKonu: true })).toEqual({ yenile: true, goster: true });
+  });
+  it('closed or another topic: only the toast', () => {
+    expect(dosyaEklemeKarari(e, { acik: false, ayniKonu: true })).toEqual({ yenile: false, goster: false });
+    expect(dosyaEklemeKarari(e, { acik: true, ayniKonu: false })).toEqual({ yenile: false, goster: false });
+  });
+  it('unknown X: read again, no Göster', () => {
+    expect(dosyaEklemeKarari({ ...e, kind: null }, { acik: true, ayniKonu: true })).toEqual({ yenile: true, goster: false });
+  });
+});
+
+describe('konuBirlestir', () => {
+  it('a new file sorted in; the known files keep their objects (their version)', () => {
+    const b = f('B'), c = f('C'), oz = f('OZ');
+    const eski = konu({ ozet: [mat(oz)], uebungen: [mat(b), mat(c)] });
+    const fresh = (x: DriveFile) => ({ ...x, modifiedTime: 't2' });
+    const yeni = konu({ ozet: [mat(fresh(oz))], uebungen: [mat(f('A')), mat(fresh(b)), mat(fresh(c))] });
+    const r = konuBirlestir(eski, yeni);
+    expect(r.uebungen.map(m => m.file.id)).toEqual(['A', 'B', 'C']);
+    expect(r.uebungen[1].file).toBe(b);
+    expect(r.ozet[0].file).toBe(oz);
+    expect(r.uebungen[0].file.id).toBe('A');
+  });
+  it('a new solution is paired; a new orijinal tab comes', () => {
+    const x = f('X');
+    const r = konuBirlestir(konu({ oedevler: [mat(x)] }), konu({ orijinal: [mat(f('OR'))], oedevler: [mat({ ...x }, f('XC', 'X_cozum.pdf'))] }));
+    expect(r.oedevler[0].file).toBe(x);
+    expect(r.oedevler[0].cozum?.id).toBe('XC');
+    expect(r.orijinal.map(m => m.file.id)).toEqual(['OR']);
+  });
+});
+
+describe('acikIndeks', () => {
+  const eski = [mat(f('B')), mat(f('C'))];
+  it('the open file keeps its file, not its number', () => {
+    expect(acikIndeks(eski, [mat(f('A')), mat(f('B')), mat(f('C'))], 1)).toBe(2);
+    expect(acikIndeks(eski, [mat(f('A')), mat(f('B')), mat(f('C'))], 0)).toBe(1);
+    expect(acikIndeks(eski, [mat(f('B')), mat(f('C')), mat(f('D'))], 1)).toBe(1);
+  });
+  it('gone or nothing open: the first one', () => {
+    expect(acikIndeks(eski, [mat(f('A'))], 1)).toBe(0);
+    expect(acikIndeks([], [mat(f('A'))], 0)).toBe(0);
+  });
+});
+
+describe('dosyaGosterHedefi', () => {
+  const m = konu({ orijinal: [mat(f('OR'))], uebungen: [mat(f('A')), mat(f('B'), f('BC', 'B_cozum.pdf'))] });
+  it('a new Übungen file: its tab and its place', () => {
+    expect(dosyaGosterHedefi({ kind: 'uebungen', fileId: 'A', ad: 'A.pdf', cozumOf: null }, m)).toEqual({ kind: 'uebungen', fileIndex: 0, solution: false });
+  });
+  it('a solution: X with "Çözümü göster" on', () => {
+    expect(dosyaGosterHedefi({ kind: 'uebungen', fileId: 'BC', ad: 'B_cozum.pdf', cozumOf: 'B' }, m)).toEqual({ kind: 'uebungen', fileIndex: 1, solution: true });
+  });
+  it('orijinal / ozet: the tab', () => {
+    expect(dosyaGosterHedefi({ kind: 'orijinal', fileId: 'OR', ad: 'orijinal.pdf', cozumOf: null }, m)).toEqual({ kind: 'orijinal', fileIndex: 0, solution: false });
+  });
+  it('not in the topic (yet): null', () => {
+    expect(dosyaGosterHedefi({ kind: 'uebungen', fileId: 'Z', ad: 'Z.pdf', cozumOf: null }, m)).toBeNull();
+    expect(dosyaGosterHedefi({ kind: 'uebungen', fileId: 'AC', ad: 'A_cozum.pdf', cozumOf: 'A' }, m)).toBeNull();
+    expect(dosyaGosterHedefi({ kind: null, fileId: 'N', ad: 'n.pdf', cozumOf: 'X' }, m)).toBeNull();
   });
 });

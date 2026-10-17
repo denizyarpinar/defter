@@ -21,7 +21,7 @@ export interface DosyaPanelBaglam {
   ornek: boolean;
   klasorler(): Promise<KlasorBilgisi | null>;   // Uebungen / Oedevler there? (one Drive listing; null: not known)
   ekle(hedef: DosyaHedefi, ad: string, islemId: string): Promise<DosyaEklendi>;   // rejects on any error
-  bitti(r: DosyaEklendi): void;       // after the panel closed
+  bitti(r: DosyaEklendi, hedef: DosyaHedefi): void;   // after the panel closed; hedef: what was chosen
 }
 
 export const DOSYA_PANEL_ID = 'dosyaPanel';   // Okuyucu.ts checks it by this id (no import: the panel is lazy)
@@ -197,7 +197,7 @@ export function acDosyaPanel(b: DosyaPanelBaglam, hazir: HazirDosya): void {
     }
     ekleniyor = false;
     kapat();
-    b.bitti(r);
+    b.bitti(r, h);
   };
 
   ciz();

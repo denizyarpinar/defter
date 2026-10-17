@@ -19,7 +19,7 @@ import { FotoEkleyici } from '../defter/fotoEkleme';
 import { seritDurumu } from '../defter/fotoEklemeMetin';
 import { DOSYA_ACCEPT } from '../defter/dosyaTuru';
 import type { HazirDosya } from '../defter/dosyaHazirla';
-import type { DosyaHedefi } from '../defter/konuyaDosyaEkle';
+import type { DosyaEklendi, DosyaHedefi } from '../defter/konuyaDosyaEkle';
 import type { DriveFile } from '../drive/drive';
 import type { DriveLocation } from '../drive/driveLibrary';
 import { PdfYazilamaz, readDefterStrokes } from '../kalem/pdfNotlari';
@@ -36,7 +36,10 @@ import { CanvasBudget, deviceLimits, shareBudget } from './canvasButcesi';
 import { SingleFlight } from './cizimKuyrugu';
 import { getPdf, putPdf } from './pdfOnbellek';
 import { SourceResolver } from './kaynakCoz';
-import { GOSTER_OTOMATIK, gosterIndeksi, sayfaListesiniGenislet, yeniIndeks, yenilemeKarari, type GosterHedefi } from './eklemeYenileme';
+import {
+  acikIndeks, dosyaEklemeKarari, dosyaGosterHedefi, eklenenMateryal, GOSTER_OTOMATIK, gosterIndeksi, konuBirlestir, sayfaListesiniGenislet,
+  yeniIndeks, yenilemeKarari, type EklenenDosya, type GosterHedefi
+} from './eklemeYenileme';
 import { visiblePages } from './kitapDuzen';
 import { BookView } from './kitapModu';
 import { buildBookPages, buildSolutionPages, buildTopicPages, type BookPage } from './kitapSayfalari';
@@ -813,8 +816,8 @@ async function prepareFile(file: File): Promise<void> {
   openFilePanel(t, hazir);
 }
 
-// The file panel, with what the reader knows about the topic. Only the new PDF's bytes go into the cache;
-// no konuDegisti: the reader's refresh after a file (5.8g knows only Özet) comes in 5.10f, for now a toast.
+// The file panel, with what the reader knows about the topic. The new PDF's bytes go into the cache, the
+// topics are listed again (konuDegisti: only topicCache.clear()); the open reader follows in afterFileAdded (5.10f).
 function openFilePanel(t: OpenTopic, hazir: HazirDosya): void {
   const ctx = {
     konuAdi: t.title,
@@ -834,11 +837,9 @@ function openFilePanel(t: OpenTopic, hazir: HazirDosya): void {
     ekle: async (hedef: DosyaHedefi, ad: string, islemId: string) => {
       const [{ konuyaDosyaEkle }, konu] = await Promise.all([import('../defter/konuyaDosyaEkle'), topicFolderId(t)]);
       return konuyaDosyaEkle({ konu, hedef, ad, bytes: hazir.bytes, islemId },
-        { yer: driveLocation(), olusturDrive: drivePdfOlusturApi, yeniDosya: sayfaEklemeOrtami().yeniDosya });
+        { yer: driveLocation(), olusturDrive: drivePdfOlusturApi, yeniDosya: sayfaEklemeOrtami().yeniDosya, konuDegisti: sayfaEklemeOrtami().konuDegisti });
     },
-    bitti: (r: { ad: string; uyari?: 'kalemYazamaz' }) => {
-      void import('../defter/dosyaPanelDurumu').then(m => toast(m.eklendiMetni(r.ad, r.uyari)));
-    },
+    bitti: (r: DosyaEklendi, hedef: DosyaHedefi) => { void afterFileAdded(t, hedef, r); },
   };
   import('../ui/dosyaPanel').then(m => m.acDosyaPanel(ctx, hazir)).catch(e => { console.warn(e); toast('Dosya paneli açılamadı. Sayfayı yenileyip tekrar dene.'); });
 }
@@ -996,13 +997,17 @@ function applyGrowth(next: BookPage[], at: number, extra: number[], atEnd: boole
   }
 }
 
-// A new summary in the topic: its folder is listed again, the tabs show "Özet" at once.
-// The pages on screen stay as they are.
+// A new file in the topic (a new summary, task 5.10f: any material): its folders are listed again, the tabs
+// and file lists show it at once. The tab and file on screen stay (by id); the pages on screen stay as they are.
 async function refreshTopic(t: OpenTopic): Promise<void> {
   topicCache.delete(`${folder}|${t.klasor}`);
   const m = await discover(folder, t.klasor);
   if (!m || !open || topic !== t) return;
-  t.materials.ozet = m.ozet;
+  const list = (x: TopicMaterials) => t.kind === 'uebungen' || t.kind === 'oedevler' ? x[t.kind] : null;
+  const next = konuBirlestir(t.materials, m);
+  const old = list(t.materials), now = list(next);
+  if (old && now) t.fileIndex = acikIndeks(old, now, t.fileIndex);
+  t.materials = next;
   renderBar();
 }
 
@@ -1017,6 +1022,38 @@ function showAdded(t: OpenTopic, g: GosterHedefi): void {
   if (mt) for (const m of t.materials.ozet) if (m.file.id === g.fileId) m.file.modifiedTime = mt;
   t.kind = 'ozet'; t.fileIndex = 0; t.solution = false;
   void showMaterial({ dosya: g.ad, sayfa: g.sayfa });
+}
+
+// ---- task 5.10f: the open reader after "Dosya ekle" (decisions: eklemeYenileme.ts) ----
+
+// The file was added: toast (+ "Göster"); the open topic's tabs and lists follow at once.
+// Reader closed / another topic open: only the toast.
+async function afterFileAdded(t: OpenTopic, hedef: DosyaHedefi, r: DosyaEklendi): Promise<void> {
+  let metin = `Eklendi: ${r.ad}`;
+  try { metin = (await import('../defter/dosyaPanelDurumu')).eklendiMetni(r.ad, r.uyari); } catch (e) { console.warn(e); }
+  const e = eklenenMateryal(hedef, r, t.materials);
+  const karar = dosyaEklemeKarari(e, { acik: open, ayniKonu: topic === t });
+  if (!karar.yenile) { toast(metin); return; }
+  const ready = refreshTopic(t).catch(err => {
+    if (err instanceof SessionExpired) return;
+    console.warn('Okuyucu yeni dosyayla yenilenemedi; konuyu kapatıp açınca görünür.', err);
+  });
+  if (!karar.goster) { toast(metin); return; }
+  const go = () => { void ready.then(() => showAddedFile(t, e)); };
+  if (GOSTER_OTOMATIK) { toast(metin); go(); } else toast(metin, { etiket: 'Göster', calistir: go });
+}
+
+// "Göster": the new file's tab and file (a solution: its X with "Çözümü göster" on, at the solution's first page)
+function showAddedFile(t: OpenTopic, e: EklenenDosya): void {
+  if (!open || topic !== t) return;
+  const h = dosyaGosterHedefi(e, t.materials);
+  if (!h) { toast('Eklenen dosya bulunamadı. Konuyu kapatıp yeniden aç.'); return; }
+  if (t.kind === h.kind && t.fileIndex === h.fileIndex && t.solution === h.solution && pages.length) {
+    goToPage(h.solution ? mainCount : 0);
+    return;
+  }
+  t.kind = h.kind; t.fileIndex = h.fileIndex; t.solution = h.solution;
+  void showMaterial();
 }
 
 // Pages of a summary file in its current version, when the reader has made its pages already.
