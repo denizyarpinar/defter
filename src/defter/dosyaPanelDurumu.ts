@@ -78,6 +78,7 @@ export interface EkleGirdi {
   ad: AdDurumu;
   ekleniyor: boolean;
   hataVar: boolean;          // the last try failed
+  hazirDegil?: boolean;      // task 5.10g: no image yet, or images still being prepared
 }
 
 export const ORNEK_METIN = 'Örnek kitaplıkta Drive\'a ekleme yok. Bu sadece taslağın görünümü.';
@@ -85,7 +86,7 @@ export const ORNEK_METIN = 'Örnek kitaplıkta Drive\'a ekleme yok. Bu sadece ta
 export function ekleDurumu(g: EkleGirdi): { aktif: boolean; metin: string; aciklama: string | null } {
   const metin = g.ekleniyor ? 'Ekleniyor…' : g.hataVar ? 'Tekrar dene' : 'Ekle';
   if (g.ornek) return { aktif: false, metin, aciklama: ORNEK_METIN };
-  const aktif = !!g.secenek?.secilebilir && !!g.ad.ad && !g.ad.hata && !g.ekleniyor;
+  const aktif = !!g.secenek?.secilebilir && !!g.ad.ad && !g.ad.hata && !g.ekleniyor && !g.hazirDegil;
   return { aktif, metin, aciklama: null };
 }
 

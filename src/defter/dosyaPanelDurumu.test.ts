@@ -111,6 +111,10 @@ describe('ekleDurumu', () => {
     expect(ekleDurumu({ ...g, ad: { ...ad, ad: '' } }).aktif).toBe(false);
     expect(ekleDurumu({ ...g, ekleniyor: true })).toMatchObject({ aktif: false, metin: 'Ekleniyor…' });
   });
+  it('images not ready (none, or being prepared): passive', () => {
+    expect(ekleDurumu({ ...g, hazirDegil: true })).toEqual({ aktif: false, metin: 'Ekle', aciklama: null });
+    expect(ekleDurumu({ ...g, hazirDegil: false }).aktif).toBe(true);
+  });
   it('after an error: "Tekrar dene"', () => {
     expect(ekleDurumu({ ...g, hataVar: true })).toEqual({ aktif: true, metin: 'Tekrar dene', aciklama: null });
   });

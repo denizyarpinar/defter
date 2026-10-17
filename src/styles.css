@@ -290,14 +290,16 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 .o-pno { font-size: 13px; font-variant-numeric: tabular-nums; opacity: .85; white-space: nowrap }
 .o-close { width: 36px; height: 36px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, .22); background: rgba(0, 0, 0, .18); color: #f5ecdf; font-size: 22px; line-height: 1 }
 /* task 3.2b: material tabs of a topic + file chooser (Übungen / Ödevler) */
-.o-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 6px 12px 8px 16px; color: #f5ecdf;
+.o-bar { display: flex; flex-wrap: nowrap; min-width: 0; align-items: center; gap: 8px 14px; padding: 6px 12px 8px 16px; color: #f5ecdf;
   background: rgba(0, 0, 0, .2); border-bottom: 1px solid rgba(255, 255, 255, .08) }
 .o-bar[hidden], .o-files[hidden], .o-sol[hidden] { display: none }
-.o-tabs { display: flex; gap: 4px; max-width: 100%; overflow-x: auto; scrollbar-width: none }
+.o-tabs { flex: 0 1 auto; min-width: 0; display: flex; gap: 4px; max-width: 100%; overflow-x: auto; scrollbar-width: none }
 .o-tab { flex: none; min-height: 40px; padding: 0 14px; border: 1px solid transparent; border-radius: 99px; background: none; color: inherit; font: 500 14px var(--ui); opacity: .75 }
 .o-tab[aria-selected="true"] { opacity: 1; background: rgba(255, 255, 255, .14); border-color: rgba(255, 255, 255, .22) }
-.o-files { display: flex; align-items: center; gap: 8px; min-width: 0 }
-.o-files select { min-width: 0; max-width: 260px; min-height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, .22);
+/* task 5.10g: the bar is always one row. The file chooser and "Çözüm" are items of the bar itself;
+   the chooser shrinks first (a long name ends with "…"), then the tabs (they scroll in their strip) */
+.o-files { display: contents }
+.o-files select { flex: 0 4 200px; width: 200px; min-width: 64px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; min-height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, .22);
   background: rgba(0, 0, 0, .25); color: #f5ecdf; font: 14px var(--ui) }
 .o-files select option { color: var(--ink); background: var(--paper) }
 .o-sol { flex: none; min-height: 40px; padding: 0 14px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, .22); background: rgba(0, 0, 0, .18); color: #f5ecdf; font: 500 14px var(--ui) }
@@ -564,8 +566,12 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
   .r-title { order: -1; flex-basis: 100% }
   .r-top .rb .lbl { display: none }
   .o-penbtn span { display: none }
+}
+/* task 5.10g: up to iPad portrait/landscape 1024: "Fotoğraf ekle" / "Dosya ekle" only icons, "Çözümü göster" → "Çözüm" */
+@media (max-width: 1024px) {
   .o-foto { padding: 0 10px }
-  .o-foto span { display: none }
+  .o-foto span, .o-sol .o-uzun { display: none }
+  .o-bar { gap: 8px 10px }
 }
 /* task 4.9b: phone: the pen tool bar is one row that scrolls sideways (buttons stay 44 px);
    "Kalemi kapat" sticks to the right edge, the save status is a dot + a short word (full text in title) */
@@ -575,6 +581,10 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
   .fp-liste { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px }
   .fp-ok { font-size: 18px }
   .fp-alt button { flex: 1 }
+  /* task 5.10g: phone: the tab bar a bit tighter (still one row, the tabs scroll in their strip) */
+  .o-bar { gap: 6px; padding: 6px 10px 8px }
+  .o-sol { padding: 0 10px }
+  .o-files select { min-width: 56px }
   .kd-alt { gap: 8px }
   .kd-alt button { flex: 1; min-width: 0; padding: 0 8px }
   .o-tools { flex-wrap: nowrap; justify-content: flex-start; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; padding: 6px 0 8px 12px }

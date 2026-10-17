@@ -17,8 +17,10 @@ import { bekleyenFotoDepo } from '../defter/bekleyenFoto';
 import type { BekleyenFoto, BekleyenJpeg } from '../defter/bekleyenFotoKayit';
 import { FotoEkleyici } from '../defter/fotoEkleme';
 import { seritDurumu } from '../defter/fotoEklemeMetin';
-import { DOSYA_ACCEPT } from '../defter/dosyaTuru';
+import { DOSYA_ACCEPT, dosyaTuru, ILK_BAYT_SAYISI } from '../defter/dosyaTuru';
 import type { HazirDosya } from '../defter/dosyaHazirla';
+import type { DosyaPanelKaynak } from '../ui/dosyaPanel';
+import type { SecimKarari } from '../defter/gorselListesi';
 import type { DosyaEklendi, DosyaHedefi } from '../defter/konuyaDosyaEkle';
 import type { DriveFile } from '../drive/drive';
 import type { DriveLocation } from '../drive/driveLibrary';
@@ -226,7 +228,7 @@ export function initOkuyucu(yer: () => DriveLocation | null): void {
   let rt: number | undefined;
   addEventListener('resize', () => {
     clearTimeout(rt);
-    rt = window.setTimeout(() => { if (open && pages.length) { zoom.reset(); dropDetails(); relayout(); } }, 150);
+    rt = window.setTimeout(() => { if (open) showSelectedTab(); if (open && pages.length) { zoom.reset(); dropDetails(); relayout(); } }, 150);
   });
 
   // surum 2: tabs, file chooser, solution (all stay on the same topic)
@@ -259,14 +261,15 @@ export function initOkuyucu(yer: () => DriveLocation | null): void {
   });
   // Task 5.10e: "Dosya ekle" (draft, ?dosyaEkle=1). The picker opens inside the tap; the file is prepared
   // (dosyaHazirla) before the panel: a refused one only gets a toast.
+  // Task 5.10g: several files can be chosen; images go to the panel as a list (one PDF).
   const dosyaBtn = $('#oDosya'), dosyaInput = $<HTMLInputElement>('#oDosyaInput');
   dosyaBtn.hidden = !DOSYA_EKLE;
   dosyaInput.accept = DOSYA_ACCEPT;
   dosyaBtn.addEventListener('click', () => { if (topic && DOSYA_EKLE) dosyaInput.click(); });
   dosyaInput.addEventListener('change', () => {
-    const file = dosyaInput.files?.[0];
+    const files = [...(dosyaInput.files ?? [])];
     dosyaInput.value = '';   // the same file can be chosen again
-    if (file) void prepareFile(file);
+    if (files.length) void chooseFiles(files);
   });
 
   // Kitap / PDF; the choice is remembered
@@ -742,6 +745,15 @@ async function cached(key: string, build: () => Promise<BookPage[]>, my: number)
 }
 
 // Tabs (only the materials that exist), file chooser and solution button.
+// Task 5.10g: on a narrow bar the tabs scroll in their strip; the open one is kept in sight
+function showSelectedTab(): void {
+  const tabs = $('#oTabs'), sel = tabs.querySelector<HTMLElement>('[aria-selected="true"]');
+  if (!sel || tabs.scrollWidth <= tabs.clientWidth) return;
+  const t = tabs.getBoundingClientRect(), r = sel.getBoundingClientRect();
+  if (r.left < t.left) tabs.scrollLeft += r.left - t.left;
+  else if (r.right > t.right) tabs.scrollLeft += r.right - t.right;
+}
+
 function renderBar(): void {
   const bar = $('#oBar');
   bar.hidden = !topic;
@@ -757,6 +769,7 @@ function renderBar(): void {
     b.textContent = MATERIAL_LABEL[k];
     return b;
   }));
+  showSelectedTab();
   const list = t.kind === 'uebungen' || t.kind === 'oedevler' ? t.materials[t.kind] : null;
   $('#oFiles').hidden = !list;
   if (!list) return;
@@ -765,7 +778,14 @@ function renderBar(): void {
   select.value = String(t.fileIndex);
   const sol = $('#oSol');
   sol.hidden = !list[t.fileIndex]?.cozum;
-  sol.textContent = t.solution ? 'Çözümü gizle' : 'Çözümü göster';
+  // task 5.10g: narrow bar: only "Çözüm" (the rest hides in CSS); the full text for screen readers
+  const solText = t.solution ? 'Çözümü gizle' : 'Çözümü göster';
+  const uzun = document.createElement('span');
+  uzun.className = 'o-uzun';
+  uzun.textContent = solText.slice('Çözüm'.length);
+  sol.replaceChildren('Çözüm', uzun);
+  sol.setAttribute('aria-label', solText);
+  sol.title = solText;
   sol.setAttribute('aria-pressed', String(t.solution));
 }
 
@@ -791,6 +811,29 @@ function openPhotoPanel(files: File[]): void {
   import('../ui/fotoPanel').then(m => m.acFotoPanel(ctx, files)).catch(e => { console.warn(e); toast('Fotoğraf paneli açılamadı. Sayfayı yenileyip tekrar dene.'); });
 }
 
+// Task 5.10g: what the chosen files are (first bytes) → images: the panel's list; one other file:
+// dosyaHazirla's way (5.10e, unchanged); a mix / several PDFs: a toast
+async function chooseFiles(files: File[]): Promise<void> {
+  const t = topic;
+  if (!t || !open) return;
+  let karar: SecimKarari;
+  try {
+    const [{ secimKarari }, turler] = await Promise.all([
+      import('../defter/gorselListesi'),
+      Promise.all(files.map(async f => ({ ad: f.name, tur: dosyaTuru(f.name, f.type, new Uint8Array(await f.slice(0, ILK_BAYT_SAYISI).arrayBuffer())) }))),
+    ]);
+    karar = secimKarari(turler);
+  } catch (e) {
+    console.warn('Dosya okunamadı.', e);
+    toast('Dosya okunamadı. Sayfayı yenileyip tekrar dene.');
+    return;
+  }
+  if (topic !== t || !open) return;
+  if (karar.tur === 'ret') toast(karar.metin);
+  else if (karar.tur === 'gorseller') openFilePanel(t, { tur: 'gorseller', dosyalar: files });
+  else void prepareFile(files[0]);
+}
+
 // Task 5.10e: the chosen file → PDF bytes (dosyaHazirla, lazy) → the panel; refused: a toast
 async function prepareFile(file: File): Promise<void> {
   const t = topic;
@@ -813,12 +856,12 @@ async function prepareFile(file: File): Promise<void> {
     photoBox.durum(null);
   }
   if (topic !== t || !open) return;
-  openFilePanel(t, hazir);
+  openFilePanel(t, { tur: 'pdf', hazir });
 }
 
 // The file panel, with what the reader knows about the topic. The new PDF's bytes go into the cache, the
 // topics are listed again (konuDegisti: only topicCache.clear()); the open reader follows in afterFileAdded (5.10f).
-function openFilePanel(t: OpenTopic, hazir: HazirDosya): void {
+function openFilePanel(t: OpenTopic, kaynak: DosyaPanelKaynak): void {
   const ctx = {
     konuAdi: t.title,
     materials: t.materials,
@@ -834,14 +877,14 @@ function openFilePanel(t: OpenTopic, hazir: HazirDosya): void {
         return null;
       }
     },
-    ekle: async (hedef: DosyaHedefi, ad: string, islemId: string) => {
+    ekle: async (hedef: DosyaHedefi, ad: string, islemId: string, bytes: Uint8Array) => {
       const [{ konuyaDosyaEkle }, konu] = await Promise.all([import('../defter/konuyaDosyaEkle'), topicFolderId(t)]);
-      return konuyaDosyaEkle({ konu, hedef, ad, bytes: hazir.bytes, islemId },
+      return konuyaDosyaEkle({ konu, hedef, ad, bytes, islemId },
         { yer: driveLocation(), olusturDrive: drivePdfOlusturApi, yeniDosya: sayfaEklemeOrtami().yeniDosya, konuDegisti: sayfaEklemeOrtami().konuDegisti });
     },
     bitti: (r: DosyaEklendi, hedef: DosyaHedefi) => { void afterFileAdded(t, hedef, r); },
   };
-  import('../ui/dosyaPanel').then(m => m.acDosyaPanel(ctx, hazir)).catch(e => { console.warn(e); toast('Dosya paneli açılamadı. Sayfayı yenileyip tekrar dene.'); });
+  import('../ui/dosyaPanel').then(m => m.acDosyaPanel(ctx, kaynak)).catch(e => { console.warn(e); toast('Dosya paneli açılamadı. Sayfayı yenileyip tekrar dene.'); });
 }
 
 // Task 5.8f: adding the photos (fotoEkleme.ts) with the pen's queue and caches (sayfaEklemeOrtami).

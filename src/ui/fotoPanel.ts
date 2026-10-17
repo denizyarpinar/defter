@@ -6,6 +6,7 @@ import type { BekleyenJpeg } from '../defter/bekleyenFotoKayit';
 import { boyutYazi, cikar, ekleDurumu, hedefHesapla, tasi } from '../defter/fotoPanelDurumu';
 import type { Kose4 } from '../defter/kirp/kirpHesap';
 import { kipDegistir, kirpYazi, type KirpKarari, type KirpKip } from '../defter/kirp/kirpKarar';
+import { sayfaKaymasiniSifirla } from './klavyeKaydirma';
 import { acKoseDuzenleyici, type KoseDuzenleyici } from './koseDuzenleyici';
 import { toast } from './toast';
 
@@ -239,6 +240,7 @@ export function acFotoPanel(b: FotoPanelBaglam, dosyalar: File[]): void {
     ogeler = [];
     removeEventListener('keydown', tus, true);
     kok.remove();
+    sayfaKaymasiniSifirla(window);   // task 5.10g: as the file panel (iPad)
   }
 
   function tus(e: KeyboardEvent): void {
