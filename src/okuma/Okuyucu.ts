@@ -65,9 +65,6 @@ import { ZoomController } from './zoomKontrol';
 // Task 4.9d: the ?kalemYaz=1 safety lock is gone (real Drive tests done in 4.8c); the sample library never uploads.
 
 const PEN_LAYER = penLayerMode();   // task 4.5: ?cizimKontrol=1 / ?defterNot=goster
-// Task 5.10e: "Dosya ekle" is a draft; its button shows only with ?dosyaEkle=1 (until the real tests)
-const DOSYA_EKLE = new URLSearchParams(location.search).get('dosyaEkle') === '1';
-
 const MAX_WIDTH = 760;   // prototype #pdfView: min(760px, 100vw − 32px)
 const SIDE = 16;
 
@@ -259,13 +256,12 @@ export function initOkuyucu(yer: () => DriveLocation | null): void {
     fotoInput.value = '';   // the same photo can be chosen again
     if (files.length) openPhotoPanel(files);
   });
-  // Task 5.10e: "Dosya ekle" (draft, ?dosyaEkle=1). The picker opens inside the tap; the file is prepared
+  // Task 5.10e: "Dosya ekle" (5.10h: always shown, the ?dosyaEkle=1 lock removed). The picker opens inside the tap; the file is prepared
   // (dosyaHazirla) before the panel: a refused one only gets a toast.
   // Task 5.10g: several files can be chosen; images go to the panel as a list (one PDF).
   const dosyaBtn = $('#oDosya'), dosyaInput = $<HTMLInputElement>('#oDosyaInput');
-  dosyaBtn.hidden = !DOSYA_EKLE;
   dosyaInput.accept = DOSYA_ACCEPT;
-  dosyaBtn.addEventListener('click', () => { if (topic && DOSYA_EKLE) dosyaInput.click(); });
+  dosyaBtn.addEventListener('click', () => { if (topic) dosyaInput.click(); });
   dosyaInput.addEventListener('change', () => {
     const files = [...(dosyaInput.files ?? [])];
     dosyaInput.value = '';   // the same file can be chosen again

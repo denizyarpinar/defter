@@ -15,7 +15,7 @@ import { gorunurAlaniDuzelt } from './gorunurAlan';
 import { panelKlavyeTakibi } from './klavyeKaydirma';
 import { toast } from './toast';
 
-// Task 5.10e: "Dosya ekle" panel over the reader (draft, behind ?dosyaEkle=1). The file is already
+// Task 5.10e: "Dosya ekle" panel over the reader. The file is already
 // prepared (dosyaHazirla); here only: where it goes and its name. "Ekle" goes straight to Drive
 // (konuyaDosyaEkle, nothing kept on the device); an error keeps the panel open, "Tekrar dene" uses the same islemId.
 // The look is the photo panel's (.fp classes); the logic is in dosyaPanelDurumu.ts.

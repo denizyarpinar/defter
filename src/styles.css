@@ -374,9 +374,8 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 .fp-ekle { border: 1px solid var(--accent); background: var(--accent); color: #fff }
 .fp-ekle:disabled { opacity: .4 }
 .fp-not.fp-hata { opacity: 1; color: #ffb4a2 }
-/* task 5.10e: "Dosya ekle" button next to "Fotoğraf ekle" (only with ?dosyaEkle=1) + its panel (draft) */
+/* task 5.10e: "Dosya ekle" button next to "Fotoğraf ekle" + its panel */
 .o-foto.o-dosya { margin-left: 0 }
-.o-dosya[hidden] { display: none }
 .dp-bilgi { margin: 0; opacity: .8; overflow-wrap: anywhere }
 .dp-hedefler { margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 2px }
 .dp-baslik2 { padding: 0; margin-bottom: 6px; font-weight: 600 }
