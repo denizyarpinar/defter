@@ -18,7 +18,7 @@ import { curveBounds, curveToPdf, strokeCurve, type Curve } from './cizgiSekli';
 type Lib = typeof import('pdf-lib');
 
 let lib: Promise<Lib> | null = null;
-function pdfLib(): Promise<Lib> {
+export function pdfLib(): Promise<Lib> {
   lib ??= import('pdf-lib');
   lib.catch(() => { lib = null; });   // e.g. offline: try again next time
   return lib;
@@ -26,9 +26,14 @@ function pdfLib(): Promise<Lib> {
 
 export class PdfYazilamaz extends Error {}
 
-const ENCRYPTED = 'Bu PDF şifreli olduğu için çizimler kaydedilemiyor. Şifresiz bir kopyasını Drive\'a yükleyip onu kullan.';
-const UNREADABLE = 'Bu PDF okunamadı, o yüzden çizimler kaydedilemiyor. Dosya bozuk olabilir; Drive\'da açılıp açılmadığına bak.';
-const SIGNED = 'Bu PDF dijital imzalı; çizim kaydedilirse imza bozulur.';
+// Why a file can't be written. Faz 5 (adding pages) passes its own wording to yazilabilirAc.
+export interface YazilamazMesajlari { sifreli: string; okunamadi: string; imzali: string }
+
+const CIZIM: YazilamazMesajlari = {
+  sifreli: 'Bu PDF şifreli olduğu için çizimler kaydedilemiyor. Şifresiz bir kopyasını Drive\'a yükleyip onu kullan.',
+  okunamadi: 'Bu PDF okunamadı, o yüzden çizimler kaydedilemiyor. Dosya bozuk olabilir; Drive\'da açılıp açılmadığına bak.',
+  imzali: 'Bu PDF dijital imzalı; çizim kaydedilirse imza bozulur.'
+};
 
 const NM_PREFIX = 'defter-';
 
@@ -36,18 +41,29 @@ const NM_PREFIX = 'defter-';
 const r2 = (n: number) => Math.round(n * 100) / 100;
 const r3 = (n: number) => Math.round(n * 1000) / 1000;
 
-async function load(bytes: Uint8Array): Promise<{ L: Lib; doc: PDFDocument }> {
+async function load(bytes: Uint8Array, m: YazilamazMesajlari = CIZIM): Promise<{ L: Lib; doc: PDFDocument }> {
   const L = await pdfLib();
   let doc: PDFDocument;
   try {
     // updateMetadata: false, otherwise pdf-lib rewrites Producer / ModDate in the file's metadata
     doc = await L.PDFDocument.load(bytes, { ignoreEncryption: true, updateMetadata: false });
   } catch {
-    throw new PdfYazilamaz(UNREADABLE);
+    throw new PdfYazilamaz(m.okunamadi);
   }
-  if (doc.isEncrypted) throw new PdfYazilamaz(ENCRYPTED);
+  if (doc.isEncrypted) throw new PdfYazilamaz(m.sifreli);
   return { L, doc };
 }
+
+// A file that may be rewritten: readable, not encrypted, not signed (otherwise PdfYazilamaz).
+export async function yazilabilirAc(bytes: Uint8Array, m: YazilamazMesajlari = CIZIM): Promise<{ L: Lib; doc: PDFDocument }> {
+  const { L, doc } = await load(bytes, m);
+  if (isSigned(L, doc)) throw new PdfYazilamaz(m.imzali);
+  return { L, doc };
+}
+
+// Saving a rewritten file (pen strokes and added pages alike): addDefaultPage / updateFieldAppearances
+// off, so the page count and form fields stay as they are.
+export const SAVE_OPTIONS = { addDefaultPage: false, updateFieldAppearances: false } as const;
 
 // The value at key, if it is of that type (a reference is followed); otherwise undefined.
 function get<T extends PDFObject>(ctx: PDFContext, dict: PDFDict, key: string, type: Function & { prototype: T }, L: Lib): T | undefined {
@@ -115,8 +131,7 @@ export async function readDefterStrokes(bytes: Uint8Array): Promise<PageStrokes>
 // Pen mode (task 4.6): the strokes, but only for a file the pen may later write
 // (encrypted, unreadable or signed → PdfYazilamaz, so drawing doesn't start on it).
 export async function readStrokesForPen(bytes: Uint8Array): Promise<PageStrokes> {
-  const { L, doc } = await load(bytes);
-  if (isSigned(L, doc)) throw new PdfYazilamaz(SIGNED);
+  const { L, doc } = await yazilabilirAc(bytes);
   return strokesOf(L, doc);
 }
 
@@ -218,8 +233,7 @@ function addInk(L: Lib, ctx: PDFContext, pageRef: PDFRef, s: Stroke, date: strin
 // are removed first, then one Ink note per stroke is added (an empty list only removes).
 // Pages not in the map are not touched.
 export async function writeDefterStrokes(bytes: Uint8Array, pages: PageStrokes, opts: { simdi?: Date } = {}): Promise<Uint8Array> {
-  const { L, doc } = await load(bytes);
-  if (isSigned(L, doc)) throw new PdfYazilamaz(SIGNED);
+  const { L, doc } = await yazilabilirAc(bytes);
 
   const all = doc.getPages();
   const ids = new Set<string>();
@@ -255,6 +269,5 @@ export async function writeDefterStrokes(bytes: Uint8Array, pages: PageStrokes, 
     for (const s of strokes) annots!.push(addInk(L, ctx, page.ref, s, date));
   }
 
-  // addDefaultPage / updateFieldAppearances off: the page count and form fields stay as they are
-  return doc.save({ addDefaultPage: false, updateFieldAppearances: false });
+  return doc.save(SAVE_OPTIONS);
 }

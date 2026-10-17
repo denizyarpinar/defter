@@ -147,7 +147,7 @@ export async function updateJson(fileId: string, obj: unknown, what: string, kee
   }), what);
 }
 
-// Create a new JSON file in a folder (only used when kitaplik.json / kitap.json is missing).
+// Create a new JSON file in a folder (only used when kitaplik.json is missing; kitap.json is never created).
 export async function createJson(parentId: string, name: string, obj: unknown, what: string): Promise<string> {
   const boundary = 'defter' + Math.random().toString(36).slice(2);
   const meta = { name, parents: [parentId], mimeType: 'application/json' };

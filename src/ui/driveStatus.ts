@@ -1,4 +1,4 @@
-// Small Drive status elements: "Kitaplık yükleniyor…", save state, "Kitaplık bulunamadı" card.
+// Small Drive status elements: "Kitaplığın yükleniyor…", save state, "Kitaplık bulunamadı" and error cards.
 
 const $ = <T extends HTMLElement>(s: string) => document.querySelector<T>(s)!;
 
@@ -53,4 +53,15 @@ export function initNotFound(h: { onRetry: () => void; onSample: () => void }): 
 
 export function setNotFound(show: boolean): void {
   $('#notFound').hidden = !show;
+}
+
+// Task 5.1: the Drive library could not be loaded (offline, Drive error): message + "Tekrar dene" + sample library.
+export function initLibError(h: { onRetry: () => void; onSample: () => void }): void {
+  $('#leRetry').addEventListener('click', h.onRetry);
+  $('#leSample').addEventListener('click', h.onSample);
+}
+
+export function setLibError(message: string | null): void {
+  $('#leText').textContent = message ?? '';
+  $('#libError').hidden = message === null;
 }

@@ -12,7 +12,7 @@
 
 As a student my notes live in three places at once: handwritten notebooks, lecture PDFs on my laptop, and summaries I create with AI tools. Each course ends up scattered across folders, photos and chat exports, and there is no single place that shows *what I have for a course and how far I am with it*.
 
-Defter turns one Google Drive folder into a personal library. Every course or topic is a **book**; its chapters point to the PDFs, notebook photos, AI outputs and links that belong together. The files stay in your own Drive — Defter only arranges them.
+Defter turns one Google Drive folder into a personal library. Every course or topic is a **book**; its units and topics point to the PDFs, notebook photos, AI outputs and links that belong together. The files stay in your own Drive — Defter only arranges them.
 
 ## Features
 
@@ -21,7 +21,8 @@ Defter turns one Google Drive folder into a personal library. Every course or to
 | ![Study room by day](docs/oda-gunduz.png) | **A 3D study room** — a lit diorama with desk, plants, window and a bookcase, rendered with three.js. |
 | ![Study room in the evening](docs/oda-aksam.png) | **Day and evening** — switch manually or automatically after 18:00; the sun sets, the moon rises and the desk lamp turns on. |
 | ![Bookcase](docs/raf.png) | **Your shelves** — books are generated from Drive folders (cloth or leather covers, ribbons, dust on books you haven't opened in weeks). Drag books between shelves; new folders appear in the *new arrivals* pile. |
-| ![Open book](docs/kitap.png) | **Open a book** — it flies to the desk and opens on a title page and a table of contents with chapter status (unread / studied / review) and source icons. |
+| ![Open book](docs/kitap.png) | **Open a book** — it flies to the desk and opens on a title page and a table of contents with its units and topics, each with a status (unread → reading → read → studied → review). |
+| ![Adding notebook photos](docs/foto-ekle.png) | **Add your notebook** — photograph handwritten pages; Defter finds the page, straightens it and appends it to the topic's summary PDF. PDFs and images can be added to a topic as well. |
 
 - **Google sign-in, no server** — Google Identity Services in the browser; the access token is kept in memory only.
 - **Saves back to Drive carefully** — shelf layout and room settings are written 1.5 s after the last change, after re-reading the latest file, touching only the fields Defter owns. Unknown fields are preserved; nothing is ever deleted, moved or copied.
@@ -79,6 +80,41 @@ flowchart LR
 ```
 
 **Try it:** open the [demo](https://defter-jade.vercel.app/?demo), choose *Programlamaya Giriş* → *Değişkenler ve veri tipleri* → the *Özet* tab. The summary already has a few handwritten notes; tap the pen button to add your own. The demo never writes to Drive — your strokes stay in your browser.
+
+## Notebook and adding
+
+Phase 5 brought the paper notebook in. A photo of a handwritten page becomes a real page at the end of the topic's summary PDF, and lecture files, exercise sheets or solutions can be added to a topic straight from the reader.
+
+![Adding notebook photos: the page is found and cropped automatically](docs/foto-ekle.png)
+
+- **Notebook photos** — *Fotoğraf ekle* takes one or more photos. Each one is cropped to the page and its perspective is straightened automatically (plain TypeScript, no OpenCV). If the page edge is unclear, the whole photo is used; one tap switches between *cropped* and *whole photo*. Photos can be reordered or removed before adding; images are scaled to 2000 px on the long side and saved as JPEG, with no filters.
+- **Fix the corners by hand** — tapping a thumbnail opens a corner editor with a magnifier, so the four corners can be dragged exactly onto the page; *Otomatik* goes back to the detected ones.
+- **Device first, then Drive** — the prepared photos are first stored in IndexedDB on the device and only removed after the upload has succeeded, so a lost connection or a closed tab loses nothing. If the topic has a summary, the pages are appended to its end; if it has none, a new `ozet.pdf` is created in the topic folder.
+- **Pages only at the end** — existing pages, their order, Defter's pen notes, ribbons and page numbers stay exactly as they were. Adding pages goes through the same write queue as the pen (pending strokes first), with the same safety: the original version is kept forever (`keepForever`), and if the file changed in between, Defter starts again.
+- **Add a file** — *Dosya ekle* accepts a PDF, or one or more images that become a single PDF (reorder, remove, add more). The target is chosen in the panel: *Übungen*, *Ödevler*, a solution (`X_cozum.pdf` next to `X.pdf`), or *Orijinal* / *Özet* when the topic doesn't have one yet. Missing `Uebungen/` or `Oedevler/` folders are never created (the choice is greyed out), and a file with the same name is never overwritten or renamed — you pick another name. A pre-allocated Drive file id and an operation id make sure a retry never creates a second copy. Files are limited to 50 MB; Word and PowerPoint files get the hint *save as PDF, then add* (automatic conversion is planned for Phase 6).
+- **The reader follows at once** — new pages and new files appear in the open reader immediately, without closing it; the page you are on and the pen stay where they were.
+- **Made for the iPad** — the photo and file pickers open directly from the tap (as Safari requires), the panels sit at the top on touch screens, and the page no longer stays shifted after the on-screen keyboard closes.
+- **Strict write rules** — new files are only ever PDFs, only inside the book's own folder (`kitaplar/<book>/`), and marked with `appProperties.defter = "1"`. Nothing is deleted, moved or copied.
+
+| | |
+|---|---|
+| ![Corner editor](docs/kose-duzelt.png) | ![Adding several images as one PDF](docs/dosya-ekle.png) |
+| Corner editor: drag the four corners onto the page. | *Dosya ekle*: three images become one PDF in *Übungen*. |
+
+The screenshots come from the demo library, where adding is shown as a preview only (*Ekle* is disabled); the photos in them are generated by `scripts/screenshots.mjs`.
+
+```mermaid
+flowchart LR
+  Photo["photo / image / PDF"] --> Crop["find page + straighten<br/>(or corner editor)"]
+  Crop --> IDB[("IndexedDB<br/>until uploaded")]
+  IDB --> Queue["write queue<br/>(after pending strokes)"]
+  Queue --> Has{"summary<br/>exists?"}
+  Has -->|yes| Append["append pages<br/>PATCH same file id"]
+  Has -->|no| Create["create ozet.pdf<br/>pre-allocated id"]
+  Append -->|changed meanwhile| Queue
+  Append --> Reader["open reader<br/>refreshes"]
+  Create --> Reader
+```
 
 ## Tech stack
 
@@ -219,7 +255,7 @@ You need **Node.js 20+** and a Google account.
 5. **Prepare your Drive** — create a folder `Kitaplık` in the root of My Drive with a `kitaplar` folder inside. You can start from `referans/Kitaplik_ornek.zip`.
 6. **Run** — `npm run dev`, open <http://localhost:5173> and sign in with Google.
 
-Other scripts: `npm run build` (production build into `dist/`), `npm run typecheck` (`tsc --noEmit`), `npm run preview`, `npm run screenshots` (regenerates the images in `docs/`; needs Chrome and ffmpeg).
+Other scripts: `npm run build` (production build into `dist/`), `npm run typecheck` (`tsc --noEmit`), `npm run preview`, `npm run screenshots` (regenerates the images in `docs/`; needs Chrome and ffmpeg; with `SHOTS=faz5` only the three Phase 5 images, no ffmpeg).
 
 To deploy on Vercel, import the repository, set `VITE_GOOGLE_CLIENT_ID` as an environment variable, and add the Vercel URL to the Client ID's authorized JavaScript origins.
 
@@ -229,8 +265,8 @@ To deploy on Vercel, import the repository, set `VITE_GOOGLE_CLIENT_ID` as an en
 - [x] **Phase 2 — Visual quality:** light baked in Blender (Cycles) into day and evening lightmaps, smaller files for mobile
 - [x] **Phase 3 — Reading:** PDF rendering with pdf.js, book and PDF modes, zoom, ribbons and reading status
 - [x] **Phase 4 — Pen:** Apple Pencil drawings saved into the PDF as standard annotations (pdf-lib)
-- [ ] **Phase 5 — Notebook and adding:** notebook photos into the summary PDF, adding files
-- [ ] **Phase 6 — Smart features:** OCR, search, quizzes and summaries
+- [x] **Phase 5 — Notebook and adding:** notebook photos into the summary PDF (automatic page crop), adding PDFs and images to a topic
+- [ ] **Phase 6 — Smart features:** automatic Word/PowerPoint conversion (via Drive), OCR, search, quizzes and summaries
 
 ## Built with Claude Code
 
@@ -246,7 +282,7 @@ Most of the code was written by Claude Code from those plans. Working this way t
 
 ## Kurzbeschreibung (Deutsch)
 
-Defter ist eine Web-App, die Lernunterlagen aus Google Drive – PDFs, Fotos aus handschriftlichen Heften und KI-Zusammenfassungen – als Bücher in einem 3D-Arbeitszimmer darstellt. Jedes Fach ist ein Buch mit Kapiteln und Quellen; Bücher lassen sich per Drag-and-drop zwischen Regalen verschieben, und die Anordnung wird zurück nach Google Drive gespeichert. Die App läuft komplett im Browser (TypeScript, three.js, Google Identity Services, Drive API) und ist für das iPad optimiert. Konzept, Datenmodell und Architektur stammen von mir; der Großteil des Codes wurde mit Claude Code geschrieben.
+Defter ist eine Web-App, die Lernunterlagen aus Google Drive – PDFs, Fotos aus handschriftlichen Heften und KI-Zusammenfassungen – als Bücher in einem 3D-Arbeitszimmer darstellt. Jedes Fach ist ein Buch mit Einheiten und Themen; Bücher lassen sich per Drag-and-drop zwischen Regalen verschieben, und die Anordnung wird zurück nach Google Drive gespeichert. PDFs werden direkt aus Drive gelesen und mit dem Apple Pencil beschriftet; Fotos aus dem Heft werden automatisch zugeschnitten und an die Zusammenfassung angehängt, und PDFs oder Bilder lassen sich einem Thema hinzufügen. Die App läuft komplett im Browser (TypeScript, three.js, Google Identity Services, Drive API) und ist für das iPad optimiert. Konzept, Datenmodell und Architektur stammen von mir; der Großteil des Codes wurde mit Claude Code geschrieben.
 
 ---
 

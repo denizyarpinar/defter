@@ -71,6 +71,10 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
   transition: opacity .25s, transform .25s; box-shadow: 0 10px 30px rgba(0, 0, 0, .25);
 }
 #toast.show { opacity: 1; transform: translate(-50%, 0) }
+/* task 5.8g: a toast with a button ("Göster"); only the visible one takes taps */
+#toast.eylemli { display: flex; align-items: center; gap: 12px }
+#toast.eylemli.show { pointer-events: auto }
+#toast button { flex: none; font: inherit; font-weight: 700; color: #221c17; background: #f5ede0; border: 0; border-radius: 8px; padding: 6px 12px; min-height: 32px; cursor: pointer }
 
 /* ---------- 3D stage ---------- */
 #stage { position: absolute; inset: 0; overflow: hidden; touch-action: none }
@@ -109,7 +113,24 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
   background: var(--chrome); color: var(--chromeFg); border: 1px solid var(--chromeLine); border-radius: 999px; padding: 7px 14px;
   backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); box-shadow: 0 6px 18px rgba(0, 0, 0, .12);
 }
-.libload { top: calc(env(safe-area-inset-top, 0px) + 62px) }
+.libload {
+  top: 50%; transform: translate(-50%, -50%); display: flex; align-items: center; gap: 12px;
+  font-size: 15px; font-weight: 600; padding: 12px 20px; box-shadow: 0 12px 32px rgba(0, 0, 0, .18); pointer-events: none
+}
+.libload .spin {
+  width: 18px; height: 18px; flex: none; border-radius: 50%; box-sizing: border-box;
+  border: 2.5px solid var(--chromeLine); border-top-color: var(--chromeFg); animation: libspin .9s linear infinite
+}
+@keyframes libspin { to { transform: rotate(360deg) } }
+@media (prefers-reduced-motion: reduce) { .libload .spin { animation-duration: 2.4s } }
+/* task 5.1: signing in / loading / error: the shelves are faded (and locked in the scene) */
+#stage::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity .35s;
+  background: rgba(244, 236, 224, .5)
+}
+#app[data-mode="night"] #stage::after { background: rgba(10, 14, 28, .5) }
+#app[data-kilit] #stage::after { opacity: 1 }
+#app[data-kilit] #hint { visibility: hidden }   /* "Kitaplığa dokun" would be wrong while locked */
 .save { bottom: calc(env(safe-area-inset-bottom, 0px) + 62px); display: flex; align-items: center; gap: 10px; max-width: calc(100vw - 32px); transition: opacity .3s }
 .save.fade { opacity: 0 }
 .save.error { border-radius: 14px; background: #fbe9e4; color: #8a2a18; border-color: rgba(178, 58, 42, .35) }
@@ -269,18 +290,118 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 .o-pno { font-size: 13px; font-variant-numeric: tabular-nums; opacity: .85; white-space: nowrap }
 .o-close { width: 36px; height: 36px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, .22); background: rgba(0, 0, 0, .18); color: #f5ecdf; font-size: 22px; line-height: 1 }
 /* task 3.2b: material tabs of a topic + file chooser (Übungen / Ödevler) */
-.o-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 6px 12px 8px 16px; color: #f5ecdf;
+.o-bar { display: flex; flex-wrap: nowrap; min-width: 0; align-items: center; gap: 8px 14px; padding: 6px 12px 8px 16px; color: #f5ecdf;
   background: rgba(0, 0, 0, .2); border-bottom: 1px solid rgba(255, 255, 255, .08) }
 .o-bar[hidden], .o-files[hidden], .o-sol[hidden] { display: none }
-.o-tabs { display: flex; gap: 4px; max-width: 100%; overflow-x: auto; scrollbar-width: none }
+.o-tabs { flex: 0 1 auto; min-width: 0; display: flex; gap: 4px; max-width: 100%; overflow-x: auto; scrollbar-width: none }
 .o-tab { flex: none; min-height: 40px; padding: 0 14px; border: 1px solid transparent; border-radius: 99px; background: none; color: inherit; font: 500 14px var(--ui); opacity: .75 }
 .o-tab[aria-selected="true"] { opacity: 1; background: rgba(255, 255, 255, .14); border-color: rgba(255, 255, 255, .22) }
-.o-files { display: flex; align-items: center; gap: 8px; min-width: 0 }
-.o-files select { min-width: 0; max-width: 260px; min-height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, .22);
+/* task 5.10g: the bar is always one row. The file chooser and "Çözüm" are items of the bar itself;
+   the chooser shrinks first (a long name ends with "…"), then the tabs (they scroll in their strip) */
+.o-files { display: contents }
+.o-files select { flex: 0 4 200px; width: 200px; min-width: 64px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; min-height: 40px; padding: 0 10px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, .22);
   background: rgba(0, 0, 0, .25); color: #f5ecdf; font: 14px var(--ui) }
 .o-files select option { color: var(--ink); background: var(--paper) }
 .o-sol { flex: none; min-height: 40px; padding: 0 14px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, .22); background: rgba(0, 0, 0, .18); color: #f5ecdf; font: 500 14px var(--ui) }
 .o-sol[aria-pressed="true"] { background: var(--accent); border-color: var(--accent) }
+/* task 5.8a: "Fotoğraf ekle" button in the tab bar + its panel over the reader (draft, writes nothing) */
+.o-foto { flex: none; display: inline-flex; align-items: center; gap: 7px; min-height: 40px; padding: 0 14px; margin-left: auto; border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, .22); background: rgba(0, 0, 0, .18); color: #f5ecdf; font: 500 14px var(--ui) }
+.o-foto svg { width: 20px; height: 20px }
+.fp { position: fixed; inset: 0; z-index: 55; display: flex; align-items: center; justify-content: center; padding: 16px;
+  padding-top: calc(env(safe-area-inset-top, 0px) + 16px); padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 16px); background: rgba(10, 7, 4, .55) }
+.fp-kart { box-sizing: border-box; width: min(640px, 100%); max-height: 100%; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 12px;
+  padding: 18px 18px 16px; border-radius: 16px; background: #2a231d; color: #f5ecdf; box-shadow: 0 20px 50px rgba(0, 0, 0, .4); font: 14px var(--ui) }
+.fp-baslik { margin: 0; font: 600 17px var(--ui); overflow-wrap: anywhere }
+.fp-durum { margin: 0; opacity: .8 }
+.fp-durum[hidden], .fp-not[hidden] { display: none }
+.fp-liste { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 10px }
+.fp-liste:empty { display: none }
+.fp-oge { position: relative; display: flex; flex-direction: column; gap: 4px; padding: 6px; border-radius: 10px; background: rgba(255, 255, 255, .06) }
+.fp-oge img { display: block; width: 100%; aspect-ratio: 3 / 4; object-fit: contain; border-radius: 6px; background: rgba(0, 0, 0, .3) }
+.fp-no { position: absolute; left: 10px; top: 10px; min-width: 24px; height: 24px; padding: 0 6px; box-sizing: border-box; border-radius: 12px;
+  background: var(--accent); color: #fff; font: 600 13px/24px var(--ui); text-align: center }
+.fp-cikar { position: absolute; right: 2px; top: 2px; width: 44px; height: 44px; border: 0; background: none; color: #fff; font-size: 22px; line-height: 1;
+  display: flex; align-items: flex-start; justify-content: flex-end; padding: 6px 8px }
+.fp-cikar::before { content: ''; position: absolute; right: 6px; top: 6px; width: 28px; height: 28px; border-radius: 50%; background: rgba(0, 0, 0, .6); z-index: -1 }
+.fp-cikar { isolation: isolate }
+.fp-oklar { display: flex; gap: 6px }
+.fp-ok { flex: 1; min-height: 44px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, .22); background: rgba(0, 0, 0, .18); color: inherit; font-size: 22px; line-height: 1 }
+.fp-ok:disabled { opacity: .3 }
+.fp-boyut { opacity: .65; font-size: 12px; text-align: center }
+/* task 5.8c: crop / whole-photo toggle and "Kırpılamadı" badge on the thumbnail */
+.fp-resim { position: relative }
+.fp-kirp { position: absolute; right: 4px; bottom: 4px; width: 44px; height: 44px; display: grid; place-items: center; padding: 0;
+  border: 1px solid rgba(255, 255, 255, .3); border-radius: 10px; background: rgba(0, 0, 0, .6); color: #fff }
+.fp-kirp[aria-pressed="true"] { background: rgba(214, 160, 70, .85); border-color: transparent }
+.fp-kirp:disabled { opacity: .4 }
+.fp-rozet { position: absolute; left: 4px; bottom: 8px; pointer-events: none; padding: 2px 8px; border-radius: 10px; background: rgba(150, 40, 30, .85); color: #fff; font-size: 12px; line-height: 18px }
+.fp-mesgul img { opacity: .4 }
+.fp-duzelt { display: block; width: 100%; padding: 0; border: 0; background: none; cursor: pointer; border-radius: 6px }
+.fp-duzelt:disabled { cursor: default }
+.fp-rozet-elle { background: rgba(214, 160, 70, .9); color: #1b1410 }
+
+/* task 5.8d: corner editor (full screen over the photo panel) */
+.kd { position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column; background: #111; color: #f5ecdf; font: 14px var(--ui);
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px) }
+.kd-sahne { position: relative; flex: 1; min-height: 0; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none }
+.kd-gorsel { position: absolute; display: block; pointer-events: none }
+.kd-svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible }
+.kd-karart { fill: rgba(0, 0, 0, .55) }
+.kd-cizgi { fill: none; stroke: #ffd27a; stroke-width: 2; stroke-linejoin: round }
+.kd-tutamac { fill: rgba(255, 210, 122, .35); stroke: #ffd27a; stroke-width: 2.5 }
+.kd-gecersiz .kd-cizgi, .kd-gecersiz .kd-tutamac { stroke: #ff5a4a }
+.kd-gecersiz .kd-tutamac { fill: rgba(255, 90, 74, .35) }
+.kd-buyutec { position: absolute; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 4px 16px rgba(0, 0, 0, .6); pointer-events: none }
+.kd-buyutec[hidden] { display: none }
+.kd-yukleniyor { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; opacity: .8 }
+.kd-ipucu { margin: 0; padding: 8px 16px 0; text-align: center; opacity: .85; min-height: 1.4em }
+.kd-gecersiz .kd-ipucu { color: #ff8a7d; opacity: 1 }
+.kd-alt { display: flex; justify-content: center; gap: 10px; padding: 10px 16px 14px }
+.kd-alt button { min-height: 44px; min-width: 104px; padding: 0 18px; border-radius: 10px; font: 600 15px var(--ui) }
+.kd-otomatik, .kd-vazgec { border: 1px solid rgba(255, 255, 255, .22); background: none; color: inherit }
+.kd-uygula { border: 1px solid var(--accent); background: var(--accent); color: #fff }
+.kd-alt button:disabled { opacity: .4 }
+.fp-arti { align-self: flex-start; min-height: 44px; padding: 0 16px; border-radius: 10px; border: 1px dashed rgba(255, 255, 255, .4); background: none; color: inherit; font: 500 14px var(--ui) }
+.fp-hedef { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-radius: 10px; background: rgba(255, 255, 255, .06); line-height: 1.4; overflow-wrap: anywhere }
+.fp-seclbl { display: flex; align-items: center; gap: 10px; flex-wrap: wrap }
+.fp-sec { min-height: 44px; min-width: 0; max-width: 100%; padding: 0 10px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, .22); background: rgba(0, 0, 0, .25); color: #f5ecdf; font: 14px var(--ui) }
+.fp-sec option { color: var(--ink); background: var(--paper) }
+.fp-not { margin: 0; font-size: 13px; opacity: .8 }
+.fp-alt { display: flex; justify-content: flex-end; gap: 10px }
+.fp-alt button { min-height: 44px; min-width: 104px; padding: 0 18px; border-radius: 10px; font: 600 15px var(--ui) }
+.fp-vazgec { border: 1px solid rgba(255, 255, 255, .22); background: none; color: inherit }
+.fp-ekle { border: 1px solid var(--accent); background: var(--accent); color: #fff }
+.fp-ekle:disabled { opacity: .4 }
+.fp-not.fp-hata { opacity: 1; color: #ffb4a2 }
+/* task 5.10e: "Dosya ekle" button next to "Fotoğraf ekle" + its panel */
+.o-foto.o-dosya { margin-left: 0 }
+.dp-bilgi { margin: 0; opacity: .8; overflow-wrap: anywhere }
+.dp-hedefler { margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 2px }
+.dp-baslik2 { padding: 0; margin-bottom: 6px; font-weight: 600 }
+.dp-hedef { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; min-height: 44px; padding: 0 10px; border-radius: 10px; cursor: pointer }
+.dp-hedef:has(input:checked) { background: rgba(255, 255, 255, .1) }
+.dp-hedef input { width: 20px; height: 20px; margin: 0; accent-color: var(--accent) }
+.dp-hedef.dp-pasif { opacity: .45; cursor: default }
+.dp-neden { font-size: 12px; opacity: .9 }
+.dp-neden[hidden], .dp-cozum[hidden], .dp-ad[hidden], .dp-uyari[hidden] { display: none }
+.dp-ad { display: flex; flex-direction: column; gap: 6px; font-weight: 600 }
+.dp-ad input { box-sizing: border-box; width: 100%; min-height: 44px; padding: 0 12px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, .22);
+  background: rgba(0, 0, 0, .25); color: #f5ecdf; font: 400 16px var(--ui) }
+.dp-ad input:read-only { opacity: .7; background: rgba(255, 255, 255, .04) }
+.dp-uyari { margin: -6px 0 0; font-size: 13px; color: #ffb4a2 }
+/* task 5.8f: under the material bar — status, error cards, the waiting photos strip */
+.fd { display: flex; flex-direction: column; gap: 6px; padding: 6px 12px 6px 16px; color: #f5ecdf; font: 14px var(--ui) }
+.fd[hidden], .fd [hidden] { display: none }
+.fd-hap { align-self: flex-start; margin: 0; padding: 6px 12px; border-radius: 99px; background: rgba(0, 0, 0, .3); font-size: 13px }
+.fd-kartlar { display: flex; flex-direction: column; gap: 6px }
+.fd-kart, .fd-serit { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 8px 10px 8px 14px; border-radius: 12px;
+  background: rgba(0, 0, 0, .3); border: 1px solid rgba(255, 255, 255, .14) }
+.fd-kart { background: rgba(120, 36, 24, .55); border-color: rgba(255, 180, 162, .35) }
+.fd-metin { flex: 1 1 220px; margin: 0; min-width: 0; overflow-wrap: anywhere }
+.fd-ana, .fd-ikinci { flex: none; min-height: 40px; padding: 0 14px; border-radius: 10px; font: 600 14px var(--ui) }
+.fd-ana { border: 1px solid var(--accent); background: var(--accent); color: #fff }
+.fd-ikinci { border: 1px solid rgba(255, 255, 255, .22); background: none; color: inherit }
 .o-scroll { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; overscroll-behavior: contain }
 .o-pages { position: relative; margin: 0 auto }
 .o-page { position: absolute; left: 0; right: 0; background: #cfc8bd; box-shadow: 0 10px 26px rgba(0, 0, 0, .3); overflow: hidden }
@@ -445,9 +566,26 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
   .r-top .rb .lbl { display: none }
   .o-penbtn span { display: none }
 }
+/* task 5.10g: up to iPad portrait/landscape 1024: "Fotoğraf ekle" / "Dosya ekle" only icons, "Çözümü göster" → "Çözüm" */
+@media (max-width: 1024px) {
+  .o-foto { padding: 0 10px }
+  .o-foto span, .o-sol .o-uzun { display: none }
+  .o-bar { gap: 8px 10px }
+}
 /* task 4.9b: phone: the pen tool bar is one row that scrolls sideways (buttons stay 44 px);
    "Kalemi kapat" sticks to the right edge, the save status is a dot + a short word (full text in title) */
 @media (max-width: 599px) {
+  .fp { padding: 0; align-items: stretch }
+  .fp-kart { width: 100%; border-radius: 0; padding: calc(env(safe-area-inset-top, 0px) + 14px) 16px calc(env(safe-area-inset-bottom, 0px) + 14px) }
+  .fp-liste { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px }
+  .fp-ok { font-size: 18px }
+  .fp-alt button { flex: 1 }
+  /* task 5.10g: phone: the tab bar a bit tighter (still one row, the tabs scroll in their strip) */
+  .o-bar { gap: 6px; padding: 6px 10px 8px }
+  .o-sol { padding: 0 10px }
+  .o-files select { min-width: 56px }
+  .kd-alt { gap: 8px }
+  .kd-alt button { flex: 1; min-width: 0; padding: 0 8px }
   .o-tools { flex-wrap: nowrap; justify-content: flex-start; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; padding: 6px 0 8px 12px }
   .o-tools::-webkit-scrollbar { display: none }
   .o-tools > * { flex: none }
@@ -486,3 +624,21 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 #hataKutusu ol { margin: 0; padding-left: 18px }
 #hataKutusu li { overflow-wrap: anywhere }
 #hataKutusu button { position: absolute; top: 2px; right: 2px; width: 28px; height: 28px; border: 0; border-radius: 4px; background: rgba(255, 255, 255, .2); color: #fff; font: 700 16px/1 var(--ui) }
+/* task 5.3: ?gorselTest=1 trial panel (photo → JPEG), writes nothing */
+#gorselTest { position: fixed; top: 8px; right: 8px; z-index: 9998; width: min(340px, calc(100vw - 16px)); max-height: calc(100vh - 16px); overflow: auto; box-sizing: border-box;
+  padding: 10px 40px 10px 10px; border-radius: 8px; background: rgba(20, 20, 20, .92); color: #fff; font: 13px/1.4 var(--ui) }
+#gorselTest .gt-row { display: flex; gap: 8px; margin: 8px 0 }
+#gorselTest .gt-btn { flex: 1; padding: 10px 8px; border-radius: 6px; background: rgba(255, 255, 255, .18); text-align: center; cursor: pointer }
+#gorselTest .gt-btn input { display: none }
+#gorselTest pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.4 ui-monospace, Menlo, Consolas, monospace; user-select: text; -webkit-user-select: text }
+#gorselTest img { display: block; max-width: 100%; max-height: 50vh; margin-top: 8px; border-radius: 4px; background: #fff }
+#gorselTest img[hidden] { display: none }
+#gorselTest .gt-kapat { position: absolute; top: 4px; right: 4px; width: 32px; height: 32px; border: 0; border-radius: 4px; background: rgba(255, 255, 255, .2); color: #fff; font: 700 18px/1 var(--ui) }
+
+/* task 5.10g-ek2: touch screens: the file panel sits at the top and the name box comes right under the
+   info line, so the iOS keyboard never covers it (Safari then has no reason to move the page) */
+@media (pointer: coarse) {
+  #dosyaPanel { align-items: flex-start }
+  #dosyaPanel .fp-baslik, #dosyaPanel .dp-bilgi { order: -2 }
+  #dosyaPanel .dp-ad, #dosyaPanel .dp-uyari { order: -1 }
+}

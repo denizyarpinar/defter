@@ -62,8 +62,8 @@ Kitaplık/
 - Bilinmeyen alanları silme; okurken koru, yazarken geri yaz.
 
 ## Değişmez kurallar
-- Uygulama Drive'daki dosyaları **kopyalamaz, taşımaz, silmez**. Faz 1'de sadece `kitaplik.json` ve `kitap.json` içindeki `kapak` alanı yazılabilir.
-- Tek istisna: Kitaplık/ klasöründe kitaplik.json yoksa ilk raf/oda değişikliğinde bir kez oluşturulur. Başka hiçbir dosya oluşturulmaz.
+- Uygulama Drive'daki dosyaları **kopyalamaz, taşımaz, silmez**. Faz 1'de sadece `kitaplik.json` ve `kitap.json` içindeki `kapak` alanı yazılabilir. Faz 5'ten itibaren: `kitaplar/<kitap>/` altında yeni PDF oluşturma ve PDF'in sonuna sayfa ekleme izinli (bkz. Faz 5).
+- Tek istisna: Kitaplık/ klasöründe kitaplik.json yoksa ilk raf/oda değişikliğinde bir kez oluşturulur. Başka hiçbir dosya oluşturulmaz; tek ek istisna Faz 5'teki PDF oluşturma kuralıdır.
 - Yazmadan önce dosyanın son halini oku (başka cihazda değişmiş olabilir).
 - Erişim token'ını localStorage'a yazma; bellekte tut. `.env.local` git'e girmez.
 - Hata mesajları Türkçe, kullanıcıya ne yapacağını söyler ("Drive'da Kitaplık klasörü bulunamadı. Klasörü ana dizine yükle ve yenile.").
@@ -75,12 +75,12 @@ Kitaplık/
 - Commit atmadan önce `git status` ile neyin değiştiğini Deniz'e göster.
 
 ## Yol haritası (özet)
-- Faz 1 Temel: proje, 3D oda, kitaplık, Google girişi, Drive'dan okuma, Vercel  ← ŞU AN
+- Faz 1 Temel: proje, 3D oda, kitaplık, Google girişi, Drive'dan okuma, Vercel
 - Faz 2 Görsel kalite: hazır modeller + PBR dokular, Blender'da ışık pişirme
 - Faz 3 Okuma: pdf.js, kitap/PDF modu, yakınlaştırma
 - Faz 4 Kalem: çizimleri PDF'e kaydetme (MVP)
-- Faz 5 Defter ve ekleme: fotoğraf notu, dönüştürme, özelleştirme
-- Faz 6 Akıllı özellikler: OCR, arama, quiz/özet
+- Faz 5 Defter ve ekleme: defter fotoğrafı (otomatik kırpma), Dosya ekle (PDF, görsel → PDF)  ← bitti (5.12), main'e birleştirme Deniz onayıyla
+- Faz 6 Akıllı özellikler: Word/PPT otomatik çeviri (Drive), OCR, arama, quiz/özet
 
 ## Faz 2 — Görsel kalite kuralları
 
@@ -116,7 +116,7 @@ Kitaplık/
 
 ### PDF
 - PDF çizimi: pdfjs-dist (PDF.js). Worker Vite ile: import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'.
-- PDF Drive'dan files/{id}?alt=media ile indirilir (Authorization başlığıyla). PDF'ler Drive'da kopyalanmaz, taşınmaz, silinmez; değiştirilmesine sadece "Faz 4 — PDF'e çizim yazma (güvenlik)" kuralları çerçevesinde izin verilir.
+- PDF Drive'dan files/{id}?alt=media ile indirilir (Authorization başlığıyla). PDF'ler Drive'da kopyalanmaz, taşınmaz, silinmez; değiştirilmesine sadece "Faz 4 — PDF'e çizim yazma (güvenlik)" (çizim) ve "Faz 5 — Defter ve ekleme kuralları" (sona sayfa ekleme) çerçevesinde izin verilir.
 - İndirilen PDF'ler IndexedDB'de önbelleğe alınır; anahtar = dosya id + modifiedTime. Drive'da dosya değişince yenisi indirilir. Önbellek toplamı 500 MB'ı geçerse en eski açılanlar silinir.
 - Kaynak yolu (kaynak.dosya) kitabın klasörüne göre çözülür; alt klasörler (defter/...) desteklenir. Bulunamayan dosya kitabı bozmaz: o sayfa yerine "Dosya bulunamadı: <ad>" sayfası gösterilir.
 - sayfalar alanı: "3", "3-7", "1-2,5,9-11"; yoksa tüm PDF.
@@ -140,7 +140,7 @@ Kitaplık/
 - Değişiklikler bir yama olarak birikir; sadece bu oturumda değişen alanlar yazılır. Başka cihazın değiştirdiği konulara dokunulmaz. Konular `klasor`'a göre eşleşir (surum 1: sıra + başlık).
 - Her yazmadan önce: modifiedTime oku → kitap.json'un son halini oku → yamayı uygula → değişen yoksa yazma → modifiedTime'ı tekrar oku; değiştiyse (başka cihaz yazmış) baştan bir kez daha dene.
 - Sadece şu alanlar değişir: sonAcilis, kurdele, uniteler[].konular[].durum ve .kurdeleler (surum 1: bolumler[].durum ve kurdele). Bilinmeyen alanlar korunur; baslik, kapak, klasor vb. alanlara dokunulmaz.
-- Aynı dosyanın üstüne yaz: PATCH upload ile mevcut dosya id'si. Asla yeni dosya oluşturma ("kitap (1).json" oluşmamalı). kitap.json'u olmayan kitapta okuma durumu yazılmaz. İçi bozuk (JSON olmayan) dosyanın üstüne yazılmaz.
+- Aynı dosyanın üstüne yaz: PATCH upload ile mevcut dosya id'si. kitap.json için asla yeni dosya oluşturma ("kitap (1).json" oluşmamalı). kitap.json'u olmayan kitapta okuma durumu yazılmaz. İçi bozuk (JSON olmayan) dosyanın üstüne yazılmaz.
 - Demo/örnek kitaplıkta (Drive yok) hiç yazılmaz.
 - Ne zaman: son değişiklikten 5 sn sonra; okuyucu ya da masadaki kitap kapanınca; sekme gizlenince/sayfa kapanınca (visibilitychange/pagehide, keepalive).
 - Hata/çevrimdışı: yama bellekte kalır, bağlantı gelince ve 30 sn'de bir tekrar denenir; küçük uyarı gösterilir. Yeni Google izni istenmez; kapsam yetmezse dur ve Deniz'e söyle.
@@ -166,8 +166,8 @@ Kitaplık/
 ## Faz 4 — PDF'e çizim yazma (güvenlik)
 
 ### Biçim
-- Çizimler PDF'e standart Ink annotation (not) olarak yazılır; görünüm akışı (/AP) eklenir, böylece Drive önizlemesi, iPad ve Windows'ta görünür. Sayfa içeriğine (content stream) asla dokunulmaz.
-- Uygulamanın notları özel `/DefterId` anahtarıyla (ve /T "Defter") işaretlenir. Sadece /DefterId işaretli Ink annotation'lar eklenir/değişir/silinir. Sayfa içeriği, başka notlar, form alanları, metadata ve sayfa sırası korunur. İmzalı PDF'e yazılmaz.
+- Çizimler PDF'e standart Ink annotation (not) olarak yazılır; görünüm akışı (/AP) eklenir, böylece Drive önizlemesi, iPad ve Windows'ta görünür. Var olan sayfaların içeriğine (content stream) asla dokunulmaz.
+- Uygulamanın notları özel `/DefterId` anahtarıyla (ve /T "Defter") işaretlenir. Sadece /DefterId işaretli Ink annotation'lar eklenir/değişir/silinir. Sayfa içeriği, başka notlar, form alanları, metadata ve sayfa sırası korunur (Faz 5: sadece sona yeni sayfa eklenebilir). İmzalı PDF'e yazılmaz.
 - Çizgi şekli tek kaynak: `src/kalem/cizgiSekli.ts`. Kalem = perfect-freehand dış hattı, dolgu; fosforlu = orta noktalardan yumuşatılmış eğri, sabit kalınlık. Canlı çizim, okuma katmanı ve /AP aynı fonksiyonu kullanır. /AP kalemde dış hat dolgu (f), fosforluda yumuşak eğri (S). /InkList merkez çizgi olarak kalır.
 - Apple Pencil basıncı `basinc` (nokta başına 0–1, 2 ondalık) PDF'te `/DefterBasinc` dizisinde; basınç yoksa (fare, parmak) hızdan tahmin edilir.
 - Kalemin opaklığı her zaman 1, fosforlununki 0–1 arası (1 hariç).
@@ -186,7 +186,7 @@ Kitaplık/
 - Sayfa kapanırken (pagehide) PDF yüklenmez (keepalive sınırı); bekleyen çizgiler bir sonraki açılışta yazılır.
 
 ### Drive'a yazma (`src/drive/pdfYazici.ts`, `src/kalem/pdfKayit.ts`)
-- Aynı dosya id'sine PATCH (≤ 5 MB uploadType=media, > 5 MB resumable). Asla yeni dosya veya kopya oluşturulmaz. Kör üstüne yazma yok.
+- Aynı dosya id'sine PATCH (≤ 5 MB uploadType=media, > 5 MB resumable). Çizim yazarken asla yeni dosya veya kopya oluşturulmaz (yeni PDF sadece Faz 5 kurallarıyla). Kör üstüne yazma yok.
 - Yedek: ilk yazmadan önce head sürüm keepForever=true yapılır (ensureOriginalKept).
 - Kontroller: capabilities.canEdit; modifiedTime beklenenle aynı mı; headRevisionId yedekten önce ve sonra okunur, farklıysa içerik bu arada değişmiştir, yazılmaz (PdfConflict). keepForever modifiedTime'ı değiştirebileceği için yedekten sonra modifiedTime değil headRevisionId karşılaştırılır.
 - Akış (dosya başına, dosyalar sırayla, aynı dosyaya aynı anda tek yükleme): son meta oku (modifiedTime) → son baytları al (aynı sürüm önbellekteyse oradan) → Drive'daki Defter çizgilerine bekleyen farkı id'lerle uygula → sadece farkın dokunduğu sayfaları yaz → uploadPdf → PdfConflict'te en fazla 3 kez baştan.
@@ -200,10 +200,59 @@ Kitaplık/
 - Telifli ders PDF'leri asla public/ veya git'e girmez; testler demo PDF'lerle yapılır.
 - Mevcut `drive` kapsamı yeterli; yeni Google izni istenmez.
 
+## Faz 5 — Defter ve ekleme kuralları
+
+### Yeni dosya
+- Yeni dosya sadece `kitaplar/<kitap>/` altında oluşturulur ve sadece PDF olabilir. Başka yerde, başka türde dosya oluşturulmaz (kitaplik.json istisnası aynen kalır).
+- Oluşturmadan önce aynı klasörde aynı isimde dosya (büyük/küçük harf duyarsız, tüm sayfalar) var mı bakılır. Varsa hata verilir; üzerine yazılmaz, yeniden adlandırma yok (5.5).
+- Çift dosya koruması: generateIds ile önceden alınan id + tekrar denemede aynı id (5.5). Drive "zaten var" derse boyut eşleşiyorsa oluşmuş kabul edilir. Klasörü yeniden listeleme sadece yedek kontrol.
+- Kod: `src/drive/pdfOlustur.ts` (createPdf). Faz 5 yazma kilidi (`?dosyaOlustur=1`) 5.9b'de kaldırıldı (gerçek testler tamam).
+- Uygulamanın oluşturduğu dosyalar işaretlenir: appProperties `defter: "1"`.
+- Konuda özet yoksa, defter fotoğraflarından o konunun klasörüne yeni bir `ozet.pdf` oluşturulabilir. "Özet yok" kuralı onaylandı: karar okuyucuyla aynı yerden (`classifyTopic`) gelir; `ozet.pdf` varsa o, yoksa `brifing.pdf`/`sorular.pdf`; hiçbiri yoksa yeni `ozet.pdf`. Özet varsa yeni `ozet.pdf` oluşturulmaz; sayfalar var olana eklenir (kod: `src/defter/konuyaEkle.ts`).
+- Hiçbir dosya silinmez, çöpe atılmaz, taşınmaz (değişmedi).
+
+### PDF'e sayfa ekleme
+- Sayfa sadece sona eklenir. Var olan sayfaların içeriği ve sırası değişmez; Defter notları, kurdeleler ve sayfa numaraları korunur.
+- Sayfa ekleme kalemin yazma kuyruğundan (PdfKayit) geçer; aynı dosyaya iki ayrı yükleyici yazmaz. Önce bekleyen çizgiler, sonra sayfa ekleme.
+- Yedek (keepForever, ensureOriginalKept) ve çakışma kontrolü (modifiedTime, headRevisionId, PdfConflict) aynen uygulanır.
+
+### Cihazda saklama
+- Eklenmeyi bekleyen fotoğraflar yükleme bitene kadar IndexedDB'de saklanır; hiçbir hatada silinmez.
+
+### Dosya ekle (5.10)
+- Okuyucudaki "Dosya ekle": dosya sadece açık konunun klasörüne (`kitaplar/<kitap>/` altında) ve sadece PDF olarak eklenir. Görsel → tek sayfalı PDF; birden çok görsel → tek PDF (sırala/sil/+, kırpma yok). Kod: `src/defter/dosyaTuru.ts`, `dosyaHazirla.ts`, `konuyaDosyaEkle.ts`, `src/ui/dosyaPanel.ts`.
+- Hedefler: Übungen (`Uebungen/`), Ödevler (`Oedevler/`), Çözüm (`X_cozum.pdf`, `X.pdf`'in klasörüne), Orijinal (sadece `orijinal.pdf` yoksa), Özet (sadece hiç özet yoksa; tek `brifing.pdf` de özet sayılır).
+- Klasör oluşturulmaz: `Uebungen/` ya da `Oedevler/` yoksa o hedef gri (seçilemez); yine de istenirse hata (KlasorYok).
+- Aynı ad (büyük/küçük harf duyarsız) = uyarı; üzerine yazılmaz, otomatik yeniden adlandırma yok; kullanıcı adı değiştirir. `_cozum` ile biten ad Übungen/Ödevler'e normal dosya olarak eklenmez (AdCozumGibi).
+- Kilit: aynı sekmede aynı konu + hedef + ad için aynı anda tek ekleme (kilitAnahtari → EklemeSuruyor).
+- islemId: hedef + ad (+ görsel listesi) için bir kez üretilir, bunlar değişmedikçe aynı kalır; `appProperties.defterIslem`'e yazılır. Tekrar denemede aynı ad + aynı islemId + aynı boyut → "zaten eklenmiş" (çift dosya yok). generateIds ile önceden alınan id kuralı (5.5) aynen geçerli.
+- Sınırlar: en fazla 50 MB (`MAX_DOSYA_MB`); boş dosya, bozuk PDF ve desteklenmeyen tür reddedilir; başında fazla bayt olan PDF pdf-lib ile temizlenip yüklenir.
+- Dosya önce cihaza kaydedilmez (fotoğraftan farklı). Hata olursa panel açık kalır + "Tekrar dene" (aynı islemId).
+- Eklenen dosya açık okuyucuda hemen görünür (5.10f).
+
+### Word / PowerPoint
+- Faz 5'te uygulama dönüştürmez: .doc/.docx/.ppt/.pptx/.odt/.odp/.key/.pages/.rtf reddedilir, mesaj "PDF olarak kaydedip ekle". Kullanıcı PDF'e çevirip ekler.
+- 5.11 denemesi: dev-only `window.defterOfisDene()` (`src/drive/ofisDene.ts`), Drive kökünde "Defter-ceviri-deneme" klasörü. Karar: otomatik çeviri Faz 6'ya ertelendi.
+- Faz 6 kuralı (Deniz kararı, 17 Ekim 2026): otomatik çeviride Drive'da oluşan geçici Google dosyası çöpe atılır (`files.update` ile `trashed=true`; 30 gün geri alınabilir). Bu, "hiçbir dosya silinmez" kuralının tek istisnasıdır ve sadece uygulamanın kendi oluşturduğu ara dosya için geçerlidir.
+
+### iOS / iPad
+- Fotoğraf ve dosya seçici dokunuşun içinde açılır (`input.click()` tıklama olayında); panel seçimden sonra açılır (iPad Safari kuralı).
+- Klavye / görünür alan (5.10g-ek, ek2): `#app` ve `#reader` `position: fixed; inset: 0` kalır. Dokunmatik ekranda panel üste yaslıdır; odak `preventScroll` ile verilir; klavye kapanınca sayfa kaydırması 0'a döner (`src/ui/gorunurAlan.ts`, `klavyeKaydirma.ts`). Sayfa kilidi ve `--gorunur-h` yedeği denendi, kötüleştirdi, kaldırıldı; geri getirme.
+- `?olcum=1`: görünür alan ölçümleri küçük bir kutuda (Vercel'de de açılır; iPad testi için).
+
+### Onaylanan varsayılanlar (5.9 ve 5.10 testlerinde Deniz onayladı; kolay değiştirilebilir sabitler)
+- İki dosyalı özette (brifing + sorular) fotoğraf sayfaları açık olan dosyanın sonuna eklenir.
+- "Dosya ekle" ile gelen görsel PDF'e çevrilir; birden çok görsel → tek PDF, kırpma yok.
+- Fotoğraf: sayfa otomatik kırpılır + perspektif düzeltme (saf TS, src/defter/kirp/), istenirse tüm fotoğraf; güven düşükse tüm fotoğraf; uzun kenar 2000 px, JPEG 0.85, renkli, filtre yok.
+- Uebungen/Oedevler yoksa hedef gri, klasör oluşturulmaz; aynı ad = uyarı + kullanıcı değiştirir; dosya önce cihaza kaydedilmez, hata olursa panel açık + Tekrar dene.
+
 ## Sonra bakılabilir
 - Oda zaman aşımı: şu an glb yüklemesine toplam 15 sn veriliyor; yavaş bağlantıda (masaüstü lightmap'leri ~3.3 MB) eski odaya düşüyor. Öneri: "15 sn hiç ilerleme yok" kuralı + yükleme göstergesi. Faz 2 kural metni değişeceği için Deniz'in onayı gerekir.
 - Masaüstü lightmap PNG'lerinin küçültülmesi (boyut/sıkıştırma).
 - gifsicle: sadece `npm run screenshots` için devDependency, `npm audit`'teki 20 uyarının kaynağı. Kaldırılması ya da başka araçla değiştirilmesi.
 - İki sekmede aynı dosya: iki ayrı çizim modeli ve bekleyen kayıt; birbirini görmüyorlar.
 - Hiç açılmayan dosyaların bekleyen kayıtları: yükleme dosya açılınca tetikleniyor; kaydı olan ama bir daha açılmayan dosya cihazda bekler.
-- README: Features tablosundaki eski durum metni (unread / studied / review) ve Almanca özet; Faz 5 görsel güncellemesiyle birlikte.
+- Brifing + sorular aynı listede görünürken sorular.pdf'e sayfa eklenirse açık listede sorular'ın sayfa sayısı konu yeniden açılana kadar eski kalır.
+- İki sekme ya da iki cihaz aynı anda aynı dosyayı aynı konuya eklerse çift dosya oluşabilir (kilit sadece sekme içinde).
+- Testler ara sıra 1 hata veriyor (647'den 1; hangi test olduğu bilinmiyor); kaynağı bulunmalı.
+- Telefonda dosya seçim kutusu 56 px'e kadar daralıyor.

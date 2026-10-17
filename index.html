@@ -58,7 +58,7 @@
 
       <div class="hint" id="hint">Kitaplığa dokun, yakından bak</div>
 
-      <div class="libload" id="libLoading" role="status" hidden>Kitaplık yükleniyor…</div>
+      <div class="libload" id="libLoading" role="status" hidden><span class="spin" aria-hidden="true"></span>Kitaplığın yükleniyor…</div>
 
       <div class="save" id="saveState" role="status" aria-live="polite" hidden>
         <span id="saveText"></span>
@@ -78,6 +78,17 @@
           <div class="row">
             <button class="ibtn solid" id="nfRetry">Tekrar dene</button>
             <button class="ibtn" id="nfSample">Örnek kitaplıkla devam et</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="overlay" id="libError" hidden>
+        <div class="card" role="alertdialog" aria-labelledby="leTitle" aria-describedby="leText">
+          <b id="leTitle">Kitaplık yüklenemedi</b>
+          <p id="leText"></p>
+          <div class="row">
+            <button class="ibtn solid" id="leRetry">Tekrar dene</button>
+            <button class="ibtn" id="leSample">Örnek kitaplıkla dene</button>
           </div>
         </div>
       </div>
@@ -114,6 +125,16 @@
               <select id="oFile" aria-label="Dosya seç"></select>
               <button class="o-sol" id="oSol" type="button" aria-pressed="false">Çözümü göster</button>
             </div>
+            <button class="o-foto" id="oFoto" type="button" title="Fotoğraf ekle" aria-label="Fotoğraf ekle">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4h6l1.6 2.4H20a1.6 1.6 0 0 1 1.6 1.6v10.4A1.6 1.6 0 0 1 20 20H4a1.6 1.6 0 0 1-1.6-1.6V8A1.6 1.6 0 0 1 4 6.4h3.4z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><circle cx="12" cy="13" r="3.8" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>
+              <span>Fotoğraf ekle</span>
+            </button>
+            <input id="oFotoInput" type="file" accept="image/*" multiple hidden />
+            <button class="o-foto o-dosya" id="oDosya" type="button" title="Dosya ekle" aria-label="Dosya ekle">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H7a1.6 1.6 0 0 0-1.6 1.6v14.8A1.6 1.6 0 0 0 7 21h10a1.6 1.6 0 0 0 1.6-1.6V7.6z M14 3v4.6h4.6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M12 11v6M9 14h6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+              <span>Dosya ekle</span>
+            </button>
+            <input id="oDosyaInput" type="file" multiple hidden />
           </div>
           <div class="o-tools" id="oTools" role="toolbar" aria-label="Kalem araçları" hidden></div>
           <div class="o-msg" id="oMsg" hidden></div>
