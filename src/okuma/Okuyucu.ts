@@ -17,10 +17,11 @@ import { bekleyenFotoDepo } from '../defter/bekleyenFoto';
 import type { BekleyenFoto, BekleyenJpeg } from '../defter/bekleyenFotoKayit';
 import { FotoEkleyici } from '../defter/fotoEkleme';
 import { seritDurumu } from '../defter/fotoEklemeMetin';
-import { DOSYA_ACCEPT, dosyaTuru, ILK_BAYT_SAYISI } from '../defter/dosyaTuru';
+import { DOSYA_ACCEPT, dosyaTuru, ILK_BAYT_SAYISI, type DosyaTuruSonucu } from '../defter/dosyaTuru';
 import type { HazirDosya } from '../defter/dosyaHazirla';
 import type { DosyaPanelKaynak } from '../ui/dosyaPanel';
 import type { SecimKarari } from '../defter/gorselListesi';
+import type { TekDosyaYolu } from '../defter/dosyaPanelDurumu';
 import type { DosyaEklendi, DosyaHedefi } from '../defter/konuyaDosyaEkle';
 import type { DriveFile } from '../drive/drive';
 import type { DriveLocation } from '../drive/driveLibrary';
@@ -813,12 +814,14 @@ async function chooseFiles(files: File[]): Promise<void> {
   const t = topic;
   if (!t || !open) return;
   let karar: SecimKarari;
+  let ilk: DosyaTuruSonucu;
   try {
     const [{ secimKarari }, turler] = await Promise.all([
       import('../defter/gorselListesi'),
       Promise.all(files.map(async f => ({ ad: f.name, tur: dosyaTuru(f.name, f.type, new Uint8Array(await f.slice(0, ILK_BAYT_SAYISI).arrayBuffer())) }))),
     ]);
     karar = secimKarari(turler);
+    ilk = turler[0].tur;
   } catch (e) {
     console.warn('Dosya okunamadı.', e);
     toast('Dosya okunamadı. Sayfayı yenileyip tekrar dene.');
@@ -827,13 +830,28 @@ async function chooseFiles(files: File[]): Promise<void> {
   if (topic !== t || !open) return;
   if (karar.tur === 'ret') toast(karar.metin);
   else if (karar.tur === 'gorseller') openFilePanel(t, { tur: 'gorseller', dosyalar: files });
-  else void prepareFile(files[0]);
+  else void prepareFile(files[0], ilk);
 }
 
-// Task 5.10e: the chosen file → PDF bytes (dosyaHazirla, lazy) → the panel; refused: a toast
-async function prepareFile(file: File): Promise<void> {
+// Task 5.10e: the chosen file → PDF bytes (dosyaHazirla, lazy) → the panel; refused: a toast.
+// Task 6.1c: Word / PowerPoint with ?ofisCevir=1 in the Drive library → the panel at once, it converts.
+async function prepareFile(file: File, tur: DosyaTuruSonucu): Promise<void> {
   const t = topic;
   if (!t || !open) return;
+  if (tur.tur === 'ofis') {
+    let yol: TekDosyaYolu;
+    try {
+      const [{ tekDosyaYolu }, { ofisCevirKilitAcik }] = await Promise.all([import('../defter/dosyaPanelDurumu'), import('../drive/ofisCevir')]);
+      yol = tekDosyaYolu(tur, { kilitAcik: ofisCevirKilitAcik(), drive: !!driveLocation() && !isSampleId(folder), bayt: file.size });
+    } catch (e) {
+      console.warn(e);
+      toast('Dosya hazırlanamadı. Sayfayı yenileyip tekrar dene.');
+      return;
+    }
+    if (topic !== t || !open) return;
+    if (yol.yol === 'ret') { toast(yol.metin); return; }
+    if (yol.yol === 'ofis') { openFilePanel(t, { tur: 'ofis', dosya: file, alt: yol.alt }); return; }
+  }
   photoBox.durum('Dosya hazırlanıyor…');
   let hazir: HazirDosya;
   try {
@@ -858,6 +876,9 @@ async function prepareFile(file: File): Promise<void> {
 // The file panel, with what the reader knows about the topic. The new PDF's bytes go into the cache, the
 // topics are listed again (konuDegisti: only topicCache.clear()); the open reader follows in afterFileAdded (5.10f).
 function openFilePanel(t: OpenTopic, kaynak: DosyaPanelKaynak): void {
+  if (document.getElementById('dosyaPanel')) return;   // one panel at a time (acDosyaPanel checks it too)
+  const kapanis = new AbortController();
+  filePanelClose = kapanis;
   const ctx = {
     konuAdi: t.title,
     materials: t.materials,
@@ -879,9 +900,19 @@ function openFilePanel(t: OpenTopic, kaynak: DosyaPanelKaynak): void {
         { yer: driveLocation(), olusturDrive: drivePdfOlusturApi, yeniDosya: sayfaEklemeOrtami().yeniDosya, konuDegisti: sayfaEklemeOrtami().konuDegisti });
     },
     bitti: (r: DosyaEklendi, hedef: DosyaHedefi) => { void afterFileAdded(t, hedef, r); },
+    // task 6.1c: the temporary Google file goes into the topic folder; a new islemId for every try
+    cevir: async (dosya: File, signal: AbortSignal) => {
+      const [{ ofisuPdfeCevir }, klasorId] = await Promise.all([import('../drive/ofisCevir'), topicFolderId(t)]);
+      const r = await ofisuPdfeCevir({ dosya, ad: dosya.name, klasorId, islemId: crypto.randomUUID(), signal }, driveLocation());
+      return r.bytes;
+    },
+    kapanis: kapanis.signal,
   };
   import('../ui/dosyaPanel').then(m => m.acDosyaPanel(ctx, kaynak)).catch(e => { console.warn(e); toast('Dosya paneli açılamadı. Sayfayı yenileyip tekrar dene.'); });
 }
+
+// Task 6.1c: closing the reader cancels a conversion in the file panel (and closes it)
+let filePanelClose: AbortController | null = null;
 
 // Task 5.8f: adding the photos (fotoEkleme.ts) with the pen's queue and caches (sayfaEklemeOrtami).
 // The result is a toast; an error a card under the material bar (or a toast when the reader is closed).
@@ -1140,6 +1171,8 @@ export function closeOkuyucu(): void {
   renderTools();
   closeToc();
   photoBox.temizle();   // task 5.8f: the uploads go on; their records stay on the device
+  filePanelClose?.abort();   // task 6.1c
+  filePanelClose = null;
   releaseAll();
   zoom.reset();
   void content?.close();

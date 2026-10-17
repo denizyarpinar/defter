@@ -1,3 +1,6 @@
+import { SessionExpired } from '../drive/drive';
+import { OfisCevrilemedi, OfisCokBuyuk, OfisDesteklenmiyor, OfisIptal, OfisKilitli, OfisYuklenemedi } from '../drive/ofisCevir';
+import { DosyaYazmaYok, YerDisi, YetkiYok } from '../drive/pdfOlustur';
 import { MAX_DOSYA_MB } from './ayarlar';
 import type { DosyaTuruSonucu } from './dosyaTuru';
 import { hataMesaji } from './gorselHesap';
@@ -34,4 +37,22 @@ const mbYazi = (n: number) => String(Math.ceil(n * 10 - 1e-9) / 10).replace('.',
 export function boyutMetni(bayt: number, maxMb = MAX_DOSYA_MB): string | null {
   if (bayt <= maxMb * MB) return null;
   return `Dosya çok büyük: ${mbYazi(bayt / MB)} MB, sınır ${mbYazi(maxMb)} MB`;
+}
+
+// ---- task 6.1c: Word / PowerPoint conversion in the panel ----
+
+export const CEVIRI_BEKLENMEYEN_METIN = 'Dosya çevrilemedi: beklenmeyen bir hata oldu. Tekrar çevir; olmazsa sayfayı yenileyip dene.';
+
+export interface OfisHataMetni { metin: string; tekrarCevir: boolean }
+
+// The note under the panel; null: cancelled (Vazgeç / Esc / the reader closed), nothing is shown.
+// tekrarCevir: "Tekrar çevir" can help (Drive / connection); too big, not allowed, no library: it can't.
+export function ofisHataMetni(e: unknown): OfisHataMetni | null {
+  if (e instanceof OfisIptal) return null;
+  if (e instanceof OfisCevrilemedi || e instanceof OfisYuklenemedi || e instanceof SessionExpired) return { metin: e.message, tekrarCevir: true };
+  if ([OfisCokBuyuk, OfisDesteklenmiyor, OfisKilitli, DosyaYazmaYok, YerDisi, YetkiYok].some(c => e instanceof c)) {
+    return { metin: (e as Error).message, tekrarCevir: false };
+  }
+  if (e instanceof TypeError) return { metin: new OfisYuklenemedi().message, tekrarCevir: true };   // fetch failed: no connection
+  return { metin: CEVIRI_BEKLENMEYEN_METIN, tekrarCevir: true };
 }

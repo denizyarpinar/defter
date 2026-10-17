@@ -31,6 +31,11 @@ describe('secimKarari', () => {
     expect(secimKarari([jpg('a.jpg'), s('not.docx', 'ofis', 'word')])).toEqual({ tur: 'ret', metin: `not.docx: ${ofisMetni('word')}` });
     expect(secimKarari([s('a.pdf', 'pdf'), s('x.pdf', 'desteklenmeyen', 'bozukPdf')])).toEqual({ tur: 'ret', metin: `x.pdf: ${BOZUK_PDF_METIN}` });
   });
+  it('6.1c: a convertible Word file among several is still refused (conversion: one file only)', () => {
+    const docx = { ad: 'not.docx', tur: { tur: 'ofis' as const, alt: 'word', cevrilebilir: true } };
+    expect(secimKarari([s('a.pdf', 'pdf'), docx])).toEqual({ tur: 'ret', metin: `not.docx: ${ofisMetni('word')}` });
+    expect(secimKarari([docx])).toEqual({ tur: 'tek' });
+  });
   it('nothing chosen', () => {
     expect(secimKarari([]).tur).toBe('ret');
   });

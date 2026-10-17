@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
+import { SessionExpired } from '../drive/drive';
+import { OfisCevrilemedi, OfisCokBuyuk, OfisDesteklenmiyor, OfisIptal, OfisKilitli, OfisYuklenemedi } from '../drive/ofisCevir';
+import { DosyaYazmaYok, YerDisi, YetkiYok } from '../drive/pdfOlustur';
 import { MAX_DOSYA_MB } from './ayarlar';
-import { BOZUK_PDF_METIN, DESTEKLENMEYEN_METIN, boyutMetni, heicAcilamadiMetni, ofisMetni, turMetni } from './dosyaEklemeMetin';
+import {
+  BOZUK_PDF_METIN, CEVIRI_BEKLENMEYEN_METIN, DESTEKLENMEYEN_METIN, boyutMetni, heicAcilamadiMetni, ofisHataMetni, ofisMetni, turMetni
+} from './dosyaEklemeMetin';
 import { dosyaTuru } from './dosyaTuru';
 import { hataMesaji } from './gorselHesap';
 
@@ -63,5 +68,35 @@ describe('boyutMetni', () => {
   it('another limit', () => {
     expect(boyutMetni(3_000_000, 2.5)).toBe('Dosya çok büyük: 3 MB, sınır 2,5 MB');
     expect(boyutMetni(2_000_000, 2.5)).toBeNull();
+  });
+});
+
+describe('ofisHataMetni (6.1c)', () => {
+  it('cancelled: silent', () => {
+    expect(ofisHataMetni(new OfisIptal())).toBeNull();
+  });
+  it('Drive could not convert / upload failed: its own text + "Tekrar çevir"', () => {
+    const c = new OfisCevrilemedi(400);
+    expect(ofisHataMetni(c)).toEqual({ metin: c.message, tekrarCevir: true });
+    expect(c.message).toMatch(/PDF olarak kaydet/);
+    const y = new OfisYuklenemedi(503);
+    expect(ofisHataMetni(y)).toEqual({ metin: y.message, tekrarCevir: true });
+    expect(y.message).toMatch(/tekrar dene/);
+    expect(ofisHataMetni(new SessionExpired())?.tekrarCevir).toBe(true);
+  });
+  it('too big: no "Tekrar çevir", says save as PDF', () => {
+    const r = ofisHataMetni(new OfisCokBuyuk());
+    expect(r).toEqual({ metin: new OfisCokBuyuk().message, tekrarCevir: false });
+    expect(r!.metin).toMatch(/PDF olarak kaydedip ekle/);
+  });
+  it('things a new try cannot fix: their text, no "Tekrar çevir"', () => {
+    for (const e of [new OfisDesteklenmiyor('a.key'), new OfisKilitli(), new DosyaYazmaYok(), new YerDisi(), new YetkiYok()]) {
+      expect(ofisHataMetni(e)).toEqual({ metin: e.message, tekrarCevir: false });
+    }
+  });
+  it('no connection (fetch TypeError): the upload text; anything else: a Turkish fallback', () => {
+    expect(ofisHataMetni(new TypeError('Failed to fetch'))).toEqual({ metin: new OfisYuklenemedi().message, tekrarCevir: true });
+    expect(ofisHataMetni(new Error('boom'))).toEqual({ metin: CEVIRI_BEKLENMEYEN_METIN, tekrarCevir: true });
+    expect(ofisHataMetni('x')).toEqual({ metin: CEVIRI_BEKLENMEYEN_METIN, tekrarCevir: true });
   });
 });

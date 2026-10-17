@@ -4,8 +4,10 @@ import { AyniIsimVar } from '../drive/pdfOlustur';
 import { emptyMaterials, type Material, type TopicMaterials } from '../okuma/konuKesfi';
 import {
   adDurumu, AYNI_AD_METIN, cozumAdaylari, dosyaHedefi, eklendiMetni, ekleDurumu, hataMetni, hedefSecenekleri, islemAnahtari,
-  kaynakEtiketi, ORNEK_METIN, sayfaYazi, varsayilanHedef, type AdDurumu, type Secenek
+  kaynakEtiketi, ofisBilgi, ORNEK_METIN, sayfaYazi, tekDosyaYolu, varsayilanHedef, type AdDurumu, type Secenek
 } from './dosyaPanelDurumu';
+import { BOS_DOSYA_METIN, boyutMetni } from './dosyaEklemeMetin';
+import { dosyaTuru } from './dosyaTuru';
 import { KlasorYok } from './konuyaDosyaEkle';
 
 // Task 5.10e: the "Dosya ekle" panel's pure part.
@@ -148,5 +150,62 @@ describe('texts', () => {
     expect(hataMetni(new AyniIsimVar('B.pdf', 'x'))).toContain('"B.pdf"');
     expect(hataMetni(new TypeError('Failed to fetch'))).toBe('Dosya eklenemedi: İnternet yok ya da Drive\'a ulaşılamadı.');
     expect(hataMetni('?')).toBe('Dosya eklenemedi: Beklenmeyen bir hata oldu.');
+  });
+});
+
+describe('tekDosyaYolu (6.1c)', () => {
+  const ZIP = new Uint8Array([0x50, 0x4b, 3, 4]);
+  const docx = dosyaTuru('ders-notu.docx', '', ZIP);
+  const pptx = dosyaTuru('sunum.pptx', '', ZIP);
+  const acik = { kilitAcik: true, drive: true, bayt: 120_000 };
+  it('Word / PowerPoint, lock open, Drive library: the panel converts', () => {
+    expect(tekDosyaYolu(docx, acik)).toEqual({ yol: 'ofis', alt: 'word' });
+    expect(tekDosyaYolu(pptx, acik)).toEqual({ yol: 'ofis', alt: 'powerpoint' });
+    expect(tekDosyaYolu(dosyaTuru('not.rtf', '', new TextEncoder().encode('{\\rtf1')), acik)).toEqual({ yol: 'ofis', alt: 'word' });
+  });
+  it('lock closed / sample library / no Drive: the old way (dosyaHazirla refuses with its text)', () => {
+    expect(tekDosyaYolu(docx, { ...acik, kilitAcik: false })).toEqual({ yol: 'hazirla' });
+    expect(tekDosyaYolu(docx, { ...acik, drive: false })).toEqual({ yol: 'hazirla' });
+  });
+  it('Keynote / Pages: the old refusal, even with the lock open', () => {
+    expect(tekDosyaYolu(dosyaTuru('sahte.key', '', ZIP), acik)).toEqual({ yol: 'hazirla' });
+    expect(tekDosyaYolu(dosyaTuru('not.pages', '', ZIP), acik)).toEqual({ yol: 'hazirla' });
+  });
+  it('PDF, image, unsupported: the old way', () => {
+    expect(tekDosyaYolu({ tur: 'pdf' }, acik)).toEqual({ yol: 'hazirla' });
+    expect(tekDosyaYolu({ tur: 'gorsel', alt: 'jpeg' }, acik)).toEqual({ yol: 'hazirla' });
+    expect(tekDosyaYolu({ tur: 'desteklenmeyen' }, acik)).toEqual({ yol: 'hazirla' });
+  });
+  it('empty or over 50 MB: refused before converting (the texts of dosyaHazirla)', () => {
+    expect(tekDosyaYolu(docx, { ...acik, bayt: 0 })).toEqual({ yol: 'ret', metin: BOS_DOSYA_METIN });
+    expect(tekDosyaYolu(pptx, { ...acik, bayt: 62_400_000 })).toEqual({ yol: 'ret', metin: boyutMetni(62_400_000) });
+    expect(tekDosyaYolu(pptx, { ...acik, bayt: 40_000_000 })).toEqual({ yol: 'ofis', alt: 'powerpoint' });
+  });
+});
+
+describe('ofisBilgi (6.1c)', () => {
+  const g = { ad: 'ders-notu.docx', bayt: 120_000, alt: 'word' as const };
+  it('converting: the seconds', () => {
+    expect(ofisBilgi({ ...g, durum: 'cevriliyor', sn: 12 })).toBe('ders-notu.docx · 117 KB · Word → PDF · Çevriliyor… 12 sn');
+    expect(ofisBilgi({ ...g, durum: 'cevriliyor' })).toBe('ders-notu.docx · 117 KB · Word → PDF · Çevriliyor… 0 sn');
+  });
+  it('ready: counting, then the pages', () => {
+    expect(ofisBilgi({ ...g, durum: 'hazir' })).toBe('ders-notu.docx · 117 KB · Word → PDF · sayfa sayılıyor…');
+    expect(ofisBilgi({ ...g, durum: 'hazir', sayfa: 3 })).toBe('ders-notu.docx · 117 KB · Word → PDF · 3 sayfa');
+    expect(ofisBilgi({ ...g, durum: 'hazir', sayfa: null })).toBe('ders-notu.docx · 117 KB · Word → PDF · ? sayfa');
+  });
+  it('error; PowerPoint', () => {
+    expect(ofisBilgi({ ...g, durum: 'hata' })).toBe('ders-notu.docx · 117 KB · Word → PDF · Çevrilemedi');
+    expect(ofisBilgi({ ad: 'sunum.pptx', bayt: 27_000_000, alt: 'powerpoint', durum: 'cevriliyor', sn: 3 }))
+      .toBe('sunum.pptx · 25,7 MB · PowerPoint → PDF · Çevriliyor… 3 sn');
+  });
+});
+
+describe('ekleDurumu while converting (6.1c)', () => {
+  it('no PDF yet: Ekle passive; ready: active', () => {
+    const ad: AdDurumu = { duzenlenebilir: true, ad: 'ders-notu.pdf', hata: null };
+    const secenek: Secenek = { hedef: 'uebungen', etiket: 'Übungen', secilebilir: true, neden: null };
+    expect(ekleDurumu({ ornek: false, secenek, ad, ekleniyor: false, hataVar: false, hazirDegil: true }).aktif).toBe(false);
+    expect(ekleDurumu({ ornek: false, secenek, ad, ekleniyor: false, hataVar: false, hazirDegil: false }).aktif).toBe(true);
   });
 });
