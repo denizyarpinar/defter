@@ -1,17 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { FILTRELER, arkaPlanDuzelt, beyazDengesi, griBelge, siyahBeyaz } from './filtreler';
+import { E_SIYAH_MAX, E_VARSAYILAN, FILTRELER, arkaPlanDuzelt, beyazDengesi, griBelge, renkDuzelt, siyahBeyaz } from './filtreler';
 import { aydinlatmaHaritasi, haritaOku, kutuBulanik, maxFiltre, yuzdelik, type Goruntu } from './ortak';
 
 // Synthetic page: pixel = reflectance × light. Warm (yellowish) lamp light, and a shadow that gets
-// darker from left (×1) to right (×0.55). A black line at rows 60–62, a red line at rows 180–182.
+// darker from left (×1) to right (×0.55). A black line at rows 60–62, a red line at rows 180–182,
+// a blue line at rows 240–242.
 const W = 400, H = 300;
-const KAGIT = [0.95, 0.95, 0.95], SIYAH = [0.12, 0.12, 0.12], KIRMIZI = [0.85, 0.15, 0.15];
+const KAGIT = [0.95, 0.95, 0.95], SIYAH = [0.12, 0.12, 0.12], KIRMIZI = [0.85, 0.15, 0.15], MAVI = [0.15, 0.25, 0.8];
 const ISIK = [255, 238, 180];
 
 function sayfa(golge = true): Goruntu {
   const data = new Uint8ClampedArray(W * H * 4);
   for (let y = 0; y < H; y++) {
-    const yans = y >= 60 && y < 63 ? SIYAH : y >= 180 && y < 183 ? KIRMIZI : KAGIT;
+    const yans = y >= 60 && y < 63 ? SIYAH : y >= 180 && y < 183 ? KIRMIZI : y >= 240 && y < 243 ? MAVI : KAGIT;
     for (let x = 0; x < W; x++) {
       const isik = golge ? 1 - 0.45 * (x / (W - 1)) : 1;
       const i = (y * W + x) * 4;
@@ -26,6 +27,8 @@ const px = (g: Goruntu, x: number, y: number) => {
   const i = (y * g.width + x) * 4;
   return [g.data[i], g.data[i + 1], g.data[i + 2]];
 };
+const luma = ([r, g, b]: number[]) => 0.299 * r + 0.587 * g + 0.114 * b;
+const doygunluk = (p: number[]) => (Math.max(...p) - Math.min(...p)) / Math.max(1, Math.max(...p));
 
 describe('ortak', () => {
   it('yuzdelik', () => {
@@ -48,6 +51,16 @@ describe('ortak', () => {
     const v = new Float32Array(9 * 9).fill(200);
     for (let x = 0; x < 9; x++) v[4 * 9 + x] = 20;
     expect(maxFiltre(v, 9, 9, 1).every(x => x === 200)).toBe(true);
+  });
+
+  it('aydinlatmaHaritasi with yansit: flat image → flat map, edges included', () => {
+    const g = { data: new Uint8ClampedArray(37 * 23 * 4), width: 37, height: 23 };
+    for (let i = 0; i < g.data.length; i += 4) { g.data[i] = 200; g.data[i + 1] = 150; g.data[i + 2] = 90; g.data[i + 3] = 255; }
+    const m = aydinlatmaHaritasi(g, true);
+    for (const [x, y] of [[0, 0], [36, 22], [18, 11], [0, 22]]) {
+      expect(haritaOku(m, 0, x, y)).toBeCloseTo(200, 3);
+      expect(haritaOku(m, 2, x, y)).toBeCloseTo(90, 3);
+    }
   });
 
   it('aydinlatmaHaritasi follows the paper, not the ink', () => {
@@ -115,5 +128,36 @@ describe('filters', () => {
       expect(px(r, x, 61)[0]).toBe(0);
       expect(px(r, x, 181)[0]).toBe(0);
     }
+  });
+
+  it('E: soft shadow fix, paper evened out, red and blue keep their colour', () => {
+    const g = sayfa();
+    const r = renkDuzelt(g);
+    const girdiFark = luma(px(g, 10, 120)) - luma(px(g, 390, 120));
+    const fark = luma(px(r, 10, 120)) - luma(px(r, 390, 120));
+    expect(fark).toBeLessThan(girdiFark * 0.5);
+    expect(Math.min(...px(r, 10, 120))).toBeGreaterThanOrEqual(235);
+    for (const x of [10, 200, 390]) {
+      expect(Math.max(...px(r, x, 61))).toBeLessThan(70);
+      const kirmizi = px(r, x, 181);
+      expect(kirmizi[0] - Math.max(kirmizi[1], kirmizi[2])).toBeGreaterThan(100);
+      expect(doygunluk(kirmizi)).toBeGreaterThan(doygunluk(px(g, x, 181)) * 0.8);
+      const mavi = px(r, x, 241);
+      expect(mavi[2] - Math.max(mavi[0], mavi[1])).toBeGreaterThan(80);
+      expect(doygunluk(mavi)).toBeGreaterThan(doygunluk(px(g, x, 241)) * 0.8);
+    }
+  });
+
+  it('E: strength 0 and no contrast = A (black point capped); gain limit holds', () => {
+    const g = sayfa();
+    const a = beyazDengesi(g, E_SIYAH_MAX).data;
+    expect(renkDuzelt(g, { golgeGuc: 0, kazancMax: 1.8, kontrast: 0 }).data).toEqual(a);
+    // gain 1 allowed = no shadow fix at all, whatever the strength
+    const sinirli = renkDuzelt(g, { golgeGuc: 1, kazancMax: 1, kontrast: 0 });
+    expect(sinirli.data).toEqual(a);
+    // stronger setting evens the paper more than the default
+    const guclu = renkDuzelt(g, { ...E_VARSAYILAN, golgeGuc: 1 });
+    const fark = (k: Goruntu) => luma(px(k, 10, 120)) - luma(px(k, 390, 120));
+    expect(fark(guclu)).toBeLessThan(fark(renkDuzelt(g)));
   });
 });

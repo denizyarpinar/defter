@@ -100,7 +100,31 @@ export function maxFiltre(src: Float32Array, w: number, h: number, r: number): F
 // keeps its brightest value per channel, then max filter (removes ink) and blur (smooth light).
 export interface AydinlatmaHaritasi { w: number; h: number; blok: number; kanal: [Float32Array, Float32Array, Float32Array] }
 
-export function aydinlatmaHaritasi(g: Goruntu): AydinlatmaHaritasi {
+// mirrored index for -n ≤ i < 2n (… 1 0 | 0 1 … n-1 | n-1 n-2 …); repeats for tiny grids
+function yansitIndeks(i: number, n: number): number {
+  while (i < 0 || i >= n) i = i < 0 ? -i - 1 : 2 * n - i - 1;
+  return i;
+}
+
+// Grid grown by p cells on every side with mirrored values (task 6.2b: the filters then see the
+// paper continue past the edge instead of a shorter window).
+function yansitBuyut(src: Float32Array, w: number, h: number, p: number): Float32Array {
+  const W = w + 2 * p, out = new Float32Array(W * (h + 2 * p));
+  for (let y = 0; y < h + 2 * p; y++) {
+    const sy = yansitIndeks(y - p, h) * w;
+    for (let x = 0; x < W; x++) out[y * W + x] = src[sy + yansitIndeks(x - p, w)];
+  }
+  return out;
+}
+
+function kirpGrid(src: Float32Array, w: number, h: number, p: number): Float32Array {
+  const W = w + 2 * p, out = new Float32Array(w * h);
+  for (let y = 0; y < h; y++) out.set(src.subarray((y + p) * W + p, (y + p) * W + p + w), y * w);
+  return out;
+}
+
+// yansit = true (filter E): the grid is mirrored at the edges before max filter and blur.
+export function aydinlatmaHaritasi(g: Goruntu, yansit = false): AydinlatmaHaritasi {
   const { width: W, height: H, data: d } = g;
   const blok = Math.max(1, Math.round(Math.max(W, H) / AYDINLATMA_KENAR));
   const w = Math.ceil(W / blok), h = Math.ceil(H / blok);
@@ -112,10 +136,14 @@ export function aydinlatmaHaritasi(g: Goruntu): AydinlatmaHaritasi {
       for (let c = 0; c < 3; c++) if (d[i + c] > kanal[c][j]) kanal[c][j] = d[i + c];
     }
   }
+  const p = yansit ? AYDINLATMA_MAX_R + 2 * AYDINLATMA_BLUR_R : 0;
+  const pw = w + 2 * p, ph = h + 2 * p;
   for (let c = 0; c < 3; c++) {
-    let k = maxFiltre(kanal[c], w, h, AYDINLATMA_MAX_R);
-    k = kutuBulanik(k, w, h, AYDINLATMA_BLUR_R);
-    kanal[c] = kutuBulanik(k, w, h, AYDINLATMA_BLUR_R);
+    let k = p ? yansitBuyut(kanal[c], w, h, p) : kanal[c];
+    k = maxFiltre(k, pw, ph, AYDINLATMA_MAX_R);
+    k = kutuBulanik(k, pw, ph, AYDINLATMA_BLUR_R);
+    k = kutuBulanik(k, pw, ph, AYDINLATMA_BLUR_R);
+    kanal[c] = p ? kirpGrid(k, w, h, p) : k;
   }
   return { w, h, blok, kanal };
 }
