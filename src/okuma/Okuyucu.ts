@@ -1,3 +1,4 @@
+import { agacGecersiz } from '../arama/kitaplikAgaci';
 import { listChildren, SessionExpired } from '../drive/drive';
 import { drivePdfApi } from '../drive/pdfYazici';
 import { penLayerSvg } from '../kalem/cizimKatmani';
@@ -50,6 +51,9 @@ import { buildBookPages, buildSolutionPages, buildTopicPages, type BookPage } fr
 import { MATERIAL_LABEL, availableKinds, defaultKind, discoverTopic, type MaterialKind, type TopicMaterials } from './konuKesfi';
 import { discoverSampleTopic, isSampleId } from './ornekKaynak';
 import { autoTopicStatus, cycleStatus, markChapterPage, markTopicPage, type Resume } from './okumaDurumu';
+import { MetinOnbellek } from './metinOnbellek';
+import type { Dikdortgen } from './metinAra';
+import { OkuyucuArama } from './okuyucuArama';
 import { PageContent, pageKind } from './sayfaIcerik';
 import { PAD_TOP, canvasSize, currentPage, layoutPages, visibleRange, type Layout } from './sanalListe';
 import { anchorPoint, covers, detailRect, pdfLeft, tapZone, visiblePart, type Rect } from './yakinlastirma';
@@ -82,6 +86,7 @@ interface Mounted {
   pdf?: BookPage;
   vp?: PenViewport;
   layer?(): void;
+  ara?(): void;   // task 6.3c: the search highlight drawn again
 }
 
 interface Prepared { pages: BookPage[]; ratios: number[] }
@@ -122,6 +127,8 @@ let folder = '';
 let pages: BookPage[] = [];
 let ratios: number[] = [];
 let content: PageContent | null = null;
+let metin: MetinOnbellek | null = null;   // task 6.3b: the pages' text, read on the first search
+let arama: OkuyucuArama;                  // task 6.3c: the search bar
 let layout: Layout = layoutPages([], 0);
 let baseWidth = 0;             // PDF mode: page width at 100 %
 let width = 0;                 // … at the current zoom
@@ -173,6 +180,11 @@ let lastSaveToast = '';
 
 export const isOkuyucuOpen = () => open;
 
+// Task 6.3c: search the open reader's material (6.3e: from the library search). Resolves with the number of matches.
+export function okuyucuAra(q: string, o: { ilkEslesmeyeGit?: boolean } = {}): Promise<number> {
+  return open ? arama.ara(q, o) : Promise.resolve(0);
+}
+
 // Task 5.8f: where the Drive library is (main.ts: writer() ? driveLoc : null); the box under the material bar
 let driveLocation: () => DriveLocation | null = () => null;
 let photoBox: FotoDurumKutusu;
@@ -187,8 +199,17 @@ export function initOkuyucu(yer: () => DriveLocation | null): void {
       const p = pages[focusPage()];
       return (p && pageKind(p) === 'pdf' ? p : pages.find(x => pageKind(x) === 'pdf'))?.dosyaId ?? null;
     }));
+    // task 6.3b: window.defterMetinAra(q) searches the pages of the open reader
+    void import('./metinAraDene').then(m => m.installMetinAra(() => open && metin && pages.length ? { pages, metin } : null));
   }
   $('#oClose').addEventListener('click', closeOkuyucu);
+  arama = new OkuyucuArama({
+    pages: () => pages,
+    metin: () => metin,
+    focusPage,
+    git: goToMatch,
+    katmanlariYenile: () => { for (const m of mounted.values()) m.ara?.(); },
+  });
   const scroller = $('#oScroll');
   let raf = 0;
   scroller.addEventListener('scroll', () => {
@@ -208,7 +229,9 @@ export function initOkuyucu(yer: () => DriveLocation | null): void {
 
   addEventListener('keydown', e => {
     if (!open || document.getElementById('fotoPanel') || document.getElementById('dosyaPanel')) return;   // task 5.8a / 5.10e: the panel has the keys
-    if (e.key === 'Escape') { e.stopPropagation(); if (tocOpen) closeToc(); else closeOkuyucu(); return; }
+    // task 6.3c: Ctrl/Cmd+F opens our search box (not the browser's)
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'f') { e.preventDefault(); e.stopPropagation(); arama.ac(); return; }
+    if (e.key === 'Escape') { e.stopPropagation(); if (tocOpen) closeToc(); else if (arama.acik) arama.kapat(); else closeOkuyucu(); return; }
     // pen mode: Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z and Ctrl+Y redo (not while typing somewhere)
     if (penOn && (e.ctrlKey || e.metaKey) && !e.altKey && !typing(e.target)) {
       const k = e.key.toLowerCase();
@@ -511,6 +534,21 @@ function goToPage(i: number): void {
   } else bookView?.goTo(i);
 }
 
+// Task 6.3c: show a search match (k: its box, fractions of the page). PDF mode: the match near the middle
+// of the screen (zoomed: sideways too, the zoom stays). Book mode: its spread (back to 100 % first).
+function goToMatch(i: number, k: Dikdortgen | null): void {
+  if (!open || !pages.length || pen.isDrawing() || i < 0 || i >= pages.length) return;
+  if (mode === 'pdf') {
+    const s = $('#oScroll'), h = layout.heights[i];
+    s.scrollTop = k ? layout.tops[i] + (k.y + k.h / 2) * h - s.clientHeight / 2 : layout.tops[i] - PAD_TOP;
+    if (k && zoom.zoomed) s.scrollLeft = pageLeft + (k.x + k.w / 2) * width - s.clientWidth / 2;
+    update();
+  } else if (!isVisible(i)) {
+    resetZoom();
+    bookView?.goTo(i);
+  }
+}
+
 // ---- contents panel ----
 
 const STATUS_ICON: Record<ChapterStatus, string> = { okunmadi: '•', okunuyor: '◐', okundu: '●', calisildi: '✓', tekrar: '↻' };
@@ -585,6 +623,7 @@ export async function openOkuyucu(b: Book, folderId: string, unit: number, topic
   book = b; folder = folderId; onClosed = closed;
   current = { unit, topic: topicIndex };
   content = new PageContent();
+  metin = new MetinOnbellek(content);
   topic = null;
   zoom.reset();
 
@@ -911,7 +950,7 @@ function openFilePanel(t: OpenTopic, kaynak: DosyaPanelKaynak): void {
         throw e;
       }
     },
-    bitti: (r: DosyaEklendi, hedef: DosyaHedefi) => { void afterFileAdded(t, hedef, r); },
+    bitti: (r: DosyaEklendi, hedef: DosyaHedefi) => { agacGecersiz(); void afterFileAdded(t, hedef, r); },
     // task 6.1c: the temporary Google file goes into the topic folder; a new islemId for every try
     cevir: async (dosya: File, signal: AbortSignal) => {
       const [{ ofisuPdfeCevir }, klasorId] = await Promise.all([import('../drive/ofisCevir'), topicFolderId(t)]);
@@ -935,7 +974,7 @@ const photoAdder = new FotoEkleyici({
   ortam: () => ({ yer: driveLocation(), dosyaDrive: drivePdfOlusturApi, olusturDrive: drivePdfOlusturApi, ...sayfaEklemeOrtami() }),
   ui: {
     durum: m => photoBox?.durum(m),
-    basari: (k, m, r) => { photoBox?.kartKaldir(k.islemId); void afterAdding(k, m, r); },
+    basari: (k, m, r) => { agacGecersiz(); photoBox?.kartKaldir(k.islemId); void afterAdding(k, m, r); },
     hata: (k, m) => {
       if (open && photoBox) photoBox.kartGoster(k.islemId, m, () => photoAdder.sirayaKoy(k));
       else toast(m);
@@ -1083,6 +1122,7 @@ function applyGrowth(next: BookPage[], at: number, extra: number[], atEnd: boole
     releaseAll();
     bookView?.show(yeniIndeks(cur, g), book?.kapak.renk ?? '#24476b');
   }
+  arama.listeDegisti(old => yeniIndeks(old, g));   // task 6.3c: the current match stays where its page went
 }
 
 // A new file in the topic (a new summary, task 5.10f: any material): its folders are listed again, the tabs
@@ -1178,6 +1218,7 @@ function clearPages(): void {
   bookView?.clear();
   $('#oPno').textContent = '';
   $('#oFoot').hidden = true;
+  arama?.bosalt();   // task 6.3c: the query stays for the next list
 }
 
 function showPages(p: BookPage[], r: number[], scrollTo: number, emptyText: string): void {
@@ -1186,6 +1227,7 @@ function showPages(p: BookPage[], r: number[], scrollTo: number, emptyText: stri
   if (!pages.length) { setMessage(emptyText); return; }
   setMessage(null);
   enterMode(scrollTo);
+  arama.listeDegisti();   // task 6.3c: the same query in the new list
 }
 
 export function closeOkuyucu(): void {
@@ -1201,6 +1243,7 @@ export function closeOkuyucu(): void {
   penFileNames.clear();
   renderTools();
   closeToc();
+  arama.kapat();   // task 6.3c
   photoBox.temizle();   // task 5.8f: the uploads go on; their records stay on the device
   filePanelClose?.abort();   // task 6.1c
   filePanelClose = null;
@@ -1208,6 +1251,8 @@ export function closeOkuyucu(): void {
   zoom.reset();
   void content?.close();
   content = null;
+  metin?.kapat();
+  metin = null;
   topic = null;
   const el = $('#okuyucu');
   el.classList.remove('show');
@@ -1434,7 +1479,9 @@ function mountPdf(i: number, p: BookPage, box: HTMLElement, cssW: number, cssH: 
   // Task 4.5: Defter's strokes, an SVG layer over the canvases (no pixels: it stays while the page sleeps)
   let penLayer: Element[] = [];
   const dropLayer = () => { for (const e of penLayer) e.remove(); penLayer = []; };
-  const release = () => { gone = true; sleep(); dropLayer(); };
+  // task 6.3c: the search highlight (an SVG over the canvases, under the pen layer)
+  const araKatman = arama.katman(i, box);
+  const release = () => { gone = true; sleep(); dropLayer(); araKatman.kaldir(); };
   const mine = () => !gone && mounted.get(i)?.release === release;
 
   const draw = () => {
@@ -1548,10 +1595,11 @@ function mountPdf(i: number, p: BookPage, box: HTMLElement, cssW: number, cssH: 
       }, failed);
     }
   };
-  const m: Mounted = { release, detail, detailWant, wake, box, pdf: p, layer };
+  const m: Mounted = { release, detail, detailWant, wake, box, pdf: p, layer, ara: araKatman.ciz };
   mounted.set(i, m);
   draw();
   layer();
+  araKatman.ciz();
 }
 
 function mountImage(i: number, p: BookPage, box: HTMLElement): void {
@@ -1711,6 +1759,7 @@ async function fileUploaded(u: Uploaded): Promise<void> {
 // The file id's version oldMt → newMt everywhere in memory (pages, page cache, topic cache, file names)
 function moveVersion(id: string, oldMt: string, newMt: string): void {
   if (oldMt === newMt) return;
+  metin?.unut(id);   // task 6.3b: read again on the next search
   const move = (f: { modifiedTime?: string } | null) => { if (f?.modifiedTime === oldMt) f.modifiedTime = newMt; };
   const movePage = (p: BookPage) => { if (p.dosyaId === id) move(p); };
   pages.forEach(movePage);
@@ -1751,6 +1800,7 @@ async function pagesAdded(s: EklenenSayfalar): Promise<void> {
   latestVersion.set(s.fileId, s.modifiedTime);
   // task 5.8g: an open reader draws this file from the new version (the old pages are the same in it)
   content?.newVersion(s.fileId, s.modifiedTime);
+  metin?.unut(s.fileId);   // task 6.3b
   const has = (p: BookPage) => p.dosyaId === s.fileId;
   for (const [k, v] of [...pageCache]) if (v.pages.some(has)) pageCache.delete(k);
   if (prepared?.pages.some(has)) prepared = null;

@@ -506,6 +506,32 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 .o-toclist button[aria-current="true"] { background: rgba(181, 82, 59, .14); font-weight: 600; box-shadow: inset 3px 0 0 var(--accent, #b5523b) }
 .o-toclist button.empty { opacity: .5 }
 /* task 4.6: pen button, pen tool bar (prototype .r-tools; 44 px to tap on the iPad), pen mode */
+/* task 6.3c: search in the top bar. The button looks like "Fotoğraf ekle" (icon + label; up to 1024 px only the icon).
+   Open: the title makes room for one row [box] 3/12 ‹ › ×; the button itself is hidden (× closes) */
+.o-arabtn { flex: none; display: inline-flex; align-items: center; gap: 7px; min-height: 40px; padding: 0 14px; margin-left: -6px; border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, .22); background: rgba(0, 0, 0, .18); color: #f5ecdf; font: 500 14px var(--ui) }
+.o-arabtn svg { width: 20px; height: 20px }
+.o-ara { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px }
+.o-ara[hidden], #okuyucu.arama .o-title, #okuyucu.arama .o-arabtn { display: none }
+.o-ara input { flex: 0 1 320px; width: 320px; min-width: 80px; min-height: 40px; box-sizing: border-box; padding: 0 12px; border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, .28); background: rgba(0, 0, 0, .25); color: #f5ecdf; font: 15px var(--ui); -webkit-appearance: none; appearance: none }
+.o-ara input::placeholder { color: rgba(245, 236, 223, .55) }
+.o-ara input::-webkit-search-cancel-button { display: none }
+.o-ara input:focus { outline: none; border-color: rgba(255, 255, 255, .6) }
+.o-ara-sayac { flex: none; font-size: 13px; font-variant-numeric: tabular-nums; opacity: .85; white-space: nowrap }
+.o-ara-sayac.yok { color: #ffb3a6; opacity: 1 }
+.o-ara-not { flex: 0 1 auto; min-width: 0; font-size: 12px; opacity: .7; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.o-ara-not[hidden], .o-ara-kisa { display: none }
+.o-araik { flex: none; width: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center; padding: 0; border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, .22); background: rgba(0, 0, 0, .18); color: #f5ecdf }
+.o-araik svg { width: 20px; height: 20px }
+.o-araik:disabled { opacity: .4 }
+#oAraOnceki { margin-left: auto }
+/* the highlights: over the canvas and the sharp part, under the pen layer; touches go through */
+.o-page svg.o-ara { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; mix-blend-mode: multiply; z-index: 1 }
+.o-page svg.o-ara rect { fill: rgba(255, 214, 0, .45) }
+.o-page svg.o-ara rect.gecerli { fill: rgba(255, 140, 0, .55); stroke: #e06a00; stroke-width: 2.5px; vector-effect: non-scaling-stroke }
+.o-lf svg.o-ara { backface-visibility: hidden; -webkit-backface-visibility: hidden }
 .o-penbtn { flex: none; min-height: 40px; padding: 0 12px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, .22); background: rgba(0, 0, 0, .18); color: #f5ecdf; font: 500 13px var(--ui) }
 .o-penbtn.on { background: #f5ecdf; color: #2a231d }
 /* task 4.8a: unsaved strokes (kept on the device): a dot on the pen button */
@@ -572,6 +598,9 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 }
 /* task 5.10g: up to iPad portrait/landscape 1024: "Fotoğraf ekle" / "Dosya ekle" only icons, "Çözümü göster" → "Çözüm" */
 @media (max-width: 1024px) {
+  .o-arabtn { padding: 0 9px }
+  .o-arabtn span, .o-ara-uzun { display: none }
+  .o-ara-kisa { display: inline }
   .o-foto { padding: 0 10px }
   .o-foto span, .o-sol .o-uzun { display: none }
   .o-bar { gap: 8px 10px }
@@ -585,6 +614,17 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
   .fp-renk { right: 4px; bottom: 52px }   /* narrow thumbnails: above the crop toggle, clear of the badge */
   .fp-ok { font-size: 18px }
   .fp-alt button { flex: 1 }
+  /* task 6.3c: phone: the search button made the bar too wide at 360 px (× shrank): a bit tighter.
+     Search open: still one row; the mode switch and the page number make room */
+  .o-top { gap: 8px; padding-left: 12px; padding-right: 10px }
+  .o-arabtn { width: 40px; justify-content: center; padding: 0 }
+  .o-seg button { padding: 0 9px }
+  .o-close { flex: none }
+  #okuyucu.arama .o-top { gap: 6px; padding-left: 10px; padding-right: 8px }
+  #okuyucu.arama .o-seg, #okuyucu.arama .o-pno { display: none }
+  .o-ara { gap: 4px }
+  .o-ara input { min-width: 64px; padding: 0 8px }
+  .o-araik { width: 36px }
   /* task 5.10g: phone: the tab bar a bit tighter (still one row, the tabs scroll in their strip) */
   .o-bar { gap: 6px; padding: 6px 10px 8px }
   .o-sol { padding: 0 10px }
@@ -646,4 +686,54 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
   #dosyaPanel { align-items: flex-start }
   #dosyaPanel .fp-baslik, #dosyaPanel .dp-bilgi { order: -2 }
   #dosyaPanel .dp-ad, #dosyaPanel .dp-uyari { order: -1 }
+}
+
+/* task 6.3e: library search. The button in the top bar (a pill with the magnifier; phone: only the icon);
+   hidden while signing in / loading. The panel: a card at the top (12vh), the room dimmed behind it
+   (taps don't reach the 3D scene); phone: full width, at the top. Rows at least 44 px. */
+.arabtn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 13px 7px 10px }
+.arabtn svg { width: 17px; height: 17px }
+#app[data-kilit] .arabtn { display: none }
+.ap { position: fixed; inset: 0; z-index: 55; display: flex; align-items: flex-start; justify-content: center; box-sizing: border-box;
+  padding: 12vh 16px calc(env(safe-area-inset-bottom, 0px) + 16px); background: rgba(10, 7, 4, .45) }
+.ap[hidden] { display: none }
+.ap-kart { box-sizing: border-box; width: min(640px, 100%); max-height: 100%; display: flex; flex-direction: column; overflow: hidden;
+  border-radius: 16px; background: #2a231d; color: #f5ecdf; box-shadow: 0 20px 50px rgba(0, 0, 0, .4); font: 14px var(--ui) }
+.ap-ust { flex: none; display: flex; align-items: center; gap: 8px; padding: 10px 8px 10px 14px }
+.ap-ikon { flex: none; display: inline-flex; opacity: .7 }
+.ap-ikon svg { width: 20px; height: 20px }
+.ap-kutu { flex: 1; min-width: 0; min-height: 44px; box-sizing: border-box; padding: 0 10px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, .28);
+  background: rgba(0, 0, 0, .25); color: #f5ecdf; font: 16px var(--ui); -webkit-appearance: none; appearance: none }   /* 16 px: iPad doesn't zoom */
+.ap-kutu::placeholder { color: rgba(245, 236, 223, .55) }
+.ap-kutu::-webkit-search-cancel-button { display: none }
+.ap-kutu:focus { outline: none; border-color: rgba(255, 255, 255, .6) }
+.ap-kapat { flex: none; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 10px; background: none; color: inherit; font-size: 26px; line-height: 1 }
+.ap-kapat:hover { background: rgba(255, 255, 255, .08) }
+.ap-durum { flex: none; display: flex; align-items: center; gap: 10px; padding: 0 16px 10px; font-size: 13px; opacity: .8 }
+.ap-durum[hidden], .ap-tekrar[hidden] { display: none }
+.ap-durum.hata { color: #ffb4a2; opacity: 1 }
+.ap-tekrar { flex: none; min-height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, .3); background: none; color: #f5ecdf; font: 600 13px var(--ui) }
+.ap-liste { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; list-style: none; margin: 0; padding: 0 6px 8px;
+  border-top: 1px solid rgba(255, 255, 255, .08) }
+.ap-liste:empty { display: none }
+.ap-grup { padding: 12px 10px 4px; font-size: 11.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; opacity: .55 }
+.ap-satir { display: flex; flex-direction: column; justify-content: center; gap: 2px; min-height: 44px; box-sizing: border-box; padding: 6px 10px; border-radius: 10px; cursor: pointer }
+.ap-satir:hover, .ap-satir[aria-selected="true"] { background: rgba(255, 255, 255, .09) }
+.ap-satir[aria-selected="true"] { box-shadow: inset 3px 0 0 var(--accent) }
+.ap-satir.disi { cursor: default; opacity: .5 }
+.ap-satir.disi:hover { background: none }
+.ap-yol { font-size: 12px; opacity: .6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.ap-alt { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; min-width: 0 }
+.ap-ad { min-width: 0; font-size: 15px; overflow-wrap: anywhere; margin-right: 2px }
+.ap-ad b { font-weight: 700; color: #ffd27a }
+.ap-rozet { flex: none; padding: 1px 7px; border-radius: 8px; background: rgba(255, 255, 255, .1); font-size: 11.5px; line-height: 18px; white-space: nowrap }
+.ap-rozet.cozum { background: rgba(214, 160, 70, .3) }
+.ap-rozet.disi { background: none; border: 1px solid rgba(255, 255, 255, .25) }
+@media (max-width: 640px) {
+  .arabtn { padding: 7px 9px }
+  .arabtn span { display: none }
+}
+@media (max-width: 600px) {
+  .ap { padding: 0 }
+  .ap-kart { width: 100%; border-radius: 0 0 16px 16px; padding-top: env(safe-area-inset-top, 0px) }
 }

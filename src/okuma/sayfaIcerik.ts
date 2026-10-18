@@ -1,10 +1,12 @@
 import type { PDFDocumentProxy, PDFPageProxy, RenderTask } from 'pdfjs-dist';
+import type { TextContent } from 'pdfjs-dist/types/src/display/api';
 import { SessionExpired, driveFetch, ok } from '../drive/drive';
 import { defterInks, type DefterInk } from '../kalem/cizimKatmani';
 import { hideDefterNotes, isDefterAnnotation } from '../kalem/defterNotu';
 import type { PenViewport } from '../kalem/koordinat';
 import { noteRender } from '../ui/tani';
 import type { BookPage } from './kitapSayfalari';
+import type { MetinParcasi, SayfaMetni } from './metinAra';
 import { closePdf, openPdf, pdfjs } from './pdf';
 import { getPdf } from './pdfOnbellek';
 
@@ -133,6 +135,23 @@ export class PageContent {
   async viewport(p: BookPage): Promise<PenViewport> {
     const doc = await this.doc(p);
     return (await doc.getPage(p.pdfSayfa!)).getViewport({ scale: 1 });
+  }
+
+  // Task 6.3b: the page's text items (pdf.js getTextContent) from the document that is open, no download;
+  // with its viewport at scale 1 (rotation and CropBox), for the rectangles of the matches.
+  async textContent(p: BookPage): Promise<SayfaMetni> {
+    const page = await (await this.doc(p)).getPage(p.pdfSayfa!);
+    // Task 6.3c: not getTextContent(): it reads its stream with `for await`, which iPad Safari's ReadableStream
+    // doesn't have (every page failed: "bulunamadı"). The same stream, read with reader.read().
+    const reader = (page.streamTextContent() as ReadableStream<{ items: TextContent['items']; styles: TextContent['styles'] }>).getReader();
+    const parcalar: MetinParcasi[] = [];
+    const stiller: TextContent['styles'] = {};   // 6.3c-2: every chunk brings the styles of its new fonts
+    for (let r = await reader.read(); !r.done; r = await reader.read()) {
+      Object.assign(stiller, r.value.styles);
+      for (const it of r.value.items) if ('str' in it) parcalar.push({ str: it.str, transform: it.transform, width: it.width, height: it.height, hasEOL: it.hasEOL, font: stiller[it.fontName]?.fontFamily });
+    }
+    const v = page.getViewport({ scale: 1 });
+    return { parcalar, gorunum: { transform: v.transform, width: v.width, height: v.height } };
   }
 
   private pageNotes(doc: PDFDocumentProxy, page: PDFPageProxy): Promise<DefterNotes> {

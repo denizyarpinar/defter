@@ -1,4 +1,8 @@
 import './styles.css';
+import { gidisPlani } from './arama/aramaPaneliDurumu';
+import { agacAl, agacGecersiz } from './arama/kitaplikAgaci';
+import { kitaplikAra, type KitaplikSonucu } from './arama/kitaplikAra';
+import { ornekAgac, type OrnekAgaci } from './arama/ornekAgac';
 import { AuthError, prepareAuth, rememberUser, rememberedUser, signIn, signOut } from './drive/auth';
 import { getUser, setAccountHint, setSessionExpiredHandler } from './drive/drive';
 import { LibraryNotFound, loadDriveLibrary, type DriveLocation } from './drive/driveLibrary';
@@ -9,18 +13,19 @@ import { DriveSaver } from './drive/save';
 import { daysSinceOpened, shelfOf } from './model/library';
 import { loadLocalLibrary, type LoadedLibrary } from './model/localSource';
 import { parseLibrary } from './model/parse';
-import type { ModeKey } from './model/types';
+import type { Book, ModeKey } from './model/types';
 import { usesUnits } from './model/units';
 import { markOpened, setReadingSink } from './okuma/okumaDurumu';
-import { sampleBookFolder } from './okuma/ornekKaynak';
-import { closeOkuyucu, forgetBook, fotoYuklemeSuruyor, initOkuyucu, openOkuyucu, sayfaEklemeOrtami } from './okuma/Okuyucu';
+import { sampleBookFolder, sampleFolders } from './okuma/ornekKaynak';
+import { closeOkuyucu, forgetBook, fotoYuklemeSuruyor, initOkuyucu, isOkuyucuOpen, okuyucuAra, openOkuyucu, sayfaEklemeOrtami } from './okuma/Okuyucu';
 import { createRoomScene, type LibraryData, type RoomScene, type View } from './scene';
 import { canvas, drawWood, noise } from './scene/textures';
 import { updateHint } from './ui/hint';
 import { initPanel } from './ui/panel';
 import { hideSaveState, initLibError, initNotFound, initSaveState, setLibError, setLibraryLoading, setNotFound, showSaveError, showSaved, showSaving } from './ui/driveStatus';
 import { etkinYazici, gecis, gorunum, ilkDurum, type KitaplikDurumu, type KitaplikOlayi } from './ui/kitaplikDurumu';
-import { closeReader, initReader, isReaderOpen, openReader, refreshReader } from './ui/reader';
+import { closeReader, initReader, isReaderOpen, openReader, readerShell, refreshReader } from './ui/reader';
+import { initAramaPaneli, type AramaKaynagi } from './ui/aramaPaneli';
 import { hideLogin, initLogin, setLoginBusy, setRememberedName, showLogin } from './ui/login';
 import { initTopBar, initUserBox, updateCrumb, updateModeButtons, updateUserBox, type LightMode } from './ui/topBar';
 import { installErrorBox } from './ui/hataKutusu';
@@ -81,6 +86,12 @@ if (import.meta.env.DEV) void import('./drive/ozetDene').then(m => m.installOzet
 if (import.meta.env.DEV) void import('./drive/dosyaEkleDene').then(m => m.installDosyaEkleDene(() => writer() ? driveLoc : null, () => data?.books ?? null, sayfaEklemeOrtami));
 // dev only (task 6.1b): window.defterOfisCevirDene(kitapAdi, konuYolu) converts with ofisuPdfeCevir; adds nothing to a topic
 if (import.meta.env.DEV) void import('./drive/ofisCevirDene').then(m => m.installOfisCevirDene(() => writer() ? driveLoc : null, () => data?.books ?? null));
+// dev only (task 6.3a): window.defterAramaDene(q), window.defterAramaHepsi(elYazisi?) — search discovery; GET requests only
+if (import.meta.env.DEV) void import('./drive/aramaDene').then(m => m.installAramaDene(() => driveLoc, () => data?.books ?? null));
+// dev only (task 6.3d): window.defterKitaplikAra(q) — library search (tree + names + Drive fullText); GET requests only
+if (import.meta.env.DEV) void import('./arama/kitaplikAraDene').then(m => m.installKitaplikAra(() => driveLoc && data ? { loc: driveLoc, books: data.books, library: data.library } : null));
+// dev only (task 6.3f): window.defterDizinOlc(kelime) — how long until Drive's fullText finds a new file; GET requests only
+if (import.meta.env.DEV) void import('./arama/dizinOlc').then(m => m.installDizinOlc(() => driveLoc && data ? { loc: driveLoc, books: data.books, library: data.library } : null));
 // dev only (task 5.8e): window.defterBekleyenFoto() lists the pending photo records; .dene() / .hata(id) / .sil(id); no Drive
 if (import.meta.env.DEV) void import('./defter/bekleyenFotoDene').then(m => m.installBekleyenFoto());
 // dev only (task 5.8b): ?kirpTest=1 compares two page-cropping methods on real photos; writes nothing
@@ -131,6 +142,7 @@ function updateChrome(): void {
 }
 
 initTopBar({
+  onSearch: () => aramaPaneli.ac(),
   onModeChange: m => {
     mode = m;
     if (data) data.library.oda.mod = MODE_TO_DATA[m];
@@ -162,6 +174,7 @@ async function useData(next: LoadedLibrary, newSaver: DriveSaver | null, loc: Dr
   data.books = next.books;
   saver = newSaver;
   driveLoc = loc;
+  agacGecersiz();   // task 6.3d: the search tree is built again from the new library
   // reading state: written only to a Drive library (the sample library has no writer)
   reading?.dispose();
   reading = loc ? new ReadingSaver(id => loc.bookFileIds.get(id), driveReadingApi, { saving: () => {}, saved: showSaved, failed: showSaveError }) : null;
@@ -297,16 +310,76 @@ initReader(() => {
 }, (unit, topic, resume) => {
   const b = deskBook ? data?.books.get(deskBook) : undefined;
   if (!b) return;
-  // sample library: surum 2 books open the demo PDFs in public/demo (task 3.6); surum 1 ones have no files
-  const folderId = driveLoc ? driveLoc.bookFolderIds.get(b.id) : usesUnits(b) ? sampleBookFolder(b.id) : undefined;
+  const folderId = bookFolder(b);
   if (!folderId) { toast('Sayfaları görmek için Google ile giriş yap. Örnek kitaplıkta bu kitabın dosyası yok.'); return; }
   // the room is behind the reader: don't draw it (it stays paused under the contents page too)
   scene?.setPaused(true);
-  void openOkuyucu(b, folderId, unit, topic, () => {
-    scene?.setPaused(isReaderOpen());
-    void reading?.flush();
-    refreshReader();   // status / ribbon on the contents page
-  }, resume);
+  void openOkuyucu(b, folderId, unit, topic, okuyucuClosed, resume);
+});
+
+// The full-screen reader closed: back to the desk (its contents page) or, opened from the search, the library
+function okuyucuClosed(): void {
+  readerShell(false);
+  scene?.setPaused(isReaderOpen());
+  void reading?.flush();
+  refreshReader();   // status / ribbon on the contents page
+}
+
+// sample library: surum 2 books open the demo PDFs in public/demo (task 3.6); surum 1 ones have no files
+const bookFolder = (b: Book) => driveLoc ? driveLoc.bookFolderIds.get(b.id) : usesUnits(b) ? sampleBookFolder(b.id) : undefined;
+
+// ---- task 6.3e: library search ----
+
+let ornekAgaci: { books: Map<string, Book>; agac: OrnekAgaci } | null = null;
+
+function aramaKaynagi(): AramaKaynagi | null {
+  if (!data) return null;
+  const d = data;
+  if (driveLoc) {
+    const o = { loc: driveLoc, books: d.books, library: d.library };
+    return { anahtar: d.books, ornek: false, agac: () => agacAl(o), metin: (q, signal) => kitaplikAra(q, o, { signal }) };
+  }
+  if (durum.tur !== 'demo') return null;
+  return {
+    anahtar: d.books, ornek: true,
+    agac: async () => {
+      if (ornekAgaci?.books !== d.books) ornekAgaci = { books: d.books, agac: ornekAgac(d.library, d.books, sampleFolders()) };
+      return ornekAgaci.agac;
+    },
+    metin: () => Promise.reject(new Error('Örnek kitaplıkta metin araması yok.')),
+  };
+}
+
+// A result: the book as if tapped; a topic or a file in the full-screen reader (the right tab and file).
+// A text result: the reader searches q and goes to the first match.
+function aramaSonucunaGit(s: KitaplikSonucu, q: string): void {
+  const b = data?.books.get(s.kitapId);
+  const p = b ? gidisPlani(s, b) : null;
+  if (!b || !p) { toast('Bu sonuç açılamadı. Kitaplığı yenileyip tekrar ara.'); return; }
+  if (p.tur === 'kitap') {
+    if (deskBook === b.id) return;
+    if (!scene?.openBook(b.id)) toast('Kitap şu an açılamıyor. Biraz sonra tekrar dene.');
+    return;
+  }
+  const folderId = bookFolder(b);
+  if (!folderId) { toast('Sayfaları görmek için Google ile giriş yap. Örnek kitaplıkta bu kitabın dosyası yok.'); return; }
+  scene?.setPaused(true);
+  readerShell(true);
+  const resume = p.dosya ? { unit: p.unit, topic: p.topic, materyal: p.dosya.materyal, dosya: p.dosya.ad, sayfa: 1, label: '' } : undefined;
+  void openOkuyucu(b, folderId, p.unit, p.topic, okuyucuClosed, resume);
+  if (!isOkuyucuOpen()) { okuyucuClosed(); return; }   // it said why (a toast)
+  if (p.uyari) toast(p.uyari);
+  if (p.metinAra) {
+    void okuyucuAra(q, { ilkEslesmeyeGit: true }).then(n => {
+      if (n === 0 && isOkuyucuOpen()) toast('Drive bu dosyada buldu ama sayfada işaretlenemedi (fotoğraf/taranmış sayfa olabilir).');
+    });
+  }
+}
+
+const aramaPaneli = initAramaPaneli({
+  kaynak: aramaKaynagi,
+  acilabilir: () => !isOkuyucuOpen() && !isReaderOpen() && !gorunum(durum).kilitli && gorunum(durum).kart === null && !!scene,
+  git: aramaSonucunaGit,
 });
 initOkuyucu(() => writer() ? driveLoc : null);
 

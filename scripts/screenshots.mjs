@@ -9,6 +9,7 @@
 // Writes to docs/: oda-gunduz.png, oda-aksam.png, raf.png, kitap.png, once-sonra.png, demo.gif,
 // and (Faz 5.12) foto-ekle.png, kose-duzelt.png, dosya-ekle.png from made-up images (no lecture material).
 // SHOTS=faz5 makes only the three Faz 5 images (no ffmpeg needed; the other files stay as they are).
+// SHOTS=arama (6.3f) makes only arama.png (library search panel) and okuyucu-arama.png (search in the reader).
 // Click points are for a 1600×1000 window and the sample library in public/ornek/: if the room
 // framing or the books change, check BOOKCASE and BOOK below (run once, look at docs/raf.png).
 
@@ -256,14 +257,41 @@ async function faz5Shots(browser) {
   }
 }
 
+// Task 6.3f: the library search panel (query "or") and the reader's search with highlights (steps as in
+// scripts/arama-paneli-kontrol.mjs)
+async function aramaShots(browser) {
+  const page = await browser.newPage({ viewport: VIEW, deviceScaleFactor: 2 });
+  await openRoom(page);
+  await setMode(page, 'Gündüz');
+  await page.locator('#araBtn').click();
+  await page.locator('#aramaPaneli .ap-kutu').fill('or');
+  await page.waitForFunction(() => document.querySelectorAll('#aramaPaneli .ap-satir').length > 0, null, { timeout: 10_000 });
+  await page.mouse.move(0, 0);
+  await page.waitForTimeout(800);
+  await savePng(await page.screenshot(), 'arama.png');
+
+  await page.locator('#aramaPaneli .ap-kutu').fill('blatt');
+  await page.waitForFunction(() => [...document.querySelectorAll('#aramaPaneli .ap-satir')].some(e => e.textContent.includes('blatt-01_cozum')), null, { timeout: 10_000 });
+  await page.locator('.ap-satir', { hasText: 'blatt-01_cozum' }).click();
+  await page.waitForSelector('#okuyucu:not([hidden])', { timeout: 10_000 });
+  await page.waitForTimeout(2500);
+  await page.locator('#oAraBtn').click();
+  await page.keyboard.type('logic');
+  await page.waitForFunction(() => /\d+\/\d+/.test(document.querySelector('#oAraSayac')?.textContent ?? ''), null, { timeout: 30_000 });
+  await page.mouse.move(0, 0);
+  await page.waitForTimeout(1500);
+  await savePng(await page.screenshot(), 'okuyucu-arama.png');
+  await page.close();
+}
+
 // ---- main ----
 
 const server = await startPreview();
 const browser = await chromium.launch({ channel: 'chrome', headless: true, args: GPU_ARGS });
-if (process.env.SHOTS === 'faz5') {
-  // only the three Faz 5 images (no GIF, no ffmpeg; the other files in docs/ stay as they are)
+if (process.env.SHOTS === 'faz5' || process.env.SHOTS === 'arama') {
+  // only the three Faz 5 images or the two search images (no GIF, no ffmpeg; the other files in docs/ stay as they are)
   try {
-    await faz5Shots(browser);
+    await (process.env.SHOTS === 'arama' ? aramaShots : faz5Shots)(browser);
   } finally {
     await browser.close();
     server.kill();
@@ -299,6 +327,7 @@ try {
   await savePng(await beforeAfter(browser, old, day), 'once-sonra.png');
 
   await faz5Shots(browser);
+  await aramaShots(browser);
 
   log('demo.gif kaydediliyor…');
   await recordGif(browser);
