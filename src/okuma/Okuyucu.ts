@@ -1,3 +1,4 @@
+import { agacGecersiz } from '../arama/kitaplikAgaci';
 import { listChildren, SessionExpired } from '../drive/drive';
 import { drivePdfApi } from '../drive/pdfYazici';
 import { penLayerSvg } from '../kalem/cizimKatmani';
@@ -949,7 +950,7 @@ function openFilePanel(t: OpenTopic, kaynak: DosyaPanelKaynak): void {
         throw e;
       }
     },
-    bitti: (r: DosyaEklendi, hedef: DosyaHedefi) => { void afterFileAdded(t, hedef, r); },
+    bitti: (r: DosyaEklendi, hedef: DosyaHedefi) => { agacGecersiz(); void afterFileAdded(t, hedef, r); },
     // task 6.1c: the temporary Google file goes into the topic folder; a new islemId for every try
     cevir: async (dosya: File, signal: AbortSignal) => {
       const [{ ofisuPdfeCevir }, klasorId] = await Promise.all([import('../drive/ofisCevir'), topicFolderId(t)]);
@@ -973,7 +974,7 @@ const photoAdder = new FotoEkleyici({
   ortam: () => ({ yer: driveLocation(), dosyaDrive: drivePdfOlusturApi, olusturDrive: drivePdfOlusturApi, ...sayfaEklemeOrtami() }),
   ui: {
     durum: m => photoBox?.durum(m),
-    basari: (k, m, r) => { photoBox?.kartKaldir(k.islemId); void afterAdding(k, m, r); },
+    basari: (k, m, r) => { agacGecersiz(); photoBox?.kartKaldir(k.islemId); void afterAdding(k, m, r); },
     hata: (k, m) => {
       if (open && photoBox) photoBox.kartGoster(k.islemId, m, () => photoAdder.sirayaKoy(k));
       else toast(m);

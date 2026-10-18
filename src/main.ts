@@ -1,4 +1,5 @@
 import './styles.css';
+import { agacGecersiz } from './arama/kitaplikAgaci';
 import { AuthError, prepareAuth, rememberUser, rememberedUser, signIn, signOut } from './drive/auth';
 import { getUser, setAccountHint, setSessionExpiredHandler } from './drive/drive';
 import { LibraryNotFound, loadDriveLibrary, type DriveLocation } from './drive/driveLibrary';
@@ -83,6 +84,8 @@ if (import.meta.env.DEV) void import('./drive/dosyaEkleDene').then(m => m.instal
 if (import.meta.env.DEV) void import('./drive/ofisCevirDene').then(m => m.installOfisCevirDene(() => writer() ? driveLoc : null, () => data?.books ?? null));
 // dev only (task 6.3a): window.defterAramaDene(q), window.defterAramaHepsi(elYazisi?) — search discovery; GET requests only
 if (import.meta.env.DEV) void import('./drive/aramaDene').then(m => m.installAramaDene(() => driveLoc, () => data?.books ?? null));
+// dev only (task 6.3d): window.defterKitaplikAra(q) — library search (tree + names + Drive fullText); GET requests only
+if (import.meta.env.DEV) void import('./arama/kitaplikAraDene').then(m => m.installKitaplikAra(() => driveLoc && data ? { loc: driveLoc, books: data.books, library: data.library } : null));
 // dev only (task 6.3-0a): window.defterTemizlikListesi() — the test files left in Drive, as a list; GET requests only
 if (import.meta.env.DEV) void import('./drive/temizlikListesi').then(m => m.installTemizlikListesi(() => driveLoc, () => data?.books ?? null));
 // dev only (task 6.3-0b), only with ?temizlik=1: window.defterTemizlikUygula() dry run, ({ gercek: true }) the one-time cleanup
@@ -168,6 +171,7 @@ async function useData(next: LoadedLibrary, newSaver: DriveSaver | null, loc: Dr
   data.books = next.books;
   saver = newSaver;
   driveLoc = loc;
+  agacGecersiz();   // task 6.3d: the search tree is built again from the new library
   // reading state: written only to a Drive library (the sample library has no writer)
   reading?.dispose();
   reading = loc ? new ReadingSaver(id => loc.bookFileIds.get(id), driveReadingApi, { saving: () => {}, saved: showSaved, failed: showSaveError }) : null;
