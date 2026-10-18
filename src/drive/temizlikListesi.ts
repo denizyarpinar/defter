@@ -167,7 +167,7 @@ const araliklar = (n: number[]) => {
   return out.join(', ') || 'yok';
 };
 
-function indir(blob: Blob, ad: string): void {
+export function indir(blob: Blob, ad: string): void {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = ad;
@@ -175,7 +175,7 @@ function indir(blob: Blob, ad: string): void {
   setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
 }
 
-function kutu(md: string, resim: Blob | null): void {
+export function kutu(md: string, resim: Blob | null): void {
   document.getElementById(ne)?.remove();
   const k = document.createElement('div');
   k.id = ne;
@@ -201,7 +201,7 @@ function kutu(md: string, resim: Blob | null): void {
 }
 
 // Ribbons pointing into ozet.pdf of Konu-01 (kitap.json: they stay, but may point past the end)
-function kurdeleler(book: Book | undefined): { ad: string; sayfa: number }[] {
+export function kurdeleler(book: Book | undefined): { ad: string; sayfa: number }[] {
   if (!book) return [];
   const out: { ad: string; sayfa: number }[] = [];
   for (const u of book.uniteler) for (const t of u.konular) {
@@ -218,7 +218,7 @@ function kurdeleler(book: Book | undefined): { ad: string; sayfa: number }[] {
 
 // ---- the report ----
 
-async function rapor(loc: DriveLocation, books: Map<string, Book> | null, adim: (s: string) => void): Promise<{ md: string; resim: Blob | null }> {
+export async function rapor(loc: DriveLocation, books: Map<string, Book> | null, adim: (s: string) => void): Promise<{ md: string; resim: Blob | null }> {
   const md: string[] = [];
   const y = (s = '') => md.push(s);
   y(`# Test temizliği – liste (6.3-0a, salt okunur)`);

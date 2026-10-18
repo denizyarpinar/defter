@@ -289,6 +289,9 @@ Kitaplık/
 - koseB: açma + iki geçişli kenar inceltme + kenar desteğiyle güven (6.2d-2).
 - Yükleme: yer belleği + birleşik `durum` kontrolü (6.2e-2); arka planda yükleme + yüzde + kaldığı yerden devam, her zaman açık (6.2e-3).
 
+### Test temizliği (6.3-0b)
+- Tek seferlik test temizliği (Deniz kararı, 18 Ekim 2026): listedeki test dosyaları (Defter-ceviri-deneme ve Konu-99-Test-5.7 klasörleri dahil) çöpe (sadece `trashed=true`), Konu-01 ozet.pdf keepForever sürümüne (27 sayfa) döndü. Dev aracı `window.defterTemizlikUygula()`, sadece `?temizlik=1` ile; izin listesi kodda sabit (`src/drive/temizlikIzin.ts`). Bu, "çöpe atılmaz", "Defter-ceviri-deneme'ye dokunulmaz" ve "sayfa sadece sona eklenir" kurallarının tek seferlik istisnasıdır.
+
 ## Sonra bakılabilir
 - Oda zaman aşımı: şu an glb yüklemesine toplam 15 sn veriliyor; yavaş bağlantıda (masaüstü lightmap'leri ~3.3 MB) eski odaya düşüyor. Öneri: "15 sn hiç ilerleme yok" kuralı + yükleme göstergesi. Faz 2 kural metni değişeceği için Deniz'in onayı gerekir.
 - Masaüstü lightmap PNG'lerinin küçültülmesi (boyut/sıkıştırma).
