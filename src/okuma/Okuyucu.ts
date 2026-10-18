@@ -50,6 +50,7 @@ import { buildBookPages, buildSolutionPages, buildTopicPages, type BookPage } fr
 import { MATERIAL_LABEL, availableKinds, defaultKind, discoverTopic, type MaterialKind, type TopicMaterials } from './konuKesfi';
 import { discoverSampleTopic, isSampleId } from './ornekKaynak';
 import { autoTopicStatus, cycleStatus, markChapterPage, markTopicPage, type Resume } from './okumaDurumu';
+import { MetinOnbellek } from './metinOnbellek';
 import { PageContent, pageKind } from './sayfaIcerik';
 import { PAD_TOP, canvasSize, currentPage, layoutPages, visibleRange, type Layout } from './sanalListe';
 import { anchorPoint, covers, detailRect, pdfLeft, tapZone, visiblePart, type Rect } from './yakinlastirma';
@@ -122,6 +123,7 @@ let folder = '';
 let pages: BookPage[] = [];
 let ratios: number[] = [];
 let content: PageContent | null = null;
+let metin: MetinOnbellek | null = null;   // task 6.3b: the pages' text, read on the first search
 let layout: Layout = layoutPages([], 0);
 let baseWidth = 0;             // PDF mode: page width at 100 %
 let width = 0;                 // … at the current zoom
@@ -187,6 +189,8 @@ export function initOkuyucu(yer: () => DriveLocation | null): void {
       const p = pages[focusPage()];
       return (p && pageKind(p) === 'pdf' ? p : pages.find(x => pageKind(x) === 'pdf'))?.dosyaId ?? null;
     }));
+    // task 6.3b: window.defterMetinAra(q) searches the pages of the open reader
+    void import('./metinAraDene').then(m => m.installMetinAra(() => open && metin && pages.length ? { pages, metin } : null));
   }
   $('#oClose').addEventListener('click', closeOkuyucu);
   const scroller = $('#oScroll');
@@ -585,6 +589,7 @@ export async function openOkuyucu(b: Book, folderId: string, unit: number, topic
   book = b; folder = folderId; onClosed = closed;
   current = { unit, topic: topicIndex };
   content = new PageContent();
+  metin = new MetinOnbellek(content);
   topic = null;
   zoom.reset();
 
@@ -1208,6 +1213,8 @@ export function closeOkuyucu(): void {
   zoom.reset();
   void content?.close();
   content = null;
+  metin?.kapat();
+  metin = null;
   topic = null;
   const el = $('#okuyucu');
   el.classList.remove('show');
@@ -1711,6 +1718,7 @@ async function fileUploaded(u: Uploaded): Promise<void> {
 // The file id's version oldMt → newMt everywhere in memory (pages, page cache, topic cache, file names)
 function moveVersion(id: string, oldMt: string, newMt: string): void {
   if (oldMt === newMt) return;
+  metin?.unut(id);   // task 6.3b: read again on the next search
   const move = (f: { modifiedTime?: string } | null) => { if (f?.modifiedTime === oldMt) f.modifiedTime = newMt; };
   const movePage = (p: BookPage) => { if (p.dosyaId === id) move(p); };
   pages.forEach(movePage);
@@ -1751,6 +1759,7 @@ async function pagesAdded(s: EklenenSayfalar): Promise<void> {
   latestVersion.set(s.fileId, s.modifiedTime);
   // task 5.8g: an open reader draws this file from the new version (the old pages are the same in it)
   content?.newVersion(s.fileId, s.modifiedTime);
+  metin?.unut(s.fileId);   // task 6.3b
   const has = (p: BookPage) => p.dosyaId === s.fileId;
   for (const [k, v] of [...pageCache]) if (v.pages.some(has)) pageCache.delete(k);
   if (prepared?.pages.some(has)) prepared = null;
