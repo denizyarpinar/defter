@@ -274,6 +274,10 @@ Kitaplık/
 - `src/drive/ofisCevir.ts` (cevirTuru, ofisuPdfeCevir, copeAtGecici, supurGecici; testli). `dosyaTuru` sonucu `cevrilebilir` alanını taşır (aynı tablo). Panel: `src/ui/dosyaPanel.ts`; karar `tekDosyaYolu` (`src/defter/dosyaPanelDurumu.ts`); hata metni `ofisHataMetni` (`src/defter/dosyaEklemeMetin.ts`).
 - Dev: `window.defterOfisCevirDene(kitapAdi, konuYolu)` (sadece `npm run dev`, `src/drive/ofisCevirDene.ts`): dosya seçtirir, o konunun klasöründe çevirir, sonucu loglar; konuya eklemez.
 
+### Köşe bulma (6.2d)
+- koseB'ye (6.2d-2) açma (ince köprüleri kesme), iki geçişli kenar inceltme (±%12 sonra ±%2 şerit, RANSAC) ve kenar desteğiyle güven eklendi. Kod: `src/defter/kirp/koseB.ts`, `src/defter/kirp/kenarIncelt.ts` (testli).
+- Ölçüm: `scripts/kose-olcum.test.ts` (IoU, bugün/yeni tablosu, süre), kontrol görüntüleri `scripts/kose-kontrol.mjs`. Fotoğraflar repo dışında (`../defter-test-dosyalari/kose/`); yoksa ölçüm atlanır.
+
 ## Sonra bakılabilir
 - Oda zaman aşımı: şu an glb yüklemesine toplam 15 sn veriliyor; yavaş bağlantıda (masaüstü lightmap'leri ~3.3 MB) eski odaya düşüyor. Öneri: "15 sn hiç ilerleme yok" kuralı + yükleme göstergesi. Faz 2 kural metni değişeceği için Deniz'in onayı gerekir.
 - Masaüstü lightmap PNG'lerinin küçültülmesi (boyut/sıkıştırma).
@@ -284,3 +288,6 @@ Kitaplık/
 - İki sekme ya da iki cihaz aynı anda aynı dosyayı aynı konuya eklerse çift dosya oluşabilir (kilit sadece sekme içinde).
 - Testler ara sıra 1 hata veriyor (647'den 1; hangi test olduğu bilinmiyor); kaynağı bulunmalı.
 - Telefonda dosya seçim kutusu 56 px'e kadar daralıyor.
+- koseB: el/köşe gölgesinde uyarlamalı eşik (6.2d-2 Öneri 2) yapılmadı; gölgeli sentetik örneklerde "Kırpılamadı" çıkıyor.
+- koseB spiral/karşı sayfa: kenar görüntü çerçevesine dayanınca içeri daha geniş arama (wa-2303-2, wa-2303-4).
+- koseB: wa-1857-kose güven 0.56 ile yanlış kırpıyor.

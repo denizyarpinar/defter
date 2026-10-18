@@ -1,6 +1,8 @@
 // Task 6.2d-1: contact sheets for the koseB measurement (photos stay outside the repo).
 //   node scripts/kose-kontrol.mjs dogru   → dogru-kontrol-1.jpg, -2.jpg   green = hand-set corners
 //   node scripts/kose-kontrol.mjs koseB   → bugun-koseB-1.jpg, -2.jpg     green = hand-set, red = koseB (sonuc-koseB.json)
+//   node scripts/kose-kontrol.mjs yeni [ek] → yeni-koseB[-ek]-1.jpg, …    same, after 6.2d-2 (ek: e.g. asama1 for a stage copy)
+// The 6.2d-2 control photos are left out unless KOSE_KONTROL=1.
 // Each tile: the whole photo (600 px wide) and below it the 4 corners zoomed in, so the paper edge can be checked.
 // Input: ../defter-test-dosyalari/kose/ (dogru.json, *.jpg); output: iCloudDrive/uni_plan_claude_code/Claude outputs/kose-6.2d/
 
@@ -18,12 +20,15 @@ const ZOOM = 0.07;         // zoom window = this × long edge
 const SUTUN = 4, KARE_BASINA = 8;
 
 const kip = process.argv[2];
-if (kip !== 'dogru' && kip !== 'koseB') { console.error('Kullanım: node scripts/kose-kontrol.mjs dogru|koseB'); process.exit(1); }
+if (kip !== 'dogru' && kip !== 'koseB' && kip !== 'yeni') { console.error('Kullanım: node scripts/kose-kontrol.mjs dogru|koseB|yeni [ek]'); process.exit(1); }
+const KONTROL = ['wa-2303-2.jpg', 'img-1384-lamba.jpg'];   // same as kose-olcum.test.ts
 if (!existsSync(join(KOSE, 'dogru.json'))) { console.error(`Bulunamadı: ${join(KOSE, 'dogru.json')}`); process.exit(1); }
 const dogruTum = JSON.parse(readFileSync(join(KOSE, 'dogru.json'), 'utf8'));
 let sonuc = {};
-if (kip === 'koseB') {
-  const yol = join(KOSE, 'sonuc-koseB.json');
+if (kip !== 'dogru') {
+  // koseB = the 6.2d-1 result (kept as sonuc-koseB-bugun.json once 6.2d-2 started)
+  const bugun = join(KOSE, 'sonuc-koseB-bugun.json');
+  const yol = kip === 'koseB' && existsSync(bugun) ? bugun : join(KOSE, 'sonuc-koseB.json');
   if (!existsSync(yol)) { console.error('Önce ölçümü çalıştır: npx vitest run scripts/kose-olcum.test.ts'); process.exit(1); }
   for (const r of JSON.parse(readFileSync(yol, 'utf8'))) sonuc[r.dosya] = r;
 }
@@ -58,10 +63,10 @@ async function kare(dosya, d) {
   return { w: TW, h, buf: await sharp({ create: { width: TW, height: h, channels: 3, background: '#111' } }).composite(parts).png().toBuffer() };
 }
 
-const dosyalar = Object.keys(dogruTum).filter(k => !k.startsWith('_'));
+const dosyalar = Object.keys(dogruTum).filter(k => !k.startsWith('_') && (kip === 'dogru' || k in sonuc) && (process.env.KOSE_KONTROL === '1' || !KONTROL.includes(k)));
 const kareler = [];
 for (const f of dosyalar) kareler.push(await kare(f, dogruTum[f]));
-const ad = kip === 'dogru' ? 'dogru-kontrol' : 'bugun-koseB';
+const ad = kip === 'dogru' ? 'dogru-kontrol' : kip === 'koseB' ? 'bugun-koseB' : process.argv[3] ? `yeni-koseB-${process.argv[3]}` : 'yeni-koseB';
 for (let s = 0; s * KARE_BASINA < kareler.length; s++) {
   const grup = kareler.slice(s * KARE_BASINA, (s + 1) * KARE_BASINA);
   const satirH = [];
