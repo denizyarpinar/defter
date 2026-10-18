@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DriveError, driveFetch, driveXhr } from './drive';
 import {
   DEVAM_BEKLEME, devamBaslangici, devamliGonder, drivePdfApi, ensureOriginalKept, PdfConflict, PdfReadOnly,
-  PdfSampleNoWrite, PdfUploadSession, RESUMABLE_LIMIT, uploadPdf, yedekBelleginiSifirla, yeniYuklemeAcik,
+  PdfSampleNoWrite, PdfUploadSession, RESUMABLE_LIMIT, uploadPdf, yedekBelleginiSifirla,
   YuklemeOturumuDustu, type Gonderici, type PdfDrive, type Revision, type YuklemeSecenek
 } from './pdfYazici';
 
@@ -312,7 +312,12 @@ describe('devamliGonder', () => {
 describe('drivePdfApi requests', () => {
   const fetchMock = vi.mocked(driveFetch);
   const xhrMock = vi.mocked(driveXhr);
-  const calls = () => fetchMock.mock.calls.map(([url, init]) => `${init?.method ?? 'GET'} ${url}`);
+  // fetch and XMLHttpRequest requests together, in the order they were made
+  const istekler = () => [
+    ...fetchMock.mock.calls.map((c, i) => ({ c, sira: fetchMock.mock.invocationCallOrder[i] })),
+    ...xhrMock.mock.calls.map((c, i) => ({ c, sira: xhrMock.mock.invocationCallOrder[i] }))
+  ].sort((a, b) => a.sira - b.sira).map(x => x.c);
+  const calls = () => istekler().map(([url, init]) => `${init?.method ?? 'GET'} ${url}`);
   const json = (body: unknown, headers: Record<string, string> = {}) =>
     new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json', ...headers } });
 
@@ -350,13 +355,14 @@ describe('drivePdfApi requests', () => {
       'PATCH https://www.googleapis.com/upload/drive/v3/files/f?uploadType=media&fields=id,modifiedTime,headRevisionId'
     ]);
     expect(fetchMock.mock.calls[2][1]?.body).toBe('{"keepForever":true}');
-    expect(new Headers(fetchMock.mock.calls[4][1]?.headers).get('Content-Type')).toBe('application/pdf');
+    expect(new Headers(istekler()[4][1]?.headers).get('Content-Type')).toBe('application/pdf');
   });
 
   it('second write of the same file: one GET, then the upload', async () => {
     answer();
     await uploadPdf(drivePdfApi, 'f', bytes(10), 't1');
     fetchMock.mockClear();
+    xhrMock.mockClear();
     await uploadPdf(drivePdfApi, 'f', bytes(10), 't1');
     expect(calls()).toEqual([
       'GET files/f?fields=capabilities/canEdit,modifiedTime,headRevisionId',
@@ -386,33 +392,7 @@ describe('drivePdfApi requests', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('lock: yeniYuklemeAcik only with ?yeniYukleme=1', () => {
-    expect(yeniYuklemeAcik('?yeniYukleme=1')).toBe(true);
-    expect(yeniYuklemeAcik('?olcum=1&yeniYukleme=1')).toBe(true);
-    expect(yeniYuklemeAcik('')).toBe(false);
-    expect(yeniYuklemeAcik('?yeniYukleme=0')).toBe(false);
-  });
-
-  it('without the lock: fetch as before (no XMLHttpRequest, no progress, no resuming)', async () => {
-    answer();
-    const ilerleme = vi.fn();
-    await uploadPdf(drivePdfApi, 'f', bytes(RESUMABLE_LIMIT + 1), 't1', { ilerleme });
-    await uploadPdf(drivePdfApi, 'f', bytes(10), 't1', { ilerleme });
-    expect(xhrMock).not.toHaveBeenCalled();
-    expect(ilerleme).not.toHaveBeenCalled();
-    // an interrupted PUT is not resumed: the network error goes up
-    fetchMock.mockImplementation(async (url, init) => {
-      if (init?.method === 'PUT') throw new TypeError('Failed to fetch');
-      if (String(url).includes('uploadType=resumable')) return json({}, { Location: SESSION });
-      return json({ capabilities: { canEdit: true }, modifiedTime: 't1', headRevisionId: 'r1' });
-    });
-    fetchMock.mockClear();
-    await expect(uploadPdf(drivePdfApi, 'f', bytes(RESUMABLE_LIMIT + 1), 't1')).rejects.toBeInstanceOf(TypeError);
-    expect(calls().filter(c => c.startsWith('PUT'))).toHaveLength(1);
-  });
-
-  it('with ?yeniYukleme=1: the bytes go over driveXhr with progress (media and resumable)', async () => {
-    vi.stubGlobal('location', { search: '?yeniYukleme=1' });
+  it('the bytes always go over driveXhr with progress (media and resumable)', async () => {
     answer();
     xhrMock.mockImplementation(async (_url, _init, p) => { p?.(4); return json({ id: 'f', modifiedTime: 't9', headRevisionId: 'r9' }); });
     const ilerleme = vi.fn();
@@ -424,7 +404,7 @@ describe('drivePdfApi requests', () => {
     xhrMock.mockClear();
     await uploadPdf(drivePdfApi, 'f', bytes(RESUMABLE_LIMIT + 1), 't1', { ilerleme });
     expect(xhrMock.mock.calls.map(([u, i]) => `${i?.method} ${u}`)).toEqual([`PUT ${SESSION}`]);
-    expect(calls().some(c => c.startsWith('PUT'))).toBe(false);   // the session itself is opened with fetch
+    expect(fetchMock.mock.calls.some(([, i]) => i?.method === 'PUT')).toBe(false);   // the session itself is opened with fetch
     expect(ilerleme).toHaveBeenLastCalledWith(4, RESUMABLE_LIMIT + 1);
   });
 });

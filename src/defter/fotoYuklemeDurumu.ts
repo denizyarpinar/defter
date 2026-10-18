@@ -6,7 +6,7 @@ import { durumMetni } from './fotoEklemeMetin';
 export type EklemeAsamasi =
   | { tur: 'sirada' }
   | { tur: 'hazirlaniyor' }
-  | { tur: 'yukleniyor'; yuzde: number | null };   // null: no progress (without ?yeniYukleme=1)
+  | { tur: 'yukleniyor'; yuzde: number | null };   // null: no progress yet (the upload has just started)
 
 export interface SiradakiEkleme { foto: number; asama: EklemeAsamasi }
 

@@ -11,8 +11,8 @@ import { driveFetch, driveXhr, ok } from './drive';
 // - Conflict: PdfConflict; re-applying the strokes on the newer file is the caller's job.
 // Task 6.2e-2: canEdit + modifiedTime + headRevisionId in one request (durum). The backup step (listRevisions,
 //   keepForever, head again) only until the file is known to have a kept revision (this session).
-//   ?yeniYukleme=1: uploads over XMLHttpRequest with progress; an interrupted resumable upload asks Drive
-//   how far it got and sends the rest (devamliGonder). Without it: fetch as before, no resuming.
+//   Uploads go over XMLHttpRequest with progress; an interrupted resumable upload asks Drive
+//   how far it got and sends the rest (devamliGonder). Always on since task 6.2e-3.
 
 export const UPLOAD = 'https://www.googleapis.com/upload/drive/v3/';
 export const RESUMABLE_LIMIT = 5 * 1024 * 1024;   // bigger → resumable upload, else media
@@ -25,7 +25,7 @@ export interface DosyaDurumu { canEdit: boolean; modifiedTime: string; headRevis
 // What the caller hears about an upload (only the photo adding listens, task 6.2e-2)
 export interface YuklemeDinleyici {
   basladi?(): void;                                     // the bytes start to go (after the checks)
-  ilerleme?(gonderilen: number, toplam: number): void;  // only with ?yeniYukleme=1
+  ilerleme?(gonderilen: number, toplam: number): void;
 }
 
 export interface YuklemeSecenek extends YuklemeDinleyici {
@@ -64,12 +64,6 @@ export class YuklemeOturumuDustu extends TypeError {
   constructor() { super('Yükleme oturumu kapandı; yükleme baştan denenecek.'); }
 }
 
-// Task 6.2e-2: the safety lock of the new upload way (XMLHttpRequest, progress, resuming)
-export function yeniYuklemeAcik(search?: string): boolean {
-  const s = search ?? (typeof location === 'undefined' ? '' : location.search);
-  return new URLSearchParams(s).get('yeniYukleme') === '1';
-}
-
 const WHAT = 'PDF kaydedilirken';
 const fileUrl = (fileId: string) => `files/${encodeURIComponent(fileId)}`;
 const uploadUrl = (fileId: string, type: 'media' | 'resumable') =>
@@ -93,7 +87,7 @@ export function multipartPdfBody(meta: object, bytes: Uint8Array): { body: Blob;
   return { body, contentType: `multipart/related; boundary=${boundary}` };
 }
 
-// How the bytes go: driveFetch, or driveXhr with progress (?yeniYukleme=1)
+// How the bytes go: driveXhr with progress (tests: a mock)
 export type Gonderici = (url: string, init: RequestInit, ilerleme?: (gonderilen: number) => void) => Promise<Response>;
 
 export interface DevamliGonderim extends YuklemeSecenek {
@@ -155,7 +149,7 @@ export async function devamliGonder(
 
 // Resumable upload: 1) open a session (PATCH on an existing file, POST for a new one), 2) send the bytes to it.
 // check: how an answer is judged (default: any error → DriveError).
-// devam (task 6.2e-2, ?yeniYukleme=1): progress and resuming (devamliGonder); without it one PUT with fetch.
+// devam (task 6.2e-2): progress and resuming (devamliGonder); without it one PUT with fetch (new files, pdfOlustur).
 export async function resumableUpload(
   startUrl: string, method: 'PATCH' | 'POST', meta: string, bytes: Uint8Array,
   check: (res: Response) => Promise<Response> = res => ok(res, WHAT), devam?: DevamliGonderim
@@ -211,15 +205,13 @@ export const drivePdfApi: PdfDrive = {
   async uploadMedia(fileId, bytes, s = {}) {
     const init: RequestInit = { method: 'PATCH', headers: { 'Content-Type': 'application/pdf' }, body: pdfBody(bytes) };
     const ilerleme = s.ilerleme;
-    const res = await ok(await (yeniYuklemeAcik()
-      ? driveXhr(uploadUrl(fileId, 'media'), init, ilerleme && (n => ilerleme(Math.min(n, bytes.byteLength), bytes.byteLength)))
-      : driveFetch(uploadUrl(fileId, 'media'), init)), WHAT);
+    const res = await ok(await driveXhr(uploadUrl(fileId, 'media'), init,
+      ilerleme && (n => ilerleme(Math.min(n, bytes.byteLength), bytes.byteLength))), WHAT);
     return readResult(res);
   },
   uploadResumable(fileId, bytes, s = {}) {
     // session on the existing file (PATCH, not POST: no new file)
-    return resumableUpload(uploadUrl(fileId, 'resumable'), 'PATCH', '{}', bytes, undefined,
-      yeniYuklemeAcik() ? { ...s, gonder: driveXhr } : undefined);
+    return resumableUpload(uploadUrl(fileId, 'resumable'), 'PATCH', '{}', bytes, undefined, { ...s, gonder: driveXhr });
   }
 };
 
@@ -259,7 +251,7 @@ export async function uploadPdf(
     if (sonra.headRevisionId !== head) throw new PdfConflict();   // content changed meanwhile
     mt = sonra.modifiedTime;
   }
-  // an interrupted upload goes on only on the same version (?yeniYukleme=1)
+  // an interrupted upload goes on only on the same version
   const devamOncesi = async () => {
     const x = await drive.durum(fileId);
     if (!x.canEdit) throw new PdfReadOnly();

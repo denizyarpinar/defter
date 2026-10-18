@@ -30,7 +30,7 @@ describe('yuklemeDurumMetni', () => {
   it('being prepared (checks, pdf-lib)', () => {
     expect(yuklemeDurumMetni([hazir(2)])).toBe('2 fotoğraf ekleniyor…');
   });
-  it('uploading: with the percent, or without it (no ?yeniYukleme=1)', () => {
+  it('uploading: with the percent, or without it (before the first progress)', () => {
     expect(yuklemeDurumMetni([yukle(2, 42)])).toBe('Fotoğraflar yükleniyor… %42');
     expect(yuklemeDurumMetni([yukle(2, 0)])).toBe('Fotoğraflar yükleniyor… %0');
     expect(yuklemeDurumMetni([yukle(2, null)])).toBe('Fotoğraflar yükleniyor…');

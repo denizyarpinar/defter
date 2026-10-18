@@ -277,12 +277,17 @@ Kitaplık/
 ### Fotoğraf yükleme (6.2e-2)
 - Daha az istek: yer zinciri oturum boyunca bellekte (`yerKontrol`, `yerBellekte`); uploadPdf öncesi canEdit + modifiedTime + headRevisionId tek `durum` isteği; yedek adımı (listRevisions, keepForever, tekrar durum) dosyada saklı sürüm görülene kadar (oturum belleği).
 - Ekle'den sonra panel kapanır, yükleme arka planda sürer; şerit: "Fotoğraflar yükleniyor… %42 · 3 fotoğraf sırada". Yükleme sürerken beforeunload uyarısı.
-- Kilit: yeni yükleme yolu (XMLHttpRequest ile yüzde + kesintide kaldığı yerden devam) sadece `?yeniYukleme=1` ile açık. Kilitsiz: bugünkü fetch yolu, devam yok, yüzde yerine "yükleniyor…". Kilit gerçek testlerden sonra ayrı adımda kalkacak.
+- Kilit 6.2e-3'te kalktı (laptop + iPad gerçek testlerinden sonra): XMLHttpRequest ile yüzde + kesintide kaldığı yerden devam her zaman açık (fotoğraf ve kalem yüklemeleri). Yeni dosya oluşturma (`pdfOlustur.ts`) fetch ile, devamsız kalır.
 - Devam sırası: önce durum sorgusu (`Content-Range: bytes */N`); 200/201 → bitmiş say (devamOncesi yok); 308 → devamOncesi (modifiedTime + headRevisionId aynı mı) → kalan baytlar; 404/410 → baştan. En fazla 3 devam (2/4/8 sn).
 
 ### Köşe bulma (6.2d)
 - koseB'ye (6.2d-2) açma (ince köprüleri kesme), iki geçişli kenar inceltme (±%12 sonra ±%2 şerit, RANSAC) ve kenar desteğiyle güven eklendi. Kod: `src/defter/kirp/koseB.ts`, `src/defter/kirp/kenarIncelt.ts` (testli).
 - Ölçüm: `scripts/kose-olcum.test.ts` (IoU, bugün/yeni tablosu, süre), kontrol görüntüleri `scripts/kose-kontrol.mjs`. Fotoğraflar repo dışında (`../defter-test-dosyalari/kose/`); yoksa ölçüm atlanır.
+
+### 6.2 kararları (özet)
+- Renk düzelt (filtre E) defter fotoğraflarında varsayılan açık, fotoğraf başına aç/kapa (6.2c).
+- koseB: açma + iki geçişli kenar inceltme + kenar desteğiyle güven (6.2d-2).
+- Yükleme: yer belleği + birleşik `durum` kontrolü (6.2e-2); arka planda yükleme + yüzde + kaldığı yerden devam, her zaman açık (6.2e-3).
 
 ## Sonra bakılabilir
 - Oda zaman aşımı: şu an glb yüklemesine toplam 15 sn veriliyor; yavaş bağlantıda (masaüstü lightmap'leri ~3.3 MB) eski odaya düşüyor. Öneri: "15 sn hiç ilerleme yok" kuralı + yükleme göstergesi. Faz 2 kural metni değişeceği için Deniz'in onayı gerekir.
@@ -297,3 +302,6 @@ Kitaplık/
 - koseB: el/köşe gölgesinde uyarlamalı eşik (6.2d-2 Öneri 2) yapılmadı; gölgeli sentetik örneklerde "Kırpılamadı" çıkıyor.
 - koseB spiral/karşı sayfa: kenar görüntü çerçevesine dayanınca içeri daha geniş arama (wa-2303-2, wa-2303-4).
 - koseB: wa-1857-kose güven 0.56 ile yanlış kırpıyor.
+- Her fotoğraf eklemede ve kalem kaydında ozet.pdf'in tamamı yeniden yükleniyor (22 MB'ta ~26 sn). Mimari çözüm adayı: defter fotoğraflarını ayrı/küçük PDF'lere eklemek (Faz 5 kararını değiştirir, Deniz onayı gerekir).
+- Fotoğraf küçültme (1600 px / JPEG 0.80) ile bugünkü (2000 px / 0.85) karşılaştırması yapılmadı.
+- Sayfa yenilenince yarım kalan yükleme kaldığı yerden devam etmiyor (baştan yükleniyor).
