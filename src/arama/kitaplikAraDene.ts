@@ -58,7 +58,8 @@ export function installKitaplikAra(ortam: () => AgacOrtami | null): void {
       yaz(`"${r.q}" · ${r.sonuclar.length} sonuç · toplam ${ms(performance.now() - t0)}`);
       yaz(bellekten
         ? `ağaç: bellekten (0 istek; ${Math.round((Date.now() - agac.kuruldu) / 1000)} sn önce kuruldu)`
-        : `ağaç: kuruldu · yöntem ${s.yontem === 'tekSorgu' ? 'tek klasör sorgusu' : "BFS ('in parents')"} · ${s.istek} istek · ${ms(s.ms)} · ${s.klasor} klasör · ${agac.dosyalar.length} PDF · ${agac.konular.length} konu (6.3a: 11 istek / 3,7 sn)`);
+        : `ağaç: kuruldu (kitap klasörlerinden katman katman) · ${s.istek} istek · ${ms(s.ms)} · ${s.klasor} klasör · ${agac.dosyalar.length} PDF · ${agac.konular.length} konu (6.3a: 11 istek / 3,7 sn; 6.3d: 10 istek / 10,5 sn)`);
+      if (!bellekten) s.katmanlar.forEach((k, i) => yaz(`  katman ${i + 1}: ${ms(k.ms)} · ${k.istek} istek · ${k.klasor} klasör · ${k.pdf} PDF`));
       yaz(`süreler: ağaç bekleme ${ms(r.sureler.agac)} · ad ${ms(r.sureler.ad)} · Drive ${ms(r.sureler.drive)} (${r.driveIstek} istek, ${agac.klasorIdleri.length} klasör)${r.eksik ? ' · Drive sonuçları eksik (2 sayfa sınırı)' : ''}`);
       if (r.driveHata) yaz(`Drive metin araması HATA: ${r.driveHata}`);
       const tablo = r.sonuclar.map(satir);

@@ -11,9 +11,9 @@ import { adAnahtari, dosyaAnahtari } from './adEsle';
 
 // Task 6.3d: the Kitaplık tree in memory, for the library search. Every PDF under kitaplar/<kitap>/ with
 // its book, topic (kitap.json) and material (the reader's rule: konuKesfi.classifyTopic). Reads only.
-// Built with few requests: every folder in one query (the subtree of Kitaplık is cut out here), then the
-// PDFs of those folders, 40 folders per query. More than 3000 folders in Drive: down from the root
-// level by level instead ('id' in parents, 40 per query).
+// Built level by level from the book folders (their ids come with the library, driveLibrary.ts): one query
+// per level for 40 folders, subfolders and PDFs together (6.3d-2; one query for every folder in Drive
+// was slow: a Drive with > 3000 folders).
 
 export interface AgacKitabi { id: string; baslik: string; sira: number; anahtar: string }
 
@@ -37,11 +37,13 @@ export interface AgacDosyasi {
   anahtar: string;
 }
 
+export interface AgacKatmani { ms: number; istek: number; klasor: number; pdf: number }
+
 export interface AgacSuresi {
-  yontem: 'tekSorgu' | 'bfs';
   ms: number;
   istek: number;
-  klasor: number;   // folders under Kitaplık
+  klasor: number;   // folders under the books (the book folders too)
+  katmanlar: AgacKatmani[];
 }
 
 export interface KitaplikAgaci {
@@ -60,21 +62,20 @@ export interface HamDosya extends DriveFile { parents?: string[] }
 
 export interface KlasorBilgi { ad: string; ust: string | null }
 
-export const TEK_SORGU_EN_FAZLA_SAYFA = 3;   // × 1000 folders; more → bfs
 export const AGAC_OMRU_MS = 10 * 60_000;
 const PDF_MIME = 'application/pdf';
 
 // ---- pure: from Drive's lists to the tree ----
 
-// Every folder Drive gave → the ones under Kitaplık (rootId) with their parent
-export function klasorHaritasi(klasorler: readonly HamKlasor[], rootId: string): Map<string, KlasorBilgi> {
+// The folders Drive gave → the ones under the book folders with their parent (a book folder: no parent)
+export function klasorHaritasi(klasorler: readonly HamKlasor[], bookFolderIds: ReadonlyMap<string, string>): Map<string, KlasorBilgi> {
   const cocuk = new Map<string, HamKlasor[]>();
   for (const k of klasorler) for (const p of k.parents ?? []) {
     const l = cocuk.get(p);
     if (l) l.push(k); else cocuk.set(p, [k]);
   }
-  const harita = new Map<string, KlasorBilgi>([[rootId, { ad: 'Kitaplık', ust: null }]]);
-  const sira = [rootId];
+  const harita = new Map<string, KlasorBilgi>([...bookFolderIds].map(([kitap, id]) => [id, { ad: kitap, ust: null }]));
+  const sira = [...harita.keys()];
   while (sira.length) {
     const id = sira.shift()!;
     for (const k of cocuk.get(id) ?? []) {
@@ -203,56 +204,42 @@ export function agacCikar(
 
 // ---- Drive ----
 
-const KLASOR_ALAN = 'id,name,parents';
-const DOSYA_ALAN = 'id,name,mimeType,parents,modifiedTime';
+const ALANLAR = 'id,name,mimeType,parents,modifiedTime';
 
-// Every folder in one query; null when there are more than TEK_SORGU_EN_FAZLA_SAYFA pages
-async function klasorlerTekSorgu(getir: Getirici, sayac: { istek: number }): Promise<HamKlasor[] | null> {
-  const r = await listele<HamKlasor>(getir, `mimeType = '${FOLDER_MIME}' and trashed = false`, KLASOR_ALAN, {
-    pageSize: 1000, enFazlaSayfa: TEK_SORGU_EN_FAZLA_SAYFA, ne: 'Kitaplık klasörleri okunurken',
-  });
-  sayac.istek += r.istek;
-  return r.eksik ? null : r.dosyalar;
-}
-
-// Down from the root, one level at a time, 40 folders per query
-async function klasorlerBfs(getir: Getirici, rootId: string, sayac: { istek: number }): Promise<HamKlasor[]> {
-  const hepsi: HamKlasor[] = [];
-  const gorulen = new Set([rootId]);
-  let seviye = [rootId];
+// Down from the book folders, one level at a time: 40 folders per query, subfolders and PDFs together
+async function kitaplardanTara(getir: Getirici, bookFolderIds: ReadonlyMap<string, string>): Promise<{ klasorler: HamKlasor[]; dosyalar: HamDosya[]; katmanlar: AgacKatmani[] }> {
+  const klasorler: HamKlasor[] = [], dosyalar: HamDosya[] = [], katmanlar: AgacKatmani[] = [];
+  const gorulen = new Set(bookFolderIds.values());
+  let seviye = [...gorulen];
   while (seviye.length) {
-    const r = await Promise.all(parcala(seviye).map(g => listele<HamKlasor>(getir,
-      `${parentsKosulu(g)} and mimeType = '${FOLDER_MIME}' and trashed = false`, KLASOR_ALAN,
+    const t0 = performance.now();
+    const r = await Promise.all(parcala(seviye).map(g => listele<HamDosya>(getir,
+      `${parentsKosulu(g)} and (mimeType = '${FOLDER_MIME}' or mimeType = '${PDF_MIME}') and trashed = false`, ALANLAR,
       { pageSize: 1000, enFazlaSayfa: Infinity, ne: 'Kitaplık klasörleri okunurken' })));
+    const katman = { ms: 0, istek: 0, klasor: 0, pdf: 0 };
     seviye = [];
     for (const x of r) {
-      sayac.istek += x.istek;
-      for (const k of x.dosyalar) if (!gorulen.has(k.id)) { gorulen.add(k.id); hepsi.push(k); seviye.push(k.id); }
+      katman.istek += x.istek;
+      for (const f of x.dosyalar) {
+        if (f.mimeType === FOLDER_MIME) {
+          if (gorulen.has(f.id)) continue;
+          gorulen.add(f.id); klasorler.push(f); seviye.push(f.id); katman.klasor++;
+        } else { dosyalar.push(f); katman.pdf++; }
+      }
     }
+    katman.ms = performance.now() - t0;
+    katmanlar.push(katman);
   }
-  return hepsi;
-}
-
-async function pdfleriAl(getir: Getirici, klasorIdleri: readonly string[], sayac: { istek: number }): Promise<HamDosya[]> {
-  const r = await Promise.all(parcala(klasorIdleri).map(g => listele<HamDosya>(getir,
-    `${parentsKosulu(g)} and mimeType = '${PDF_MIME}' and trashed = false`, DOSYA_ALAN,
-    { pageSize: 1000, enFazlaSayfa: Infinity, ne: 'Kitaplık dosyaları okunurken' })));
-  for (const x of r) sayac.istek += x.istek;
-  return r.flatMap(x => x.dosyalar);
+  return { klasorler, dosyalar, katmanlar };
 }
 
 export async function agacKur(o: AgacOrtami, getir: Getirici = saltOkunurFetch): Promise<KitaplikAgaci> {
   const kuruldu = Date.now(), t0 = performance.now();
-  const sayac = { istek: 0 };
-  const rootId = o.loc.rootId;
-  let yontem: AgacSuresi['yontem'] = 'tekSorgu';
-  let klasorler = await klasorlerTekSorgu(getir, sayac);
-  if (!klasorler) { yontem = 'bfs'; klasorler = await klasorlerBfs(getir, rootId, sayac); }
-  const harita = klasorHaritasi(klasorler, rootId);
-  const kitapOf = kitapKlasorleri(harita, o.loc.bookFolderIds);
-  const dosyalar = await pdfleriAl(getir, [...kitapOf.keys()], sayac);
+  const { klasorler, dosyalar, katmanlar } = await kitaplardanTara(getir, o.loc.bookFolderIds);
+  const harita = klasorHaritasi(klasorler, o.loc.bookFolderIds);
   const a = agacCikar(harita, dosyalar, { bookFolderIds: o.loc.bookFolderIds, books: o.books, library: o.library });
-  return { ...a, sure: { yontem, ms: performance.now() - t0, istek: sayac.istek, klasor: harita.size }, kuruldu };
+  const istek = katmanlar.reduce((t, k) => t + k.istek, 0);
+  return { ...a, sure: { ms: performance.now() - t0, istek, klasor: harita.size, katmanlar }, kuruldu };
 }
 
 // ---- in memory for the session ----

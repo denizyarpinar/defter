@@ -58,14 +58,16 @@ const books = new Map<string, Book>([
 const bookFolderIds = new Map([['mathe-1', mathe], ['prog', prog], ['json-yok', bos]]);
 const library = parseLibrary({ raflar: [{ kitaplar: ['prog'] }, { kitaplar: ['mathe-1'] }] });
 
-const cikar = () => agacCikar(klasorHaritasi(klasorler, ROOT), dosyalar, { bookFolderIds, books, library });
+const cikar = () => agacCikar(klasorHaritasi(klasorler, bookFolderIds), dosyalar, { bookFolderIds, books, library });
 const dosya = (id: string) => cikar().dosyalar.find(f => f.id === id);
 
 describe('klasorHaritasi', () => {
-  it('keeps only the folders under Kitaplık', () => {
-    const h = klasorHaritasi(klasorler, ROOT);
+  it('keeps only the folders under the books', () => {
+    const h = klasorHaritasi(klasorler, bookFolderIds);
     expect(h.has(aussage)).toBe(true);
     expect(h.has(disari)).toBe(false);
+    expect(h.has(kitaplarK)).toBe(false);
+    expect(h.get(mathe)).toEqual({ ad: 'mathe-1', ust: null });
     expect(h.get(aussage)).toEqual({ ad: 'Konu-01-Aussagenlogik', ust: logik });
   });
 });
@@ -113,41 +115,34 @@ describe('agacCikar', () => {
 
 // ---- building with Drive (a fake read-only fetcher) ----
 
-function sahteDrive(klasorSayfa = 1) {
-  const istekler: string[] = [];
+function sahteDrive() {
+  const sorgular: string[] = [];
   const getir: Getirici = async (path, init) => {
     expect(init?.method ?? 'GET').toBe('GET');
-    istekler.push(path);
-    const p = new URLSearchParams(path.slice('files?'.length));
-    const q = p.get('q')!, token = p.get('pageToken');
-    const json = (files: unknown[], next?: string) => new Response(JSON.stringify({ files, nextPageToken: next }));
-    if (q.startsWith(`mimeType = '${FOLDER_MIME}'`)) {
-      const s = token ? +token : 1;
-      return json(s === 1 ? klasorler : [], s < klasorSayfa ? String(s + 1) : undefined);
-    }
+    const q = new URLSearchParams(path.slice('files?'.length)).get('q')!;
+    sorgular.push(q);
     const ids = [...q.matchAll(/'([^']+)' in parents/g)].map(m => m[1]);
-    if (q.includes(FOLDER_MIME)) return json(klasorler.filter(k => ids.includes(k.parents![0])));
-    return json(dosyalar.filter(f => f.mimeType === 'application/pdf' && ids.includes(f.parents![0])));
+    const ic = (x: { parents?: string[] }) => ids.includes(x.parents![0]);
+    const files = [...klasorler.filter(ic).map(k => ({ ...k, mimeType: FOLDER_MIME })), ...dosyalar.filter(f => f.mimeType === 'application/pdf' && ic(f))];
+    return new Response(JSON.stringify({ files }));
   };
-  return { getir, istekler };
+  return { getir, sorgular };
 }
 const loc: DriveLocation = { rootId: ROOT, libraryFileId: null, bookFolderIds, bookFileIds: new Map() };
 
 describe('agacKur', () => {
-  it('one folder query, then the PDFs of the folders under the books', async () => {
+  it('level by level from the book folders, folders and PDFs in one query', async () => {
     const d = sahteDrive();
     const a = await agacKur({ loc, books, library }, d.getir);
-    expect(a.sure.yontem).toBe('tekSorgu');
-    expect(a.sure.istek).toBe(2);   // folders + 1 group of PDFs
-    expect(a.dosyalar).toHaveLength(dosyalar.filter(f => f.mimeType === 'application/pdf').length - 1);
-  });
-
-  it('more than 3 pages of folders: BFS from the root', async () => {
-    const d = sahteDrive(4);
-    const a = await agacKur({ loc, books, library }, d.getir);
-    expect(a.sure.yontem).toBe('bfs');
-    expect(d.istekler.filter(u => new URLSearchParams(u.slice(6)).get('q')!.startsWith('mimeType')).length).toBe(3);
-    expect(cikar().dosyalar.map(f => [f.id, f.materyal])).toEqual(a.dosyalar.map(f => [f.id, f.materyal]));
+    // books → Unite / notlar → topics → Uebungen, oedevler, Eski → nothing more
+    expect(a.sure.istek).toBe(4);
+    expect(a.sure.katmanlar.map(k => [k.klasor, k.pdf])).toEqual([[2, 3], [2, 1], [3, 3], [0, 4]]);
+    expect(d.sorgular[0]).toContain(`'${mathe}' in parents`);
+    expect(d.sorgular[0]).toContain(`(mimeType = '${FOLDER_MIME}' or mimeType = 'application/pdf')`);
+    expect(d.sorgular.some(q => q.includes(`'${ROOT}'`) || q.includes(`'${kitaplarK}'`))).toBe(false);
+    expect(a.sure.klasor).toBe(10);   // 3 books + 2 + 2 + 3
+    const ozet = (l: typeof a.dosyalar) => l.map(f => `${f.id}:${f.materyal}:${f.konu?.baslik}`).sort();
+    expect(ozet(a.dosyalar)).toEqual(ozet(cikar().dosyalar));
   });
 });
 
