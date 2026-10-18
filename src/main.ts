@@ -13,7 +13,7 @@ import type { ModeKey } from './model/types';
 import { usesUnits } from './model/units';
 import { markOpened, setReadingSink } from './okuma/okumaDurumu';
 import { sampleBookFolder } from './okuma/ornekKaynak';
-import { closeOkuyucu, forgetBook, initOkuyucu, openOkuyucu, sayfaEklemeOrtami } from './okuma/Okuyucu';
+import { closeOkuyucu, forgetBook, fotoYuklemeSuruyor, initOkuyucu, openOkuyucu, sayfaEklemeOrtami } from './okuma/Okuyucu';
 import { createRoomScene, type LibraryData, type RoomScene, type View } from './scene';
 import { canvas, drawWood, noise } from './scene/textures';
 import { updateHint } from './ui/hint';
@@ -86,6 +86,10 @@ if (import.meta.env.DEV) void import('./defter/bekleyenFotoDene').then(m => m.in
 // dev only (task 5.8b): ?kirpTest=1 compares two page-cropping methods on real photos; writes nothing
 if (import.meta.env.DEV && new URLSearchParams(location.search).get('kirpTest') === '1') {
   import('./defter/kirp/kirpTest').then(m => m.acKirpTest()).catch(e => toast(`Kırpma testi açılamadı: ${e}`));
+}
+// dev only (task 6.2a): ?filtreTest=1 shows document filters A–D side by side on real photos; writes nothing
+if (import.meta.env.DEV && new URLSearchParams(location.search).get('filtreTest') === '1') {
+  import('./defter/filtre/filtreTest').then(m => m.acFiltreTest()).catch(e => toast(`Filtre testi açılamadı: ${e}`));
 }
 
 function olay(o: KitaplikOlayi): void {
@@ -218,7 +222,8 @@ async function useSample(): Promise<void> {
 initNotFound({ onRetry: retryDrive, onSample: () => void useSample() });
 initLibError({ onRetry: retryDrive, onSample: () => void useSample() });
 initSaveState();
-addEventListener('beforeunload', e => { if (saver?.hasUnsaved) e.preventDefault(); });
+// task 6.2e-2: photos still uploading too (they stay on the device either way)
+addEventListener('beforeunload', e => { if (saver?.hasUnsaved || fotoYuklemeSuruyor()) e.preventDefault(); });
 // tab hidden / page closed: write the reading state now (keepalive: may finish after the page is gone)
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') void reading?.flush(true); });
 addEventListener('pagehide', () => { void reading?.flush(true); });

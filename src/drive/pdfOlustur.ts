@@ -148,22 +148,53 @@ function pdfMi(ad: string, bytes: Uint8Array): void {
   if (head !== '%PDF-') throw new PdfDegil('içerik bir PDF değil');
 }
 
+// Task 6.2e-2: folders whose place was checked this session (<kitap> and the folders under it) → their
+// book folder. A reload forgets; a book no longer in the library makes its entries count for nothing.
+const yerBellegi = new Map<string, string>();
+export function yerBelleginiSifirla(): void { yerBellegi.clear(); }
+
+const kitapVar = (yer: DriveLocation, kitapId: string) => [...yer.bookFolderIds.values()].includes(kitapId);
+
+// Was this folder's place (inside kitaplar/<kitap>/) checked this session?
+export function yerBellekte(yer: DriveLocation, klasorId: string): boolean {
+  return yerBellegiDurumu(yer, klasorId) === 'var';
+}
+
+// The same, with the reason of a miss (?olcum=1 shows it): empty memory (a reload?), the folder not in it,
+// its book no longer in the library
+export function yerBellegiDurumu(yer: DriveLocation, klasorId: string): 'var' | 'bos' | 'klasorYok' | 'kitapYok' {
+  if (!yerBellegi.size) return 'bos';
+  const kitap = yerBellegi.get(klasorId);
+  if (kitap === undefined) return 'klasorYok';
+  return kitapVar(yer, kitap) ? 'var' : 'kitapYok';
+}
+
+export const yerBellegiBoyutu = (): number => yerBellegi.size;
+
 // parentId must be <kitap> or one of its subfolders: … → <kitap> → kitaplar → Kitaplık (rootId).
-// Returns the target folder (for its capabilities).
+// Returns the target folder (for its capabilities). The target is always read; going up stops at a folder
+// checked before (yerBellegi).
 export async function yerKontrol(drive: PdfOlusturDrive, yer: DriveLocation, parentId: string): Promise<KlasorBilgisi> {
   const zincir: KlasorBilgisi[] = [];
   let id = parentId;
+  let bilinenKitap: string | null = null;
   for (let i = 0; i < MAX_DERINLIK; i++) {
     if (id === yer.rootId) break;
+    if (zincir.length && yerBellekte(yer, id)) { bilinenKitap = yerBellegi.get(id)!; break; }
     const k = await drive.klasorBilgisi(id);
     if (k.mimeType !== FOLDER_MIME || k.trashed || k.parents.length !== 1) throw new YerDisi();
     zincir.push(k);
     id = k.parents[0];
   }
+  if (bilinenKitap !== null) {
+    for (const k of zincir) yerBellegi.set(k.id, bilinenKitap);
+    return zincir[0];
+  }
   if (id !== yer.rootId || zincir.length < 2) throw new YerDisi();
   const kitaplar = zincir[zincir.length - 1];
   const kitap = zincir[zincir.length - 2];
-  if (kitaplar.name !== 'kitaplar' || ![...yer.bookFolderIds.values()].includes(kitap.id)) throw new YerDisi();
+  if (kitaplar.name !== 'kitaplar' || !kitapVar(yer, kitap.id)) throw new YerDisi();
+  for (const k of zincir.slice(0, -1)) yerBellegi.set(k.id, kitap.id);   // not kitaplar itself
   return zincir[0];
 }
 

@@ -6,7 +6,7 @@ import {
   cevirTuru, copeAtGecici, GOOGLE_DOC, GOOGLE_SLIDES, OfisCevrilemedi, OfisCokBuyuk, OfisDesteklenmiyor, OfisGeciciDegil,
   OfisIptal, OfisYuklenemedi, ofisuPdfeCevir, supurGecici, SUPURME_YASI_MS, type OfisGirdi, type OfisSecenek
 } from './ofisCevir';
-import { DosyaYazmaYok, YerDisi } from './pdfOlustur';
+import { DosyaYazmaYok, YerDisi, yerBelleginiSifirla } from './pdfOlustur';
 import { RESUMABLE_LIMIT } from './pdfYazici';
 
 vi.mock('./drive', async importOriginal => ({
@@ -116,7 +116,7 @@ const yazmalar = () => calls().filter(c => !c.startsWith('GET'));
 const neverDeletes = () => expect(calls().some(c => c.startsWith('DELETE') || /emptyTrash/.test(c))).toBe(false);
 const geciciler = (items: Map<string, Item>) => [...items].filter(([, it]) => it.appProperties?.defterGecici === '1');
 
-beforeEach(() => { fetchMock.mockReset(); vi.spyOn(console, 'warn').mockImplementation(() => {}); });
+beforeEach(() => { fetchMock.mockReset(); yerBelleginiSifirla(); vi.spyOn(console, 'warn').mockImplementation(() => {}); });
 afterEach(() => { neverDeletes(); vi.restoreAllMocks(); });
 
 describe('cevirTuru', () => {

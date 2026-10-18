@@ -1,10 +1,10 @@
 import sharp from 'sharp';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { PDFDocument, PDFName, type PDFString } from 'pdf-lib';
 import { DriveError, FOLDER_MIME, type DriveFile } from '../drive/drive';
 import type { DriveLocation } from '../drive/driveLibrary';
-import { DosyaOlusturAgHatasi, IdZatenVar, type KlasorBilgisi, type PdfOlusturDrive, type YeniPdfMeta } from '../drive/pdfOlustur';
-import { PdfSampleNoWrite, type PdfDrive } from '../drive/pdfYazici';
+import { DosyaOlusturAgHatasi, IdZatenVar, yerBelleginiSifirla, type KlasorBilgisi, type PdfOlusturDrive, type YeniPdfMeta } from '../drive/pdfOlustur';
+import { PdfSampleNoWrite, yedekBelleginiSifirla, type PdfDrive } from '../drive/pdfYazici';
 import { HedefOzetDegil, konuyaFotografEkle, ozetKarari, OzetSecilmeli, type KonuEklemeOrtami, type KonuEklemeSecenek } from './konuyaEkle';
 import { EK_ID, SayfaYazmaYok } from './ozeteEkle';
 import { fotograflardanPdf, type Jpeg } from './sayfaEkle';
@@ -17,6 +17,7 @@ beforeAll(async () => {
     ({ bytes: new Uint8Array(await sharp({ create: { width: w, height: h, channels: 3, background: '#d8c9a3' } }).jpeg({ quality: 85 }).toBuffer()) });
   [dik, yatay] = await Promise.all([jpeg(600, 800), jpeg(800, 600)]);
 });
+beforeEach(() => { yedekBelleginiSifirla(); yerBelleginiSifirla(); });
 
 const f = (name: string, extra: Partial<DriveFile & { trashed: boolean }> = {}) =>
   ({ id: name, name, mimeType: 'application/pdf', modifiedTime: 't', ...extra });
@@ -91,7 +92,7 @@ async function fakeDrive(konu: Record<string, number> = {}) {
     async dosyaBilgisi(id) { net(); const it = get(id); return { id, modifiedTime: `${id}@${it.n}`, headRevisionId: `r${it.n}`, size: String(it.bytes!.byteLength) }; },
   };
   const drive: PdfDrive = {
-    async canEdit() { net(); return true; },
+    async durum(id) { net(); const it = get(id); return { canEdit: true, modifiedTime: `${id}@${it.n}`, headRevisionId: `r${it.n}` }; },
     async listRevisions(id) { return { revisions: [{ id: `r1`, keepForever: get(id).kept === true }] }; },
     async headRevisionId(id) { return `r${get(id).n}`; },
     async keepRevision(id) { get(id).kept = true; },

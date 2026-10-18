@@ -1,8 +1,8 @@
-import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PDFDocument, PDFName, PDFString } from 'pdf-lib';
 import { FOLDER_MIME, type DriveFile } from '../drive/drive';
 import type { DriveLocation } from '../drive/driveLibrary';
-import { AyniIsimVar, DosyaOlusturAgHatasi, DosyaYazmaYok, IdZatenVar, PdfDegil, type KlasorBilgisi, type PdfOlusturDrive, type YeniPdfMeta } from '../drive/pdfOlustur';
+import { AyniIsimVar, DosyaOlusturAgHatasi, DosyaYazmaYok, IdZatenVar, PdfDegil, yerBelleginiSifirla, type KlasorBilgisi, type PdfOlusturDrive, type YeniPdfMeta } from '../drive/pdfOlustur';
 import { PdfSampleNoWrite, RESUMABLE_LIMIT } from '../drive/pdfYazici';
 import {
   AdCozumGibi, AdGecersiz, dosyaAdiHazirla, EklemeSuruyor, HedefBulunamadi, KlasorYok, konuyaDosyaEkle, OzetZatenVar, PdfHazirlanamadi,
@@ -103,6 +103,8 @@ function fakeDrive(konu: Record<string, string> = {}) {
 
 const ekle = (d: ReturnType<typeof fakeDrive>, hedef: DosyaHedefi, ad = 'Blatt 1.pdf', extra: { konu?: string; bytes?: Uint8Array; islemId?: string } = {}) =>
   konuyaDosyaEkle({ konu: extra.konu ?? 'C', hedef, ad, bytes: extra.bytes ?? pdf, islemId: extra.islemId ?? 'is-1' }, d.ortam, HIZLI);
+
+beforeEach(() => { yerBelleginiSifirla(); });
 
 describe('dosyaAdiHazirla', () => {
   it('adds .pdf when missing (any case), trims, removes / \\ and control characters', () => {

@@ -6,6 +6,7 @@ import { classifyTopic } from '../okuma/konuKesfi';
 import { isSampleId } from '../okuma/ornekKaynak';
 import { EK_ID, ozeteSayfaEkle, SayfaYazmaYok, type SayfaEklemeOrtami, type SayfaEklemeSecenek } from './ozeteEkle';
 import { sayfalariEkle, type Jpeg } from './sayfaEkle';
+import { mb, olc, zamanliDrive } from './sureOlcum';
 
 // Task 5.7: photos for one topic, one entry point (CLAUDE.md → Faz 5 → Yeni dosya).
 // - The topic has a summary (ozet.pdf, or brifing.pdf / sorular.pdf): the pages go at its end (5.6).
@@ -93,7 +94,8 @@ export async function konuyaFotografEkle(
     return { tur: 'eklendi', fileId, ad, eskiSayfa: r.eskiSayfa, yeniSayfa: r.yeniSayfa, zatenVardi: r.zatenVardi, islemId };
   };
 
-  const { durum, dosyalar } = await ozetDurumu(konuKlasorId, id => (o.liste ?? listChildren)(id));
+  const om = secenek.olcum;   // task 6.2e-1: only with ?olcum=1
+  const { durum, dosyalar } = await olc(om, 'drive konu klasörü listesi', () => ozetDurumu(konuKlasorId, id => (o.liste ?? listChildren)(id)), { grup: 'istek' });
   if (durum === 'var') {
     const hedef = secenek.hedefFileId ? dosyalar.find(f => f.id === secenek.hedefFileId)
       : dosyalar.length === 1 ? dosyalar[0] : undefined;
@@ -103,10 +105,11 @@ export async function konuyaFotografEkle(
   }
   if (secenek.hedefFileId) throw new HedefOzetDegil();
 
-  const bytes = await isaretliYeniPdf(jpegler, islemId);
+  const bytes = await olc(om, 'pdf-lib: yeni ozet.pdf', () => isaretliYeniPdf(jpegler, islemId), { grup: 'pdf', ek: b => ({ boyut: mb(b.byteLength) }) });
   let yeni;
   try {
-    yeni = await createPdf(o.olusturDrive, o.yer, konuKlasorId, OZET_ADI, bytes, secenek);
+    const yer = o.yer;
+    yeni = await olc(om, '= createPdf (kontroller + yükleme)', () => createPdf(om ? zamanliDrive(o.olusturDrive, om) : o.olusturDrive, yer, konuKlasorId, OZET_ADI, bytes, secenek), { grup: 'toplam' });
   } catch (e) {
     // ozet.pdf appeared meanwhile (another device / our own earlier try): add to it, same islemId
     if (e instanceof AyniIsimVar) {
@@ -116,7 +119,8 @@ export async function konuyaFotografEkle(
     }
     throw e;
   }
-  try { await o.yeniDosya?.({ id: yeni.id, modifiedTime: yeni.modifiedTime, bytes }); } catch (e) { console.warn('Yeni PDF önbelleğe yazılamadı.', e); }
+  const y = yeni;
+  try { await olc(om, 'önbelleğe yaz', async () => { await o.yeniDosya?.({ id: y.id, modifiedTime: y.modifiedTime, bytes }); }, { grup: 'cihaz' }); } catch (e) { console.warn('Yeni PDF önbelleğe yazılamadı.', e); }
   o.konuDegisti?.();
   return { tur: 'yeni', fileId: yeni.id, ad: OZET_ADI, eskiSayfa: 0, yeniSayfa: jpegler.length, zatenVardi: false, islemId };
 }

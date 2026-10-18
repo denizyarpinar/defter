@@ -74,7 +74,9 @@ describe('seritDurumu / acilisToastMetni', () => {
 
 // ---- the flow, with a store in memory ----
 
-function kur(ekle: (konu: string, j: unknown, o: unknown, s: { islemId?: string; hedefFileId?: string }) => Promise<KonuyaEklendi>, kaydetHata?: unknown) {
+type Secenek = { islemId?: string; hedefFileId?: string; yukleme?: { basladi?(): void; ilerleme?(g: number, t: number): void } };
+
+function kur(ekle: (konu: string, j: unknown, o: unknown, s: Secenek) => Promise<KonuyaEklendi>, kaydetHata?: unknown) {
   const kayitlar = new Map<string, BekleyenFoto>();
   const olaylar: string[] = [];
   const depo = {
@@ -105,7 +107,7 @@ describe('FotoEkleyici', () => {
     const { e, kayitlar, olaylar } = kur(async (konu, _j, _o, s) => { cagri.push([konu, s]); expect(kayitlar.size).toBe(1); return sonuc({ islemId: s.islemId }); });
     const k = await e.baslat(girdi);
     await e.bekle();
-    expect(cagri).toEqual([['K', { islemId: k.islemId, hedefFileId: 'F' }]]);
+    expect(cagri).toEqual([['K', { islemId: k.islemId, hedefFileId: 'F', yukleme: expect.any(Object) }]]);
     expect(kayitlar.size).toBe(0);
     expect(olaylar).toEqual(['durum:2 fotoğraf ekleniyor…', 'basari:ozet.pdf\'e eklendi: 24 → 26 sayfa', 'durum:null']);
   });
@@ -155,6 +157,37 @@ describe('FotoEkleyici', () => {
     expect(sayi).toBe(2);
     expect(enCok).toBe(1);
     expect(e.calisanlar().size).toBe(0);
+  });
+
+  it('task 6.2e-2: a second adding while one uploads says "sırada"; the percent only on a change', async () => {
+    const yuklemeler: NonNullable<Secenek['yukleme']>[] = [];
+    let bitir!: () => void;
+    const ilkBitti = new Promise<void>(r => { bitir = r; });
+    const { e, olaylar } = kur(async (_k, _j, _o, s) => {
+      yuklemeler.push(s.yukleme!);
+      if (yuklemeler.length === 1) await ilkBitti;
+      return sonuc({ islemId: s.islemId });
+    });
+    await e.baslat(girdi);
+    await e.baslat({ ...girdi, jpegler: [jpeg, jpeg, jpeg] });
+    await new Promise(r => setTimeout(r, 0));
+    const y = yuklemeler[0];
+    y.basladi!();
+    y.ilerleme!(42, 100);
+    y.ilerleme!(42.7, 100);   // the same whole percent: no new text
+    y.ilerleme!(100, 100);
+    bitir();
+    await e.bekle();
+    expect(olaylar.filter(o => o.startsWith('durum:'))).toEqual([
+      'durum:2 fotoğraf ekleniyor…',
+      'durum:2 fotoğraf ekleniyor… · 3 fotoğraf sırada',
+      'durum:Fotoğraflar yükleniyor… · 3 fotoğraf sırada',
+      'durum:Fotoğraflar yükleniyor… %42 · 3 fotoğraf sırada',
+      'durum:Fotoğraflar yükleniyor… %100 · 3 fotoğraf sırada',
+      'durum:3 fotoğraf ekleniyor…',
+      'durum:null',
+    ]);
+    expect(yuklemeler).toHaveLength(2);
   });
 
   it('a record already gone: nothing is sent', async () => {

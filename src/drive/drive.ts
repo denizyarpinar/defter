@@ -33,8 +33,18 @@ async function freshToken(): Promise<string> {
 
 // path: relative to the Drive API, or a full URL (uploads).
 export async function driveFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  return authorized(path, init, (url, i) => fetch(url, i));
+}
+
+// Task 6.2e-2: the same as driveFetch, over XMLHttpRequest: its upload reports progress (fetch in Safari doesn't).
+// ilerleme: bytes of the body sent so far. A network error rejects with a TypeError, like fetch.
+export async function driveXhr(path: string, init: RequestInit = {}, ilerleme?: (gonderilen: number) => void): Promise<Response> {
+  return authorized(path, init, (url, i) => xhrFetch(url, i, ilerleme));
+}
+
+async function authorized(path: string, init: RequestInit, send: (url: string, init: RequestInit) => Promise<Response>): Promise<Response> {
   const url = path.startsWith('https://') ? path : API + path;
-  const call = (t: string) => fetch(url, { ...init, headers: { ...init.headers, Authorization: `Bearer ${t}` } });
+  const call = (t: string) => send(url, { ...init, headers: { ...init.headers, Authorization: `Bearer ${t}` } });
   // token older than ~1 hour → ask Google for a new one before the request
   let res = await call(currentToken() ?? await freshToken());
   if (res.status === 401) {
@@ -43,6 +53,29 @@ export async function driveFetch(path: string, init: RequestInit = {}): Promise<
     if (res.status === 401) { onExpired(); throw new SessionExpired(); }
   }
   return res;
+}
+
+const NULL_BODY = new Set([101, 204, 205, 304]);
+
+function xhrFetch(url: string, init: RequestInit, ilerleme?: (gonderilen: number) => void): Promise<Response> {
+  return new Promise((resolve, reject) => {
+    const x = new XMLHttpRequest();
+    x.open(init.method ?? 'GET', url);
+    new Headers(init.headers).forEach((v, k) => x.setRequestHeader(k, v));
+    x.responseType = 'blob';
+    if (ilerleme) x.upload.onprogress = e => ilerleme(e.loaded);
+    x.onload = () => {
+      const headers = new Headers();
+      for (const line of x.getAllResponseHeaders().trim().split(/[\r\n]+/)) {
+        const i = line.indexOf(':');
+        if (i > 0) headers.append(line.slice(0, i).trim(), line.slice(i + 1).trim());
+      }
+      if (x.status < 200 || x.status > 599) { reject(new TypeError(`Beklenmeyen cevap (${x.status}).`)); return; }
+      resolve(new Response(NULL_BODY.has(x.status) ? null : x.response as Blob, { status: x.status, headers }));
+    };
+    x.onerror = x.ontimeout = x.onabort = () => reject(new TypeError('Bağlantı kesildi.'));
+    x.send((init.body ?? null) as XMLHttpRequestBodyInit | null);
+  });
 }
 
 // Name and e-mail of the signed-in user (no extra permission needed).

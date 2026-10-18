@@ -14,6 +14,10 @@ export const MAX_CANVAS_PIKSEL = MAX_PIXELS;
 export const KIRP_VARSAYILAN = true;
 export const KIRP_MIN_GUVEN = 0.5;
 
+// Task 6.2c: filter E ("Renk düzelt") on notebook photos by default; each thumbnail can turn it off.
+// Its constants (E_GOLGE_GUC, E_KAZANC_MAX, E_KONTRAST) stay in filtre/filtreler.ts with the test page.
+export const RENK_DUZELT_VARSAYILAN = true;
+
 // Task 5.4: a photo's page in the PDF. A4 (pt); landscape photo → landscape A4, otherwise portrait.
 // The photo is fitted inside the margin (aspect kept) and centred.
 export const SAYFA_DUZENI = { genislik: 595.28, yukseklik: 841.89, kenar: 24 } as const;

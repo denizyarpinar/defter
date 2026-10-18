@@ -12,6 +12,7 @@ import { listeAdi, listeBilgisi, listeBoyutMetni } from '../defter/gorselListesi
 import type { DosyaEklendi, DosyaHedefi } from '../defter/konuyaDosyaEkle';
 import type { MaterialKind, TopicMaterials } from '../okuma/konuKesfi';
 import { closePdf, pdfjs } from '../okuma/pdf';
+import { hazirlikEkle, mb, olcumAcik } from '../defter/sureOlcum';
 import { gorunurAlaniDuzelt } from './gorunurAlan';
 import { panelKlavyeTakibi } from './klavyeKaydirma';
 import { toast } from './toast';
@@ -272,6 +273,7 @@ export function acDosyaPanel(b: DosyaPanelBaglam, kaynak: DosyaPanelKaynak): voi
     if (calisiyor) { ciz(); return; }
     calisiyor = true;
     ciz();
+    const t0 = olcumAcik() ? performance.now() : null;   // task 6.2e-1: the panel's whole preparing
     while (bekleyen.length && !kapandi) {
       const f = bekleyen.shift()!;
       try {
@@ -289,6 +291,7 @@ export function acDosyaPanel(b: DosyaPanelBaglam, kaynak: DosyaPanelKaynak): voi
       ciz();
     }
     calisiyor = false;
+    if (t0 !== null) hazirlikEkle({ ad: 'panel: görseller hazır', ms: performance.now() - t0, grup: 'panel', ek: { gorsel: toplam } });
     if (!kapandi) ciz();
   }
 
@@ -332,8 +335,10 @@ export function acDosyaPanel(b: DosyaPanelBaglam, kaynak: DosyaPanelKaynak): voi
   async function listePdf(): Promise<Uint8Array> {
     if (yapilanPdf?.surum !== surum) {
       const s = surum;
+      const t0 = olcumAcik() ? performance.now() : null;
       const { fotograflardanPdf } = await import('../defter/sayfaEkle');
       yapilanPdf = { surum: s, bytes: await fotograflardanPdf(gorseller.map(g => ({ bytes: g.jpeg }))) };
+      if (t0 !== null) hazirlikEkle({ ad: 'görsellerden PDF (pdf-lib)', ms: performance.now() - t0, grup: 'pdf', ek: { gorsel: gorseller.length, boyut: mb(yapilanPdf.bytes.byteLength) } });
     }
     return yapilanPdf.bytes;
   }

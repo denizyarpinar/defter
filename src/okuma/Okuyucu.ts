@@ -16,6 +16,7 @@ import { SayfaYazmaYok, type EklenenSayfalar } from '../defter/ozeteEkle';
 import { bekleyenFotoDepo } from '../defter/bekleyenFoto';
 import type { BekleyenFoto, BekleyenJpeg } from '../defter/bekleyenFotoKayit';
 import { FotoEkleyici } from '../defter/fotoEkleme';
+import { hazirlikAl, hazirlikEkle, mb, olcumAcik, olcumAl, olcumBaslat, olcumBitir } from '../defter/sureOlcum';
 import { seritDurumu } from '../defter/fotoEklemeMetin';
 import { DOSYA_ACCEPT, dosyaTuru, ILK_BAYT_SAYISI, type DosyaTuruSonucu } from '../defter/dosyaTuru';
 import type { HazirDosya } from '../defter/dosyaHazirla';
@@ -164,7 +165,7 @@ let storeWarned = false;
 // limit): the record stays on the device.
 const uploadDeps: UploadDeps = {
   drive: drivePdfApi,
-  bytes: async (id, mt) => new Uint8Array(await getPdf(id, mt)),   // same version cached → no download
+  bytes: async (id, mt, bilgi) => new Uint8Array(await getPdf(id, mt, bilgi)),   // same version cached → no download; bilgi: ?olcum=1
 };
 const uploader = new DriveUploader(uploadDeps, { record: uploadSource, done: fileUploaded, status: uploadStatus });
 let saveState: UploadStatus = { tur: 'bos' };
@@ -799,10 +800,11 @@ function openPhotoPanel(files: File[]): void {
     ornek: isSampleId(folder),
     // task 5.8f: saved on the device first (a failure rejects: the panel stays open), then to Drive
     ekle: async (jpegler: BekleyenJpeg[], hedef: DriveFile | null) => {
+      const basildi = olcumAcik() ? performance.now() : undefined;   // task 6.2e-1: "Ekle" pressed
       const b = book;
       if (!driveLocation() || !b) throw new SayfaYazmaYok();
       const konuKlasorId = await topicFolderId(t);
-      await photoAdder.baslat({ kitapAdi: b.id, konuKlasorId, konuBaslik: t.title, hedefFileId: hedef?.id, hedefAd: hedef?.name ?? OZET_ADI, jpegler });
+      await photoAdder.baslat({ kitapAdi: b.id, konuKlasorId, konuBaslik: t.title, hedefFileId: hedef?.id, hedefAd: hedef?.name ?? OZET_ADI, jpegler }, basildi);
     }
   };
   import('../ui/fotoPanel').then(m => m.acFotoPanel(ctx, files)).catch(e => { console.warn(e); toast('Fotoğraf paneli açılamadı. Sayfayı yenileyip tekrar dene.'); });
@@ -855,9 +857,11 @@ async function prepareFile(file: File, tur: DosyaTuruSonucu): Promise<void> {
   photoBox.durum('Dosya hazırlanıyor…');
   let hazir: HazirDosya;
   try {
+    const t0 = olcumAcik() ? performance.now() : null;   // task 6.2e-1
     const m = await import('../defter/dosyaHazirla');
     try {
       hazir = await m.dosyaHazirla(file);
+      if (t0 !== null) hazirlikEkle({ ad: `dosya hazırla ${file.name}`, ms: performance.now() - t0, grup: 'hazirlik', ek: { giris: mb(file.size), cikis: mb(hazir.bytes.byteLength), tur: hazir.kaynak } });
     } catch (e) {
       if (e instanceof m.DosyaHazirlanamadi) { toast(e.message); return; }
       throw e;
@@ -895,9 +899,17 @@ function openFilePanel(t: OpenTopic, kaynak: DosyaPanelKaynak): void {
       }
     },
     ekle: async (hedef: DosyaHedefi, ad: string, islemId: string, bytes: Uint8Array) => {
-      const [{ konuyaDosyaEkle }, konu] = await Promise.all([import('../defter/konuyaDosyaEkle'), topicFolderId(t)]);
-      return konuyaDosyaEkle({ konu, hedef, ad, bytes, islemId },
-        { yer: driveLocation(), olusturDrive: drivePdfOlusturApi, yeniDosya: sayfaEklemeOrtami().yeniDosya, konuDegisti: sayfaEklemeOrtami().konuDegisti });
+      // task 6.2e-1: ?olcum=1 → measured until the toast (afterFileAdded)
+      const om = olcumAcik() ? olcumBaslat(islemId, 'Dosya ekle') : undefined;
+      if (om) { om.bilgi.ad = ad; om.bilgi.boyut = mb(bytes.byteLength); om.adimlar.push(...hazirlikAl()); fileMeasureId = islemId; }
+      try {
+        const [{ konuyaDosyaEkle }, konu] = await Promise.all([import('../defter/konuyaDosyaEkle'), topicFolderId(t)]);
+        const ortam = { yer: driveLocation(), olusturDrive: drivePdfOlusturApi, yeniDosya: sayfaEklemeOrtami().yeniDosya, konuDegisti: sayfaEklemeOrtami().konuDegisti };
+        return await (om ? konuyaDosyaEkle({ konu, hedef, ad, bytes, islemId }, ortam, { olcum: om }) : konuyaDosyaEkle({ konu, hedef, ad, bytes, islemId }, ortam));
+      } catch (e) {
+        if (om) { om.bilgi.hata = e instanceof Error ? e.message.slice(0, 80) : 'hata'; olcumBitir(islemId); }
+        throw e;
+      }
     },
     bitti: (r: DosyaEklendi, hedef: DosyaHedefi) => { void afterFileAdded(t, hedef, r); },
     // task 6.1c: the temporary Google file goes into the topic folder; a new islemId for every try
@@ -913,6 +925,8 @@ function openFilePanel(t: OpenTopic, kaynak: DosyaPanelKaynak): void {
 
 // Task 6.1c: closing the reader cancels a conversion in the file panel (and closes it)
 let filePanelClose: AbortController | null = null;
+// Task 6.2e-1: the measured "Dosya ekle" (?olcum=1), ended at its toast
+let fileMeasureId: string | null = null;
 
 // Task 5.8f: adding the photos (fotoEkleme.ts) with the pen's queue and caches (sayfaEklemeOrtami).
 // The result is a toast; an error a card under the material bar (or a toast when the reader is closed).
@@ -928,6 +942,9 @@ const photoAdder = new FotoEkleyici({
     },
   },
 });
+
+// Task 6.2e-2: photos still going to Drive (main.ts: the beforeunload warning)
+export const fotoYuklemeSuruyor = (): boolean => photoAdder.calisanlar().size > 0;
 
 // The open topic's folder id (the resolver has it from opening the topic: no request)
 async function topicFolderId(t: OpenTopic): Promise<string> {
@@ -986,6 +1003,7 @@ async function afterAdding(k: BekleyenFoto, metin: string, r: KonuyaEklendi): Pr
     if (e instanceof SessionExpired) return;
     console.warn('Okuyucu yeni sayfalarla yenilenemedi; konuyu kapatıp açınca görünür.', e);
   });
+  measureToast(k.islemId, ready);
   const g = karar.goster;
   if (!g) { toast(metin); return; }
   const go = () => { void ready.then(() => showAdded(t!, g)); };
@@ -1103,14 +1121,27 @@ async function afterFileAdded(t: OpenTopic, hedef: DosyaHedefi, r: DosyaEklendi)
   try { metin = (await import('../defter/dosyaPanelDurumu')).eklendiMetni(r.ad, r.uyari); } catch (e) { console.warn(e); }
   const e = eklenenMateryal(hedef, r, t.materials);
   const karar = dosyaEklemeKarari(e, { acik: open, ayniKonu: topic === t });
-  if (!karar.yenile) { toast(metin); return; }
+  const olcumId = fileMeasureId;
+  fileMeasureId = null;
+  if (!karar.yenile) { if (olcumId) measureToast(olcumId, Promise.resolve()); toast(metin); return; }
   const ready = refreshTopic(t).catch(err => {
     if (err instanceof SessionExpired) return;
     console.warn('Okuyucu yeni dosyayla yenilenemedi; konuyu kapatıp açınca görünür.', err);
   });
+  if (olcumId) measureToast(olcumId, ready);
   if (!karar.goster) { toast(metin); return; }
   const go = () => { void ready.then(() => showAddedFile(t, e)); };
   if (GOSTER_OTOMATIK) { toast(metin); go(); } else toast(metin, { etiket: 'Göster', calistir: go });
+}
+
+// Task 6.2e-1 (?olcum=1): the toast comes now (what the user waited for); the reader's refresh is timed
+// after it, then the measurement ends (console + the box). No measurement for this id: nothing.
+function measureToast(islemId: string, ready: Promise<void>): void {
+  const om = olcumAl(islemId);
+  if (!om) return;
+  om.isaret('toast');
+  const r0 = om.zaman();
+  void ready.then(() => { om.adim('okuyucu yenileme (toast\'tan sonra)', om.zaman() - r0, 'diger'); olcumBitir(islemId); });
 }
 
 // "Göster": the new file's tab and file (a solution: its X with "Çözümü göster" on, at the solution's first page)

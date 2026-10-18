@@ -1,10 +1,10 @@
 import sharp from 'sharp';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { PDFDict, PDFDocument, PDFName, PDFString, type PDFPage } from 'pdf-lib';
 import { DriveError, FOLDER_MIME } from '../drive/drive';
 import type { DriveLocation } from '../drive/driveLibrary';
-import { YerDisi, type KlasorBilgisi } from '../drive/pdfOlustur';
-import { PdfReadOnly, PdfSampleNoWrite, type PdfDrive, type Revision } from '../drive/pdfYazici';
+import { YerDisi, yerBelleginiSifirla, type KlasorBilgisi } from '../drive/pdfOlustur';
+import { PdfReadOnly, PdfSampleNoWrite, yedekBelleginiSifirla, type PdfDrive, type Revision } from '../drive/pdfYazici';
 import type { PendingRecord } from '../kalem/bekleyenFark';
 import type { Stroke } from '../kalem/cizgi';
 import { DriveUploader, uploadRecord } from '../kalem/pdfKayit';
@@ -70,9 +70,21 @@ function fakeDrive(start: Uint8Array) {
   const mt = () => `t${file.n}`;
   const net = () => { if (file.offline > 0) { file.offline--; throw new TypeError('Failed to fetch'); } };
   const yeniSurum = (bytes: Uint8Array) => { file.bytes = bytes; file.n++; revisions.push({ id: `r${file.n}` }); };
-  let okuma = 0;
+  let okundu = false;   // the first durum after a modifiedTime read is uploadPdf's check of the round
   const drive: PdfDrive = {
-    async canEdit() { log.push('canEdit'); return file.canEdit; },
+    async durum() {
+      net();
+      if (file.yok) throw new DriveError(404, 'test');
+      log.push('durum');
+      // another device writes right before uploadPdf's check
+      if (okundu && file.cakisma > 0) {
+        file.cakisma--;
+        const eski = (await readDefterStrokes(file.bytes)).get(2) ?? [];
+        yeniSurum(await writeDefterStrokes(file.bytes, new Map([[2, [...eski, stroke(`baska${file.n}`)]]])));
+      }
+      okundu = false;
+      return { canEdit: file.canEdit, modifiedTime: mt(), headRevisionId: `r${file.n}` };
+    },
     async listRevisions() { return { revisions: revisions.map(r => ({ ...r })) }; },
     async headRevisionId() { return `r${file.n}`; },
     async keepRevision(_id, rev) { log.push(`keep:${rev}`); revisions.find(r => r.id === rev)!.keepForever = true; },
@@ -80,12 +92,7 @@ function fakeDrive(start: Uint8Array) {
       net();
       if (file.yok) throw new DriveError(404, 'test');
       log.push('modifiedTime');
-      // the second read of a round is uploadPdf's check: another device writes right before it
-      if (++okuma % 2 === 0 && file.cakisma > 0) {
-        file.cakisma--;
-        const eski = (await readDefterStrokes(file.bytes)).get(2) ?? [];
-        yeniSurum(await writeDefterStrokes(file.bytes, new Map([[2, [...eski, stroke(`baska${file.n}`)]]])));
-      }
+      okundu = true;
       return mt();
     },
     async uploadMedia(id, bytes) {
@@ -117,6 +124,8 @@ function fakeDrive(start: Uint8Array) {
 }
 
 const HIZLI: SayfaEklemeSecenek = { bekleMs: 0 };
+
+beforeEach(() => { yedekBelleginiSifirla(); yerBelleginiSifirla(); });
 
 describe('ozeteSayfaEkle', () => {
   it('pages +N at the end; old pages, Defter strokes and the other note stay the same', async () => {
@@ -190,6 +199,24 @@ describe('ozeteSayfaEkle', () => {
     expect(d.log.filter(l => l.startsWith('keep'))).toEqual(['keep:r1']);
     expect(d.revisions.filter(r => r.keepForever).map(r => r.id)).toEqual(['r1']);
     expect(await sayfaSayisi(d.file.bytes)).toBe(5);
+  });
+
+  it('task 6.2e-2: the second adding asks Drive less (place remembered, one check before the upload)', async () => {
+    const d = fakeDrive(baslangic);
+    const istekler = () => d.log.filter(l => !l.startsWith('bytes') && l !== 'upload');
+    await ozeteSayfaEkle('P', [dik], d.ortam, HIZLI);
+    expect(istekler()).toEqual(['bilgi:P', 'bilgi:C', 'bilgi:B', 'bilgi:K', 'modifiedTime', 'durum', 'keep:r1', 'durum']);
+    d.log.length = 0;
+    await ozeteSayfaEkle('P', [yatay], d.ortam, HIZLI);
+    expect(istekler()).toEqual(['bilgi:P', 'modifiedTime', 'durum']);
+    expect(await sayfaSayisi(d.file.bytes)).toBe(5);
+  });
+
+  it('task 6.2e-2: the upload\'s listener hears the start (basladi)', async () => {
+    const d = fakeDrive(baslangic);
+    const olay: string[] = [];
+    await ozeteSayfaEkle('P', [dik], d.ortam, { ...HIZLI, yukleme: { basladi: () => olay.push(`basladi:${d.log.at(-1)}`) } });
+    expect(olay).toEqual(['basladi:durum']);
   });
 
   it('Drive library not open / sample file: no request at all', async () => {

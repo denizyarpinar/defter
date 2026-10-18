@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  acilistaDuzelt, BekleyenFotoHatasi, depoHatasi, GecisHatasi, IDB_YOK, kayitBoyutu, SON_HATA_UZUNLUK,
+  acilistaDuzelt, BekleyenFotoHatasi, depoHatasi, GecisHatasi, IDB_YOK, kayitBoyutu, renkDuzeltildi, SON_HATA_UZUNLUK,
   toplamBoyut, yeniKayit, yuklemeBasla, yuklemeHata, type YeniKayitGirdisi,
 } from './bekleyenFotoKayit';
 
@@ -96,5 +96,24 @@ describe('depoHatasi', () => {
     expect(d.tur).toBe('diger');
     expect(d).toBeInstanceOf(BekleyenFotoHatasi);
     expect(depoHatasi(kota)).toBe(kota);
+  });
+});
+
+describe('renkDuzelt (6.2c)', () => {
+  it('yeniKayit keeps the note per photo; the bytes are copied unchanged', () => {
+    const k = yeniKayit(girdi({ jpegler: [
+      { bytes: new Uint8Array([1, 2, 3]), width: 30, height: 40, renkDuzelt: true },
+      { bytes: new Uint8Array([4, 5]), width: 40, height: 30, renkDuzelt: false },
+    ] }), T0, 'is-r');
+    expect(k.jpegler.map(j => j.renkDuzelt)).toEqual([true, false]);
+    expect(k.jpegler.map(j => [...j.bytes])).toEqual([[1, 2, 3], [4, 5]]);
+    expect(k.jpegler.map(renkDuzeltildi)).toEqual([true, false]);
+  });
+
+  it('a record from before 6.2c (no field): not filtered, and no field is added', () => {
+    const k = yeniKayit(girdi(), T0, 'is-eski');
+    expect(k.jpegler.every(j => !('renkDuzelt' in j))).toBe(true);
+    expect(k.jpegler.map(renkDuzeltildi)).toEqual([false, false]);
+    expect(renkDuzeltildi(acilistaDuzelt({ ...k, durum: 'yukleniyor' }).jpegler[0])).toBe(false);
   });
 });

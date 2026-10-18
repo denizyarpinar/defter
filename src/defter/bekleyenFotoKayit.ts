@@ -6,7 +6,11 @@ import type { HazirGorsel } from './gorsel';
 // Status: bekliyor → yukleniyor → (success: the record is removed) | hata → yukleniyor → ...
 // A record still 'yukleniyor' when the app opens again was cut off: it counts as 'bekliyor'.
 
-export type BekleyenJpeg = Pick<HazirGorsel, 'bytes' | 'width' | 'height'>;
+// Task 6.2c: renkDuzelt = filter E is already in these bytes (only a note: an upload never filters
+// again, so "Tekrar dene" gives the same pages). Records from before 6.2c have no field: not filtered.
+export type BekleyenJpeg = Pick<HazirGorsel, 'bytes' | 'width' | 'height'> & { renkDuzelt?: boolean };
+
+export const renkDuzeltildi = (j: BekleyenJpeg): boolean => j.renkDuzelt === true;
 export type BekleyenDurum = 'bekliyor' | 'yukleniyor' | 'hata';
 
 export interface BekleyenFoto {
@@ -30,7 +34,11 @@ export type YeniKayitGirdisi = Pick<BekleyenFoto, 'kitapAdi' | 'konuKlasorId' | 
 export const SON_HATA_UZUNLUK = 200;
 
 // Own copy of each JPEG: a view into a larger buffer would store the whole buffer
-const kopya = (j: BekleyenJpeg): BekleyenJpeg => ({ bytes: j.bytes.slice(), width: j.width, height: j.height });
+const kopya = (j: BekleyenJpeg): BekleyenJpeg => {
+  const k: BekleyenJpeg = { bytes: j.bytes.slice(), width: j.width, height: j.height };
+  if (j.renkDuzelt !== undefined) k.renkDuzelt = j.renkDuzelt;
+  return k;
+};
 
 export function yeniKayit(g: YeniKayitGirdisi, simdi: string, islemId: string = crypto.randomUUID()): BekleyenFoto {
   if (g.jpegler.length === 0) throw new Error('Bekleyen kayıtta fotoğraf yok.');

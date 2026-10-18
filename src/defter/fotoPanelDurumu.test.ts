@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { FOLDER_MIME, type DriveFile } from '../drive/drive';
-import { boyutYazi, cikar, ekleDurumu, hedefHesapla, tasi, type HedefGirdi } from './fotoPanelDurumu';
+import { boyutYazi, cikar, ekleDurumu, hedefHesapla, renkEtiketi, tasi, type HedefGirdi } from './fotoPanelDurumu';
 
 // Task 5.8a: the "Fotoğraf ekle" panel's pure part.
 
@@ -111,5 +111,12 @@ describe('boyutYazi', () => {
     expect(boyutYazi(412 * 1024)).toBe('412 KB');
     expect(boyutYazi(10)).toBe('1 KB');
     expect(boyutYazi(1.25 * 1024 * 1024)).toBe('1,3 MB');
+  });
+});
+
+describe('renkEtiketi (6.2c)', () => {
+  it('says the state and what a tap does', () => {
+    expect(renkEtiketi(true, 3)).toBe('3. fotoğraf: renk düzeltiliyor – kapat');
+    expect(renkEtiketi(false, 1)).toBe('1. fotoğraf: renk düzeltme kapalı – aç');
   });
 });
