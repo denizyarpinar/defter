@@ -6,6 +6,7 @@ import { PdfYazilamaz, SAVE_OPTIONS, yazilabilirAc } from '../kalem/pdfNotlari';
 import { isSampleId } from '../okuma/ornekKaynak';
 import { dosyaTuru, ILK_BAYT_SAYISI } from './dosyaTuru';
 import { ozetKarari } from './konuyaEkle';
+import { mb, olc, zamanliDrive, type Olcum } from './sureOlcum';
 
 // Task 5.10c: "Dosya ekle" without UI: a ready PDF into the right place of one topic (CLAUDE.md → Faz 5 → Yeni dosya).
 // - orijinal → orijinal.pdf in the topic folder; ozet → ozet.pdf there (only if the topic has no summary at all)
@@ -145,8 +146,11 @@ export interface DosyaEklendi {
   uyari?: 'kalemYazamaz';
 }
 
+// secenek.olcum: task 6.2e-1, only with ?olcum=1 (each step and Drive request timed); never passed to createPdf
+export type DosyaEkleSecenek = Omit<CreatePdfSecenek, 'defterIslem'> & { olcum?: Olcum };
+
 export async function konuyaDosyaEkle(
-  istek: DosyaEkleIstek, o: DosyaEklemeOrtami, secenek: Omit<CreatePdfSecenek, 'defterIslem'> = {}
+  istek: DosyaEkleIstek, o: DosyaEklemeOrtami, secenek: DosyaEkleSecenek = {}
 ): Promise<DosyaEklendi> {
   const { konu, hedef } = istek;
   // checks without any request
@@ -181,11 +185,12 @@ export function kilitAnahtari(konu: string, hedef: DosyaHedefi, altAd: string): 
 }
 
 async function ekle(
-  istek: DosyaEkleIstek, o: DosyaEklemeOrtami & { yer: DriveLocation }, secenek: Omit<CreatePdfSecenek, 'defterIslem'>, altAd: string
+  istek: DosyaEkleIstek, o: DosyaEklemeOrtami & { yer: DriveLocation }, tumSecenek: DosyaEkleSecenek, altAd: string
 ): Promise<DosyaEklendi> {
+  const { olcum: om, ...secenek } = tumSecenek;
   const { konu, hedef, islemId } = istek;
-  const liste = (id: string) => (o.liste ?? listChildren)(id);
-  const hazir = await pdfHazirla(istek.ad, istek.bytes);
+  const liste = (id: string) => olc(om, 'drive klasör listesi', () => (o.liste ?? listChildren)(id), { grup: 'istek' });
+  const hazir = await olc(om, 'pdfHazirla (PDF kontrolü)', () => pdfHazirla(istek.ad, istek.bytes), { grup: 'pdf', ek: h => ({ boyut: mb(h.bytes.byteLength) }) });
 
   const kok = await liste(konu);
   let parentId: string, ad: string;
@@ -209,7 +214,8 @@ async function ekle(
 
   let yeni;
   try {
-    yeni = await createPdf(o.olusturDrive, o.yer, parentId, ad, hazir.bytes, { ...secenek, defterIslem: islemId });
+    const drive = om ? zamanliDrive(o.olusturDrive, om) : o.olusturDrive;
+    yeni = await olc(om, '= createPdf (kontroller + yükleme)', () => createPdf(drive, o.yer, parentId, ad, hazir.bytes, { ...secenek, defterIslem: islemId }), { grup: 'toplam' });
   } catch (e) {
     // the same name: our own earlier try (answer lost) → done; anybody else's file → the error
     if (e instanceof AyniIsimVar && await bizimMi(o.olusturDrive, e.mevcutId, islemId, hazir.bytes)) {
@@ -217,7 +223,8 @@ async function ekle(
     }
     throw e;
   }
-  try { await o.yeniDosya?.({ id: yeni.id, modifiedTime: yeni.modifiedTime, bytes: hazir.bytes }); } catch (e) { console.warn('Yeni PDF önbelleğe yazılamadı.', e); }
+  const y = yeni;
+  try { await olc(om, 'önbelleğe yaz', async () => { await o.yeniDosya?.({ id: y.id, modifiedTime: y.modifiedTime, bytes: hazir.bytes }); }, { grup: 'cihaz' }); } catch (e) { console.warn('Yeni PDF önbelleğe yazılamadı.', e); }
   o.konuDegisti?.();
   return { kind: 'yeni', fileId: yeni.id, ad, bytes: hazir.bytes, ...(hazir.uyari && { uyari: hazir.uyari }) };
 }

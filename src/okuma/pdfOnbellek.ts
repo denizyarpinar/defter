@@ -1,5 +1,6 @@
 import { driveFetch, ok } from '../drive/drive';
 import { fetchSample, isSampleId } from './ornekKaynak';
+import type { PdfKaynakBilgisi } from '../defter/sureOlcum';
 
 // Downloaded PDFs are kept in IndexedDB (see CLAUDE.md → Faz 3 → PDF).
 // Key = file id + modifiedTime: when the file changes in Drive, the new version is downloaded.
@@ -102,14 +103,16 @@ async function download(id: string): Promise<ArrayBuffer> {
 
 // The PDF's bytes: from the cache, or downloaded from Drive (and then cached).
 // Sample library (task 3.6): straight from public/, never from Drive or the cache.
-export async function getPdf(id: string, modifiedTime: string): Promise<ArrayBuffer> {
-  if (isSampleId(id)) return fetchSample(id);
+// bilgi (task 6.2e-1, ?olcum=1): where the bytes came from is written into it
+export async function getPdf(id: string, modifiedTime: string, bilgi?: PdfKaynakBilgisi): Promise<ArrayBuffer> {
+  if (isSampleId(id)) { if (bilgi) bilgi.kaynak = 'ornek'; return fetchSample(id); }
   try {
     const cached = await readCached(id, modifiedTime);
-    if (cached) return cached;
+    if (cached) { if (bilgi) bilgi.kaynak = 'onbellek'; return cached; }
   } catch (e) {
     console.warn('PDF önbelleği okunamadı, Drive\'dan indiriliyor.', e);
   }
+  if (bilgi) bilgi.kaynak = 'indirme';
   const data = await download(id);
   try {
     await writeCached(id, modifiedTime, data);

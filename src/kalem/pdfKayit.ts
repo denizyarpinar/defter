@@ -4,6 +4,7 @@ import { isSampleId } from '../okuma/ornekKaynak';
 import { applyDiff, isEmptyDiff, touchedPages, type PenDiff, type PendingRecord, type RemovedStroke } from './bekleyenFark';
 import type { PageStrokes } from './cizgi';
 import { PdfYazilamaz, readDefterStrokes, writeDefterStrokes } from './pdfNotlari';
+import type { PdfKaynakBilgisi } from '../defter/sureOlcum';
 
 // Task 4.8b: the pending strokes go into the PDF on Drive. One file at a time, files one after another.
 // For each file (uploadRecord):
@@ -21,7 +22,7 @@ export const RETRY_MS = 60_000;   // offline / Drive busy: try again every 60 s 
 
 export interface UploadDeps {
   drive: PdfDrive;
-  bytes(fileId: string, modifiedTime: string): Promise<Uint8Array>;
+  bytes(fileId: string, modifiedTime: string, bilgi?: PdfKaynakBilgisi): Promise<Uint8Array>;   // bilgi: task 6.2e-1
   read?(bytes: Uint8Array): Promise<PageStrokes>;
   write?(bytes: Uint8Array, pages: PageStrokes): Promise<Uint8Array>;
 }

@@ -5,6 +5,7 @@ import type { Kose4 } from './kirp/kirpHesap';
 import { ilkKarar, kirpPenceresi, type KirpKarari, type KirpKip } from './kirp/kirpKarar';
 import { koseB } from './kirp/koseB';
 import { duzelt } from './kirp/perspektif';
+import { hazirlikEkle, kb, olcumAcik, sure, zamanla, zamanlaA, type Ek } from './sureOlcum';
 
 // Task 5.3: a photo (File) → smaller JPEG for a PDF page. Nothing is written anywhere.
 // Decoding: createImageBitmap with the EXIF orientation applied; if that fails, an <img>
@@ -45,12 +46,24 @@ async function coz(file: File): Promise<Kaynak> {
 
 export async function hazirlaGorsel(file: File): Promise<HazirGorsel> {
   if (file.size === 0) throw new GorselHatasi('bos');
-  const src = await coz(file);
+  const z = zamanOlc(), t0 = z ? performance.now() : 0;
+  const src = await zamanlaA(z, 'okuma+çözme', () => coz(file));
   try {
-    return (await tumunuHazirla(src, file)).gorsel;   // "Dosya ekle" too: never filtered
+    const g = (await tumunuHazirla(src, file, false, z)).gorsel;   // "Dosya ekle" too: never filtered
+    if (z) hazirlikYaz(file, z, t0, g, { kip: 'tumu' });
+    return g;
   } finally {
     src.close();
   }
+}
+
+// Task 6.2e-1: ?olcum=1 → the steps of one photo (null: no measuring, the code runs as before)
+const zamanOlc = (): Record<string, number> | null => olcumAcik() ? {} : null;
+
+function hazirlikYaz(file: File, z: Record<string, number>, t0: number, g: HazirGorsel, ek: Ek): void {
+  const adimlar = Object.fromEntries(Object.entries(z).map(([k, v]) => [k, sure(v)]));
+  hazirlikEkle({ ad: `foto ${file.name}`, ms: performance.now() - t0, grup: 'hazirlik',
+    ek: { ...adimlar, kaynak: `${g.eskiWidth}×${g.eskiHeight}`, sayfa: `${g.width}×${g.height}`, jpeg: kb(g.yeniBoyut), dosya: kb(file.size), ...ek } });
 }
 
 // Task 6.2c: filter E on the finished page, just before the JPEG step. Its buffers are local and go
@@ -71,13 +84,13 @@ function renkDuzeltTuvale(canvas: HTMLCanvasElement): boolean {
 
 interface Hazir { gorsel: HazirGorsel; renkDuzelt: boolean }
 
-async function jpegHazirla(canvas: HTMLCanvasElement, src: Kaynak, file: File, renk: boolean): Promise<Hazir> {
-  const renkDuzelt = renk && renkDuzeltTuvale(canvas);
-  return { gorsel: await jpegBilgisi(canvas, src, file), renkDuzelt };
+async function jpegHazirla(canvas: HTMLCanvasElement, src: Kaynak, file: File, renk: boolean, z?: Record<string, number> | null): Promise<Hazir> {
+  const renkDuzelt = renk && zamanla(z, 'renk düzelt', () => renkDuzeltTuvale(canvas));
+  return { gorsel: await zamanlaA(z, 'JPEG', () => jpegBilgisi(canvas, src, file)), renkDuzelt };
 }
 
 // The whole photo, shrunk to MAX_KENAR (what hazirlaGorsel has always done).
-async function tumunuHazirla(src: Kaynak, file: File, renk = false): Promise<Hazir> {
+async function tumunuHazirla(src: Kaynak, file: File, renk = false, z?: Record<string, number> | null): Promise<Hazir> {
   const canvas = document.createElement('canvas');
   try {
     if (!(src.width > 0 && src.height > 0)) throw new GorselHatasi(hataTuru(file));
@@ -90,8 +103,8 @@ async function tumunuHazirla(src: Kaynak, file: File, renk = false): Promise<Haz
     ctx.imageSmoothingQuality = 'high';
     ctx.fillStyle = '#fff';   // JPEG has no transparency: a see-through PNG would turn black
     ctx.fillRect(0, 0, width, height);
-    ctx.drawImage(src.image, 0, 0, width, height);
-    return await jpegHazirla(canvas, src, file, renk);
+    zamanla(z, 'küçültme', () => ctx.drawImage(src.image, 0, 0, width, height));
+    return await jpegHazirla(canvas, src, file, renk, z);
   } finally {
     canvas.width = canvas.height = 0;
   }
@@ -105,7 +118,7 @@ async function jpegBilgisi(canvas: HTMLCanvasElement, src: Kaynak, file: File): 
 }
 
 // Task 5.8c: only the page's part of the full-resolution photo → straightened page, long edge ≤ MAX_KENAR.
-async function kirpiliHazirla(src: Kaynak, file: File, k: Kose4, renk = false): Promise<Hazir> {
+async function kirpiliHazirla(src: Kaynak, file: File, k: Kose4, renk = false, z?: Record<string, number> | null): Promise<Hazir> {
   const p = kirpPenceresi(k, src);
   const canvas = document.createElement('canvas');
   let out: HTMLCanvasElement | null = null;
@@ -118,10 +131,12 @@ async function kirpiliHazirla(src: Kaynak, file: File, k: Kose4, renk = false): 
     ctx.imageSmoothingQuality = 'high';
     ctx.fillStyle = '#fff';
     ctx.fillRect(0, 0, p.width, p.height);
-    ctx.drawImage(src.image, p.sx, p.sy, p.sw, p.sh, 0, 0, p.width, p.height);
-    out = duzelt(canvas, p.koseler, MAX_KENAR);
+    out = zamanla(z, 'kırpma+perspektif', () => {
+      ctx.drawImage(src.image, p.sx, p.sy, p.sw, p.sh, 0, 0, p.width, p.height);
+      return duzelt(canvas, p.koseler, MAX_KENAR);
+    });
     canvas.width = canvas.height = 0;   // before the filter and JPEG steps: one big canvas at a time
-    return await jpegHazirla(out, src, file, renk);
+    return await jpegHazirla(out, src, file, renk, z);
   } finally {
     canvas.width = canvas.height = 0;
     if (out) out.width = out.height = 0;
@@ -165,25 +180,30 @@ export interface KirpliGorsel extends KirpKarari { gorsel: HazirGorsel; renkDuze
 export async function hazirlaKirpli(file: File, kip: KirpKip, onceki?: KirpKarari, secenek: { renkDuzelt?: boolean } = {}): Promise<KirpliGorsel> {
   const renk = secenek.renkDuzelt === true;
   if (file.size === 0) throw new GorselHatasi('bos');
-  const src = await coz(file);
+  const z = zamanOlc(), t0 = z ? performance.now() : 0;
+  const src = await zamanlaA(z, 'okuma+çözme', () => coz(file));
+  const yaz = (r: KirpliGorsel): KirpliGorsel => {
+    if (z) hazirlikYaz(file, z, t0, r.gorsel, { kip: r.kip, renk: r.renkDuzelt, yeniden: onceki ? 'evet' : undefined });
+    return r;
+  };
   try {
     if (!(src.width > 0 && src.height > 0)) throw new GorselHatasi(hataTuru(file));
     let karar: KirpKarari;
     if (onceki) karar = { ...onceki, kip: onceki.koseler ? kip : 'tumu' };
     else {
-      karar = ilkKarar(koseB(src.image, src.width, src.height));
+      karar = ilkKarar(zamanla(z, 'koseB', () => koseB(src.image, src.width, src.height)));
       if (kip === 'tumu') karar.kip = 'tumu';
     }
     if (karar.kip === 'kirp' && karar.koseler) {
       try {
-        return { ...karar, ...await kirpiliHazirla(src, file, karar.koseler, renk) };
+        return yaz({ ...karar, ...await kirpiliHazirla(src, file, karar.koseler, renk, z) });
       } catch (e) {
         if (e instanceof GorselHatasi) throw e;
         console.warn('Sayfa kırpılamadı, fotoğrafın tamamı kullanılıyor.', e);
         karar = { ...karar, kip: 'tumu', kirpilamadi: true };
       }
     }
-    return { ...karar, kip: 'tumu', ...await tumunuHazirla(src, file, renk) };
+    return yaz({ ...karar, kip: 'tumu', ...await tumunuHazirla(src, file, renk, z) });
   } finally {
     src.close();
   }

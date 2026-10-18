@@ -2,11 +2,13 @@ import type { BekleyenFotoDepo } from './bekleyenFoto';
 import { yeniKayit, yuklemeBasla, yuklemeHata, type BekleyenFoto, type YeniKayitGirdisi } from './bekleyenFotoKayit';
 import { basariMetni, durumMetni, kartMetni, kisaNeden } from './fotoEklemeMetin';
 import { konuyaFotografEkle, type KonuEklemeOrtami, type KonuyaEklendi } from './konuyaEkle';
+import { hazirlikAl, kb, olc, olcumAcik, olcumAl, olcumBaslat, olcumBitir, type Olcum } from './sureOlcum';
 
 // Task 5.8f: "Ekle" for real. The photos go into the device's store first (before any network),
 // then to Drive (konuyaFotografEkle, through the pen's queue), and the record is removed only after that.
 // A failure keeps the record ('hata'); "Tekrar dene" runs it again with the same islemId, so the pages are
 // never added twice. One adding at a time, in the order asked. No automatic retry.
+// Task 6.2e-1: ?olcum=1 → a measurement per adding (sureOlcum.ts); the reader ends it at the toast.
 
 export interface FotoEklemeUI {
   durum(metin: string | null): void;                    // "2 fotoğraf ekleniyor…" / nothing going on
@@ -33,17 +35,34 @@ export class FotoEkleyici {
   calisanlar(): ReadonlySet<string> { return new Set(this.sirada.keys()); }
 
   // "Ekle": the record is saved; a failing store (quota, no IndexedDB) rejects and nothing goes to Drive
-  async baslat(g: YeniKayitGirdisi): Promise<BekleyenFoto> {
+  // olcumBaslangic: when "Ekle" was pressed (performance.now, only with ?olcum=1)
+  async baslat(g: YeniKayitGirdisi, olcumBaslangic?: number): Promise<BekleyenFoto> {
     const k = yeniKayit(g, this.simdi());
-    await this.b.depo.kaydet(k);
+    const o = olcumAcik() ? this.olcumKur(k, 'Fotoğraf ekleme', olcumBaslangic) : undefined;
+    try {
+      await olc(o, 'cihaza kaydet (IndexedDB)', () => this.b.depo.kaydet(k), { grup: 'cihaz' });
+    } catch (e) {
+      if (o) { o.bilgi.hata = 'cihaza kaydedilemedi'; olcumBitir(k.islemId); }
+      throw e;
+    }
     this.sirayaKoy(k);
     return k;
+  }
+
+  private olcumKur(k: BekleyenFoto, ad: string, baslangic?: number): Olcum {
+    const o = olcumBaslat(k.islemId, ad, baslangic);
+    o.bilgi.foto = k.jpegler.length;
+    o.bilgi.jpeg = kb(k.jpegler.reduce((t, j) => t + j.bytes.byteLength, 0));
+    o.bilgi.hedef = k.hedefAd;
+    o.adimlar.push(...hazirlikAl());
+    return o;
   }
 
   // "Tekrar dene" / "Şimdi ekle". false: this record is already waiting or running.
   sirayaKoy(k: BekleyenFoto): boolean {
     if (this.sirada.has(k.islemId)) return false;
     this.sirada.set(k.islemId, k.jpegler.length);
+    olcumAl(k.islemId)?.isaret('sıraya girdi');
     this.bildir();
     const p = this.zincir.then(() => this.calistir(k));
     this.zincir = p.catch(() => undefined);
@@ -62,28 +81,37 @@ export class FotoEkleyici {
   private async calistir(eski: BekleyenFoto): Promise<void> {
     const { depo, ui } = this.b;
     const id = eski.islemId;
+    // "Tekrar dene" / "Şimdi ekle": a measurement from here
+    const o = olcumAl(id) ?? (olcumAcik() ? this.olcumKur(eski, 'Fotoğraf ekleme (tekrar)') : undefined);
+    const sira = o?.isaretler.get('sıraya girdi');
+    if (o && sira !== undefined) o.adim('foto sırası (önceki eklemeler)', o.gecen() - sira, 'sira');
+    const bitir = (hata: string) => { if (o) { o.bilgi.hata = hata; olcumBitir(id); } };
     try {
       let k: BekleyenFoto | null;
       try {
-        k = await depo.durumGuncelle(id, x => yuklemeBasla(x, this.simdi()));
+        k = await olc(o, 'cihaz: durum güncelle', () => depo.durumGuncelle(id, x => yuklemeBasla(x, this.simdi())), { grup: 'cihaz' });
       } catch (e) {
+        bitir('durum yazılamadı');
         ui.hata(eski, kartMetni(kisaNeden(e)));
         return;
       }
-      if (!k) return;   // no record: an earlier run finished it
+      if (!k) { bitir('kayıt yok'); return; }   // no record: an earlier run finished it
       let r;
       try {
-        r = await (this.b.ekle ?? konuyaFotografEkle)(k.konuKlasorId, k.jpegler, this.b.ortam(), { islemId: k.islemId, hedefFileId: k.hedefFileId });
+        const secenek = { islemId: k.islemId, hedefFileId: k.hedefFileId };
+        r = await olc(o, '= Drive\'a ekleme (toplam)', () => (this.b.ekle ?? konuyaFotografEkle)(k.konuKlasorId, k.jpegler, this.b.ortam(), o ? { ...secenek, olcum: o } : secenek), { grup: 'toplam' });
       } catch (e) {
         const neden = kisaNeden(e);
         console.warn('Fotoğraflar eklenemedi.', e);
         try { await depo.durumGuncelle(id, x => yuklemeHata(x, neden, this.simdi())); }
         catch (e2) { console.warn('Bekleyen kaydın durumu yazılamadı.', e2); }
+        bitir(neden);
         ui.hata(k, kartMetni(neden));   // the record is NOT removed
         return;
       }
       // a failing removal only leaves the record: the next try finds the pages there (zatenVardi)
-      try { await depo.sil(id); } catch (e) { console.warn('Eklenen fotoğrafların kaydı silinemedi.', e); }
+      try { await olc(o, 'cihaz: kaydı sil', () => depo.sil(id), { grup: 'cihaz' }); } catch (e) { console.warn('Eklenen fotoğrafların kaydı silinemedi.', e); }
+      if (o) { o.bilgi.sayfa = `${r.eskiSayfa}→${r.yeniSayfa}`; if (r.zatenVardi) o.bilgi.zatenVardi = true; }
       ui.basari(k, basariMetni(r), r);
     } finally {
       this.sirada.delete(id);

@@ -6,6 +6,7 @@ import type { BekleyenJpeg } from '../defter/bekleyenFotoKayit';
 import { boyutYazi, cikar, ekleDurumu, hedefHesapla, renkEtiketi, tasi } from '../defter/fotoPanelDurumu';
 import type { Kose4 } from '../defter/kirp/kirpHesap';
 import { kipDegistir, kirpYazi, type KirpKarari, type KirpKip } from '../defter/kirp/kirpKarar';
+import { hazirlikEkle, olcumAcik } from '../defter/sureOlcum';
 import { gorunurAlaniDuzelt } from './gorunurAlan';
 import { acKoseDuzenleyici, type KoseDuzenleyici } from './koseDuzenleyici';
 import { toast } from './toast';
@@ -180,6 +181,7 @@ export function acFotoPanel(b: FotoPanelBaglam, dosyalar: File[]): void {
     if (calisiyor) { ciz(); return; }
     calisiyor = true;
     ciz();
+    const t0 = olcumAcik() ? performance.now() : null;   // task 6.2e-1: the panel's whole preparing
     while (bekleyen.length && !kapandi) {
       const f = bekleyen.shift()!;
       try {
@@ -195,6 +197,7 @@ export function acFotoPanel(b: FotoPanelBaglam, dosyalar: File[]): void {
       ciz();
     }
     calisiyor = false;
+    if (t0 !== null) hazirlikEkle({ ad: 'panel: fotoğraflar hazır', ms: performance.now() - t0, grup: 'panel', ek: { foto: toplam } });
     if (!kapandi) ciz();
   }
 
