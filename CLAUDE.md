@@ -274,6 +274,12 @@ Kitaplık/
 - `src/drive/ofisCevir.ts` (cevirTuru, ofisuPdfeCevir, copeAtGecici, supurGecici; testli). `dosyaTuru` sonucu `cevrilebilir` alanını taşır (aynı tablo). Panel: `src/ui/dosyaPanel.ts`; karar `tekDosyaYolu` (`src/defter/dosyaPanelDurumu.ts`); hata metni `ofisHataMetni` (`src/defter/dosyaEklemeMetin.ts`).
 - Dev: `window.defterOfisCevirDene(kitapAdi, konuYolu)` (sadece `npm run dev`, `src/drive/ofisCevirDene.ts`): dosya seçtirir, o konunun klasöründe çevirir, sonucu loglar; konuya eklemez.
 
+### Fotoğraf yükleme (6.2e-2)
+- Daha az istek: yer zinciri oturum boyunca bellekte (`yerKontrol`, `yerBellekte`); uploadPdf öncesi canEdit + modifiedTime + headRevisionId tek `durum` isteği; yedek adımı (listRevisions, keepForever, tekrar durum) dosyada saklı sürüm görülene kadar (oturum belleği).
+- Ekle'den sonra panel kapanır, yükleme arka planda sürer; şerit: "Fotoğraflar yükleniyor… %42 · 3 fotoğraf sırada". Yükleme sürerken beforeunload uyarısı.
+- Kilit: yeni yükleme yolu (XMLHttpRequest ile yüzde + kesintide kaldığı yerden devam) sadece `?yeniYukleme=1` ile açık. Kilitsiz: bugünkü fetch yolu, devam yok, yüzde yerine "yükleniyor…". Kilit gerçek testlerden sonra ayrı adımda kalkacak.
+- Devam sırası: önce durum sorgusu (`Content-Range: bytes */N`); 200/201 → bitmiş say (devamOncesi yok); 308 → devamOncesi (modifiedTime + headRevisionId aynı mı) → kalan baytlar; 404/410 → baştan. En fazla 3 devam (2/4/8 sn).
+
 ### Köşe bulma (6.2d)
 - koseB'ye (6.2d-2) açma (ince köprüleri kesme), iki geçişli kenar inceltme (±%12 sonra ±%2 şerit, RANSAC) ve kenar desteğiyle güven eklendi. Kod: `src/defter/kirp/koseB.ts`, `src/defter/kirp/kenarIncelt.ts` (testli).
 - Ölçüm: `scripts/kose-olcum.test.ts` (IoU, bugün/yeni tablosu, süre), kontrol görüntüleri `scripts/kose-kontrol.mjs`. Fotoğraflar repo dışında (`../defter-test-dosyalari/kose/`); yoksa ölçüm atlanır.

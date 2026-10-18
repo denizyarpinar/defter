@@ -1,6 +1,7 @@
 import type { BekleyenFotoDepo } from './bekleyenFoto';
 import { yeniKayit, yuklemeBasla, yuklemeHata, type BekleyenFoto, type YeniKayitGirdisi } from './bekleyenFotoKayit';
-import { basariMetni, durumMetni, kartMetni, kisaNeden } from './fotoEklemeMetin';
+import { basariMetni, kartMetni, kisaNeden } from './fotoEklemeMetin';
+import { yuklemeDurumMetni, yuzdeHesapla, type EklemeAsamasi, type SiradakiEkleme } from './fotoYuklemeDurumu';
 import { konuyaFotografEkle, type KonuEklemeOrtami, type KonuyaEklendi } from './konuyaEkle';
 import { hazirlikAl, kb, olc, olcumAcik, olcumAl, olcumBaslat, olcumBitir, type Olcum } from './sureOlcum';
 
@@ -9,9 +10,10 @@ import { hazirlikAl, kb, olc, olcumAcik, olcumAl, olcumBaslat, olcumBitir, type 
 // A failure keeps the record ('hata'); "Tekrar dene" runs it again with the same islemId, so the pages are
 // never added twice. One adding at a time, in the order asked. No automatic retry.
 // Task 6.2e-1: ?olcum=1 → a measurement per adding (sureOlcum.ts); the reader ends it at the toast.
+// Task 6.2e-2: the status says which adding waits ("sırada"), which is prepared, which uploads (and how far).
 
 export interface FotoEklemeUI {
-  durum(metin: string | null): void;                    // "2 fotoğraf ekleniyor…" / nothing going on
+  durum(metin: string | null): void;                    // "Fotoğraflar yükleniyor… %42" / nothing going on (only on a change)
   basari(k: BekleyenFoto, metin: string, r: KonuyaEklendi): void;   // r: task 5.8g (the reader refreshes)
   hata(k: BekleyenFoto, metin: string): void;           // the record stays on the device
 }
@@ -25,7 +27,8 @@ export interface FotoEkleyiciBaglam {
 }
 
 export class FotoEkleyici {
-  private readonly sirada = new Map<string, number>();   // islemId → photos (waiting or running)
+  private readonly sirada = new Map<string, SiradakiEkleme>();   // islemId → photos (waiting or running), in order
+  private sonMetin: string | null | undefined;
   private zincir: Promise<unknown> = Promise.resolve();
 
   constructor(private readonly b: FotoEkleyiciBaglam) {}
@@ -61,7 +64,7 @@ export class FotoEkleyici {
   // "Tekrar dene" / "Şimdi ekle". false: this record is already waiting or running.
   sirayaKoy(k: BekleyenFoto): boolean {
     if (this.sirada.has(k.islemId)) return false;
-    this.sirada.set(k.islemId, k.jpegler.length);
+    this.sirada.set(k.islemId, { foto: k.jpegler.length, asama: { tur: 'sirada' } });
     olcumAl(k.islemId)?.isaret('sıraya girdi');
     this.bildir();
     const p = this.zincir.then(() => this.calistir(k));
@@ -72,10 +75,19 @@ export class FotoEkleyici {
   // Waits for everything asked so far (tests)
   bekle(): Promise<unknown> { return this.zincir; }
 
+  // the strip changes only when its text does (the percent: whole numbers)
   private bildir(): void {
-    let n = 0;
-    for (const v of this.sirada.values()) n += v;
-    this.b.ui.durum(durumMetni(n));
+    const m = yuklemeDurumMetni([...this.sirada.values()]);
+    if (m === this.sonMetin) return;
+    this.sonMetin = m;
+    this.b.ui.durum(m);
+  }
+
+  private asama(id: string, a: EklemeAsamasi): void {
+    const e = this.sirada.get(id);
+    if (!e) return;
+    e.asama = a;
+    this.bildir();
   }
 
   private async calistir(eski: BekleyenFoto): Promise<void> {
@@ -86,6 +98,7 @@ export class FotoEkleyici {
     const sira = o?.isaretler.get('sıraya girdi');
     if (o && sira !== undefined) o.adim('foto sırası (önceki eklemeler)', o.gecen() - sira, 'sira');
     const bitir = (hata: string) => { if (o) { o.bilgi.hata = hata; olcumBitir(id); } };
+    this.asama(id, { tur: 'hazirlaniyor' });
     try {
       let k: BekleyenFoto | null;
       try {
@@ -98,7 +111,11 @@ export class FotoEkleyici {
       if (!k) { bitir('kayıt yok'); return; }   // no record: an earlier run finished it
       let r;
       try {
-        const secenek = { islemId: k.islemId, hedefFileId: k.hedefFileId };
+        const yukleme = {
+          basladi: () => this.asama(id, { tur: 'yukleniyor', yuzde: null }),
+          ilerleme: (g: number, t: number) => this.asama(id, { tur: 'yukleniyor', yuzde: yuzdeHesapla(g, t) }),
+        };
+        const secenek = { islemId: k.islemId, hedefFileId: k.hedefFileId, yukleme };
         r = await olc(o, '= Drive\'a ekleme (toplam)', () => (this.b.ekle ?? konuyaFotografEkle)(k.konuKlasorId, k.jpegler, this.b.ortam(), o ? { ...secenek, olcum: o } : secenek), { grup: 'toplam' });
       } catch (e) {
         const neden = kisaNeden(e);

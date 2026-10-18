@@ -3,7 +3,7 @@ import { driveFetch, FOLDER_MIME } from './drive';
 import type { DriveLocation } from './driveLibrary';
 import {
   AyniIsimVar, createPdf, DosyaOlusturAgHatasi, DosyaYazmaYok, drivePdfOlusturApi,
-  IdAlinamadi, PdfDegil, YerDisi, YetkiYok, type CreatePdfSecenek
+  IdAlinamadi, PdfDegil, YerDisi, yerBellekte, yerBelleginiSifirla, yerKontrol, YetkiYok, type CreatePdfSecenek
 } from './pdfOlustur';
 import { PdfUploadSession, RESUMABLE_LIMIT } from './pdfYazici';
 
@@ -100,7 +100,7 @@ const posts = () => calls().filter(c => c.startsWith('POST'));
 const neverChanges = () => expect(calls().some(c => /^(DELETE|PATCH)/.test(c) || /emptyTrash|\/trash/.test(c))).toBe(false);
 const pdfFiles = (items: Map<string, Item>) => [...items.values()].filter(i => i.mimeType === 'application/pdf' && i.name !== 'orijinal.pdf');
 
-beforeEach(() => { fetchMock.mockReset(); });
+beforeEach(() => { fetchMock.mockReset(); yerBelleginiSifirla(); });
 
 describe('createPdf: refused before any request', () => {
   it('writer() locked / demo (no Drive library): yer null', async () => {
@@ -151,6 +151,57 @@ describe('createPdf: place', () => {
     items.get('C')!.canAdd = false;
     await expect(createPdf(drivePdfOlusturApi, loc, 'C', 'ozet.pdf', pdf(), HIZLI)).rejects.toBeInstanceOf(YetkiYok);
     expect(posts()).toEqual([]);
+  });
+});
+
+// Task 6.2e-2: a folder's place, once checked, is remembered for the session
+describe('yerKontrol: memory', () => {
+  const bilgi = () => calls().filter(c => c.includes('canAddChildren')).map(c => /files\/([^?]+)/.exec(c)![1]);
+
+  it('the second check of a folder asks only the folder itself', async () => {
+    fakeDrive();
+    await yerKontrol(drivePdfOlusturApi, loc, 'C');
+    expect(bilgi()).toEqual(['C', 'U', 'B', 'K']);
+    expect(['C', 'U', 'B', 'K'].map(id => yerBellekte(loc, id))).toEqual([true, true, true, false]);   // not kitaplar
+    fetchMock.mockClear();
+    expect((await yerKontrol(drivePdfOlusturApi, loc, 'C')).id).toBe('C');
+    expect(bilgi()).toEqual(['C']);
+  });
+
+  it('another folder of the same book: up to the folder checked before', async () => {
+    const { items } = fakeDrive();
+    items.set('C2', { name: 'Konu-02', parent: 'U', mimeType: FOLDER_MIME });
+    await yerKontrol(drivePdfOlusturApi, loc, 'C');
+    fetchMock.mockClear();
+    await yerKontrol(drivePdfOlusturApi, loc, 'C2');
+    expect(bilgi()).toEqual(['C2']);
+    expect(yerBellekte(loc, 'C2')).toBe(true);
+  });
+
+  it('the target is always read: trashed meanwhile → YerDisi', async () => {
+    const { items } = fakeDrive();
+    await yerKontrol(drivePdfOlusturApi, loc, 'C');
+    items.get('C')!.trashed = true;
+    await expect(yerKontrol(drivePdfOlusturApi, loc, 'C')).rejects.toBeInstanceOf(YerDisi);
+  });
+
+  it('a book no longer in the library: the memory counts for nothing, the place is refused', async () => {
+    fakeDrive();
+    await yerKontrol(drivePdfOlusturApi, loc, 'C');
+    const yok: DriveLocation = { ...loc, bookFolderIds: new Map() };
+    expect(yerBellekte(yok, 'C')).toBe(false);
+    fetchMock.mockClear();
+    await expect(yerKontrol(drivePdfOlusturApi, yok, 'C')).rejects.toBeInstanceOf(YerDisi);
+    expect(bilgi()).toEqual(['C', 'U', 'B', 'K']);
+  });
+
+  it('a refused place is not remembered; the reset forgets everything', async () => {
+    fakeDrive();
+    await expect(yerKontrol(drivePdfOlusturApi, loc, 'X')).rejects.toBeInstanceOf(YerDisi);
+    expect(yerBellekte(loc, 'X')).toBe(false);
+    await yerKontrol(drivePdfOlusturApi, loc, 'C');
+    yerBelleginiSifirla();
+    expect(yerBellekte(loc, 'C')).toBe(false);
   });
 });
 

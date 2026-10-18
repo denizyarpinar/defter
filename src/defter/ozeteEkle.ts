@@ -1,7 +1,7 @@
 import { DriveError } from '../drive/drive';
 import type { DriveLocation } from '../drive/driveLibrary';
-import { tekrarlanabilir, YerDisi, yerKontrol, type PdfOlusturDrive } from '../drive/pdfOlustur';
-import { PdfConflict, PdfSampleNoWrite, uploadPdf } from '../drive/pdfYazici';
+import { tekrarlanabilir, YerDisi, yerBellegiBoyutu, yerBellegiDurumu, yerKontrol, type PdfOlusturDrive } from '../drive/pdfOlustur';
+import { PdfConflict, PdfSampleNoWrite, uploadPdf, type YuklemeDinleyici } from '../drive/pdfYazici';
 import type { UploadDeps } from '../kalem/pdfKayit';
 import { SAVE_OPTIONS, yazilabilirAc } from '../kalem/pdfNotlari';
 import { isSampleId } from '../okuma/ornekKaynak';
@@ -83,7 +83,7 @@ const bekle = (ms: number) => new Promise(r => setTimeout(r, ms));
 
 export async function ekleVeYukle(
   deps: UploadDeps, fileId: string, jpegler: readonly Jpeg[], islemId: string,
-  secenek: { bekleMs?: number; deneme?: number; olcum?: Olcum } = {}
+  secenek: { bekleMs?: number; deneme?: number; olcum?: Olcum; yukleme?: YuklemeDinleyici } = {}
 ): Promise<EklenenSayfalar> {
   const max = secenek.deneme ?? MAX_DENEME;
   const om = secenek.olcum;
@@ -106,7 +106,7 @@ export async function ekleVeYukle(
         return { fileId, islemId, eskiSayfa: h.eskiSayfa, yeniSayfa: h.sayfa, modifiedTime: mt,
           headRevisionId: await drive.headRevisionId(fileId), bytes, zatenVardi: true };
       }
-      const r = await olc(om, '= uploadPdf (kontroller + yükleme)', () => uploadPdf(drive, fileId, h.bytes, mt), { grup: 'toplam' });
+      const r = await olc(om, '= uploadPdf (kontroller + yükleme)', () => uploadPdf(drive, fileId, h.bytes, mt, secenek.yukleme), { grup: 'toplam' });
       return { fileId, islemId, eskiSayfa: h.eskiSayfa, yeniSayfa: h.yeniSayfa, modifiedTime: r.modifiedTime,
         headRevisionId: r.headRevisionId, bytes: h.bytes, zatenVardi: false };
     } catch (e) {
@@ -134,10 +134,11 @@ export interface SayfaEklemeSecenek {
   bekleMs?: number;
   deneme?: number;
   olcum?: Olcum;                // task 6.2e-1: only with ?olcum=1
+  yukleme?: YuklemeDinleyici;   // task 6.2e-2: the upload started / its progress (the status strip)
 }
 
 // The PDF must be in Drive, not in the trash, inside Kitaplık/kitaplar/<kitap>/ (or a subfolder).
-async function dosyaKontrol(o: SayfaEklemeOrtami, yer: DriveLocation, fileId: string): Promise<void> {
+async function dosyaKontrol(o: SayfaEklemeOrtami, yer: DriveLocation, fileId: string, om?: Olcum): Promise<void> {
   let f;
   try { f = await o.dosyaDrive.klasorBilgisi(fileId); } catch (e) {
     if (e instanceof DriveError && e.status === 404) throw new DosyaBulunamadi();
@@ -146,7 +147,15 @@ async function dosyaKontrol(o: SayfaEklemeOrtami, yer: DriveLocation, fileId: st
   if (f.trashed) throw new DosyaBulunamadi();
   if (f.mimeType !== 'application/pdf') throw new PdfDosyasiDegil();
   if (f.parents.length !== 1) throw new YerDisi();
-  await yerKontrol(o.dosyaDrive as PdfOlusturDrive, yer, f.parents[0]);
+  // task 6.2e-2: the folder's place was checked this session: no more requests (a trashed folder makes
+  // the file's own `trashed` true, checked above)
+  const bellek = yerBellegiDurumu(yer, f.parents[0]);
+  if (om) {
+    // ?olcum=1: why the place was (not) known; the page load time shows a reload between two addings
+    om.bilgi.yerBellegi = `${bellek} (${yerBellegiBoyutu()} klasör)`;
+    om.bilgi.sayfaYuklendi = typeof performance === 'undefined' ? undefined : new Date(performance.timeOrigin).toLocaleTimeString('tr-TR');
+  }
+  if (bellek !== 'var') await yerKontrol(o.dosyaDrive as PdfOlusturDrive, yer, f.parents[0]);
 }
 
 export async function ozeteSayfaEkle(
@@ -159,7 +168,7 @@ export async function ozeteSayfaEkle(
   const islemId = secenek.islemId ?? crypto.randomUUID();
   const om = secenek.olcum;
   try {
-    await olc(om, '= dosya kontrolü (yer zinciri)', () => dosyaKontrol(om ? { ...o, dosyaDrive: zamanliDrive(o.dosyaDrive, om) } : o, yer, fileId), { grup: 'toplam' });
+    await olc(om, '= dosya kontrolü (yer zinciri)', () => dosyaKontrol(om ? { ...o, dosyaDrive: zamanliDrive(o.dosyaDrive, om) } : o, yer, fileId, om), { grup: 'toplam' });
     const t0 = om?.zaman() ?? 0;
     const s = await o.sirada(fileId, () => {
       // the file's pending strokes (and other files' uploads) went first

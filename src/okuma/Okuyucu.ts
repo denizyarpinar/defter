@@ -943,6 +943,9 @@ const photoAdder = new FotoEkleyici({
   },
 });
 
+// Task 6.2e-2: photos still going to Drive (main.ts: the beforeunload warning)
+export const fotoYuklemeSuruyor = (): boolean => photoAdder.calisanlar().size > 0;
+
 // The open topic's folder id (the resolver has it from opening the topic: no request)
 async function topicFolderId(t: OpenTopic): Promise<string> {
   let id: string | null;

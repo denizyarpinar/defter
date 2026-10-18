@@ -1,7 +1,7 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PDFDocument, PDFName, PDFString } from 'pdf-lib';
 import { SessionExpired } from '../drive/drive';
-import { PdfConflict, PdfSampleNoWrite, type PdfDrive } from '../drive/pdfYazici';
+import { PdfConflict, PdfSampleNoWrite, yedekBelleginiSifirla, type PdfDrive } from '../drive/pdfYazici';
 import { remainingDiff, type PenDiff, type PendingRecord } from './bekleyenFark';
 import type { PageStrokes, Stroke } from './cizgi';
 import { DriveUploader, MAX_TRIES, uploadRecord, type UploadStatus, type Uploaded } from './pdfKayit';
@@ -23,23 +23,29 @@ async function samplePdf(): Promise<Uint8Array> {
 }
 
 // One PDF on a fake Drive. modifiedTime is a counter; `changeBeforeCheck` makes it change right before
-// uploadPdf compares it (another device writing), that many times.
+// uploadPdf compares it (another device writing), that many times. uploadPdf's check is durum
+// (canEdit + modifiedTime + head); the first durum after a modifiedTime read is the check of the round.
 function fakeDrive(start: Uint8Array) {
   const file = { bytes: start, mt: 't1', n: 1, canEdit: true, changeBeforeCheck: 0, offline: 0 };
   const log: string[] = [];
   const hooks = { duringUpload: null as null | (() => void) };
-  let checks = 0;
+  let afterRead = false;
   const net = () => { if (file.offline > 0) { file.offline--; throw new TypeError('Failed to fetch'); } };
   const drive: PdfDrive = {
-    async canEdit() { net(); log.push('canEdit'); return file.canEdit; },
+    async durum() {
+      net();
+      log.push('durum');
+      if (afterRead && file.changeBeforeCheck > 0) { file.changeBeforeCheck--; file.mt = `t${++file.n}`; }
+      afterRead = false;
+      return { canEdit: file.canEdit, modifiedTime: file.mt, headRevisionId: `r${file.n}` };
+    },
     async listRevisions() { return { revisions: [{ id: 'r1', keepForever: true }] }; },
     async headRevisionId() { return `r${file.n}`; },
     async keepRevision() {},
     async modifiedTime() {
       net();
       log.push('modifiedTime');
-      // the second read of a round is uploadPdf's check
-      if (++checks % 2 === 0 && file.changeBeforeCheck > 0) { file.changeBeforeCheck--; file.mt = `t${++file.n}`; }
+      afterRead = true;
       return file.mt;
     },
     async uploadMedia(id, bytes) {
@@ -66,6 +72,7 @@ async function pageText(bytes: Uint8Array, i: number): Promise<string> {
 }
 
 afterEach(() => { vi.useRealTimers(); });
+beforeEach(() => { yedekBelleginiSifirla(); });
 
 describe('uploadRecord', () => {
   it('writes the difference; another device\'s strokes and other pages stay', async () => {
@@ -78,7 +85,16 @@ describe('uploadRecord', () => {
     expect(idsOf(u.pages)).toEqual({ 0: ['o', 'a'], 2: ['b'] });
     // page 2 (not touched): exactly as before, its other note too
     expect(await pageText(file.bytes, 1)).toBe(await pageText(start, 1));
-    expect(log).toEqual(['modifiedTime', 'bytes:t1', 'canEdit', 'modifiedTime', 'upload']);
+    // the first write of the session looks for the backup (a revision kept): durum again after it
+    expect(log).toEqual(['modifiedTime', 'bytes:t1', 'durum', 'durum', 'upload']);
+  });
+
+  it('task 6.2e-2: the second write of the file: one check (durum) before the upload', async () => {
+    const { deps, log } = fakeDrive(await samplePdf());
+    const u = await uploadRecord(deps, rec({ eklenen: [{ sayfa: 0, stroke: stroke('a') }] }));
+    log.length = 0;
+    await uploadRecord(deps, rec({ eklenen: [{ sayfa: 1, stroke: stroke('b') }] }, u.modifiedTime));
+    expect(log).toEqual(['modifiedTime', 'bytes:t2', 'durum', 'upload']);
   });
 
   it('deletes by id; gives back what it removed (for an undo during the upload)', async () => {
@@ -140,7 +156,7 @@ describe('DriveUploader', () => {
 
   it('sirada: signed out during the strokes\' upload → the job still runs (it is not left waiting)', async () => {
     const s = setup(await samplePdf());
-    s.drive.canEdit = async () => { throw new SessionExpired(); };
+    s.drive.durum = async () => { throw new SessionExpired(); };
     const job = s.up.sirada('f', async () => 'bitti');
     await expect(job).resolves.toBe('bitti');
   });
