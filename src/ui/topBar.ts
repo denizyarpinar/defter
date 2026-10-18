@@ -5,9 +5,12 @@ export type LightMode = 'auto' | 'day' | 'night';
 interface TopBarHandlers {
   onModeChange: (m: LightMode) => void;
   onGoRoom: () => void;
+  onSearch: () => void;   // task 6.3e: the library search panel
 }
 
 export function initTopBar(h: TopBarHandlers): void {
+  // inside the tap: the panel focuses its box, so the iPad keyboard opens
+  document.querySelector('#araBtn')!.addEventListener('click', h.onSearch);
   const seg = document.querySelector<HTMLElement>('#modeSeg')!;
   seg.addEventListener('click', e => {
     const b = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-mode]');

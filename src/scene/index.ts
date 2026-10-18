@@ -26,6 +26,7 @@ export interface RoomScene {
   setPaused(p: boolean): void;      // reader covers the scene
   reload(): void;                   // data was replaced (e.g. Drive library loaded)
   setLocked(on: boolean): void;     // task 5.1: signing in / loading: books can't be opened or moved
+  openBook(id: string): boolean;    // task 6.3e (library search): as a tap on the book; false: can't now
   exportRoom(): Promise<void>;      // dev: download the room as oda-kaynak.glb
 }
 
@@ -195,6 +196,11 @@ export async function createRoomScene(host: HTMLElement, opts: RoomSceneOptions)
       });
     },
     setPaused: p => { frame.paused = p; if (!p) requestRender(); },
+    openBook: id => {
+      if (locked || openId || press?.drag || !lib3d.groups.has(id)) return false;
+      openBook(id);
+      return true;
+    },
     setLocked: on => {
       locked = on;
       if (on && press?.drag) { lib3d.cancelDrag(); press = null; }

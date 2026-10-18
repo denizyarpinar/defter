@@ -77,3 +77,6 @@ export async function fetchSample(id: string): Promise<ArrayBuffer> {
   }
   return res.arrayBuffer();
 }
+
+// Task 6.3e: the whole map, for the library search's sample tree (arama/ornekAgac.ts)
+export const sampleFolders = (): SampleFolders => folders;

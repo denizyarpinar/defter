@@ -212,6 +212,7 @@ function coverFace(b: Book): HTMLElement {
 export function openReader(b: Book, c: ReaderContext): void {
   book = b; ctx = c; idx = 0; busy = false;
   const reader = $('#reader');
+  reader.classList.remove('kabuk');
   $('#rBook').textContent = b.baslik;
   reader.hidden = false;
   requestAnimationFrame(() => {
@@ -260,6 +261,25 @@ function flipTo(target: number): void {
   fill('l', target); idx = target; updateChrome();
   requestAnimationFrame(() => old.classList.add(dir > 0 ? 'out-l' : 'out-r'));
   setTimeout(() => { old.remove(); busy = false; }, 520);
+}
+
+// Task 6.3e: the library search opens the full-screen reader with no book on the desk. #reader (where the
+// reader lives) is shown only as its frame: the desk's own parts stay invisible under it.
+export function readerShell(on: boolean): void {
+  if (book) return;   // a book is on the desk: #reader is shown anyway
+  const reader = $('#reader');
+  if (on) {
+    reader.classList.add('kabuk');
+    reader.hidden = false;
+    requestAnimationFrame(() => reader.classList.add('show'));
+    return;
+  }
+  reader.classList.remove('show');
+  setTimeout(() => {
+    if (book || reader.classList.contains('show')) return;
+    reader.hidden = true;
+    reader.classList.remove('kabuk');
+  }, 320);
 }
 
 export function closeReader(): void {
