@@ -1,5 +1,5 @@
 // Task 6.3c: control screenshots of the reader's search (sample library, ?demo, no sign-in) from the local build.
-// Usage: npm run build && node scripts/arama-kontrol.mjs [query] [output folder]
+// Usage: npm run build && node scripts/arama-kontrol.mjs [query] [output folder] [file name suffix, e.g. -2]
 // Three shots with the search open and highlights on screen: 1280 px PDF mode, 1024 px book mode, 390 px phone.
 // Also measures the top bar (one row? box width?) at several widths and prints a table.
 import { spawn } from 'node:child_process';
@@ -13,6 +13,7 @@ const PORT = 4180;
 const URL = `http://localhost:${PORT}/?demo`;
 const QUERY = process.argv[2] ?? 'logic';
 const OUT = process.argv[3] ?? 'C:\\Users\\yarpi\\iCloudDrive\\uni_plan_claude_code\\Claude outputs\\arama-6.3c';
+const SUFFIX = process.argv[4] ?? '';   // 6.3c-2: arama-1280-pdf-2.png next to the first shots
 const BOOKCASE = { x: 1040, y: 330 };   // room view at 1600 × 1000 (as in screenshots.mjs)
 const PRG_BOOK = { x: 618, y: 350 };    // shelf view: "Programlamaya Giriş"
 const TOPIC = 'Değişkenler ve veri tipleri';
@@ -40,7 +41,7 @@ async function searched(page) {
 
 async function shot(page, name) {
   await page.mouse.move(0, 0);
-  const file = join(OUT, name);
+  const file = join(OUT, name.replace(/\.png$/, `${SUFFIX}.png`));
   await page.screenshot({ path: file });
   const marks = await page.locator('svg.o-ara rect').count();
   const current = await page.locator('svg.o-ara rect.gecerli').count();

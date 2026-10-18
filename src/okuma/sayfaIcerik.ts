@@ -143,10 +143,12 @@ export class PageContent {
     const page = await (await this.doc(p)).getPage(p.pdfSayfa!);
     // Task 6.3c: not getTextContent(): it reads its stream with `for await`, which iPad Safari's ReadableStream
     // doesn't have (every page failed: "bulunamadı"). The same stream, read with reader.read().
-    const reader = (page.streamTextContent() as ReadableStream<{ items: TextContent['items'] }>).getReader();
+    const reader = (page.streamTextContent() as ReadableStream<{ items: TextContent['items']; styles: TextContent['styles'] }>).getReader();
     const parcalar: MetinParcasi[] = [];
+    const stiller: TextContent['styles'] = {};   // 6.3c-2: every chunk brings the styles of its new fonts
     for (let r = await reader.read(); !r.done; r = await reader.read()) {
-      for (const it of r.value.items) if ('str' in it) parcalar.push({ str: it.str, transform: it.transform, width: it.width, height: it.height, hasEOL: it.hasEOL });
+      Object.assign(stiller, r.value.styles);
+      for (const it of r.value.items) if ('str' in it) parcalar.push({ str: it.str, transform: it.transform, width: it.width, height: it.height, hasEOL: it.hasEOL, font: stiller[it.fontName]?.fontFamily });
     }
     const v = page.getViewport({ scale: 1 });
     return { parcalar, gorunum: { transform: v.transform, width: v.width, height: v.height } };

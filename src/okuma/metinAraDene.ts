@@ -1,5 +1,6 @@
 import type { BookPage } from './kitapSayfalari';
 import { EN_AZ_HARF, metinAra, metinsiz, sayfaKutusuna, sorguHazirla, type Eslesme, type HazirSayfa } from './metinAra';
+import { canvasOlcucu } from './metinOlcu';
 import type { MetinOnbellek } from './metinOnbellek';
 
 // Task 6.3b, development only (npm run dev): window.defterMetinAra(q) searches the pages of the open reader
@@ -25,7 +26,7 @@ export function installMetinAra(ortam: () => { pages: BookPage[]; metin: MetinOn
     console.log(`${ne}: metinsiz PDF sayfası (fotoğraf) ${fotograf} · PDF olmayan sayfa ${gorsel}${hata ? ` · okunamayan ${hata}` : ''}`);
 
     const t0 = performance.now();
-    const sonuc = metinAra(tum.sayfalar.filter(s => s.hazir).map(s => ({ sayfa: s.indeks, hazir: s.hazir! })), q);
+    const sonuc = metinAra(tum.sayfalar.filter(s => s.hazir).map(s => ({ sayfa: s.indeks, hazir: s.hazir! })), q, canvasOlcucu);
     const sure = performance.now() - t0;
     const sayfaNo = [...new Set(sonuc.map(m => m.sayfa))];
     console.log(`${ne}: "${q}" · ${sonuc.length} eşleşme · ${sayfaNo.length} sayfa · arama ${sure.toFixed(1)} ms`);

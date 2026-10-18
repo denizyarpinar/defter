@@ -2,6 +2,7 @@ import { gorunurAlaniDuzelt } from '../ui/gorunurAlan';
 import { aranamayanNotu, baslangicEslesmesi, bosDurum, listeDegisti, onceki, sayacMetni, sonraki, type AramaDurumu } from './aramaDurumu';
 import type { BookPage } from './kitapSayfalari';
 import { metinAra, metinsiz, sayfaKutusuna, sorguHazirla, type Dikdortgen } from './metinAra';
+import { canvasOlcucu } from './metinOlcu';
 import type { MetinOnbellek } from './metinOnbellek';
 import { pageKind } from './sayfaIcerik';
 
@@ -187,7 +188,7 @@ export class OkuyucuArama {
     clearTimeout(bekle);
     if (my !== this.gen || this.host.pages() !== pages) return 0;
 
-    const sonuc = metinAra(tum.sayfalar.filter(s => s.hazir).map(s => ({ sayfa: s.indeks, hazir: s.hazir! })), q);
+    const sonuc = metinAra(tum.sayfalar.filter(s => s.hazir).map(s => ({ sayfa: s.indeks, hazir: s.hazir! })), q, canvasOlcucu);
     const gorunum = new Map(tum.sayfalar.map(s => [s.indeks, s.hazir?.sayfa.gorunum]));
     this.kutular.clear();
     sonuc.forEach((e, es) => {

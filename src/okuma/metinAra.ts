@@ -3,7 +3,11 @@
 // where it came from (item, character). A match → the items it covers and its rectangles in PDF user space.
 
 // One text item as pdf.js gives it (transform: text space → PDF user space; width along the baseline)
-export interface MetinParcasi { str: string; transform: number[]; width: number; height: number; hasEOL: boolean }
+// font: the font family pdf.js gives for it (textContent.styles[fontName].fontFamily), for measuring (6.3c-2)
+export interface MetinParcasi { str: string; transform: number[]; width: number; height: number; hasEOL: boolean; font?: string }
+
+// Task 6.3c-2: the width of a text in a font (any fixed size: only the ratios count); 0 = can't measure
+export type Olcucu = (metin: string, font: string) => number;
 
 // The page's viewport at scale 1 (pdf.js PageViewport: rotation and CropBox are in its transform)
 export interface SayfaGorunumu { transform: number[]; width: number; height: number }
@@ -102,7 +106,7 @@ export function sorguHazirla(q: string): string | null {
 }
 
 // Every match of q on the pages (part of a word is found too), not overlapping, in page order
-export function metinAra(sayfalar: { sayfa: number; hazir: HazirSayfa }[], q: string): Eslesme[] {
+export function metinAra(sayfalar: { sayfa: number; hazir: HazirSayfa }[], q: string, olc?: Olcucu): Eslesme[] {
   const n = sorguHazirla(q);
   if (!n) return [];
   const sonuc: Eslesme[] = [];
@@ -116,7 +120,7 @@ export function metinAra(sayfalar: { sayfa: number; hazir: HazirSayfa }[], q: st
       for (const p of parcalar) {
         const it = hazir.sayfa.parcalar[p];
         const bas = p === ilk.parca ? ilk.harf : 0, bit = p === bitis.parca ? bitis.harf : it.str.length;
-        if (bit > bas) dikdortgenler.push(parcaDikdortgeni(it, bas, bit));
+        if (bit > bas) dikdortgenler.push(parcaDikdortgeni(it, bas, bit, olc));
       }
       sonuc.push({ sayfa, parcaIndeksleri: parcalar, baslangic: { parca: ilk.parca, harf: ilk.harf }, bitis, dikdortgenler });
     }
@@ -124,13 +128,16 @@ export function metinAra(sayfalar: { sayfa: number; hazir: HazirSayfa }[], q: st
   return sonuc;
 }
 
-// Characters [bas, bit) of an item → its rectangle in PDF user space. Every character counts as the same
-// width (item width × share of characters). Turned text (b, c ≠ 0): the box around the turned rectangle.
-export function parcaDikdortgeni(it: MetinParcasi, bas: number, bit: number): Dikdortgen {
+// Characters [bas, bit) of an item → its rectangle in PDF user space. With a measurer: item width × the
+// measured share (width of str up to the character / width of str; 6.3c-2). Without one, or when it measures
+// 0: every character counts as the same width. Turned text (b, c ≠ 0): the box around the turned rectangle.
+export function parcaDikdortgeni(it: MetinParcasi, bas: number, bit: number, olc?: Olcucu): Dikdortgen {
   const [a, b, c, d, e, f] = it.transform;
   const bl = Math.hypot(a, b) || 1, ul = Math.hypot(c, d) || 1;
   const h = it.height || ul, len = it.str.length || 1;
-  const x0 = it.width * bas / len, x1 = it.width * bit / len, y0 = -ALT_PAY * h, y1 = (1 - ALT_PAY) * h;
+  const font = it.font || 'sans-serif', tum = olc ? olc(it.str, font) : 0;
+  const pay = (k: number) => tum > 0 ? olc!(it.str.slice(0, k), font) / tum : k / len;
+  const x0 = it.width * pay(bas), x1 = it.width * pay(bit), y0 = -ALT_PAY * h, y1 = (1 - ALT_PAY) * h;
   const kose = [[x0, y0], [x1, y0], [x0, y1], [x1, y1]].map(([x, y]) => [e + a / bl * x + c / ul * y, f + b / bl * x + d / ul * y]);
   return kutu(kose);
 }

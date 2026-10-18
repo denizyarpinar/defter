@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { metinAra, metinsiz, parcaDikdortgeni, sayfaHazirla, sayfaKutusuna, sorguHazirla, type MetinParcasi, type SayfaMetni } from './metinAra';
+import { metinAra, metinsiz, parcaDikdortgeni, sayfaHazirla, sayfaKutusuna, sorguHazirla, type MetinParcasi, type Olcucu, type SayfaMetni } from './metinAra';
 
 // Task 6.3b: normalizing, matching and the rectangles of the search in the open PDF
 
@@ -111,6 +111,41 @@ describe('rectangles', () => {
     const k = sayfaKutusuna({ x: 60, y: 690, w: 20, h: 10 }, g);
     expect(k.x).toBeCloseTo(590 / 642); expect(k.w).toBeCloseTo(10 / 642);
     expect(k.y).toBeCloseTo(10 / 495); expect(k.h).toBeCloseTo(20 / 495);
+  });
+
+  // Task 6.3c-2: a fake measurer: i 2, W 9, every other character 5 units (any size: only ratios count)
+  const fonts: string[] = [];
+  const olc: Olcucu = (s, font) => { fonts.push(font); return [...s].reduce((t, c) => t + (c === 'i' ? 2 : c === 'W' ? 9 : 5), 0); };
+  // the item's width as the PDF gives it: 10 pt per measured unit / 5
+  const olculu = (str: string, x = 100): MetinParcasi => ({ ...parca(str, x), width: olc(str, '') * 2, font: 'serif' });
+
+  it('measured widths: "logi" in "Logic" stops before the c, "logic" covers the item', () => {
+    const it = olculu('Logic');   // L o g i c = 5 5 5 2 5 → 22 units, 44 pt
+    const [m] = metinAra([{ sayfa: 0, hazir: sayfaHazirla(sayfa(it)) }], 'logi', olc);
+    expect(m.dikdortgenler[0].x).toBeCloseTo(100); expect(m.dikdortgenler[0].w).toBeCloseTo(34);
+    const [t] = metinAra([{ sayfa: 0, hazir: sayfaHazirla(sayfa(it)) }], 'logic', olc);
+    expect(t.dikdortgenler[0].w).toBeCloseTo(44);
+    // without a measurer every character counts the same: "logi" → 4/5 of 44
+    expect(parcaDikdortgeni(it, 0, 4).w).toBeCloseTo(35.2);
+  });
+
+  it('measured widths: narrow i and wide W', () => {
+    const it = olculu('iWi');   // 2 9 2 → 13 units, 26 pt
+    const w = parcaDikdortgeni(it, 1, 2, olc);
+    expect(w.x).toBeCloseTo(104); expect(w.w).toBeCloseTo(18);
+    const i = parcaDikdortgeni(it, 2, 3, olc);
+    expect(i.x).toBeCloseTo(122); expect(i.w).toBeCloseTo(4);
+    expect(parcaDikdortgeni(olculu('Wii'), 1, 3, olc).w).toBeCloseTo(8);
+  });
+
+  it('the measurer gets the item font, else sans-serif; measuring 0 → same width for every character', () => {
+    const ab = olculu('ab');
+    fonts.length = 0;
+    parcaDikdortgeni(ab, 0, 1, olc);
+    parcaDikdortgeni(parca('ab'), 0, 1, olc);
+    expect(new Set(fonts)).toEqual(new Set(['serif', 'sans-serif']));
+    const r = parcaDikdortgeni(parca('Aussage', 100, 700), 2, 5, () => 0);
+    expect(r.x).toBeCloseTo(110); expect(r.w).toBeCloseTo(15);
   });
 
   it('turned text (an item at 90° in user space)', () => {
