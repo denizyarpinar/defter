@@ -1,4 +1,5 @@
 import type { PDFDocumentProxy, PDFPageProxy, RenderTask } from 'pdfjs-dist';
+import type { TextContent } from 'pdfjs-dist/types/src/display/api';
 import { SessionExpired, driveFetch, ok } from '../drive/drive';
 import { defterInks, type DefterInk } from '../kalem/cizimKatmani';
 import { hideDefterNotes, isDefterAnnotation } from '../kalem/defterNotu';
@@ -140,9 +141,13 @@ export class PageContent {
   // with its viewport at scale 1 (rotation and CropBox), for the rectangles of the matches.
   async textContent(p: BookPage): Promise<SayfaMetni> {
     const page = await (await this.doc(p)).getPage(p.pdfSayfa!);
-    const tc = await page.getTextContent();
+    // Task 6.3c: not getTextContent(): it reads its stream with `for await`, which iPad Safari's ReadableStream
+    // doesn't have (every page failed: "bulunamadı"). The same stream, read with reader.read().
+    const reader = (page.streamTextContent() as ReadableStream<{ items: TextContent['items'] }>).getReader();
     const parcalar: MetinParcasi[] = [];
-    for (const it of tc.items) if ('str' in it) parcalar.push({ str: it.str, transform: it.transform, width: it.width, height: it.height, hasEOL: it.hasEOL });
+    for (let r = await reader.read(); !r.done; r = await reader.read()) {
+      for (const it of r.value.items) if ('str' in it) parcalar.push({ str: it.str, transform: it.transform, width: it.width, height: it.height, hasEOL: it.hasEOL });
+    }
     const v = page.getViewport({ scale: 1 });
     return { parcalar, gorunum: { transform: v.transform, width: v.width, height: v.height } };
   }

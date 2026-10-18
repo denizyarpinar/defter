@@ -111,7 +111,25 @@
         <div id="okuyucu" hidden>
           <div class="o-top">
             <button class="o-tocbtn" id="oTocBtn" type="button" aria-label="İçindekiler" aria-expanded="false" aria-controls="oToc">☰</button>
+            <button class="o-arabtn" id="oAraBtn" type="button" title="Ara (Ctrl+F)" aria-label="Bu materyalde ara" aria-expanded="false" aria-controls="oAra">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.3" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M15.2 15.2L20.5 20.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+              <span>Ara</span>
+            </button>
             <div class="o-title"><b id="oBook"></b><span id="oChap"></span></div>
+            <div class="o-ara" id="oAra" role="search" hidden>
+              <input id="oAraKutu" type="search" enterkeyhint="search" placeholder="Bu materyalde ara" aria-label="Bu materyalde ara" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" />
+              <span class="o-ara-sayac" id="oAraSayac" aria-live="polite"></span>
+              <span class="o-ara-not" id="oAraNot" hidden></span>
+              <button class="o-araik" id="oAraOnceki" type="button" title="Önceki (Shift+Enter)" aria-label="Önceki eşleşme" disabled>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 6.5L9 12l5.5 5.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+              <button class="o-araik" id="oAraSonraki" type="button" title="Sonraki (Enter)" aria-label="Sonraki eşleşme" disabled>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 6.5L15 12l-5.5 5.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+              <button class="o-araik" id="oAraKapat" type="button" title="Aramayı kapat (Esc)" aria-label="Aramayı kapat">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+              </button>
+            </div>
             <button class="o-penbtn" id="oPenBtn" type="button" aria-pressed="false" aria-controls="oTools" title="Kalem">✎ <span>Kalem</span></button>
             <div class="o-seg" id="oMode" role="group" aria-label="Okuma modu">
               <button type="button" data-m="kitap">Kitap</button><button type="button" data-m="pdf">PDF</button>
