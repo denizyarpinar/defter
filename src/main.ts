@@ -83,6 +83,8 @@ if (import.meta.env.DEV) void import('./drive/dosyaEkleDene').then(m => m.instal
 if (import.meta.env.DEV) void import('./drive/ofisCevirDene').then(m => m.installOfisCevirDene(() => writer() ? driveLoc : null, () => data?.books ?? null));
 // dev only (task 6.3a): window.defterAramaDene(q), window.defterAramaHepsi(elYazisi?) — search discovery; GET requests only
 if (import.meta.env.DEV) void import('./drive/aramaDene').then(m => m.installAramaDene(() => driveLoc, () => data?.books ?? null));
+// dev only (task 6.3-0a): window.defterTemizlikListesi() — the test files left in Drive, as a list; GET requests only
+if (import.meta.env.DEV) void import('./drive/temizlikListesi').then(m => m.installTemizlikListesi(() => driveLoc, () => data?.books ?? null));
 // dev only (task 5.8e): window.defterBekleyenFoto() lists the pending photo records; .dene() / .hata(id) / .sil(id); no Drive
 if (import.meta.env.DEV) void import('./defter/bekleyenFotoDene').then(m => m.installBekleyenFoto());
 // dev only (task 5.8b): ?kirpTest=1 compares two page-cropping methods on real photos; writes nothing
