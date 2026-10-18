@@ -80,7 +80,7 @@ Kitaplık/
 - Faz 3 Okuma: pdf.js, kitap/PDF modu, yakınlaştırma
 - Faz 4 Kalem: çizimleri PDF'e kaydetme (MVP)
 - Faz 5 Defter ve ekleme: defter fotoğrafı (otomatik kırpma), Dosya ekle (PDF, görsel → PDF)  ← bitti (5.12), main'e birleştirme Deniz onayıyla
-- Faz 6 Akıllı özellikler: Word/PPT otomatik çeviri (Drive), OCR, arama, quiz/özet
+- Faz 6 Akıllı özellikler: Word/PPT otomatik çeviri (Drive) ← bitti (6.1), arama ← bitti (6.3), OCR, quiz/özet
 
 ## Faz 2 — Görsel kalite kuralları
 
@@ -291,6 +291,27 @@ Kitaplık/
 
 ### Test temizliği (6.3-0b)
 - Tek seferlik test temizliği (Deniz kararı, 18 Ekim 2026): listedeki test dosyaları (Defter-ceviri-deneme ve Konu-99-Test-5.7 klasörleri dahil) çöpe (sadece `trashed=true`), Konu-01 ozet.pdf keepForever sürümüne (27 sayfa) döndü. Dev aracı `window.defterTemizlikUygula()`, sadece `?temizlik=1` ile; izin listesi kodda sabit (`src/drive/temizlikIzin.ts`). Bu, "çöpe atılmaz", "Defter-ceviri-deneme'ye dokunulmaz" ve "sayfa sadece sona eklenir" kurallarının tek seferlik istisnasıdır.
+- Temizlik yapıldı; araçlar (`temizlikListesi`, `temizlikKurallari`, `temizlikIzin`, `temizlikUygula`) 6.3f'te kaldırıldı (git geçmişinde). `saltOkunur.ts` kaldı (arama kullanıyor).
+
+## Faz 6.3 — Arama kuralları
+
+### Kitaplıkta arama
+- Kitap, konu ve dosya adı cihazda aranır, alt dize olarak ("blatt" → `blatt-01_cozum.pdf`). Ağaç kitap klasörlerinden katman katman kurulur, 10 dk bellekte kalır (`src/arama/kitaplikAgaci.ts`); dosya/fotoğraf eklenince ya da kitaplık yeniden yüklenince geçersiz olur.
+- Metin Drive `fullText` ile aranır: sadece tam kelime (önek yok), her kelime dosyada olmalı (and). Sorgu Kitaplık'taki PDF klasörleriyle sınırlı (40'lık gruplar); sonuçlardan sadece ağaçta bilinen id'ler kalır. `defterGecici` dosyaları ve çöptekiler hariç (`src/drive/aramaDrive.ts`).
+- Arama Drive'a sadece GET gönderir (`saltOkunurFetch`); hiçbir şey yazmaz.
+- Örnek kitaplıkta metin araması yok (sadece adlar).
+- Masada kitap açıkken kitaplık araması açılmaz ("/" ve Ctrl+F çalışmaz).
+- Sonuca gitme: dosya → okuyucuda doğru konu/sekme/dosya (çözüm açık) + ilk eşleşme; konu → okuyucu o konuda; kitap → kitaba dokunmak gibi (masaya uçar).
+- Dizinlenme (6.3f ölçümü, 18 Ekim 2026): 1 sayfalık PDF (Kolibri5826), yüklemeden (modifiedTime 21:06:34) en geç 17 sn sonra fullText ile bulundu; yüklemeden önceki 13 tur "yok" dedi. Büyük/çok sayfalı PDF'lerde daha uzun sürebilir; ölçülmedi.
+
+### Okuyucuda arama
+- İlk aramada dosyanın metni pdf.js ile çıkarılır, sonra aramalar bellekten.
+- Vurgu: sarı, geçerli eşleşme turuncu; genişlik harf ölçümüyle (canvas `measureText`, oransal), ölçülemezse eşit genişlik. PDF ve kitap modunda.
+
+### Dev araçları
+- `window.defterKitaplikAra(q)`: kitaplık araması, süreler ve sonuçlar (kutu + Kopyala).
+- `window.defterDizinOlc(kelime)` (`src/arama/dizinOlc.ts`): her 30 sn fullText (her turda yeni ağaç), en fazla 30 dk; ilk bulunduğu an + geçen süre (başlangıçtan ve dosyanın modifiedTime'ından). `.dur()` durdurur. Deneme dosyası: `node scripts/dizin-deneme-uret.mjs` → `dizin-deneme.pdf` ("Zebrafink4711").
+- `window.defterAramaDene(q)`, `defterAramaHepsi()` (6.3a keşif).
 
 ## Sonra bakılabilir
 - Oda zaman aşımı: şu an glb yüklemesine toplam 15 sn veriliyor; yavaş bağlantıda (masaüstü lightmap'leri ~3.3 MB) eski odaya düşüyor. Öneri: "15 sn hiç ilerleme yok" kuralı + yükleme göstergesi. Faz 2 kural metni değişeceği için Deniz'in onayı gerekir.
