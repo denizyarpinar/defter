@@ -231,7 +231,7 @@ export function initOkuyucu(yer: () => DriveLocation | null): void {
     if (!open || document.getElementById('fotoPanel') || document.getElementById('dosyaPanel')) return;   // task 5.8a / 5.10e: the panel has the keys
     // task 6.3c: Ctrl/Cmd+F opens our search box (not the browser's)
     if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'f') { e.preventDefault(); e.stopPropagation(); arama.ac(); return; }
-    if (e.key === 'Escape') { e.stopPropagation(); if (tocOpen) closeToc(); else if (arama.acik) arama.kapat(); else closeOkuyucu(); return; }
+    if (e.key === 'Escape') { e.stopPropagation(); if (toolbar?.closePopover()) return; if (tocOpen) closeToc(); else if (arama.acik) arama.kapat(); else closeOkuyucu(); return; }
     // pen mode: Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z and Ctrl+Y redo (not while typing somewhere)
     if (penOn && (e.ctrlKey || e.metaKey) && !e.altKey && !typing(e.target)) {
       const k = e.key.toLowerCase();
@@ -1674,7 +1674,7 @@ function setPen(on: boolean): void {
   const listTop = $('#oScroll').getBoundingClientRect().top;
   penOn = on;
   pen.active = on;
-  if (!on) { pen.cancel(); pen.hideCursor(); }
+  if (!on) { pen.cancel(); pen.hideCursor(); toolbar.closePopover(); }
   if (!on && open) uploadNow();   // task 4.8b: pen off
   const el = $('#okuyucu');
   el.classList.toggle('kalem', on);

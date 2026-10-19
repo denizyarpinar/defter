@@ -552,18 +552,21 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 /* task 4.8a: unsaved strokes (kept on the device): a dot on the pen button */
 .o-penbtn { position: relative }
 .o-penbtn.bekleyen::after { content: ''; position: absolute; top: 4px; right: 4px; width: 8px; height: 8px; border-radius: 50%; background: #e0a040; box-shadow: 0 0 0 1.5px rgba(0, 0, 0, .35) }
-.o-tools { flex: none; box-sizing: border-box; height: 58px; display: flex; flex-wrap: nowrap; align-items: center; justify-content: flex-start; gap: 8px; padding: 0 12px; color: #f5ecdf;
+.o-tools { flex: none; box-sizing: border-box; height: 58px; display: flex; flex-wrap: nowrap; align-items: stretch; gap: 8px; padding: 0 12px; overflow: hidden; color: #f5ecdf;
   background: rgba(0, 0, 0, .24); border-bottom: 1px solid rgba(255, 255, 255, .08); touch-action: manipulation }
 .o-tools[hidden] { display: none }
-/* task 6.H1: one row of fixed height at every width. Too narrow: the row scrolls sideways (never a second row);
-   the save status and "Kalemi kapat" then stick to the right edge (below). Book mode: the bar's room is kept
-   while the pen is off too, so the book never moves or shrinks when the pen opens (Okuyucu.ts showView). */
-.o-tools { overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scrollbar-width: none }
-.o-tools::-webkit-scrollbar { display: none }
-.o-tools > *, .o-tools .o-kayit > * { flex: none }
+/* task 6.H1: one row of fixed height at every width (never a second row). Book mode: the bar's room is kept
+   while the pen is off too, so the book never moves or shrinks when the pen opens (Okuyucu.ts showView).
+   Task 6.H1b: two parts. The left one (tools, colours, Geri al / Yinele) scrolls sideways when it doesn't fit
+   (only on a phone); the right one [Kaydet][status][Kalemi kapat] never moves, on the bar's own background. */
+.o-kaydir { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 8px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scrollbar-width: none }
+.o-kaydir::-webkit-scrollbar { display: none }
+.o-sag { flex: none; display: flex; align-items: center; gap: 6px }
+.o-kaydir > *, .o-sag > * { flex: none }
+.o-tools .o-tkapat { margin-left: 2px }
 #okuyucu.mod-kitap .o-tools[hidden] { display: flex !important; visibility: hidden }   /* beats the global [hidden] rule */
 .o-tgrp { display: flex; align-items: center; gap: 4px }
-.o-tools button { min-width: 44px; min-height: 44px; padding: 0 12px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, .2); background: rgba(0, 0, 0, .22); color: #f5ecdf; font: 500 13.5px var(--ui);
+:is(.o-tools, .o-balon) button { min-width: 44px; min-height: 44px; padding: 0 12px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, .2); background: rgba(0, 0, 0, .22); color: #f5ecdf; font: 500 13.5px var(--ui);
   display: inline-flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap }
 .o-tools button > svg { display: none; width: 22px; height: 22px; flex: none }
 /* the colour / width choices and the eraser's hint share one slot: the eraser hides the choices, they keep their room.
@@ -574,25 +577,23 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 .o-secenek:not(.silgide) .o-tipucu, .o-secenek.silgide .o-ayar { visibility: hidden }
 .o-tools { --dot-w: 44px }
 .o-tools .o-renkler { width: calc(6 * var(--dot-w) + 5 * 4px) }
-.o-tools .dot { min-width: var(--dot-w); width: var(--dot-w) }
+:is(.o-tools, .o-balon) .dot { min-width: var(--dot-w); width: var(--dot-w) }
 /* the save status: a slot of fixed width, empty or not (a tap shows the full text, kalemCubugu.ts) */
-.o-tools .o-kayit { margin-left: auto }
 .o-tools .o-durum-yuva { width: 172px; min-width: 0; padding: 0; border: 0; background: none; justify-content: flex-start; gap: 4px; overflow: hidden }
 .o-tools .o-durum-yuva:disabled { opacity: 1 }
 .o-durum-yuva > span { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
-.o-tools button.on { background: #f5ecdf; color: #2a231d }
-.o-tools .dot { position: relative; padding: 0; border: 0; background: none }
-.o-tools .dot::before { content: ''; position: absolute; left: 50%; top: 50%; width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%; background: var(--c); border: 2px solid rgba(255, 255, 255, .35); box-sizing: border-box }
-.o-tools .dot.on { background: none }
-.o-tools .dot.on::before { border-color: #fff; box-shadow: 0 0 0 2px rgba(0, 0, 0, .35) }
-.o-tools .sz { padding: 0; display: inline-flex; align-items: center; justify-content: center }
-.o-tools .sz i { display: block; border-radius: 99px; background: currentColor }
+:is(.o-tools, .o-balon) button.on { background: #f5ecdf; color: #2a231d }
+:is(.o-tools, .o-balon) .dot { position: relative; padding: 0; border: 0; background: none }
+:is(.o-tools, .o-balon) .dot::before { content: ''; position: absolute; left: 50%; top: 50%; width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%; background: var(--c); border: 2px solid rgba(255, 255, 255, .35); box-sizing: border-box }
+:is(.o-tools, .o-balon) .dot.on { background: none }
+:is(.o-tools, .o-balon) .dot.on::before { border-color: #fff; box-shadow: 0 0 0 2px rgba(0, 0, 0, .35) }
+:is(.o-tools, .o-balon) .sz { padding: 0; display: inline-flex; align-items: center; justify-content: center }
+:is(.o-tools, .o-balon) .sz i { display: block; border-radius: 99px; background: currentColor }
 .o-tools .sep { width: 1px; height: 26px; background: rgba(255, 255, 255, .2); margin: 0 2px }
 .o-tdurum { font-size: 12.5px; padding: 3px 9px; border-radius: 99px; background: rgba(255, 255, 255, .12); white-space: nowrap }
 .o-tdurum.kaydedilmedi { background: rgba(214, 150, 60, .35) }
 .o-tdurum small { font-size: 10.5px; opacity: .75; margin-left: 2px }
 /* task 4.8b: saving to Drive */
-.o-kayit { gap: 6px }
 .o-tools .o-kaydet { font-weight: 600 }
 .o-tools .o-kaydet:not(:disabled) { background: #f5ecdf; color: #2a231d }
 .o-tdurum.kaydedildi { background: rgba(90, 160, 90, .35) }
@@ -633,20 +634,32 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
   .o-durum-yuva .hata .o-kisa::before { display: none }
 }
 @keyframes o-donen { to { transform: rotate(360deg) } }
-/* up to 1024 px (iPad portrait, small iPad landscape): the tools and "Kalemi kapat" only icons, the colours a bit
-   narrower (still 44 px high), Kaydet only an icon. Here the row may not fit (≤ 900 px): it scrolls sideways. */
+/* the colour and width as one button each (≤ 1024 px, below): hidden on wider screens */
+.o-tools .o-kisasec { display: none }
+/* task 6.H1b: the colour / width popover under the bar, over the pages, and the see-through cover under it
+   (the first tap outside only closes it). Buttons as in the bar. */
+.o-perde { position: absolute; inset: 0; z-index: 40; touch-action: none }
+.o-balon { position: absolute; z-index: 41; --dot-w: 44px; display: flex; align-items: center; gap: 4px; padding: 6px; border-radius: 14px; color: #f5ecdf;
+  background: #2a231d; border: 1px solid rgba(255, 255, 255, .14); box-shadow: 0 12px 30px rgba(0, 0, 0, .45) }
+/* up to 1024 px (iPad portrait, small iPad landscape): everything fits one row without scrolling (744 px and up):
+   the tools, Kaydet and "Kalemi kapat" only icons; the 6 colours and 3 widths one button each (popover) */
 @media (max-width: 1024px) {
-  .o-tools { --dot-w: 38px; gap: 6px; padding: 0 0 0 10px }
-  .o-tools [data-arac], .o-tools .o-tkapat { padding: 0 }
-  .o-tools [data-arac] > svg, .o-tools .o-tkapat > svg { display: block }
-  .o-tools [data-arac] > span, .o-tools .o-tkapat > span { display: none }
-  /* [Kaydet][status][Kalemi kapat] stick right together; only the tools, colours and Geri al / Yinele scroll */
-  .o-tools .o-kayit { position: sticky; right: 44px; z-index: 1; align-self: stretch; padding: 0 0 0 8px; background: #2a231d; box-shadow: -8px 0 10px -2px rgba(0, 0, 0, .35) }
-  .o-tools .o-kaydet { padding: 0 }
-  .o-tools .o-kaydet > svg { display: block; width: 24px; height: 24px }
-  .o-tools .o-kaydet > span { display: none }
-  .o-tools .o-tkapat { position: sticky; right: 0; z-index: 1; align-self: stretch; height: auto; border-radius: 0; border: 0; background: #2a231d }
-  .o-tools .o-tkapat > svg { width: 24px; height: 24px }
+  .o-tools, .o-kaydir { gap: 6px }
+  .o-tools [data-arac], .o-tools .o-tkapat, .o-tools .o-kaydet { padding: 0 }
+  .o-tools [data-arac] > svg, .o-tools .o-tkapat > svg, .o-tools .o-kaydet > svg { display: block }
+  .o-tools [data-arac] > span, .o-tools .o-tkapat > span, .o-tools .o-kaydet > span { display: none }
+  .o-tools .o-tkapat > svg, .o-tools .o-kaydet > svg { width: 24px; height: 24px }
+  .o-tools .o-renkler, .o-tools .o-boylar, .o-tools .o-genis { display: none }
+  .o-tools .o-kisasec { display: inline-flex; width: 44px; min-width: 44px }
+  .o-tools .dot.o-kisasec { border: 1px solid rgba(255, 255, 255, .2); background: rgba(0, 0, 0, .22) }
+  /* the eraser's hint in the narrow slot: two or three small lines, it doesn't widen the slot */
+  .o-secenek .o-tipucu { width: 0; min-width: 100%; padding: 0; white-space: normal; text-align: center; font-size: 11px; line-height: 1.15 }
+}
+/* phone: the left part scrolls; it fades out softly before the right part (no hard edge), and its last
+   button can scroll clear of the fade */
+@media (max-width: 599px) {
+  .o-kaydir { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent) }
+  .o-kaydir::after { content: ''; flex: none; width: 20px }
 }
 /* no Apple Pencil seen: one finger draws, so the list must not scroll under it (two fingers scroll, kalemModu.ts) */
 #okuyucu.kalem-parmak .o-scroll { touch-action: none }

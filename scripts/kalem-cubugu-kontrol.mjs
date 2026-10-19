@@ -3,7 +3,10 @@
 // For every width × mode (book / PDF) × tool (Kalem / Fosforlu / Silgi) × status (clean / unsaved / empty / error):
 // the bar's height, its rows, "Kalemi kapat" on screen at the right edge, the page area's top edge.
 // Also: pen on / off moves the page being read? (PDF: a page's y on screen; book: the spread's box.)
-// Screenshots: 1180 px Kalem and Silgi, 820 px Kalem, 390 px. Exit code 1 if any height differs or anything moved.
+// Task 6.H1b: the left part must not scroll from 744 px up; at 820 px the colour / width popover is tried
+// (opens under the bar, a choice closes it, a tap on the page only closes it, Esc closes it, the bar stays 58 px).
+// Screenshots: 1180 px Kalem and Silgi, 820 px Kalem and the colour popover, 390 px.
+// Exit code 1 if any height differs, anything moved or a check fails.
 import { spawn } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -37,9 +40,9 @@ async function startPreview() {
 function measure(page) {
   return page.evaluate(() => {
     const bar = document.querySelector('#oTools');
-    // a group with display: contents has no box of its own: its children count instead
-    const kids = [...bar.children].flatMap(e => getComputedStyle(e).display === 'contents' ? [...e.children] : [e])
-      .filter(e => getComputedStyle(e).display !== 'none');
+    // the items of both parts (task 6.H1b: the left one scrolls, the right one stays)
+    const left = bar.querySelector('.o-kaydir');
+    const kids = [...bar.querySelectorAll('.o-kaydir > *, .o-sag > *')].filter(e => getComputedStyle(e).display !== 'none');
     const mid = (e) => { const r = e.getBoundingClientRect(); return (r.top + r.bottom) / 2; };
     const close = bar.querySelector('.o-tkapat').getBoundingClientRect(), b = bar.getBoundingClientRect();
     // Kaydet on screen and not under something else (the row scrolled to its start, as when the pen opens)
@@ -50,7 +53,7 @@ function measure(page) {
       h: Math.round(b.height * 10) / 10,
       rows: new Set(kids.map(e => Math.round(mid(e) / 12))).size,
       close: close.right <= innerWidth + 0.5 && close.left >= 0 && b.right - parseFloat(getComputedStyle(bar).paddingRight) - close.right < 2,
-      scroll: bar.scrollWidth > bar.clientWidth + 1,
+      scroll: left.scrollWidth > left.clientWidth + 1 || bar.scrollWidth > bar.clientWidth + 1,
       save: sr.left >= 0 && sr.right <= innerWidth + 0.5 && sr.width > 0 && !!onTop && save.contains(onTop),
       areaTop: Math.round(area.getBoundingClientRect().top * 10) / 10,
     };
@@ -95,6 +98,50 @@ async function draw(page) {
   await page.waitForTimeout(300);
 }
 
+// Task 6.H1b: the colour / width popover at this width (pen on, Kalem chosen)
+async function popoverTest(page, shotName) {
+  const state = () => page.evaluate(() => ({
+    open: !document.querySelector('.o-balon').hidden,
+    h: Math.round(document.querySelector('#oTools').getBoundingClientRect().height * 10) / 10,
+    color: document.querySelector('#oTools [data-pop="renk"]')?.style.getPropertyValue('--c'),
+    undo: document.querySelector('#oTools [data-geri]').disabled,
+    reader: !document.querySelector('#okuyucu').hidden,
+  }));
+  const before = await state();
+  await page.locator('#oTools [data-pop="renk"]').click();
+  await page.waitForTimeout(250);
+  const opened = await state();
+  const inBalloon = await page.locator('.o-balon [data-renk]').count();
+  if (shotName) await shot(page, shotName);
+  await page.locator('.o-balon [data-renk]').nth(2).click();
+  await page.waitForTimeout(200);
+  const chose = await state();
+  // again; a tap (and drag) on the page only closes it, no stroke
+  await page.locator('#oTools [data-pop="boy"]').click();
+  await page.waitForTimeout(200);
+  const opened2 = await state();
+  await draw(page);
+  const tapped = await state();
+  // Esc closes the popover, not the reader
+  await page.locator('#oTools [data-pop="renk"]').click();
+  await page.waitForTimeout(200);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(200);
+  const esc = await state();
+  // back to the colour it had
+  await page.locator('#oTools [data-pop="renk"]').click();
+  await page.locator(`.o-balon [data-renk="${before.color}"]`).click();
+  await page.waitForTimeout(200);
+  const ok = {
+    'açılır': opened.open && opened.h === before.h && inBalloon >= 5,
+    'seçince kapanır': !chose.open && chose.color !== before.color,
+    'sayfaya dokunma sadece kapatır': opened2.open && !tapped.open && tapped.undo === opened2.undo,
+    'Esc kapatır (okuyucu açık)': !esc.open && esc.reader,
+    'çubuk 58 px': [before, opened, chose, tapped, esc].every(x => x.h === before.h),
+  };
+  return ok;
+}
+
 async function shot(page, name) {
   await page.mouse.move(0, 0);
   const file = join(OUT, name);
@@ -123,7 +170,7 @@ try {
 
   const heights = new Set();
   console.log('\nGenişlik | mod | araç | rozet | çubuk px | satır | Kalemi kapat sağda | Kaydet ekranda | yana kayar | alan üstü');
-  const moves = [];
+  const moves = [], pops = [];
   for (const [w, h] of SIZES) {
     await page.setViewportSize({ width: w, height: h });
     for (const mode of ['kitap', 'pdf']) {
@@ -139,6 +186,12 @@ try {
       await page.waitForTimeout(700);
       const a1 = await anchor(page);
       const tops = new Set();
+      if (w === 820) {
+        await page.waitForTimeout(3800);   // the "Kalem açık" toast goes away first
+        await setTool(page, 'kalem');
+        const ok = await popoverTest(page, mode === 'pdf' ? 'kalem-820-renk.png' : null);
+        for (const [k, v] of Object.entries(ok)) { if (!v) bad++; pops.push(`${w} | ${mode} | ${k} | ${v ? 'evet' : 'HAYIR'}`); }
+      }
       for (const t of TOOLS) {
         await setTool(page, t);
         const rows = [];
@@ -157,7 +210,7 @@ try {
         await setTool(page, t);   // the real status again
         for (const [r, m] of rows) {
           heights.add(m.h); tops.add(m.areaTop);
-          if (m.rows !== 1 || !m.close || !m.save) bad++;
+          if (m.rows !== 1 || !m.close || !m.save || (w >= 744 && m.scroll)) bad++;
           console.log(`${w} | ${mode} | ${t} | ${r} | ${m.h} | ${m.rows} | ${m.close ? 'evet' : 'HAYIR'} | ${m.save ? 'evet' : 'HAYIR'} | ${m.scroll ? 'evet' : 'hayır'} | ${m.areaTop}`);
         }
       }
@@ -171,6 +224,8 @@ try {
   }
   console.log('\nKalem aç/kapa: genişlik | mod | kapalı | açık | tekrar kapalı | sonuç   (PDF: sayfa@y, kitap: x,y g×y)');
   for (const m of moves) console.log(m);
+  console.log('\nRenk / kalınlık balonu: genişlik | mod | kontrol | sonuç');
+  for (const p of pops) console.log(p);
   console.log(`\nÇubuk yükseklikleri: ${[...heights].join(', ')} px`);
   if (heights.size !== 1) bad++;
   await page.close();
