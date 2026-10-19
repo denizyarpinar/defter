@@ -165,10 +165,11 @@ describe('writeDefterStrokes / readDefterStrokes', () => {
         expect(pts[i + 1] + w / 2).toBeLessThanOrEqual(rect[3]);
       }
 
-      // task 4.7c: curves (c), no straight segments; every point of the drawing (controls too) inside Rect
+      // task 4.7c: the pen's outline is curves (c), no straight segments; 6.H2b: the highlighter's line is
+      // short straight pieces (l), no curves. Every point of the drawing (controls too) inside Rect
       const draw = apText(ap);
-      expect(draw).toMatch(/ c\n/);
-      expect(draw).not.toMatch(/ l\n/);
+      expect(draw).toMatch(d === pen ? / c\n/ : / l\n/);
+      expect(draw).not.toMatch(d === pen ? / l\n/ : / c\n/);
       for (const [x, y] of pathPoints(draw)) {
         expect(x).toBeGreaterThanOrEqual(rect[0]);
         expect(y).toBeGreaterThanOrEqual(rect[1]);
@@ -182,7 +183,7 @@ describe('writeDefterStrokes / readDefterStrokes', () => {
     expect(penDraw).toMatch(/\nh\nf Q\n$/);
     expect(penDraw).not.toMatch(/\bS\b|RG|\bw\b/);
     expect(markerDraw).toMatch(/1 J 1 j 12 w 1 0\.922 0\.231 RG\n/);
-    expect(markerDraw).toMatch(/ c\nS Q\n$/);
+    expect(markerDraw).toMatch(/ l\nS Q\n$/);
     expect(markerDraw).not.toMatch(/\bf\b|\bh\b/);
 
     const gs = (d: PDFDict) => ((apOf(d).dict.get(N('Resources')) as PDFDict).get(N('ExtGState')) as PDFDict).get(N('GS0')) as PDFDict;
@@ -209,6 +210,37 @@ describe('writeDefterStrokes / readDefterStrokes', () => {
     // the pressure changes the drawing
     const ap = (d: PDFDict) => apText(doc.context.lookup((d.get(N('AP')) as PDFDict).get(N('N'))) as PDFRawStream);
     expect(ap(a)).not.toBe(ap(b));
+  });
+
+  // Task 6.H2b: the ESR stylus sends 0.12 for every point. That flat pressure is kept: it marks a pen without
+  // a sensor (constant width). A PDF saved before 6.H2b (flat /DefterBasinc, the highlighter's /AP in curves)
+  // is read as it is and redrawn the new way.
+  it('6.H2b: a flat pressure is written and read back; an older PDF is read, and written again the new way', async () => {
+    const flat = stroke('e', { basinc: [0.12, 0.12, 0.12] });
+    let doc = await PDFDocument.load(await writeDefterStrokes(await samplePdf(), new Map([[0, [flat]]])));
+    const nums = (v: unknown) => (v as PDFArray).asArray().map(n => (n as PDFNumber).asNumber());
+    expect(nums(annotDicts(doc, doc.getPage(0))[0].get(N('DefterBasinc')))).toEqual([0.12, 0.12, 0.12]);
+
+    // as 6.H2 wrote it: the flat pressure in the file, the highlighter drawn with curves (c)
+    const oldHl = await PDFDocument.load(await writeDefterStrokes(await doc.save(), new Map([[1, [hl('h')]]])));
+    const hlDict = annotDicts(oldHl, oldHl.getPage(1)).find(isOurs)!;
+    const oldDraw = ['q /GS0 gs 1 J 1 j 12 w 1 0.922 0.231 RG', '80 400 m', '153.33 400.67 226.67 401.33 300 402 c', 'S Q', ''].join('\n');
+    const oldAp = oldHl.context.flateStream(oldDraw, { Type: 'XObject', Subtype: 'Form', BBox: hlDict.get(N('Rect'))! });
+    (hlDict.get(N('AP')) as PDFDict).set(N('N'), oldHl.context.register(oldAp));
+    const older = await oldHl.save();
+
+    const read = await readDefterStrokes(older);
+    expect(read.get(0)![0].basinc).toEqual([0.12, 0.12, 0.12]);   // read as it is (unknown data kept)
+    expect(read.get(1)![0]).toMatchObject({ arac: 'fosforlu', noktalar: [80, 400, 300, 402] });
+
+    // written again (e.g. a stroke added on the page): the flat pressure kept, the highlighter in straight pieces
+    doc = await PDFDocument.load(await writeDefterStrokes(older, read));
+    expect(nums(annotDicts(doc, doc.getPage(0)).find(isOurs)!.get(N('DefterBasinc')))).toEqual([0.12, 0.12, 0.12]);
+    const hl2 = annotDicts(doc, doc.getPage(1)).find(isOurs)!;
+    const draw = apText(doc.context.lookup((hl2.get(N('AP')) as PDFDict).get(N('N'))) as PDFRawStream);
+    expect(draw).toMatch(/1 J 1 j 12 w/);
+    expect(draw).toMatch(/ l\nS Q\n$/);
+    expect(draw).not.toMatch(/ c\n/);
   });
 
   it('task 4.7c: pressure that does not fit the points (another program changed the line) is left out', async () => {

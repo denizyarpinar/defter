@@ -37,11 +37,26 @@ describe('KalemOlcer', () => {
     expect(k.ilkMoveMs).toBe(30);
     expect(k.hamUzunlukPx).toBe(14);   // 0→4→8 down, then 6 across; the up adds nothing
     expect(k.upKayipPx).toBe(0);
-    expect(k.denenen).toBe(4);         // down + 2 coalesced + 1 move without coalesced
-    expect(k.atilanYakin).toBe(0);
+    expect(k.denenen).toBe(5);         // down + 2 coalesced + 1 move without coalesced + the up (6.H2b: kept)
+    expect(k.atilanYakin).toBe(1);     // the up: on the last point (it takes its place)
     expect(k.uzunlukPt).toBe(7);
     expect(k.nokta).toBe(false);
     expect(k.olaylar.map(e => e[0])).toEqual(['d', 'm', 'c', 'c', 'm', 'u']);
+  });
+
+  it('6.H2b: dropped repeats (cift), the same event object again, untrusted, which listener', () => {
+    const o = new KalemOlcer(() => 0);
+    o.basla(ev(0, 0, 0), 'kalem', 1);
+    o.kimlik(false, 'oScroll', true); o.hareket(ev(0, 4, 10), [], 0);
+    o.kimlik(true, 'oScroll', true); o.cift(); o.hareket(ev(0, 4, 10), [], 0);
+    o.kimlik(false, 'oKitap', false);
+    o.bitir(ev(0, 6, 20), 'u', [0, 0, 0, 4, 0, 6]);
+    const k = o.son()!;
+    expect(k).toMatchObject({ cift: 1, ayniNesne: 1, guvenilmez: 1, hedefler: ['oScroll', 'oKitap'] });
+    expect(k.denenen).toBe(4);       // down, 2 moves, the up
+    expect(k.atilanYakin).toBe(0);   // 4 offered − 1 repeat − 3 kept
+    expect(ozet(k)).toContain('çift 1');
+    expect(ozet(k)).toContain('aynı olay 1');
   });
 
   it('another pointer\'s moves are not counted', () => {
@@ -136,7 +151,7 @@ describe('summaries', () => {
     o.basla(ev(0, 0, 0), 'kalem', 1); o.hareket(ev(0, 5, 5), [], 0); o.bitir(ev(0, 5, 10), 'u', [0, 0, 0, 5]);
     o.basla(ev(0, 0, 0), 'kalem', 1); o.bitir(ev(0, 0, 3), 'x', [0, 0]);
     o.reddet(ev(0, 0, 0), 'perde');
-    expect(toplam(o.kayitlar())).toBe("son 4: 3 çizgi · 2 nokta · 2 move'suz · 1 cancel · 0 iptal · 1 reddedildi · 0 avuç");
+    expect(toplam(o.kayitlar())).toBe("son 4: 3 çizgi · 2 nokta · 2 move'suz · 1 cancel · 0 çift · 0 iptal · 1 reddedildi · 0 avuç");
     expect(ozet(undefined)).toBe('–');
   });
 });

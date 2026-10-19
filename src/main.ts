@@ -106,6 +106,10 @@ if (import.meta.env.DEV) void import('./defter/bekleyenFotoDene').then(m => m.in
 if (import.meta.env.DEV && new URLSearchParams(location.search).get('kirpTest') === '1') {
   import('./defter/kirp/kirpTest').then(m => m.acKirpTest()).catch(e => toast(`Kırpma testi açılamadı: ${e}`));
 }
+// dev only (task 6.H2b): ?kalemTest=1 draws pen records (or samples) the old and the new way side by side; writes nothing
+if (import.meta.env.DEV && new URLSearchParams(location.search).get('kalemTest') === '1') {
+  import('./kalem/kalemTest').then(m => m.acKalemTest()).catch(e => toast(`Kalem testi açılamadı: ${e}`));
+}
 // dev only (task 6.2a): ?filtreTest=1 shows document filters A–D side by side on real photos; writes nothing
 if (import.meta.env.DEV && new URLSearchParams(location.search).get('filtreTest') === '1') {
   import('./defter/filtre/filtreTest').then(m => m.acFiltreTest()).catch(e => toast(`Filtre testi açılamadı: ${e}`));

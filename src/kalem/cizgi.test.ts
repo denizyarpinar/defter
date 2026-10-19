@@ -46,9 +46,9 @@ describe('strokeBounds', () => {
   it('a pen stroke at full pressure still fits (1.5 × the width)', () => {
     const noktalar: number[] = [];
     for (let i = 0; i <= 100; i++) noktalar.push(100 + i, 200 + 30 * Math.sin(i / 8));
-    const pen = s({ kalinlik: 6, noktalar, basinc: Array(101).fill(1) });
+    const pen = s({ kalinlik: 6, noktalar, basinc: Array.from({ length: 101 }, (_, i) => i % 2 ? 1 : 0.97) });
     const [x0, y0, x1, y1] = strokeBounds(pen);
-    const c = penOutline(pen, true);
+    const c = penOutline(pen);
     const pts = [c.start[0], c.start[1], ...c.segs];
     for (let i = 0; i < pts.length; i += 2) {
       expect(pts[i]).toBeGreaterThanOrEqual(x0);

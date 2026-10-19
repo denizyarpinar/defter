@@ -4,6 +4,9 @@ import { olcumAcik } from '../defter/sureOlcum';
 // what the browser sent (down / move / coalesced / up / cancel, with position, time and pressure) and
 // what was kept, so the cause can be seen in numbers. On in development and with ?olcum=1; otherwise
 // kalemOlcer is null and nothing is recorded. It never changes what is drawn.
+// Task 6.H2b: the same move came twice on the iPad. cift counts the events dropped for that (older than
+// the last one taken: EventOrder in koordinat.ts); ayniNesne / hedefler / guvenilmez tell why it came twice
+// (the same event object again = two of our listeners; a new object at the same time = the browser).
 
 export const MAX_KAYIT = 50;
 export const MAX_OLAY = 300;   // per stroke: raw events, and kept points (pairs)
@@ -26,10 +29,14 @@ export interface KalemKaydi {
   sureMs: number;              // down → up / cancel
   ilkMoveMs: number | null;    // down → first move (null: no move came)
   hamUzunlukPx: number;        // through every raw position (down, coalesced, up)
-  upKayipPx: number | null;    // from the last raw point before the up to the up's position (the up is not kept)
-  denenen: number;             // points offered to pushPoint (down + each coalesced / move)
+  upKayipPx: number | null;    // from the last raw point before the up to the up's position (6.H2b: the up is kept now)
+  denenen: number;             // points offered (down + each coalesced / move + the up)
   saklananNokta: number;
-  atilanYakin: number;         // offered but closer than MIN_STEP to the last one
+  atilanYakin: number;         // offered but closer than the step to the last one (or the up took its place)
+  cift: number;                // dropped: not after the last one taken (a move that came twice)
+  ayniNesne: number;           // moves that were the same event object as the one before
+  guvenilmez: number;          // moves with isTrusted false
+  hedefler: string[];          // the elements whose listener took the moves (id or class)
   uzunlukPt: number;           // the kept points' length, PDF pt
   basinc: { min: number; max: number; ilk: number; up: number | null } | null;
   nokta: boolean;              // one kept point: drawn as a round dot
@@ -118,6 +125,18 @@ export class KalemOlcer {
     k.denenen += coalesced.length || 1;
   }
 
+  // Before a move is used: is it the same object as the last one, whose listener, trusted
+  kimlik(ayniNesne: boolean, hedef: string, guvenilir: boolean): void {
+    const k = this.acik?.k;
+    if (!k) return;
+    if (ayniNesne) k.ayniNesne++;
+    if (!guvenilir) k.guvenilmez++;
+    if (!k.hedefler.includes(hedef)) k.hedefler.push(hedef);
+  }
+
+  // A point dropped by EventOrder
+  cift(): void { if (this.acik) this.acik.k.cift++; }
+
   avuc(): void { if (this.acik) this.acik.k.avuc++; }
 
   touchstart(cancelable: boolean): void {
@@ -142,7 +161,7 @@ export class KalemOlcer {
     if (e && tur) {
       if (tur === 'u') k.sayilar.up = 1; else k.sayilar.cancel = 1;
       const o = this.olay(a, tur, e, true);
-      if (tur === 'u') k.upKayipPx = r2(Math.hypot(o[1] - onceki[1], o[2] - onceki[2]));
+      if (tur === 'u') { k.upKayipPx = r2(Math.hypot(o[1] - onceki[1], o[2] - onceki[2])); k.denenen++; }
       k.sureMs = o[3];
     } else {
       k.sureMs = r2(this.simdi() - a.t0);
@@ -151,7 +170,7 @@ export class KalemOlcer {
     this.iptalNedeni = null;
     k.hamUzunlukPx = hamUzunluk(a.yol);
     k.saklananNokta = pdf.length >> 1;
-    k.atilanYakin = Math.max(0, k.denenen - k.saklananNokta);
+    k.atilanYakin = Math.max(0, k.denenen - k.cift - k.saklananNokta);
     k.uzunlukPt = noktaUzunlugu(pdf);
     k.nokta = k.saklananNokta === 1;
     k.saklanan = Array.from(pdf.slice(0, 2 * MAX_OLAY), r2);
@@ -172,7 +191,8 @@ export class KalemOlcer {
     return {
       zaman: new Date().toISOString(), pointerType: e.pointerType, pointerId: e.pointerId, arac: null, kalinlik: null, sonuc,
       sayilar: { down: 0, move: 0, coalesced: 0, predicted: 0, up: 0, cancel: 0 },
-      sureMs: 0, ilkMoveMs: null, hamUzunlukPx: 0, upKayipPx: null, denenen: 0, saklananNokta: 0, atilanYakin: 0, uzunlukPt: 0,
+      sureMs: 0, ilkMoveMs: null, hamUzunlukPx: 0, upKayipPx: null, denenen: 0, saklananNokta: 0, atilanYakin: 0,
+      cift: 0, ayniNesne: 0, guvenilmez: 0, hedefler: [], uzunlukPt: 0,
       basinc: null, nokta: false, avuc: 0, stylusTouchstart: 0, cancelableDegil: 0, olaylar: [], saklanan: []
     };
   }
@@ -200,6 +220,8 @@ export function ozet(k: KalemKaydi | undefined): string {
     `${k.saklananNokta} nokta`,
     k.basinc ? `p ${p2(k.basinc.min)}–${p2(k.basinc.max)}` : 'p –',
     k.upKayipPx != null ? `up kaybı ${Math.round(k.upKayipPx)} px` : '',
+    k.cift ? `çift ${k.cift}` : '',
+    k.ayniNesne ? `aynı olay ${k.ayniNesne}` : '',
     k.sonuc !== 'up' ? k.sonuc.toUpperCase() : '',
     k.nokta ? 'NOKTA' : '',
     k.avuc ? `avuç ${k.avuc}` : '',
@@ -216,6 +238,7 @@ export function toplam(ks: readonly KalemKaydi[]): string {
     `${say(k => k.nokta)} nokta`,
     `${say(k => k.sonuc !== 'reddedildi' && k.sayilar.move === 0)} move'suz`,
     `${say(k => k.sonuc === 'cancel')} cancel`,
+    `${ks.reduce((n, k) => n + k.cift, 0)} çift`,
     `${say(k => k.sonuc === 'iptal-ikinci-parmak' || k.sonuc === 'iptal-dis')} iptal`,
     `${say(k => k.sonuc === 'reddedildi')} reddedildi`,
     `${ks.reduce((n, k) => n + k.avuc, 0)} avuç`,

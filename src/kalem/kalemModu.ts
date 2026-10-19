@@ -2,7 +2,7 @@ import { roundPressure, type Stroke } from './cizgi';
 import { curveToSvg, strokeCurve } from './cizgiSekli';
 import { InputRouter } from './girdi';
 import { kalemOlcer } from './kalemOlcum';
-import { pushPoint, screenToViewport, toPdf, type PenViewport } from './koordinat';
+import { EventOrder, minStep, pushLastPoint, pushPoint, roundPt, screenToViewport, toPdf, type PenViewport } from './koordinat';
 import { eraserRadius, type Pt } from './silgi';
 
 // Pen mode (task 4.6): live drawing on the reader's pages. The stroke being drawn is an SVG
@@ -18,8 +18,14 @@ import { eraserRadius, type Pt } from './silgi';
 // the pen lifts. Predicted points (getPredictedEvents, where the browser has it) are only drawn.
 // Task 6.H2: kalemOlcer (kalemOlcum.ts; development and ?olcum=1, otherwise null) records each stroke's
 // events for diagnosis. It only watches: nothing here draws differently with it.
+// Task 6.H2b: points closer than 1 screen px are dropped (at most 0.5 pt: minStep), an event older than
+// the last one taken is dropped (EventOrder: the iPad sent some moves twice), the pen's up point ends the
+// stroke. A pen's flat pressure (a stylus without a sensor) is saved too: it is drawn at a constant width (cizgiSekli.ts).
 
 const SVG = 'http://www.w3.org/2000/svg';
+
+// An area gets the pen's listeners once: a second PenInput on it would take every move twice (6.H2b)
+const bound = new WeakSet<HTMLElement>();
 
 // A page that can be drawn on now (its file's strokes are loaded, its viewport known)
 export interface PenPage {
@@ -53,6 +59,9 @@ interface Live {
   path: SVGPathElement;
   pdf: number[];            // PDF user space
   basinc: number[] | null;  // Apple Pencil only (mouse / finger pressure isn't real: simulated when drawn)
+  step: number;             // pt: closer points are dropped (1 screen px at this zoom, at most 0.5 pt)
+  order: EventOrder;        // events older than the last one taken are dropped
+  lastMove: PointerEvent | null;   // ?olcum=1: the same event object again?
   predicted: number[];      // PDF user space, drawn but not kept
   predTimer: number;        // clears the predicted points when the pen stops
   raf: number;
@@ -93,6 +102,8 @@ export class PenInput {
 
   constructor(areas: HTMLElement[], private host: PenHost) {
     for (const a of areas) {
+      if (bound.has(a)) { console.warn('Kalem dinleyicileri bu alana zaten bağlı; ikinci kez bağlanmadı.', a); continue; }
+      bound.add(a);
       // capture: before the zoom controller (it asks owns / ignores)
       a.addEventListener('pointerdown', e => this.down(e), true);
       a.addEventListener('pointermove', e => this.move(e), true);
@@ -185,7 +196,11 @@ export class PenInput {
     svg.append(path);
     box.append(svg);
     const pen = e.pointerType === 'pen';
-    this.live = { id: e.pointerId, pen, box, page, style, svg, path, pdf: [], basinc: pen && style.arac === 'kalem' ? [] : null, predicted: [], predTimer: 0, raf: 0 };
+    this.live = {
+      id: e.pointerId, pen, box, page, style, svg, path, pdf: [], basinc: pen && style.arac === 'kalem' ? [] : null,
+      step: minStep(box.getBoundingClientRect().width, page.viewport.width), order: new EventOrder(), lastMove: null,
+      predicted: [], predTimer: 0, raf: 0
+    };
     kalemOlcer?.basla(e, style.arac, style.kalinlik);
     this.addPoint(e);
     this.paint();
@@ -212,6 +227,11 @@ export class PenInput {
     const l = this.live;
     if (!l || l.id !== e.pointerId) return;
     const evs = typeof e.getCoalescedEvents === 'function' ? e.getCoalescedEvents() : [];
+    if (kalemOlcer) {
+      const hedef = e.currentTarget instanceof HTMLElement ? e.currentTarget.id || e.currentTarget.className : '?';
+      kalemOlcer.kimlik(e === l.lastMove, hedef, e.isTrusted);
+    }
+    l.lastMove = e;
     let changed = false;
     for (const ev of evs.length ? evs : [e]) changed = this.addPoint(ev) || changed;
     // where the pen is about to be (Chrome / Edge; not in Safari): drawn ahead, replaced on every move
@@ -243,12 +263,18 @@ export class PenInput {
     const l = this.live;
     if (!l || l.id !== e.pointerId) return;
     if (!ok) { kalemOlcer?.bitir(e, 'x', l.pdf); this.cancel(); return; }
+    // the stroke ends where the pen lifted (its pressure: the last one; the up's own is 0)
+    if (l.order.accept(e.timeStamp, e.clientX, e.clientY)) {
+      const [x, y] = this.toPdfPoint(e, l);
+      pushLastPoint(l.pdf, l.basinc, roundPt(x), roundPt(y), l.step);
+    } else kalemOlcer?.cift();
     kalemOlcer?.bitir(e, 'u', l.pdf);
     this.live = null;
     cancelAnimationFrame(l.raf);
     l.svg.remove();
     // a single tap is a dot: one point
     const s: Stroke = { id: newId(), ...l.style, noktalar: l.pdf };
+    // a flat pressure is kept as well: it marks a pen without a sensor (constant width, cizgiSekli.ts)
     if (l.basinc) s.basinc = l.basinc;
     this.host.add(l.page, s);
   }
@@ -318,19 +344,20 @@ export class PenInput {
 
   private addPoint(e: PointerEvent): boolean {
     const l = this.live!;
+    if (!l.order.accept(e.timeStamp, e.clientX, e.clientY)) { kalemOlcer?.cift(); return false; }
     const [x, y] = this.toPdfPoint(e, l);
-    if (!pushPoint(l.pdf, x, y)) return false;
+    if (!pushPoint(l.pdf, roundPt(x), roundPt(y), l.step)) return false;
     l.basinc?.push(roundPressure(e.pressure));   // rounded now: the live stroke is the saved one
     return true;
   }
 
-  // The stroke's shape so far (not finished: last = false) plus the predicted points
+  // The stroke's shape so far, drawn as if finished (the same shape once the pen lifts), plus the predicted points
   private paint(): void {
     const l = this.live!;
     const noktalar = l.predicted.length ? l.pdf.concat(l.predicted) : l.pdf;
     let basinc = l.basinc ?? undefined;
     if (basinc && l.predicted.length) basinc = basinc.concat(Array(l.predicted.length / 2).fill(basinc[basinc.length - 1]));
-    const curve = strokeCurve({ arac: l.style.arac, noktalar, basinc, kalinlik: l.style.kalinlik }, false);
+    const curve = strokeCurve({ arac: l.style.arac, noktalar, basinc, kalinlik: l.style.kalinlik });
     l.path.setAttribute('d', curveToSvg(curve, (x, y) => l.page.viewport.convertToViewportPoint(x, y)));
   }
 }

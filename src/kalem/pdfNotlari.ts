@@ -11,6 +11,7 @@ import { curveBounds, curveToPdf, strokeCurve, type Curve } from './cizgiSekli';
 // - Task 4.7c: the appearance is the shape the app draws (cizgiSekli.ts): pen = the filled outline
 //   (its width follows the pressure), highlighter = the smoothed centre line. /InkList stays the
 //   plain centre line (for other programs) and the pressure goes in /DefterBasinc.
+// - Task 6.H2b: the highlighter's appearance is short straight pieces (l) with round caps and joins.
 // - Notes hang on the page object (/Annots, /P), not on a page number: a page inserted later
 //   (Faz 5) doesn't move them to another page.
 // - pdf-lib is loaded only when this runs (dynamic import), so it stays out of the first bundle.
@@ -224,6 +225,7 @@ function addInk(L: Lib, ctx: PDFContext, pageRef: PDFRef, s: Stroke, date: strin
     T: L.PDFString.of(TITLE),
     DefterId: L.PDFHexString.fromText(s.id),
     DefterArac: tool,
+    // 6.H2b: a flat one too (a pen without a sensor): it keeps the stroke at a constant width when read again
     ...(s.basinc ? { DefterBasinc: s.basinc } : {}),
     AP: { N: ap }
   }));

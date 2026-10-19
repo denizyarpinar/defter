@@ -170,6 +170,10 @@ Kitaplık/
 - Uygulamanın notları özel `/DefterId` anahtarıyla (ve /T "Defter") işaretlenir. Sadece /DefterId işaretli Ink annotation'lar eklenir/değişir/silinir. Sayfa içeriği, başka notlar, form alanları, metadata ve sayfa sırası korunur (Faz 5: sadece sona yeni sayfa eklenebilir). İmzalı PDF'e yazılmaz.
 - Çizgi şekli tek kaynak: `src/kalem/cizgiSekli.ts`. Kalem = perfect-freehand dış hattı, dolgu; fosforlu = orta noktalardan yumuşatılmış eğri, sabit kalınlık. Canlı çizim, okuma katmanı ve /AP aynı fonksiyonu kullanır. /AP kalemde dış hat dolgu (f), fosforluda yumuşak eğri (S). /InkList merkez çizgi olarak kalır.
 - Apple Pencil basıncı `basinc` (nokta başına 0–1, 2 ondalık) PDF'te `/DefterBasinc` dizisinde; basınç yoksa (fare, parmak) hızdan tahmin edilir.
+- 6.H2b (Deniz kararı): düz basınç (en çok − en az < 0.02, ör. ESR kalem hep 0.12) = basınç yok → kalemde sabit kalınlık (seçilen kalınlık, hız tahmini yok). Düz basınç `/DefterBasinc`'e yine yazılır (basınçsız kalem işareti); eski 0.12'li çizgiler de sabit çizilir. Fare/parmak (basınç hiç yok) hızdan tahminle kalır. Karar: `hasRealPressure` (`cizgiSekli.ts`).
+- 6.H2b: perfect-freehand 1/16 pt biriminde çalışır (sabit uzunlukları pt'de çok büyüktü: uçlarda 2–3.6 pt düz parça); uçta yuvarlak başın kapladığı kanca noktaları çizimde atlanır. Canlı çizim bitmiş hâliyle çizilir (kalkınca şekil değişmez).
+- 6.H2b nokta kuralları (`koordinat.ts`): adım ≤ 1 ekran px, en çok 0.5 pt (`minStep`); noktalar 0.01 pt'ye yuvarlanır; pointerup noktası son nokta olarak eklenir (basıncı son basınç); son alınan noktadan eski (ya da aynı zaman + aynı yer) coalesced/move atılır (`EventOrder`; iPad'de aynı move iki kez geldi).
+- 6.H2b fosforlu: merkez eğri 0.5 pt'lik kısa düz parçalarla stroke edilir (SVG `L`, /AP `l`, round cap/join); sıkı kıvrımda katlanma deliği olmasın diye. Dev: `?kalemTest=1` eski/yeni karşılaştırma, `node scripts/kalem-test-kontrol.mjs` ekran görüntüleri.
 - Kalemin opaklığı her zaman 1, fosforlununki 0–1 arası (1 hariç).
 
 ### Okuma modu

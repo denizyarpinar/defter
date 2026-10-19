@@ -10,9 +10,9 @@ const pen = (lines: number[][], extra: Partial<DefterInk> = {}): DefterInk =>
 
 const svgs = (markup: string) => [...markup.matchAll(/<svg class="o-cizim (\w+)" viewBox="([^"]+)"[^>]*>(.*?)<\/svg>/g)]
   .map(m => ({ cls: m[1], viewBox: m[2], body: m[3] }));
-// every path: its points (start, Q controls and ends) in order, closed or not
+// every path: its points (start, Q controls and ends, or L ends) in order, closed or not
 const paths = (body: string) => [...body.matchAll(/<path d="([^"]+)"/g)].map(m => {
-  const n = m[1].replace(/[MQZ]/g, ' ').trim().split(/\s+/).map(Number);
+  const n = m[1].replace(/[MQLZ]/g, ' ').trim().split(/\s+/).map(Number);
   const pts: [number, number][] = [];
   for (let i = 0; i + 1 < n.length; i += 2) pts.push([n[i], n[i + 1]]);
   return { d: m[1], pts, closed: m[1].endsWith('Z') };
@@ -97,7 +97,8 @@ describe('penLayerSvg', () => {
       const [o] = paths(svgs(penLayerSvg([pen([line], { width: 4, pressure })], flat, 'normal'))[0].body);
       return Math.max(...o.pts.map(q => distTo(q, onScreen)));
     };
-    const all = (p: number) => Array(line.length / 2).fill(p);
+    // it changes a little: a pressure that never changes is no pressure (6.H2b, hasRealPressure)
+    const all = (p: number) => Array.from({ length: line.length / 2 }, (_, i) => i % 2 ? p : p - 0.05);
     expect(reach(all(1))).toBeGreaterThan(2.5);          // 1.5 × 4 / 2 = 3
     expect(reach(all(1))).toBeLessThanOrEqual(3.15);
     expect(reach(all(0.1))).toBeLessThan(1.8);           // 0.5 × 4 / 2 = 1, more at the sharp corners (smoothing)
@@ -125,9 +126,10 @@ describe('penLayerSvg', () => {
     expect(line.closed).toBe(false);
     expect(line.pts[0]).toEqual([0, 190]);
     expect(line.pts[line.pts.length - 1]).toEqual([90, 170]);
-    expect(line.d).not.toContain('L');
+    // 6.H2b: written as short straight pieces (a thick stroke on a tight quadratic folded in the browser)
+    expect(line.d).not.toContain('Q');
     // the corners are controls: the line goes round them, through the midpoints
-    expect(line.pts).toContainEqual([45, 180]);
+    expect(distTo([45, 180], line.pts)).toBeLessThan(0.05);
     expect(paths(out[1].body)).toHaveLength(2);
   });
 
