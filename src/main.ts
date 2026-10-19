@@ -7,7 +7,7 @@ import { AuthError, aktifKapsam, isSignedIn, kapsamDurumu, prepareAuth, remember
 import { darZorlaUrl, girisKapsami, includeGranted, sahipMi, sahipZorlaYok, tamErisimDugmesi } from './drive/kapsam';
 import { getUser, setAccountHint, setSessionExpiredHandler } from './drive/drive';
 import { LibraryNotFound, loadDriveLibrary, type DriveLocation } from './drive/driveLibrary';
-import { driveKurulumApi, kitaplikKur, KurulumIzinYok } from './drive/kurulum';
+import { driveKurulumApi, kitaplikKur, KurulumIzinYok, webOrnekKaynak } from './drive/kurulum';
 import { bekleyenFotoDepo } from './defter/bekleyenFoto';
 import { acilisToastMetni } from './defter/fotoEklemeMetin';
 import { ReadingSaver, driveReadingApi } from './drive/okumaKaydi';
@@ -24,7 +24,7 @@ import { createRoomScene, type LibraryData, type RoomScene, type View } from './
 import { canvas, drawWood, noise } from './scene/textures';
 import { updateHint } from './ui/hint';
 import { initPanel } from './ui/panel';
-import { hideSaveState, initFullAccess, initKurulum, initLibError, initSaveState, setFullAccess, setKurulum, setLibError, setLibraryLoading, showSaveError, showSaved, showSaving } from './ui/driveStatus';
+import { hideSaveState, initFullAccess, initKurulum, initLibError, initSaveState, ornekIstendi, setFullAccess, setKurulum, setLibError, setLibraryLoading, showSaveError, showSaved, showSaving } from './ui/driveStatus';
 import { etkinYazici, gecis, gorunum, ilkDurum, type KitaplikDurumu, type KitaplikOlayi } from './ui/kitaplikDurumu';
 import { kartSec, KurulumAkisi } from './ui/kurulumDurumu';
 import { closeReader, initReader, isReaderOpen, openReader, readerShell, refreshReader } from './ui/reader';
@@ -236,13 +236,16 @@ function kitaplikKurDugmesi(): void {
   if (durum.tur !== 'kurulum' || !kurulum.basla(KURULUM_KILIT_ACIK)) return;   // locked or running: no request
   olay({ tur: 'kurulumBasladi' });
   const yazabilir = () => isSignedIn() && durum.tur !== 'demo';   // as the K2a dev helper
-  kitaplikKur(driveKurulumApi, { islemId: kurulum.islemId, mod: aktifKapsam() === 'tam' ? 'tam' : 'dar', kilitAcik: KURULUM_KILIT_ACIK, yazabilir })
+  // task 6.K3: the box checked → the sample book too, with its progress on the button
+  const ornek = ornekIstendi() ? { kaynak: webOrnekKaynak(), ilerleme: (i: number, n: number) => olay({ tur: 'kurulumIlerleme', i, n }) } : undefined;
+  kitaplikKur(driveKurulumApi, { islemId: kurulum.islemId, mod: aktifKapsam() === 'tam' ? 'tam' : 'dar', kilitAcik: KURULUM_KILIT_ACIK, yazabilir, ornek })
     .then(async r => {
       kurulum.bitti();
       if (r.uyari) uyar(r.uyari);
+      if (r.ornekHata) console.warn('Örnek kitap eklenemedi:', r.ornekHata);
       olay({ tur: 'kurulumBitti' });
       await loadFromDrive();
-      if (durum.tur === 'drive') toast('Kitaplığın hazır.');
+      if (durum.tur === 'drive') toast(r.ornekHata ? 'Kitaplığın hazır. Örnek kitap eklenemedi.' : 'Kitaplığın hazır.');
     }, (e: unknown) => {
       kurulum.bitti();
       olay({ tur: 'kurulumHata', mesaj: errorText(e), izinYok: e instanceof KurulumIzinYok });

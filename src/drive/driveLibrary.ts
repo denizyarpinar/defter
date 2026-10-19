@@ -8,6 +8,7 @@ import { driveKokApi, kokBul, ROOT_NAME, type KokDrive, type KokModu, type KokSo
 // Reads the library's root folder (see CLAUDE.md → Veri modeli). Reads only; never moves/deletes.
 // Task 6.K2a: the root is found by kok.ts (narrow: the app's defterKok root; full: "Kitaplık" first).
 // Task 6.K2b: no root, or the app's own root half set up → LibraryNotFound (main.ts shows "Kitaplığını kur").
+// Task 6.K3: a sample book folder (defterOrnek) without its kitap.json is a half made sample: not shown.
 
 export { ROOT_NAME };
 const MAX_PARALLEL = 4;
@@ -71,6 +72,7 @@ export async function loadDriveLibrary(mod: KokModu, kokDrive: KokDrive = driveK
   }
   await pool(folders, MAX_PARALLEL, async f => {
     const [file] = await listChildren(f.id, { name: 'kitap.json' });
+    if (!file && f.appProperties?.defterOrnek === '1') { loc.bookFolderIds.delete(f.name); return; }
     if (file) loc.bookFileIds.set(f.name, file.id);
     books.set(f.name, parseBook(f.name, file ? await readJson(file.id, `${f.name}/kitap.json okunurken`) : null));
   });

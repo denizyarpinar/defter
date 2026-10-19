@@ -15,7 +15,7 @@ export type KokKaynagi = 'defterKok' | 'ad';
 export type KokEksik = 'kitaplar' | 'kitaplik.json';
 
 export interface KokAday { id: string; name: string; createdTime?: string }
-export interface KokCocuk { name: string; mimeType: string }
+export interface KokCocuk { id?: string; name: string; mimeType: string }
 
 export type KokSecimi =
   | { tur: 'bulundu'; kok: KokAday; kaynak: KokKaynagi; uyari?: string }
@@ -96,7 +96,7 @@ export const driveKokApi: KokDrive = {
   defterKokAra: () => liste(`mimeType = '${FOLDER_MIME}' and appProperties has { key='defterKok' and value='1' } and trashed = false`, 'id,name,mimeType,createdTime')
     .then(f => f.map(({ id, name, createdTime }) => ({ id, name, createdTime }))),
   kokCocuklari: id => liste(`'${qv(id)}' in parents and trashed = false`, 'id,name,mimeType')
-    .then(f => f.map(({ name, mimeType }) => ({ name, mimeType })))
+    .then(f => f.map(({ id, name, mimeType }) => ({ id, name, mimeType })))
 };
 
 export async function kokBul(drive: KokDrive, mod: KokModu): Promise<KokSonucu> {

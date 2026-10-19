@@ -348,6 +348,15 @@ Kitaplık/
 - Başarı → kitaplık yüklenir + "Kitaplığın hazır." Hata → kartta kurulum.ts mesajı + Tekrar dene; `KurulumIzinYok` → "Tekrar giriş yap". cokKok uyarısı sayfa başına bir toast; `?olcum=1` kutusunda `kök:` satırı.
 - Ekran görüntüleri: `node scripts/kurulum-karti-kontrol.mjs` (giriş ve Drive yok).
 
+### Örnek kitap (6.K3)
+- Kartta "Örnek bir kitap da koy" kutusu (varsayılan işaretli, kurulum sürerken kapalı). İşaretliyse kurulum örnek kitaplıktaki `programlamaya-giris` kitabını (telifsiz demo PDF'ler, `npm run demo-pdf`) `kitaplar/programlamaya-giris/` altına koyar. Telifli PDF asla kullanılmaz.
+- Kaynak: build'deki `ornek/index.json` (`klasorler`) + `ornek/kitaplar/programlamaya-giris/kitap.json` + `demo/*.pdf` (aynı origin, `fetch`). kitap.json'da durumlar `okunmadi`, `kurdele` ve `sonAcilis` null; diğer alanlar aynen.
+- Sıra: kök → `kitaplar/` → örnek (kitap klasörü → alt klasörler → PDF'ler → en son kitap.json) → `kitaplik.json` (örnek başarılıysa Raf 1'de). Düğmede ilerleme: "Kuruluyor… (örnek kitap 7/18)".
+- Her örnek öğesinde appProperties `{ defter: '1', defterIslem, defterOrnek: '1' }`. Örnek öğeleri islemId'ye değil `defterOrnek`'e göre aranır; "Kurulumu tamamla" eksikleri tamamlar, çift oluşturmaz. Aynı adda işaretsiz öğe varsa dokunulmaz (`OrnekAdDolu`).
+- Örnek hatası kurulumu durdurmaz: `kitaplik.json` örneksiz yazılır, sonuç `ornekHata`, toast "Örnek kitap eklenemedi".
+- Yarım örnek (defterOrnek klasörü, kitap.json yok) kitaplıkta sessizce atlanır (`driveLibrary.ts`); kullanıcının kitap.json'suz klasörleri eskisi gibi gri kapakla görünür.
+- Kod: `src/drive/kurulum.ts` (`ornekKitapKur`, `ornekPlani`, `webOrnekKaynak`; testli). Dev: `window.defterKurulumDene(islemId?, ornek = true)`.
+
 ## Sonra bakılabilir
 - Oda zaman aşımı: şu an glb yüklemesine toplam 15 sn veriliyor; yavaş bağlantıda (masaüstü lightmap'leri ~3.3 MB) eski odaya düşüyor. Öneri: "15 sn hiç ilerleme yok" kuralı + yükleme göstergesi. Faz 2 kural metni değişeceği için Deniz'in onayı gerekir.
 - Masaüstü lightmap PNG'lerinin küçültülmesi (boyut/sıkıştırma).
@@ -364,3 +373,5 @@ Kitaplık/
 - Her fotoğraf eklemede ve kalem kaydında ozet.pdf'in tamamı yeniden yükleniyor (22 MB'ta ~26 sn). Mimari çözüm adayı: defter fotoğraflarını ayrı/küçük PDF'lere eklemek (Faz 5 kararını değiştirir, Deniz onayı gerekir).
 - Fotoğraf küçültme (1600 px / JPEG 0.80) ile bugünkü (2000 px / 0.85) karşılaştırması yapılmadı.
 - Sayfa yenilenince yarım kalan yükleme kaldığı yerden devam etmiyor (baştan yükleniyor).
+- Arama ağacı (`kitaplikAgaci.ts`) yarım örnek klasörünü (defterOrnek, kitap.json yok) atlamıyor; dosya adları aramada çıkabilir.
+- 'Kurulumu tamamla'da `kitaplik.json` zaten varsa (sadece `kitaplar/` eksikse) örnek kitap rafa değil "Yeni gelenler"e düşüyor (kitaplik.json güncellenmez).

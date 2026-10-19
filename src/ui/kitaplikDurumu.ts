@@ -15,8 +15,10 @@ export type KitaplikDurumu =
   | { tur: 'drive'; oturumDoldu?: boolean; mesgul?: boolean; hata?: string }   // session expired: card over the Drive library
   | { tur: 'demo' }
   | { tur: 'hata'; mesaj: string }
-  | { tur: 'kurulum'; dugme: KurulumDugmesi; kilitli: boolean; mesgul?: boolean; hata?: string; izinYok?: boolean }   // task 6.K2b
+  | { tur: 'kurulum'; dugme: KurulumDugmesi; kilitli: boolean; mesgul?: boolean; hata?: string; izinYok?: boolean; ilerleme?: Ilerleme }   // task 6.K2b
   | { tur: 'tamErisim'; mesgul?: boolean; hata?: string };   // task 6.K1: the owner signed in with drive.file only
+
+export interface Ilerleme { i: number; n: number }   // task 6.K3: the sample book's items, made or found
 
 export type KitaplikOlayi =
   | { tur: 'girisBasladi' }
@@ -27,6 +29,7 @@ export type KitaplikOlayi =
   | { tur: 'kurulumGerekli'; dugme: KurulumDugmesi; kilitli: boolean }   // instead of loading: no root / half set up
   | { tur: 'kurulumBasladi' }                 // "Kitaplığı kur" tapped (unlocked)
   | { tur: 'kurulumHata'; mesaj: string; izinYok: boolean }
+  | { tur: 'kurulumIlerleme'; i: number; n: number }   // task 6.K3: "Kuruluyor… (örnek kitap 2/18)"
   | { tur: 'kurulumBitti' }                   // set up → load the library
   | { tur: 'tekrarDene' }
   | { tur: 'demoSecildi' }
@@ -47,7 +50,7 @@ export interface KitaplikGorunumu {
   girisHata: string | null;
   tamErisimMesgul: boolean;      // "Tam erişimi aç" shows "Bağlanıyor…"
   tamErisimHata: string | null;
-  kurulum: { dugme: KurulumDugmesi; kilitli: boolean; mesgul: boolean; hata: string | null; izinYok: boolean } | null;
+  kurulum: { dugme: KurulumDugmesi; kilitli: boolean; mesgul: boolean; hata: string | null; izinYok: boolean; ilerleme: Ilerleme | null } | null;
   hataMesaji: string | null;
   yazilabilir: boolean;    // changes may be written to Drive
 }
@@ -76,6 +79,8 @@ export function gecis(d: KitaplikDurumu, o: KitaplikOlayi): KitaplikDurumu {
       return d.tur === 'yukleniyor' ? { tur: 'kurulum', dugme: o.dugme, kilitli: o.kilitli } : d;
     case 'kurulumBasladi':
       return d.tur === 'kurulum' && !d.kilitli && !d.mesgul ? { tur: 'kurulum', dugme: d.dugme, kilitli: false, mesgul: true } : d;
+    case 'kurulumIlerleme':
+      return d.tur === 'kurulum' && d.mesgul ? { ...d, ilerleme: { i: o.i, n: o.n } } : d;
     case 'kurulumHata':
       return d.tur === 'kurulum' && d.mesgul ? { tur: 'kurulum', dugme: d.dugme, kilitli: d.kilitli, hata: o.mesaj, izinYok: o.izinYok } : d;
     case 'kurulumBitti':
@@ -119,7 +124,7 @@ export function gorunum(d: KitaplikDurumu): KitaplikGorunumu {
     tamErisimMesgul: d.tur === 'tamErisim' && d.mesgul === true,
     tamErisimHata: d.tur === 'tamErisim' ? d.hata ?? null : null,
     kurulum: d.tur === 'kurulum'
-      ? { dugme: d.dugme, kilitli: d.kilitli, mesgul: d.mesgul === true, hata: d.hata ?? null, izinYok: d.izinYok === true }
+      ? { dugme: d.dugme, kilitli: d.kilitli, mesgul: d.mesgul === true, hata: d.hata ?? null, izinYok: d.izinYok === true, ilerleme: d.ilerleme ?? null }
       : null,
     hataMesaji: d.tur === 'hata' ? d.mesaj : null,
     yazilabilir: drive

@@ -131,13 +131,23 @@ describe('library state: "Kitaplığını kur" card (task 6.K2b)', () => {
     expect(gorunum(gecis(d, { tur: 'driveGeldi' }))).toMatchObject({ kitaplik: 'drive', yazilabilir: true });
   });
 
+  it('progress (6.K3): only while busy; a new try starts without it', () => {
+    let d = gecis(kart(), { tur: 'kurulumBasladi' });
+    expect(gorunum(d).kurulum?.ilerleme).toBeNull();
+    d = gecis(d, { tur: 'kurulumIlerleme', i: 2, n: 18 });
+    expect(gorunum(d).kurulum).toMatchObject({ mesgul: true, ilerleme: { i: 2, n: 18 } });
+    expect(gecis(kart(), { tur: 'kurulumIlerleme', i: 2, n: 18 })).toEqual(kart());   // not busy: ignored
+    d = run(d, { tur: 'kurulumHata', mesaj: 'x', izinYok: false }, { tur: 'kurulumBasladi' });
+    expect(gorunum(d).kurulum?.ilerleme).toBeNull();
+  });
+
   it('locked: the tap changes nothing', () => {
     expect(gecis(kart(true), { tur: 'kurulumBasladi' })).toEqual(kart(true));
   });
 
   it('error: the card stays with the message; no permission is flagged; retry → busy again', () => {
     const d = run(kart(), { tur: 'kurulumBasladi' }, { tur: 'kurulumHata', mesaj: 'Bağlantı yok.', izinYok: false });
-    expect(gorunum(d).kurulum).toEqual({ dugme: 'kur', kilitli: false, mesgul: false, hata: 'Bağlantı yok.', izinYok: false });
+    expect(gorunum(d).kurulum).toEqual({ dugme: 'kur', kilitli: false, mesgul: false, hata: 'Bağlantı yok.', izinYok: false, ilerleme: null });
     expect(gorunum(gecis(d, { tur: 'kurulumBasladi' })).kurulum).toMatchObject({ mesgul: true, hata: null });
     const izin = run(kart(), { tur: 'kurulumBasladi' }, { tur: 'kurulumHata', mesaj: 'İzin yok.', izinYok: true });
     expect(gorunum(izin).kurulum?.izinYok).toBe(true);

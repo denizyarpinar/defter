@@ -1,14 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { parseLibrary } from '../model/parse';
+import { parseBook, parseLibrary } from '../model/parse';
 import { DriveError, FOLDER_MIME } from './drive';
 import { KOK_ADI } from './kok';
 import {
   bosKitaplikJson, kitaplikKur, KurulumAgHatasi, KurulumBeklenmedik, KurulumIzinYok, KurulumKilitli, KurulumYazmaYok,
-  type KitaplikKurSecenek, type KurulumDrive, type YeniOgeMeta
+  ORNEK_KITAP, ornekPlani, type KitaplikKurSecenek, type KurulumDrive, type OrnekKaynak, type YeniOgeMeta
 } from './kurulum';
 import { IdZatenVar } from './pdfOlustur';
+import indeksHam from '../../public/ornek/index.json?raw';
+import ornekKitapHam from '../../public/ornek/kitaplar/programlamaya-giris/kitap.json?raw';
 
-interface Item { name: string; parent: string; mimeType: string; createdTime: string; appProperties: Record<string, string>; icerik?: string }
+interface Item { name: string; parent: string; mimeType: string; createdTime: string; appProperties: Record<string, string>; icerik?: string | Uint8Array }
 type Davranis = 'ok' | 'ag' | 'agAmaOlustu' | '500' | '403';
 
 // An in-memory Drive. 'root' is My Drive's root. Every call is recorded in `calls`.
@@ -18,7 +20,7 @@ function fakeDrive(opts: { items?: Record<string, Partial<Item> & { name: string
   const davranis = [...(opts.davranis ?? [])];
   const calls: string[] = [];
   let n = 0, saat = 0;
-  const yaz = (m: YeniOgeMeta, icerik?: string) => {
+  const yaz = (m: YeniOgeMeta, icerik?: string | Uint8Array) => {
     const id = m.id ?? 'auto' + ++n;
     items.set(id, { name: m.name, parent: m.parents[0], mimeType: m.mimeType, createdTime: `2026-10-19T10:00:${String(saat++).padStart(2, '0')}Z`, appProperties: m.appProperties, icerik });
     return id;
@@ -34,7 +36,7 @@ function fakeDrive(opts: { items?: Record<string, Partial<Item> & { name: string
     },
     async kokCocuklari(id) {
       calls.push('kokCocuklari');
-      return [...items.values()].filter(i => i.parent === id).map(i => ({ name: i.name, mimeType: i.mimeType }));
+      return [...items].filter(([, i]) => i.parent === id).map(([cid, i]) => ({ id: cid, name: i.name, mimeType: i.mimeType }));
     },
     async yeniId() {
       calls.push('yeniId');
@@ -54,6 +56,10 @@ function fakeDrive(opts: { items?: Record<string, Partial<Item> & { name: string
     async islemleAra(ebeveynId, ad, islemId) {
       calls.push('islemleAra:' + ad);
       return [...items].filter(([, i]) => i.parent === ebeveynId && i.name === ad && i.appProperties.defterIslem === islemId).map(([id, i]) => ({ id, name: i.name }));
+    },
+    async cocukAra(ebeveynId, ad) {
+      calls.push('cocukAra:' + ad);
+      return [...items].filter(([, i]) => i.parent === ebeveynId && i.name === ad).map(([id, i]) => ({ id, name: i.name, appProperties: i.appProperties }));
     },
     async ogeBilgisi(id) {
       calls.push('ogeBilgisi');
@@ -82,7 +88,7 @@ describe('kitaplikKur', () => {
     expect(kitaplar.appProperties.defterKok).toBeUndefined();
     const json = bul(f.items, 'kitaplik.json')[0][1];
     expect(json).toMatchObject({ parent: kokId, mimeType: 'application/json', appProperties: { defter: '1', defterIslem: 'islem-1' } });
-    expect(JSON.parse(json.icerik!)).toEqual(bosKitaplikJson());
+    expect(JSON.parse(json.icerik as string)).toEqual(bosKitaplikJson());
   });
 
   it('run again (same or new islemId): nothing created', async () => {
@@ -219,5 +225,180 @@ describe('kitaplikKur', () => {
     expect(lib.raflar.length).toBe(5);
     expect(lib.raflar.every(r => r.kitaplar.length === 0)).toBe(true);
     expect(lib.raflar.map(r => r.ad)).toEqual(['Raf 1', 'Raf 2', 'Raf 3', 'Raf 4', 'Raf 5']);
+  });
+});
+
+// ---- task 6.K3: the sample book ----
+
+// The real sample library files (public/ornek); the PDFs: small fake bytes, every request recorded
+const indeks = JSON.parse(indeksHam) as { klasorler: Record<string, Record<string, Record<string, string>>> };
+function fakeKaynak(o: { pdfHata?: boolean } = {}) {
+  const istenen: string[] = [];
+  const kaynak: OrnekKaynak = {
+    async kitapJson() { istenen.push('kitapJson'); return JSON.parse(ornekKitapHam); },
+    async klasorler() { istenen.push('klasorler'); return indeks.klasorler[ORNEK_KITAP]; },
+    async pdf(yol) {
+      istenen.push(yol);
+      if (o.pdfHata) throw new Error('pdf yok');
+      return new TextEncoder().encode('%PDF-1.4 ' + yol);
+    }
+  };
+  return { kaynak, istenen };
+}
+const ornekli = (k: OrnekKaynak, o: Partial<KitaplikKurSecenek> = {}, ilerleme?: (i: number, n: number) => void) =>
+  sec({ ornek: { kaynak: k, ilerleme }, ...o });
+const PLAN_N = ornekPlani(indeks.klasorler[ORNEK_KITAP]).length;
+const ornekOgeleri = (items: Map<string, Item>) => [...items.values()].filter(i => i.appProperties.defterOrnek === '1');
+const kitaplikJsonu = (items: Map<string, Item>) => parseLibrary(JSON.parse(bul(items, 'kitaplik.json')[0][1].icerik as string));
+
+describe('kitaplikKur with the sample book (6.K3)', () => {
+  it('the plan: book folder, folders (parents first), 9 PDFs, kitap.json last', () => {
+    const plan = ornekPlani(indeks.klasorler[ORNEK_KITAP]);
+    expect(plan.length).toBe(18);
+    expect(plan[0]).toEqual({ tur: 'klasor', yol: '' });
+    expect(plan.at(-1)).toEqual({ tur: 'json' });
+    expect(plan.filter(p => p.tur === 'pdf').length).toBe(9);
+    const klasorler = plan.flatMap(p => p.tur === 'klasor' ? [p.yol] : []);
+    for (const k of klasorler.slice(1)) {
+      const ust = k.includes('/') ? k.slice(0, k.lastIndexOf('/')) : '';
+      expect(klasorler.indexOf(ust)).toBeLessThan(klasorler.indexOf(k));
+    }
+  });
+
+  it('order: root → kitaplar → sample (folders, PDFs, kitap.json) → kitaplik.json', async () => {
+    const f = fakeDrive();
+    const r = await kitaplikKur(f.drive, ornekli(fakeKaynak().kaynak));
+    expect(r).toMatchObject({ ornek: 'eklendi', olusturulan: [KOK_ADI, 'kitaplar', 'kitaplik.json'], zatenVardi: false });
+    expect(r.ornekHata).toBeUndefined();
+    const o = f.olusturmalar();
+    expect(o.slice(0, 3)).toEqual([`olustur:${KOK_ADI}`, 'olustur:kitaplar', `olustur:${ORNEK_KITAP}`]);
+    expect(o.at(-2)).toBe('olustur:kitap.json');
+    expect(o.at(-1)).toBe('olustur:kitaplik.json');
+    expect(o.length).toBe(3 + PLAN_N);
+    const ilkPdf = o.findIndex(c => c.endsWith('.pdf'));
+    expect(o.slice(ilkPdf, -2).every(c => c.endsWith('.pdf'))).toBe(true);
+  });
+
+  it('the box off: no sample request at all, kitaplik.json with 5 empty shelves', async () => {
+    const f = fakeDrive();
+    const k = fakeKaynak();
+    const r = await kitaplikKur(f.drive, sec());
+    expect(r.ornek).toBeUndefined();
+    expect(k.istenen).toEqual([]);
+    expect(f.calls.filter(c => c.startsWith('cocukAra'))).toEqual([]);
+    expect(ornekOgeleri(f.items)).toEqual([]);
+    expect(JSON.parse(bul(f.items, 'kitaplik.json')[0][1].icerik as string)).toEqual(bosKitaplikJson());
+  });
+
+  it.each([
+    ['a PDF cannot be fetched', { pdfHata: true }, []],
+    ['Drive refuses a sample item (403)', {}, ['ok', 'ok', 'ok', '403']]
+  ] as const)('sample fails (%s): kitaplik.json is still written, without the book; ornekHata', async (_, k, davranis) => {
+    const f = fakeDrive({ davranis: [...davranis] });
+    const r = await kitaplikKur(f.drive, ornekli(fakeKaynak(k).kaynak));
+    expect(r.ornek).toBeUndefined();
+    expect(r.ornekHata).toBeTruthy();
+    expect(r.olusturulan).toEqual([KOK_ADI, 'kitaplar', 'kitaplik.json']);
+    expect(kitaplikJsonu(f.items).raflar.every(raf => raf.kitaplar.length === 0)).toBe(true);
+  });
+
+  it('run again (same or new islemId): no duplicates, nothing downloaded', async () => {
+    const f = fakeDrive();
+    await kitaplikKur(f.drive, ornekli(fakeKaynak().kaynak));
+    const boyut = f.items.size;
+    for (const islemId of ['islem-1', 'islem-2']) {
+      // a root without kitaplik.json again ("Kurulumu tamamla"), the sample whole
+      const [[jsonId, json]] = bul(f.items, 'kitaplik.json');
+      f.items.delete(jsonId);
+      const k = fakeKaynak();
+      const r = await kitaplikKur(f.drive, ornekli(k.kaynak, { islemId }));
+      expect(r).toMatchObject({ ornek: 'zatenVardi', olusturulan: ['kitaplik.json'] });
+      expect(k.istenen.filter(y => y.endsWith('.pdf'))).toEqual([]);
+      expect(f.items.size).toBe(boyut);
+      expect(bul(f.items, 'kitaplik.json')[0][1].icerik).toBe(json.icerik);
+    }
+    expect(bul(f.items, ORNEK_KITAP).length).toBe(1);
+  });
+
+  it('tamamla: a half made sample (no kitap.json) is finished, made items stay single', async () => {
+    // the network goes away after the first 3 sample folders
+    const f = fakeDrive({ davranis: ['ok', 'ok', 'ok', 'ok', 'ok', 'ok', 'ag', 'ag', 'ag'] });
+    const r1 = await kitaplikKur(f.drive, ornekli(fakeKaynak().kaynak));
+    expect(r1.ornekHata).toBeTruthy();
+    expect(bul(f.items, 'kitap.json')).toEqual([]);
+    expect(ornekOgeleri(f.items).length).toBe(4);
+    // a root without kitaplik.json → "Kurulumu tamamla" with a new islemId
+    for (const [id] of bul(f.items, 'kitaplik.json')) f.items.delete(id);
+    const r2 = await kitaplikKur(f.drive, ornekli(fakeKaynak().kaynak, { islemId: 'islem-2' }));
+    expect(r2).toMatchObject({ ornek: 'eklendi', olusturulan: ['kitaplik.json'] });
+    expect(ornekOgeleri(f.items).length).toBe(PLAN_N);
+    expect(bul(f.items, ORNEK_KITAP).length).toBe(1);
+    expect(bul(f.items, 'Unite-01-Temeller').length).toBe(1);
+    expect(kitaplikJsonu(f.items).raflar[0].kitaplar).toEqual([ORNEK_KITAP]);
+  });
+
+  it('every sample item: defter=1, defterIslem, defterOrnek=1; PDFs as application/pdf bytes', async () => {
+    const f = fakeDrive();
+    await kitaplikKur(f.drive, ornekli(fakeKaynak().kaynak));
+    const ornek = ornekOgeleri(f.items);
+    expect(ornek.length).toBe(PLAN_N);
+    for (const i of ornek) expect(i.appProperties).toMatchObject({ defter: '1', defterIslem: 'islem-1', defterOrnek: '1' });
+    const pdfler = [...f.items.values()].filter(i => i.name.endsWith('.pdf'));
+    expect(pdfler.length).toBe(9);
+    for (const p of pdfler) {
+      expect(p.mimeType).toBe('application/pdf');
+      expect(p.icerik).toBeInstanceOf(Uint8Array);
+      expect(p.appProperties.defterOrnek).toBe('1');
+    }
+  });
+
+  it('kitap.json parses (surum 2, nothing read yet) and shelf 1 holds the book', async () => {
+    const f = fakeDrive();
+    await kitaplikKur(f.drive, ornekli(fakeKaynak().kaynak));
+    const [[kitapKlasoru]] = bul(f.items, ORNEK_KITAP);
+    const [[, kj]] = bul(f.items, 'kitap.json');
+    expect(kj.parent).toBe(kitapKlasoru);
+    const book = parseBook(ORNEK_KITAP, JSON.parse(kj.icerik as string));
+    expect(book).toMatchObject({ hasJson: true, surum: 2, baslik: 'Programlamaya Giriş', kurdele: null, sonAcilis: null });
+    expect(book.uniteler.length).toBe(2);
+    expect(book.uniteler.flatMap(u => u.konular).every(k => k.durum === 'okunmadi')).toBe(true);
+    const lib = kitaplikJsonu(f.items);
+    expect(lib.raflar[0].kitaplar).toEqual([ORNEK_KITAP]);
+    expect(lib.raflar.length).toBe(5);
+    // the PDFs sit in their topic folders
+    const [[konu1]] = bul(f.items, 'Konu-01-Degiskenler');
+    const [[ueb]] = bul(f.items, 'Uebungen');
+    expect(bul(f.items, 'blatt-01_cozum.pdf')[0][1].parent).toBe(ueb);
+    expect(f.items.get(ueb)!.parent).toBe(konu1);
+  });
+
+  it('a folder with the same name in kitaplar, not ours: untouched, ornekHata', async () => {
+    const f = fakeDrive({ items: {
+      D: { name: KOK_ADI, parent: 'root', appProperties: { defterKok: '1' } },
+      K: { name: 'kitaplar', parent: 'D' },
+      X: { name: ORNEK_KITAP, parent: 'K' }
+    } });
+    const r = await kitaplikKur(f.drive, ornekli(fakeKaynak().kaynak));
+    expect(r.ornekHata).toContain(ORNEK_KITAP);
+    expect(r.olusturulan).toEqual(['kitaplik.json']);
+    expect(ornekOgeleri(f.items)).toEqual([]);
+    expect(f.items.get('X')!.appProperties).toEqual({});
+  });
+
+  it('progress: 1..n, n = the length of the plan', async () => {
+    const f = fakeDrive();
+    const adimlar: Array<[number, number]> = [];
+    await kitaplikKur(f.drive, ornekli(fakeKaynak().kaynak, {}, (i, n) => adimlar.push([i, n])));
+    expect(adimlar.map(a => a[0])).toEqual(Array.from({ length: PLAN_N }, (_, i) => i + 1));
+    expect(adimlar.every(a => a[1] === PLAN_N)).toBe(true);
+  });
+
+  it('locked / no writing: KurulumKilitli / KurulumYazmaYok before any request, also with the box', async () => {
+    const f = fakeDrive();
+    const k = fakeKaynak();
+    await expect(kitaplikKur(f.drive, ornekli(k.kaynak, { kilitAcik: false }))).rejects.toBeInstanceOf(KurulumKilitli);
+    await expect(kitaplikKur(f.drive, ornekli(k.kaynak, { yazabilir: () => false }))).rejects.toBeInstanceOf(KurulumYazmaYok);
+    expect(f.calls).toEqual([]);
+    expect(k.istenen).toEqual([]);
   });
 });
