@@ -2,10 +2,12 @@ import type { LoadedLibrary } from '../model/localSource';
 import { parseBook, parseLibrary } from '../model/parse';
 import type { Book } from '../model/types';
 import { listChildren, readJson, type DriveFile } from './drive';
-import { driveKokApi, kokBul, ROOT_NAME, type KokDrive, type KokModu } from './kok';
+import { kurulumGerekli, type KurulumDugmesi } from '../ui/kurulumDurumu';
+import { driveKokApi, kokBul, ROOT_NAME, type KokDrive, type KokModu, type KokSonucu } from './kok';
 
 // Reads the library's root folder (see CLAUDE.md → Veri modeli). Reads only; never moves/deletes.
 // Task 6.K2a: the root is found by kok.ts (narrow: the app's defterKok root; full: "Kitaplık" first).
+// Task 6.K2b: no root, or the app's own root half set up → LibraryNotFound (main.ts shows "Kitaplığını kur").
 
 export { ROOT_NAME };
 const MAX_PARALLEL = 4;
@@ -19,8 +21,12 @@ export interface DriveLocation {
 }
 
 export class LibraryNotFound extends Error {
-  constructor() { super(`Drive'da "${ROOT_NAME}" klasörü bulunamadı.`); }
+  constructor(readonly kok: KokSonucu, readonly dugme: KurulumDugmesi) { super(`Drive'da "${ROOT_NAME}" klasörü bulunamadı.`); }
 }
+
+// The last root kokBul found (the ?olcum=1 box); null: not looked up yet
+let sonBulunan: KokSonucu | null = null;
+export const sonKok = (): KokSonucu | null => sonBulunan;
 
 export interface DriveLoad extends LoadedLibrary {
   loc: DriveLocation;
@@ -36,8 +42,9 @@ async function pool<T>(items: T[], n: number, fn: (item: T) => Promise<void>): P
 
 export async function loadDriveLibrary(mod: KokModu, kokDrive: KokDrive = driveKokApi): Promise<DriveLoad> {
   const warnings: string[] = [];
-  const kok = await kokBul(kokDrive, mod);
-  if (kok.tur === 'yok') throw new LibraryNotFound();
+  const kok = sonBulunan = await kokBul(kokDrive, mod);
+  const dugme = kurulumGerekli(kok);
+  if (dugme || kok.tur === 'yok') throw new LibraryNotFound(kok, dugme ?? 'kur');
   if (kok.uyari) warnings.push(kok.uyari);
   const rootId = kok.kok.id;
   const rootName = kok.kok.name;

@@ -1,5 +1,6 @@
 import { ekranMetni, olcumDinle, type Olcum } from '../defter/sureOlcum';
 import { kapsamDurumu } from '../drive/auth';
+import { sonKok } from '../drive/driveLibrary';
 import { darZorlaUrl, kisaScope, sahipZorlaYok } from '../drive/kapsam';
 import { alanDurumu } from './gorunurAlan';
 
@@ -9,6 +10,7 @@ import { alanDurumu } from './gorunurAlan';
 // Task 6.2e-1: a second box, bottom right: the last time measurement (sureOlcum.ts), "Kopyala" and ×
 // (the iPad has no console). It appears only when a measurement ends.
 // Task 6.K1: the first lines: active permission (tam/dar), owner, test switches and the token's scope list.
+// Task 6.K2b: the library's root (name, source; several roots: how many and the id in use).
 
 const n = (x: number | undefined | null) => x == null ? '–' : String(Math.round(x * 10) / 10);
 
@@ -41,6 +43,7 @@ export function installOlcum(): void {
       `kapsam: ${k.aktif ?? '–'} · sahip: ${evet(k.sahip)} · eski izinler: ${evet(k.dahilEt)}`
         + (darZorlaUrl(location.search) ? ' · ?kapsam=dar' : '') + (sahipZorlaYok(location.search) ? ' · ?sahip=0' : ''),
       `scope: ${k.scopes.map(kisaScope).join(', ') || '–'}`,
+      `kök: ${kokSatiri()}`,
       vv ? `vv offsetTop ${n(vv.offsetTop)} · pageTop ${n(vv.pageTop)} · scrollY ${n(scrollY)}` : `vv yok · scrollY ${n(scrollY)}`,
       `olay: ${olay} (#${sayac})`,
       `html.scrollTop ${n(de.scrollTop)} · body.scrollTop ${n(document.body.scrollTop)}`,
@@ -141,6 +144,15 @@ async function kopyalaMetin(metin: HTMLPreElement, not: HTMLSpanElement): Promis
     s?.addRange(r);
     not.textContent = 'Metni seçtim, kopyala';
   }
+}
+
+function kokSatiri(): string {
+  const k = sonKok();
+  if (!k) return '–';
+  if (k.tur === 'yok') return 'yok';
+  if (k.tur === 'cokKok') return `${k.kok.name} (defterKok) · ${k.kokler.length} kök · id ${k.kok.id}`
+    + (k.eksik.length ? ` · eksik: ${k.eksik.join(', ')}` : '');
+  return `${k.kok.name} (${k.kaynak})` + (k.tur === 'yarim' ? ` · yarım, eksik: ${k.eksik.join(', ')}` : '');
 }
 
 // the file panel's name box: its real font size (iOS zooms into fields under 16px) and where it is

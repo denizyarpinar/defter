@@ -3,10 +3,11 @@ import { gidisPlani } from './arama/aramaPaneliDurumu';
 import { agacAl, agacGecersiz } from './arama/kitaplikAgaci';
 import { kitaplikAra, type KitaplikSonucu } from './arama/kitaplikAra';
 import { ornekAgac, type OrnekAgaci } from './arama/ornekAgac';
-import { AuthError, aktifKapsam, isSignedIn, prepareAuth, rememberUser, rememberedUser, setSahip, signIn, signOut } from './drive/auth';
+import { AuthError, aktifKapsam, isSignedIn, kapsamDurumu, prepareAuth, rememberUser, rememberedUser, setSahip, signIn, signOut } from './drive/auth';
 import { darZorlaUrl, girisKapsami, includeGranted, sahipMi, sahipZorlaYok, tamErisimDugmesi } from './drive/kapsam';
 import { getUser, setAccountHint, setSessionExpiredHandler } from './drive/drive';
 import { LibraryNotFound, loadDriveLibrary, type DriveLocation } from './drive/driveLibrary';
+import { driveKurulumApi, kitaplikKur, KurulumIzinYok } from './drive/kurulum';
 import { bekleyenFotoDepo } from './defter/bekleyenFoto';
 import { acilisToastMetni } from './defter/fotoEklemeMetin';
 import { ReadingSaver, driveReadingApi } from './drive/okumaKaydi';
@@ -23,8 +24,9 @@ import { createRoomScene, type LibraryData, type RoomScene, type View } from './
 import { canvas, drawWood, noise } from './scene/textures';
 import { updateHint } from './ui/hint';
 import { initPanel } from './ui/panel';
-import { hideSaveState, initFullAccess, initLibError, initNotFound, initSaveState, setFullAccess, setLibError, setLibraryLoading, setNotFound, showSaveError, showSaved, showSaving } from './ui/driveStatus';
+import { hideSaveState, initFullAccess, initKurulum, initLibError, initSaveState, setFullAccess, setKurulum, setLibError, setLibraryLoading, showSaveError, showSaved, showSaving } from './ui/driveStatus';
 import { etkinYazici, gecis, gorunum, ilkDurum, type KitaplikDurumu, type KitaplikOlayi } from './ui/kitaplikDurumu';
+import { kartSec, KurulumAkisi } from './ui/kurulumDurumu';
 import { closeReader, initReader, isReaderOpen, openReader, readerShell, refreshReader } from './ui/reader';
 import { initAramaPaneli, type AramaKaynagi } from './ui/aramaPaneli';
 import { hideLogin, initLogin, setLoginBusy, setRememberedName, showLogin } from './ui/login';
@@ -116,7 +118,7 @@ function showState(): void {
   if (v.kart === 'giris') { showLogin(v.girisHata ?? undefined); setLoginBusy(v.girisMesgul); }
   else hideLogin();
   setLibraryLoading(v.yukleniyor);
-  setNotFound(v.kart === 'bulunamadi');
+  setKurulum(v.kurulum);
   setFullAccess(v.kart === 'tamErisim', v.tamErisimMesgul, v.tamErisimHata);
   setLibError(v.hataMesaji);
   if (v.kilitli) app.dataset.kilit = ''; else delete app.dataset.kilit;
@@ -203,12 +205,48 @@ async function loadFromDrive(): Promise<void> {
     // the saver reads from the shared holder, whose contents useData replaces
     if (!await useData(r, new DriveSaver(r.loc, data!, { saving: showSaving, saved: showSaved, failed: showSaveError, warn: toast }), r.loc)) return;
     olay({ tur: 'driveGeldi' });
-    if (r.warnings.length) toast(r.warnings[0]);
+    if (r.warnings.length) uyar(r.warnings[0]);
     remindPendingPhotos();
   } catch (e) {
     if (!current()) return;
-    olay(e instanceof LibraryNotFound ? { tur: 'bulunamadi' } : { tur: 'driveHata', mesaj: errorText(e) });
+    if (!(e instanceof LibraryNotFound)) { olay({ tur: 'driveHata', mesaj: errorText(e) }); return; }
+    // task 6.K2b: no root / half set up → "Kitaplığını kur" (the owner with drive.file: the full access card first)
+    if (e.kok.tur !== 'yok' && e.kok.uyari) uyar(e.kok.uyari);
+    const k = kartSec({ sahip: kapsamDurumu().sahip === true, aktif: aktifKapsam(), kok: e.kok, kilitAcik: KURULUM_KILIT_ACIK });
+    if (k.kart === 'tamErisim') { olay({ tur: 'tamErisimGerekli' }); return; }
+    kurulum.yeniKart();
+    olay({ tur: 'kurulumGerekli', dugme: k.kart === 'kurulum' ? k.dugme : e.dugme, kilitli: !KURULUM_KILIT_ACIK });
   }
+}
+
+// The same warning (e.g. two "Defter Library" roots) only once per page load
+const uyarilar = new Set<string>();
+function uyar(metin: string): void {
+  if (uyarilar.has(metin)) return;
+  uyarilar.add(metin);
+  toast(metin);
+}
+
+// ---- task 6.K2b: "Kitaplığını kur" (kurulum.ts; ?kurulum=1 unlocks the button) ----
+
+const KURULUM_KILIT_ACIK = new URLSearchParams(location.search).get('kurulum') === '1';
+const kurulum = new KurulumAkisi(() => crypto.randomUUID());
+
+function kitaplikKurDugmesi(): void {
+  if (durum.tur !== 'kurulum' || !kurulum.basla(KURULUM_KILIT_ACIK)) return;   // locked or running: no request
+  olay({ tur: 'kurulumBasladi' });
+  const yazabilir = () => isSignedIn() && durum.tur !== 'demo';   // as the K2a dev helper
+  kitaplikKur(driveKurulumApi, { islemId: kurulum.islemId, mod: aktifKapsam() === 'tam' ? 'tam' : 'dar', kilitAcik: KURULUM_KILIT_ACIK, yazabilir })
+    .then(async r => {
+      kurulum.bitti();
+      if (r.uyari) uyar(r.uyari);
+      olay({ tur: 'kurulumBitti' });
+      await loadFromDrive();
+      if (durum.tur === 'drive') toast('Kitaplığın hazır.');
+    }, (e: unknown) => {
+      kurulum.bitti();
+      olay({ tur: 'kurulumHata', mesaj: errorText(e), izinYok: e instanceof KurulumIzinYok });
+    });
 }
 
 // Task 5.8f: photos waiting on the device → one short toast per page load, once the Drive library is here
@@ -236,7 +274,7 @@ async function useSample(): Promise<void> {
   try { await useData(await loadLocalLibrary(), null, null); } catch { olay({ tur: 'demoHata', mesaj: 'Örnek kitaplık yüklenemedi. Sayfayı yenile.' }); }
 }
 
-initNotFound({ onRetry: retryDrive, onSample: () => void useSample() });
+initKurulum({ onSetup: kitaplikKurDugmesi, onSignIn: () => void googleSignIn(), onSample: () => void useSample() });
 initLibError({ onRetry: retryDrive, onSample: () => void useSample() });
 initSaveState();
 // task 6.2e-2: photos still uploading too (they stay on the device either way)

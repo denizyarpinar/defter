@@ -151,6 +151,14 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 /* task 6.K1: "Tam erişim gerekiyor" card, permission not given */
 .overlay .card .err { font-size: 13px; color: #9b2c1c; background: rgba(178, 58, 42, .1); border-radius: 10px; padding: 8px 10px; margin: 0 0 12px }
 #app[data-mode="night"] .overlay .card .err { color: #f4b4a6; background: rgba(240, 120, 100, .15) }
+/* task 6.K2b: "Kitaplığını kur" card: lock note, "Kuruluyor…" with a spinner */
+.overlay .card .not { margin: 10px 0 0; font-size: 12.5px; opacity: .7 }
+#kuKur { display: inline-flex; align-items: center; gap: 8px }
+#kuKur .spin {
+  width: 13px; height: 13px; flex: none; border-radius: 50%; box-sizing: border-box;
+  border: 2px solid currentColor; border-top-color: transparent; animation: libspin .9s linear infinite
+}
+@media (prefers-reduced-motion: reduce) { #kuKur .spin { animation-duration: 2.4s } }
 
 /* ---------- side panel ---------- */
 #panel {

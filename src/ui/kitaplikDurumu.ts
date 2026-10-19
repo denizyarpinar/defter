@@ -1,9 +1,11 @@
+import type { KurulumDugmesi } from './kurulumDurumu';
+
 // Task 5.1: which library is on screen, and what the user can do with it. Pure (no DOM), tested.
 // - The sample library is shown only when the visitor chooses it (card, error cards) or with ?demo.
 // - While the sign-in card is open, while signing in and while the Drive library loads:
 //   empty, faded shelves; books can't be opened or moved (locked).
-// - Errors never leave the user on the faded screen: the error / "not found" card has
-//   "Tekrar dene" and "Örnek kitaplıkla dene".
+// - Errors never leave the user on the faded screen: the error card has "Tekrar dene" and "Örnek kitaplıkla dene";
+//   no root (task 6.K2b): the "Kitaplığını kur" card (set up, or the sample library).
 // - Only the Drive library writes to Drive (etkinYazici).
 
 export type KitaplikDurumu =
@@ -13,7 +15,7 @@ export type KitaplikDurumu =
   | { tur: 'drive'; oturumDoldu?: boolean; mesgul?: boolean; hata?: string }   // session expired: card over the Drive library
   | { tur: 'demo' }
   | { tur: 'hata'; mesaj: string }
-  | { tur: 'bulunamadi' }
+  | { tur: 'kurulum'; dugme: KurulumDugmesi; kilitli: boolean; mesgul?: boolean; hata?: string; izinYok?: boolean }   // task 6.K2b
   | { tur: 'tamErisim'; mesgul?: boolean; hata?: string };   // task 6.K1: the owner signed in with drive.file only
 
 export type KitaplikOlayi =
@@ -22,7 +24,10 @@ export type KitaplikOlayi =
   | { tur: 'girisHata'; mesaj: string }
   | { tur: 'driveGeldi' }
   | { tur: 'driveHata'; mesaj: string }
-  | { tur: 'bulunamadi' }
+  | { tur: 'kurulumGerekli'; dugme: KurulumDugmesi; kilitli: boolean }   // instead of loading: no root / half set up
+  | { tur: 'kurulumBasladi' }                 // "Kitaplığı kur" tapped (unlocked)
+  | { tur: 'kurulumHata'; mesaj: string; izinYok: boolean }
+  | { tur: 'kurulumBitti' }                   // set up → load the library
   | { tur: 'tekrarDene' }
   | { tur: 'demoSecildi' }
   | { tur: 'demoHata'; mesaj: string }
@@ -37,11 +42,12 @@ export interface KitaplikGorunumu {
   kitaplik: 'bos' | 'demo' | 'drive';
   kilitli: boolean;        // books can't be opened or dragged; the shelves are faded
   yukleniyor: boolean;     // "Kitaplığın yükleniyor…"
-  kart: 'giris' | 'hata' | 'bulunamadi' | 'tamErisim' | null;
+  kart: 'giris' | 'hata' | 'kurulum' | 'tamErisim' | null;
   girisMesgul: boolean;    // sign-in button shows "Bağlanıyor…"
   girisHata: string | null;
   tamErisimMesgul: boolean;      // "Tam erişimi aç" shows "Bağlanıyor…"
   tamErisimHata: string | null;
+  kurulum: { dugme: KurulumDugmesi; kilitli: boolean; mesgul: boolean; hata: string | null; izinYok: boolean } | null;
   hataMesaji: string | null;
   yazilabilir: boolean;    // changes may be written to Drive
 }
@@ -66,10 +72,16 @@ export function gecis(d: KitaplikDurumu, o: KitaplikOlayi): KitaplikDurumu {
       return d.tur === 'yukleniyor' ? { tur: 'drive' } : d;
     case 'driveHata':
       return d.tur === 'yukleniyor' ? { tur: 'hata', mesaj: o.mesaj } : d;
-    case 'bulunamadi':
-      return d.tur === 'yukleniyor' ? { tur: 'bulunamadi' } : d;
+    case 'kurulumGerekli':
+      return d.tur === 'yukleniyor' ? { tur: 'kurulum', dugme: o.dugme, kilitli: o.kilitli } : d;
+    case 'kurulumBasladi':
+      return d.tur === 'kurulum' && !d.kilitli && !d.mesgul ? { tur: 'kurulum', dugme: d.dugme, kilitli: false, mesgul: true } : d;
+    case 'kurulumHata':
+      return d.tur === 'kurulum' && d.mesgul ? { tur: 'kurulum', dugme: d.dugme, kilitli: d.kilitli, hata: o.mesaj, izinYok: o.izinYok } : d;
+    case 'kurulumBitti':
+      return d.tur === 'kurulum' && d.mesgul ? { tur: 'yukleniyor' } : d;
     case 'tekrarDene':
-      return d.tur === 'hata' || d.tur === 'bulunamadi' ? { tur: 'yukleniyor' } : d;
+      return d.tur === 'hata' ? { tur: 'yukleniyor' } : d;
     case 'demoSecildi':
       return d.tur === 'drive' ? d : { tur: 'demo' };
     case 'demoHata':
@@ -99,13 +111,16 @@ export function gorunum(d: KitaplikDurumu): KitaplikGorunumu {
     yukleniyor: d.tur === 'yukleniyor',
     kart: d.tur === 'girisYok' || d.tur === 'giriliyor' || (drive && d.oturumDoldu) ? 'giris'
       : d.tur === 'hata' ? 'hata'
-      : d.tur === 'bulunamadi' ? 'bulunamadi'
+      : d.tur === 'kurulum' ? 'kurulum'
       : d.tur === 'tamErisim' ? 'tamErisim'
       : null,
     girisMesgul: d.tur === 'giriliyor' || (drive && d.mesgul === true),
     girisHata: (d.tur === 'girisYok' || drive) ? d.hata ?? null : null,
     tamErisimMesgul: d.tur === 'tamErisim' && d.mesgul === true,
     tamErisimHata: d.tur === 'tamErisim' ? d.hata ?? null : null,
+    kurulum: d.tur === 'kurulum'
+      ? { dugme: d.dugme, kilitli: d.kilitli, mesgul: d.mesgul === true, hata: d.hata ?? null, izinYok: d.izinYok === true }
+      : null,
     hataMesaji: d.tur === 'hata' ? d.mesaj : null,
     yazilabilir: drive
   };

@@ -338,7 +338,15 @@ Kitaplık/
 - kitaplik.json içeriği: bugünkü varsayılan (5 boş raf "Raf 1…5", varsayılan oda), `parseLibrary` ile okunur.
 - Çift koruması: önce ebeveynde `defterIslem` araması; `files.generateIds` ile önceden alınan id, tekrar denemede aynı id (409 = var; ad + defterIslem doğrulanır). generateIds çalışmazsa her tekrardan önce defterIslem araması.
 - Korumalar: `?kurulum=1` kilidi (yoksa `KurulumKilitli`, hiç istek yok); girişli ve örnek kitaplık değil (yoksa `KurulumYazmaYok`). Hatalar: `KurulumIzinYok`, `KurulumAgHatasi`, `KurulumBeklenmedik`.
-- Dev (sadece `npm run dev`): `window.defterKokDurumu()` (salt okunur), `window.defterKurulumDene(islemId?)` (`?kurulum=1` şart). Arayüz K2b'de, örnek kitap K3'te.
+- Dev (sadece `npm run dev`): `window.defterKokDurumu()` (salt okunur), `window.defterKurulumDene(islemId?)` (`?kurulum=1` şart). Örnek kitap K3'te.
+
+### "Kitaplığını kur" kartı (6.K2b)
+- Eski "Kitaplık bulunamadı" kartının yerine. Kök yok → "Kitaplığı kur"; defterKok kökü yarım (ya da cokKok'ta en eskisi yarım) → "Kurulumu tamamla". Sahibin eski "Kitaplık"ı (yarım da olsa) eskisi gibi yüklenir.
+- Öncelik: sahip `drive.file` ile girdiyse "Tam erişim gerekiyor" kartı. Karar saf: `kartSec` (`src/ui/kurulumDurumu.ts`, testli).
+- `?kurulum=1` yoksa ana düğme gri + "Kurulum şimdilik kilitli (deneme)"; istek gitmez.
+- islemId kart açılınca bir kez üretilir (`KurulumAkisi`); Tekrar dene aynı islemId. Kurulum sürerken düğmeler kapalı.
+- Başarı → kitaplık yüklenir + "Kitaplığın hazır." Hata → kartta kurulum.ts mesajı + Tekrar dene; `KurulumIzinYok` → "Tekrar giriş yap". cokKok uyarısı sayfa başına bir toast; `?olcum=1` kutusunda `kök:` satırı.
+- Ekran görüntüleri: `node scripts/kurulum-karti-kontrol.mjs` (giriş ve Drive yok).
 
 ## Sonra bakılabilir
 - Oda zaman aşımı: şu an glb yüklemesine toplam 15 sn veriliyor; yavaş bağlantıda (masaüstü lightmap'leri ~3.3 MB) eski odaya düşüyor. Öneri: "15 sn hiç ilerleme yok" kuralı + yükleme göstergesi. Faz 2 kural metni değişeceği için Deniz'in onayı gerekir.

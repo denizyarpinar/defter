@@ -69,20 +69,16 @@
         <button class="ibtn" id="saveRetry" hidden>Tekrar dene</button>
       </div>
 
-      <div class="overlay" id="notFound" hidden>
-        <div class="card" role="dialog" aria-labelledby="nfTitle">
-          <b id="nfTitle">Kitaplık klasörü bulunamadı</b>
-          <p>Drive'ında çöpte olmayan bir <strong>Kitaplık</strong> klasörü arıyorum. Şunu yap:</p>
-          <ol>
-            <li>drive.google.com'da <strong>Drive'ım</strong>'ı aç (ana dizin).</li>
-            <li><strong>Yeni → Klasör</strong> ile adı tam olarak <strong>Kitaplık</strong> olan bir klasör oluştur.</li>
-            <li>İçine <strong>kitaplar</strong> adlı bir klasör aç; her kitap onun içinde bir klasör olacak.</li>
-            <li>Buraya dönüp <strong>Tekrar dene</strong>'ye bas.</li>
-          </ol>
+      <div class="overlay" id="kurulum" hidden>
+        <div class="card" role="dialog" aria-labelledby="kuTitle" aria-describedby="kuText">
+          <b id="kuTitle">Kitaplığını kur</b>
+          <p id="kuText"></p>
+          <p class="err" id="kuError" role="alert" hidden></p>
           <div class="row">
-            <button class="ibtn solid" id="nfRetry">Tekrar dene</button>
-            <button class="ibtn" id="nfSample">Örnek kitaplıkla devam et</button>
+            <button class="ibtn solid" id="kuKur">Kitaplığı kur</button>
+            <button class="ibtn" id="kuSample">Önce örnek kitaplıkla dene</button>
           </div>
+          <p class="not" id="kuKilit" hidden>Kurulum şimdilik kilitli (deneme)</p>
         </div>
       </div>
 
