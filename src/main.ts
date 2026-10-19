@@ -35,6 +35,7 @@ import { installErrorBox } from './ui/hataKutusu';
 import { installPageZoomGuard } from './ui/sayfaZoom';
 import { installGorunurAlan } from './ui/gorunurAlan';
 import { toast } from './ui/toast';
+import { installKalemOlcumWindow } from './kalem/kalemOlcum';
 
 const app = document.querySelector<HTMLElement>('#app')!;
 const stageEl = document.querySelector<HTMLElement>('#stage')!;
@@ -50,6 +51,8 @@ installPageZoomGuard(() => scene?.resize());
 // ?olcum=1: the numbers in a small box (also on Vercel, for the iPad test)
 installGorunurAlan();
 if (new URLSearchParams(location.search).get('olcum') === '1') void import('./ui/olcum').then(m => m.installOlcum());
+// task 6.H2: window.defterKalemOlcum() — the last 50 pen strokes as JSON (development, and ?olcum=1)
+installKalemOlcumWindow();
 
 // dev only (task 5.3, 5.8c): ?gorselTest=1 photo → JPEG trial panel; writes nothing, not in the build
 if (import.meta.env.DEV && new URLSearchParams(location.search).get('gorselTest') === '1') {

@@ -1,6 +1,7 @@
 import { roundPressure, type Stroke } from './cizgi';
 import { curveToSvg, strokeCurve } from './cizgiSekli';
 import { InputRouter } from './girdi';
+import { kalemOlcer } from './kalemOlcum';
 import { pushPoint, screenToViewport, toPdf, type PenViewport } from './koordinat';
 import { eraserRadius, type Pt } from './silgi';
 
@@ -15,6 +16,8 @@ import { eraserRadius, type Pt } from './silgi';
 // Task 4.7c: the live path is the stroke's final shape (cizgiSekli.ts: the pen's outline, filled, its
 // width from the Apple Pencil's pressure; the highlighter's smoothed line), so nothing changes when
 // the pen lifts. Predicted points (getPredictedEvents, where the browser has it) are only drawn.
+// Task 6.H2: kalemOlcer (kalemOlcum.ts; development and ?olcum=1, otherwise null) records each stroke's
+// events for diagnosis. It only watches: nothing here draws differently with it.
 
 const SVG = 'http://www.w3.org/2000/svg';
 
@@ -101,6 +104,7 @@ export class PenInput {
       const block = (e: TouchEvent) => {
         if (!this.active) return;
         const stylus = [...e.changedTouches].some(t => (t as Touch & { touchType?: string }).touchType === 'stylus');
+        if (stylus && e.type === 'touchstart') kalemOlcer?.touchstart(e.cancelable);
         if (stylus || this.live?.pen || this.rub?.pen) e.preventDefault();
       };
       a.addEventListener('touchstart', block, { passive: false });
@@ -126,6 +130,7 @@ export class PenInput {
     const l = this.live;
     if (!l) return;
     this.live = null;
+    kalemOlcer?.bitir(null, null, l.pdf);
     cancelAnimationFrame(l.raf);
     l.svg.remove();
     try { l.box.releasePointerCapture(l.id); } catch { /* already released */ }
@@ -144,14 +149,16 @@ export class PenInput {
     if (!seen && this.router.penSeen) this.host.penSeen();
     if (e.pointerType === 'touch') this.fingers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (!this.active) return;
-    if (d.cancel) this.cancel();
-    if (d.route === 'yoksay') { this.ignored.add(e.pointerId); return; }
-    if (d.route !== 'ciz' || this.live || this.rub) return;
+    if (d.cancel) { if (this.live) kalemOlcer?.neden('iptal-ikinci-parmak'); this.cancel(); }
+    const olc = e.pointerType !== 'touch' ? kalemOlcer : null;   // why a pen / mouse down drew nothing
+    if (d.route === 'yoksay') { this.ignored.add(e.pointerId); if (this.live) kalemOlcer?.avuc(); else olc?.reddet(e, 'rota-yoksay'); return; }
+    if (d.route !== 'ciz') { olc?.reddet(e, `rota-${d.route}`); return; }
+    if (this.live || this.rub) { olc?.reddet(e, `cizim-suruyor (id ${(this.live ?? this.rub)!.id})`); return; }
     const target = e.target as HTMLElement;
-    if (target.closest('a, button, select')) return;
+    if (target.closest('a, button, select')) { olc?.reddet(e, 'dugme'); return; }
     const box = target.closest<HTMLElement>('.o-page');
     const page = box && this.host.pageAt(box);
-    if (!box || !page) return;   // not a PDF page, or its file is still loading / failed
+    if (!box || !page) { olc?.reddet(e, box ? 'sayfa-hazir-degil' : 'sayfa-yok'); return; }   // not a PDF page, or its file is still loading / failed
     e.preventDefault();
     try { box.setPointerCapture(e.pointerId); } catch { /* the pointer is already gone */ }
 
@@ -179,6 +186,7 @@ export class PenInput {
     box.append(svg);
     const pen = e.pointerType === 'pen';
     this.live = { id: e.pointerId, pen, box, page, style, svg, path, pdf: [], basinc: pen && style.arac === 'kalem' ? [] : null, predicted: [], predTimer: 0, raf: 0 };
+    kalemOlcer?.basla(e, style.arac, style.kalinlik);
     this.addPoint(e);
     this.paint();
   }
@@ -208,6 +216,7 @@ export class PenInput {
     for (const ev of evs.length ? evs : [e]) changed = this.addPoint(ev) || changed;
     // where the pen is about to be (Chrome / Edge; not in Safari): drawn ahead, replaced on every move
     const pred = typeof e.getPredictedEvents === 'function' ? e.getPredictedEvents() : [];
+    kalemOlcer?.hareket(e, evs, pred.length);
     if (pred.length || l.predicted.length) {
       l.predicted = [];
       for (const ev of pred) l.predicted.push(...this.toPdfPoint(ev, l));
@@ -233,7 +242,8 @@ export class PenInput {
     }
     const l = this.live;
     if (!l || l.id !== e.pointerId) return;
-    if (!ok) { this.cancel(); return; }
+    if (!ok) { kalemOlcer?.bitir(e, 'x', l.pdf); this.cancel(); return; }
+    kalemOlcer?.bitir(e, 'u', l.pdf);
     this.live = null;
     cancelAnimationFrame(l.raf);
     l.svg.remove();
