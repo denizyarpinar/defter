@@ -268,7 +268,9 @@ You need **Node.js 20+** and a Google account.
 4. **Add the Client ID** — create `.env.local` in the project root (it is git-ignored):
    ```
    VITE_GOOGLE_CLIENT_ID=1234567890-abc.apps.googleusercontent.com
+   VITE_SAHIP_EPOSTA=you@gmail.com
    ```
+   `VITE_SAHIP_EPOSTA` (optional): this account asks for full Drive access; everyone else gets `drive.file`. Without it, everyone gets `drive.file`.
 5. **Prepare your Drive** — create a folder `Kitaplık` in the root of My Drive with a `kitaplar` folder inside. You can start from `referans/Kitaplik_ornek.zip`.
 6. **Run** — `npm run dev`, open <http://localhost:5173> and sign in with Google.
 

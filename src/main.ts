@@ -3,7 +3,8 @@ import { gidisPlani } from './arama/aramaPaneliDurumu';
 import { agacAl, agacGecersiz } from './arama/kitaplikAgaci';
 import { kitaplikAra, type KitaplikSonucu } from './arama/kitaplikAra';
 import { ornekAgac, type OrnekAgaci } from './arama/ornekAgac';
-import { AuthError, prepareAuth, rememberUser, rememberedUser, signIn, signOut } from './drive/auth';
+import { AuthError, aktifKapsam, prepareAuth, rememberUser, rememberedUser, setSahip, signIn, signOut } from './drive/auth';
+import { darZorlaUrl, girisKapsami, includeGranted, sahipMi, sahipZorlaYok, tamErisimDugmesi } from './drive/kapsam';
 import { getUser, setAccountHint, setSessionExpiredHandler } from './drive/drive';
 import { LibraryNotFound, loadDriveLibrary, type DriveLocation } from './drive/driveLibrary';
 import { bekleyenFotoDepo } from './defter/bekleyenFoto';
@@ -22,7 +23,7 @@ import { createRoomScene, type LibraryData, type RoomScene, type View } from './
 import { canvas, drawWood, noise } from './scene/textures';
 import { updateHint } from './ui/hint';
 import { initPanel } from './ui/panel';
-import { hideSaveState, initLibError, initNotFound, initSaveState, setLibError, setLibraryLoading, setNotFound, showSaveError, showSaved, showSaving } from './ui/driveStatus';
+import { hideSaveState, initFullAccess, initLibError, initNotFound, initSaveState, setFullAccess, setLibError, setLibraryLoading, setNotFound, showSaveError, showSaved, showSaving } from './ui/driveStatus';
 import { etkinYazici, gecis, gorunum, ilkDurum, type KitaplikDurumu, type KitaplikOlayi } from './ui/kitaplikDurumu';
 import { closeReader, initReader, isReaderOpen, openReader, readerShell, refreshReader } from './ui/reader';
 import { initAramaPaneli, type AramaKaynagi } from './ui/aramaPaneli';
@@ -114,6 +115,7 @@ function showState(): void {
   else hideLogin();
   setLibraryLoading(v.yukleniyor);
   setNotFound(v.kart === 'bulunamadi');
+  setFullAccess(v.kart === 'tamErisim', v.tamErisimMesgul, v.tamErisimHata);
   setLibError(v.hataMesaji);
   if (v.kilitli) app.dataset.kilit = ''; else delete app.dataset.kilit;
   scene?.setLocked(v.kilitli);
@@ -243,30 +245,60 @@ addEventListener('pagehide', () => { void reading?.flush(true); });
 
 // ---- Google sign-in ----
 
+// Task 6.K1: everyone drive.file, the owner (VITE_SAHIP_EPOSTA) full drive. Not security: it only picks the
+// permission to ask for. Test switches: ?kapsam=dar (drive.file only), ?sahip=0 (not the owner).
+const SAHIP_EPOSTA = import.meta.env.VITE_SAHIP_EPOSTA as string | undefined;
+const DAR_ZORLA = darZorlaUrl(location.search);
+const SAHIP_YOK = sahipZorlaYok(location.search);
+let girisEposta: string | undefined;
+
 // chooseAccount: "Başka bir hesapla giriş yap" (ignore the remembered account)
 async function googleSignIn(chooseAccount = false): Promise<void> {
   const fromSample = durum.tur === 'demo';
   olay({ tur: 'girisBasladi' });
   try {
     const remembered = chooseAccount ? null : rememberedUser();
-    const signedIn = signIn({ hint: remembered?.email, chooseAccount });   // first: the popup opens on the tap
+    const kapsam = girisKapsami({ sahipEposta: SAHIP_EPOSTA, hatirlananEposta: remembered?.email, darZorla: DAR_ZORLA, sahipYok: SAHIP_YOK });
+    // first: the popup opens on the tap
+    const signedIn = signIn({ hint: remembered?.email, chooseAccount, kapsam, includeGranted: includeGranted(DAR_ZORLA) });
     if (fromSample) { updateUserBox({ kind: 'none' }); void useData(emptyLibrary(), null, null); }   // no sample books while signing in
     await signedIn;
     if (durum.tur !== 'giriliyor' && durum.tur !== 'drive') return;   // the sample library was chosen meanwhile
     const user = await getUser();
     rememberUser(user);              // name + e-mail only; the token stays in memory
     setAccountHint(user.email);
+    girisEposta = user.email;
+    const sahip = sahipMi(user.email, SAHIP_EPOSTA, SAHIP_YOK);
+    setSahip(sahip);
     ownerName = user.name;
     updateUserBox({ kind: 'user', name: user.name });
     olay({ tur: 'girisBasarili' });
     toast(`Hoş geldin, ${user.name}.`);
     // signing in again after the session expired: the Drive library is already here (state 'drive')
-    if (gorunum(durum).yukleniyor) await loadFromDrive();
+    if (!gorunum(durum).yukleniyor) return;
+    // the owner with drive.file only: offer full access (no popup here, only on the card's tap)
+    if (tamErisimDugmesi({ sahip, aktif: aktifKapsam() })) { olay({ tur: 'tamErisimGerekli' }); return; }
+    await loadFromDrive();
   } catch (e) {
     // our errors carry a Turkish message; a failed fetch (TypeError) means no connection
     olay({ tur: 'girisHata', mesaj: errorText(e) });
   }
 }
+
+// "Tam erişimi aç": the popup opens right on the tap; earlier grants included (also with ?kapsam=dar)
+function openFullAccess(): void {
+  olay({ tur: 'tamErisimBasladi' });
+  signIn({ kapsam: 'tam', hint: girisEposta, includeGranted: true }).then(async () => {
+    if (aktifKapsam() !== 'tam') {
+      olay({ tur: 'tamErisimHata', mesaj: 'Drive\'a tam erişim izni verilmedi. Tekrar dokun ve Google penceresinde Drive iznini onayla.' });
+      return;
+    }
+    olay({ tur: 'tamErisimVerildi' });
+    await loadFromDrive();
+  }, (e: unknown) => olay({ tur: 'tamErisimHata', mesaj: errorText(e) }));
+}
+
+initFullAccess({ onOpen: openFullAccess, onSample: () => void useSample() });
 
 initLogin({
   onGoogle: () => googleSignIn(),

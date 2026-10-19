@@ -55,6 +55,21 @@ export function setNotFound(show: boolean): void {
   $('#notFound').hidden = !show;
 }
 
+// Task 6.K1: the owner signed in with drive.file only → "Tam erişimi aç" (the popup opens on the tap)
+export function initFullAccess(h: { onOpen: () => void; onSample: () => void }): void {
+  $('#faOpen').addEventListener('click', h.onOpen);
+  $('#faSample').addEventListener('click', h.onSample);
+}
+
+export function setFullAccess(show: boolean, busy: boolean, error: string | null): void {
+  $('#fullAccess').hidden = !show;
+  const b = $<HTMLButtonElement>('#faOpen');
+  b.disabled = busy;
+  b.textContent = busy ? 'Bağlanıyor…' : 'Tam erişimi aç';
+  $('#faError').textContent = error ?? '';
+  $('#faError').hidden = error === null;
+}
+
 // Task 5.1: the Drive library could not be loaded (offline, Drive error): message + "Tekrar dene" + sample library.
 export function initLibError(h: { onRetry: () => void; onSample: () => void }): void {
   $('#leRetry').addEventListener('click', h.onRetry);

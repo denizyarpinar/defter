@@ -313,6 +313,13 @@ Kitaplık/
 - `window.defterDizinOlc(kelime)` (`src/arama/dizinOlc.ts`): her 30 sn fullText (her turda yeni ağaç), en fazla 30 dk; ilk bulunduğu an + geçen süre (başlangıçtan ve dosyanın modifiedTime'ından). `.dur()` durdurur. Deneme dosyası: `node scripts/dizin-deneme-uret.mjs` → `dizin-deneme.pdf` ("Zebrafink4711").
 - `window.defterAramaDene(q)`, `defterAramaHepsi()` (6.3a keşif).
 
+## İzin modu (6.K1)
+- Not: varsayılan kapsam `drive.file`; sahip hesabı (`VITE_SAHIP_EPOSTA`, .env.local + Vercel Production/Preview) tam `drive` ister. Değişken yoksa herkes `drive.file`. Bu güvenlik değil, sadece hangi iznin isteneceğini seçer.
+- Karar ve aktif kapsam: `src/drive/kapsam.ts` (saf, testli) ve `src/drive/auth.ts` (token'daki scope → `aktifKapsam()`; token yenilenirken aktif kapsam korunur).
+- Sahip + `drive.file` → "Tam erişim gerekiyor" kartı; popup sadece "Tam erişimi aç" dokunuşunda açılır.
+- Deneme anahtarları: `?kapsam=dar` (sadece drive.file, eski izinler dahil değil), `?sahip=0` (sahip değil gibi). `?olcum=1` kutusu kapsam, sahip ve scope listesini gösterir.
+- Kök bulma, yazma ve kurulum bu adımda değişmedi (K2 ve sonrası).
+
 ## Sonra bakılabilir
 - Oda zaman aşımı: şu an glb yüklemesine toplam 15 sn veriliyor; yavaş bağlantıda (masaüstü lightmap'leri ~3.3 MB) eski odaya düşüyor. Öneri: "15 sn hiç ilerleme yok" kuralı + yükleme göstergesi. Faz 2 kural metni değişeceği için Deniz'in onayı gerekir.
 - Masaüstü lightmap PNG'lerinin küçültülmesi (boyut/sıkıştırma).

@@ -13,7 +13,8 @@ export type KitaplikDurumu =
   | { tur: 'drive'; oturumDoldu?: boolean; mesgul?: boolean; hata?: string }   // session expired: card over the Drive library
   | { tur: 'demo' }
   | { tur: 'hata'; mesaj: string }
-  | { tur: 'bulunamadi' };
+  | { tur: 'bulunamadi' }
+  | { tur: 'tamErisim'; mesgul?: boolean; hata?: string };   // task 6.K1: the owner signed in with drive.file only
 
 export type KitaplikOlayi =
   | { tur: 'girisBasladi' }
@@ -26,15 +27,21 @@ export type KitaplikOlayi =
   | { tur: 'demoSecildi' }
   | { tur: 'demoHata'; mesaj: string }
   | { tur: 'cikis' }
-  | { tur: 'oturumDoldu'; mesaj: string };
+  | { tur: 'oturumDoldu'; mesaj: string }
+  | { tur: 'tamErisimGerekli' }               // instead of loading: offer "Tam erişimi aç"
+  | { tur: 'tamErisimBasladi' }               // the button was tapped, Google popup open
+  | { tur: 'tamErisimVerildi' }               // full drive token → load the library
+  | { tur: 'tamErisimHata'; mesaj: string };
 
 export interface KitaplikGorunumu {
   kitaplik: 'bos' | 'demo' | 'drive';
   kilitli: boolean;        // books can't be opened or dragged; the shelves are faded
   yukleniyor: boolean;     // "Kitaplığın yükleniyor…"
-  kart: 'giris' | 'hata' | 'bulunamadi' | null;
+  kart: 'giris' | 'hata' | 'bulunamadi' | 'tamErisim' | null;
   girisMesgul: boolean;    // sign-in button shows "Bağlanıyor…"
   girisHata: string | null;
+  tamErisimMesgul: boolean;      // "Tam erişimi aç" shows "Bağlanıyor…"
+  tamErisimHata: string | null;
   hataMesaji: string | null;
   yazilabilir: boolean;    // changes may be written to Drive
 }
@@ -73,6 +80,14 @@ export function gecis(d: KitaplikDurumu, o: KitaplikOlayi): KitaplikDurumu {
       if (d.tur === 'drive') return { tur: 'drive', oturumDoldu: true, hata: o.mesaj };
       if (d.tur === 'demo') return d;
       return { tur: 'girisYok', hata: o.mesaj };
+    case 'tamErisimGerekli':
+      return d.tur === 'yukleniyor' ? { tur: 'tamErisim' } : d;
+    case 'tamErisimBasladi':
+      return d.tur === 'tamErisim' ? { tur: 'tamErisim', mesgul: true } : d;
+    case 'tamErisimVerildi':
+      return d.tur === 'tamErisim' ? { tur: 'yukleniyor' } : d;
+    case 'tamErisimHata':
+      return d.tur === 'tamErisim' ? { tur: 'tamErisim', hata: o.mesaj } : d;
   }
 }
 
@@ -85,9 +100,12 @@ export function gorunum(d: KitaplikDurumu): KitaplikGorunumu {
     kart: d.tur === 'girisYok' || d.tur === 'giriliyor' || (drive && d.oturumDoldu) ? 'giris'
       : d.tur === 'hata' ? 'hata'
       : d.tur === 'bulunamadi' ? 'bulunamadi'
+      : d.tur === 'tamErisim' ? 'tamErisim'
       : null,
     girisMesgul: d.tur === 'giriliyor' || (drive && d.mesgul === true),
     girisHata: (d.tur === 'girisYok' || drive) ? d.hata ?? null : null,
+    tamErisimMesgul: d.tur === 'tamErisim' && d.mesgul === true,
+    tamErisimHata: d.tur === 'tamErisim' ? d.hata ?? null : null,
     hataMesaji: d.tur === 'hata' ? d.mesaj : null,
     yazilabilir: drive
   };

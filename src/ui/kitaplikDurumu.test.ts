@@ -5,7 +5,8 @@ const run = (d: KitaplikDurumu, ...events: KitaplikOlayi[]) => events.reduce(gec
 
 const ALL: KitaplikDurumu[] = [
   { tur: 'girisYok' }, { tur: 'girisYok', hata: 'x' }, { tur: 'giriliyor' }, { tur: 'yukleniyor' },
-  { tur: 'drive' }, { tur: 'drive', oturumDoldu: true }, { tur: 'demo' }, { tur: 'hata', mesaj: 'x' }, { tur: 'bulunamadi' }
+  { tur: 'drive' }, { tur: 'drive', oturumDoldu: true }, { tur: 'demo' }, { tur: 'hata', mesaj: 'x' }, { tur: 'bulunamadi' },
+  { tur: 'tamErisim' }, { tur: 'tamErisim', mesgul: true }, { tur: 'tamErisim', hata: 'x' }
 ];
 const NOT_DRIVE = ALL.filter(d => d.tur !== 'drive');
 
@@ -76,6 +77,35 @@ describe('library state: errors never leave the faded screen without a way out',
     const loading = run(ilkDurum(false), { tur: 'girisBasladi' }, { tur: 'girisBasarili' });
     expect(run(loading, { tur: 'cikis' }, { tur: 'driveGeldi' })).toEqual({ tur: 'girisYok' });
     expect(run(loading, { tur: 'demoSecildi' }, { tur: 'driveHata', mesaj: 'x' })).toEqual({ tur: 'demo' });
+  });
+});
+
+describe('library state: owner with drive.file only (task 6.K1)', () => {
+  const signedIn = () => run(ilkDurum(false), { tur: 'girisBasladi' }, { tur: 'girisBasarili' });
+
+  it('"Tam erişim gerekiyor" card instead of loading (not the "not found" card)', () => {
+    const d = gecis(signedIn(), { tur: 'tamErisimGerekli' });
+    expect(gorunum(d)).toMatchObject({ kart: 'tamErisim', kitaplik: 'bos', kilitli: true, yukleniyor: false, yazilabilir: false, tamErisimMesgul: false });
+  });
+
+  it('button → busy → full drive → loading → Drive library', () => {
+    let d = run(signedIn(), { tur: 'tamErisimGerekli' }, { tur: 'tamErisimBasladi' });
+    expect(gorunum(d)).toMatchObject({ kart: 'tamErisim', tamErisimMesgul: true });
+    d = gecis(d, { tur: 'tamErisimVerildi' });
+    expect(gorunum(d)).toMatchObject({ kart: null, yukleniyor: true });
+    expect(gorunum(gecis(d, { tur: 'driveGeldi' }))).toMatchObject({ kitaplik: 'drive', yazilabilir: true });
+  });
+
+  it('permission not given: the card stays with the message; sample library still possible', () => {
+    const d = run(signedIn(), { tur: 'tamErisimGerekli' }, { tur: 'tamErisimBasladi' }, { tur: 'tamErisimHata', mesaj: 'İzin verilmedi.' });
+    expect(gorunum(d)).toMatchObject({ kart: 'tamErisim', tamErisimMesgul: false, tamErisimHata: 'İzin verilmedi.' });
+    expect(gorunum(gecis(d, { tur: 'demoSecildi' }))).toMatchObject({ kitaplik: 'demo', kart: null });
+  });
+
+  it('only from loading; late events elsewhere change nothing', () => {
+    expect(gecis({ tur: 'drive' }, { tur: 'tamErisimGerekli' })).toEqual({ tur: 'drive' });
+    expect(gecis({ tur: 'demo' }, { tur: 'tamErisimVerildi' })).toEqual({ tur: 'demo' });
+    expect(gecis({ tur: 'girisYok' }, { tur: 'tamErisimHata', mesaj: 'x' })).toEqual({ tur: 'girisYok' });
   });
 });
 

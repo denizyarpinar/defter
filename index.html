@@ -86,6 +86,18 @@
         </div>
       </div>
 
+      <div class="overlay" id="fullAccess" hidden>
+        <div class="card" role="dialog" aria-labelledby="faTitle">
+          <b id="faTitle">Tam erişim gerekiyor</b>
+          <p>Kitaplık klasörünü görebilmem için Drive'ına tam erişim izni gerekiyor. Düğmeye dokun, açılan Google penceresinde Drive iznini onayla.</p>
+          <p class="err" id="faError" role="alert" hidden></p>
+          <div class="row">
+            <button class="ibtn solid" id="faOpen">Tam erişimi aç</button>
+            <button class="ibtn" id="faSample">Örnek kitaplıkla devam et</button>
+          </div>
+        </div>
+      </div>
+
       <div class="overlay" id="libError" hidden>
         <div class="card" role="alertdialog" aria-labelledby="leTitle" aria-describedby="leText">
           <b id="leTitle">Kitaplık yüklenemedi</b>

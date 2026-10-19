@@ -1,4 +1,6 @@
 import { ekranMetni, olcumDinle, type Olcum } from '../defter/sureOlcum';
+import { kapsamDurumu } from '../drive/auth';
+import { darZorlaUrl, kisaScope, sahipZorlaYok } from '../drive/kapsam';
 import { alanDurumu } from './gorunurAlan';
 
 // Task 5.10g-ek: ?olcum=1 — a small box in the corner with the numbers of the page's position
@@ -6,6 +8,7 @@ import { alanDurumu } from './gorunurAlan';
 // Task 5.10g-ek2: bottom left (at the top it was cut by Safari's bar); the key numbers in the first line.
 // Task 6.2e-1: a second box, bottom right: the last time measurement (sureOlcum.ts), "Kopyala" and ×
 // (the iPad has no console). It appears only when a measurement ends.
+// Task 6.K1: the first lines: active permission (tam/dar), owner, test switches and the token's scope list.
 
 const n = (x: number | undefined | null) => x == null ? '–' : String(Math.round(x * 10) / 10);
 
@@ -32,7 +35,12 @@ export function installOlcum(): void {
     const app = document.querySelector('#app');
     const cs = app ? getComputedStyle(app) : null;
     const ae = document.activeElement as HTMLElement | null;
+    const k = kapsamDurumu();
+    const evet = (b: boolean | null) => b === null ? '–' : b ? 'evet' : 'hayır';
     kutu.textContent = [
+      `kapsam: ${k.aktif ?? '–'} · sahip: ${evet(k.sahip)} · eski izinler: ${evet(k.dahilEt)}`
+        + (darZorlaUrl(location.search) ? ' · ?kapsam=dar' : '') + (sahipZorlaYok(location.search) ? ' · ?sahip=0' : ''),
+      `scope: ${k.scopes.map(kisaScope).join(', ') || '–'}`,
       vv ? `vv offsetTop ${n(vv.offsetTop)} · pageTop ${n(vv.pageTop)} · scrollY ${n(scrollY)}` : `vv yok · scrollY ${n(scrollY)}`,
       `olay: ${olay} (#${sayac})`,
       `html.scrollTop ${n(de.scrollTop)} · body.scrollTop ${n(document.body.scrollTop)}`,

@@ -17,16 +17,27 @@ declare namespace google.accounts.oauth2 {
 
   interface TokenClientConfig {
     client_id: string;
-    scope: string;
+    scope: string;          // space separated
+    include_granted_scopes?: boolean;
     callback: (r: TokenResponse) => void;
     error_callback?: (e: ClientConfigError) => void;
   }
 
+  // what requestAccessToken may change for one request
+  interface OverridableTokenClientConfig {
+    prompt?: '' | 'none' | 'consent' | 'select_account';
+    login_hint?: string;
+    scope?: string;
+    include_granted_scopes?: boolean;   // the token also carries the scopes granted before
+  }
+
   interface TokenClient {
-    requestAccessToken(overrides?: { prompt?: '' | 'none' | 'consent' | 'select_account'; login_hint?: string }): void;
+    requestAccessToken(overrides?: OverridableTokenClientConfig): void;
   }
 
   function initTokenClient(config: TokenClientConfig): TokenClient;
+  function hasGrantedAllScopes(r: TokenResponse, first: string, ...rest: string[]): boolean;
+  function hasGrantedAnyScope(r: TokenResponse, first: string, ...rest: string[]): boolean;
   function revoke(accessToken: string, done?: () => void): void;
 }
 
