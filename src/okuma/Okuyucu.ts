@@ -440,6 +440,8 @@ function renderMode(): void {
 function showView(): void {
   $('#oScroll').hidden = mode !== 'pdf';
   $('#oKitap').hidden = mode !== 'kitap';
+  // task 6.H1: book mode keeps the pen bar's room while the pen is off (styles.css), so the book never moves
+  $('#okuyucu').classList.toggle('mod-kitap', mode === 'kitap');
 }
 
 // Build the current mode's view of `pages`, starting at page `start`.
@@ -1669,6 +1671,7 @@ const fileKey = (p: BookPage) => `${p.dosyaId}@${p.modifiedTime}`;
 function setPen(on: boolean): void {
   if (on === penOn) return;
   if (on && !pages.some(p => pageKind(p) === 'pdf')) { toast('Bu sayfalarda çizilecek PDF yok.'); return; }
+  const listTop = $('#oScroll').getBoundingClientRect().top;
   penOn = on;
   pen.active = on;
   if (!on) { pen.cancel(); pen.hideCursor(); }
@@ -1688,7 +1691,13 @@ function setPen(on: boolean): void {
     toast('Kalem açık. Sayfa çevirmek için alttaki kaydırıcıyı ya da ok tuşlarını kullan.');
   }
   renderTools();
-  if (open && pages.length) relayout();   // the tool bar takes room from the pages
+  // Task 6.H1: the page being read stays where it is on screen. Book mode: the bar's room is always kept
+  // (nothing to do). PDF mode: the bar takes room from the list, so the list scrolls by as much.
+  if (open && pages.length && mode === 'pdf') {
+    relayout();
+    const s = $('#oScroll');
+    s.scrollTop += s.getBoundingClientRect().top - listTop;
+  }
 }
 
 function renderTools(): void {

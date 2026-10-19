@@ -6,8 +6,8 @@ export interface ToastEylem { etiket: string; calistir: () => void }
 const SURE_MS = 3600;
 const EYLEMLI_SURE_MS = 8000;
 
-// Short message at the top of the screen; disappears after a few seconds.
-export function toast(msg: string, eylem?: ToastEylem): void {
+// Short message at the top of the screen; disappears after a few seconds (sureMs: another time, task 6.H1).
+export function toast(msg: string, eylem?: ToastEylem, sureMs?: number): void {
   const t = document.querySelector<HTMLElement>('#toast');
   if (!t) return;
   const gizle = () => t.classList.remove('show');
@@ -21,5 +21,5 @@ export function toast(msg: string, eylem?: ToastEylem): void {
   t.classList.toggle('eylemli', !!eylem);
   t.classList.add('show');
   clearTimeout(timer);
-  timer = window.setTimeout(gizle, eylem ? EYLEMLI_SURE_MS : SURE_MS);
+  timer = window.setTimeout(gizle, sureMs ?? (eylem ? EYLEMLI_SURE_MS : SURE_MS));
 }

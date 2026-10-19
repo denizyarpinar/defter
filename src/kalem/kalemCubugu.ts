@@ -1,4 +1,5 @@
 import { esc } from '../ui/dom';
+import { toast } from '../ui/toast';
 import type { UploadStatus } from './pdfKayit';
 import type { StrokeTool } from './cizgi';
 import type { PenTool } from './kalemModu';
@@ -7,6 +8,7 @@ import type { PenTool } from './kalemModu';
 // Colours from the prototype (PEN_COLORS / HL_COLORS). Widths in pt (PDF units): they grow with the zoom.
 // Task 4.7: eraser, undo, redo. The eraser is not remembered (as in the prototype): prefs.arac
 // stays the last drawing tool, the eraser is chosen for this page load only.
+// Task 6.H1: one row of fixed height at every width (styles.css); nothing in it changes the bar's height.
 
 // Task 4.7b: a brighter red, orange and purple pens, blue and orange highlighters (Deniz's choice)
 export const COLORS: Record<StrokeTool, readonly (readonly [string, string])[]> = {
@@ -92,6 +94,7 @@ export class PenToolbar {
       if (b.dataset.geri !== undefined) { act.undo(); return; }
       if (b.dataset.ileri !== undefined) { act.redo(); return; }
       if (b.dataset.kaydet !== undefined) { act.save(); return; }
+      if (b.dataset.durum !== undefined) { toast(b.getAttribute('aria-label') ?? '', undefined, STATUS_TOAST_MS); return; }
       const p = this.prefs;
       if (b.dataset.arac) {
         const was = this.tool;
@@ -119,7 +122,7 @@ export class PenToolbar {
   private render(): void {
     const p = this.prefs, t = p.arac, cur = this.tool;
     const on = (yes: boolean) => yes ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"';
-    const tool = (k: PenTool, label: string) => `<button type="button" data-arac="${k}"${on(cur === k)}>${label}</button>`;
+    const tool = (k: PenTool, label: string) => `<button type="button" data-arac="${k}"${on(cur === k)} title="${label}" aria-label="${label}">${ICONS[k]}<span>${label}</span></button>`;
     const colors = COLORS[t].map(([c, n]) =>
       `<button type="button" class="dot${c === p.renk[t] ? ' on' : ''}" data-renk="${c}" style="--c:${c}" aria-label="${n}" title="${n}" aria-pressed="${c === p.renk[t]}"></button>`).join('');
     const sizes = SIZES[t].map((d, i) => {
@@ -128,21 +131,46 @@ export class PenToolbar {
       const w = t === 'kalem' ? h : Math.round(h * 1.8);
       return `<button type="button" class="sz${i === p.boy[t] ? ' on' : ''}" data-boy="${i}" aria-label="${SIZE_NAMES[i]}" title="${SIZE_NAMES[i]}" aria-pressed="${i === p.boy[t]}"><i style="width:${w}px;height:${h}px"></i></button>`;
     }).join('');
-    const status = saveStatus(this.state);
     const st = this.state;
-    const history = `<button type="button" data-geri title="Geri al (Ctrl+Z)"${st.canUndo ? '' : ' disabled'}>↶ Geri al</button>`
-      + `<button type="button" data-ileri title="Yinele (Ctrl+Shift+Z)"${st.canRedo ? '' : ' disabled'}>↷ Yinele</button>`;
-    // the eraser has no colour or width: the prototype's hint instead
-    const options = this.eraser ? '<span class="o-tipucu">Silmek için çizginin üzerinden geç</span>'
-      : `<div class="o-tgrp o-renkler">${colors}</div><span class="sep"></span><div class="o-tgrp">${sizes}</div>`;
+    const history = `<button type="button" data-geri title="Geri al (Ctrl+Z)" aria-label="Geri al"${st.canUndo ? '' : ' disabled'}>${ICONS.geri}<span>Geri al</span></button>`
+      + `<button type="button" data-ileri title="Yinele (Ctrl+Shift+Z)" aria-label="Yinele"${st.canRedo ? '' : ' disabled'}>${ICONS.ileri}<span>Yinele</span></button>`;
+    // Task 6.H1: the bar is one row of fixed height whatever the tool or the status. The eraser has no colour
+    // or width: they stay in their slot, hidden, with the prototype's hint over them (nothing moves).
+    const options = `<div class="o-secenek${this.eraser ? ' silgide' : ''}">`
+      + `<div class="o-tgrp o-ayar"${this.eraser ? ' aria-hidden="true"' : ''}><div class="o-tgrp o-renkler">${colors}</div><span class="sep"></span><div class="o-tgrp">${sizes}</div></div>`
+      + '<span class="o-tipucu">Silmek için çizginin üzerinden geç</span></div>';
     this.el.innerHTML = `<div class="o-tgrp">${tool('kalem', 'Kalem')}${tool('fosforlu', 'Fosforlu')}${tool('silgi', 'Silgi')}</div>`
       + `<span class="sep"></span>${options}`
       + `<span class="sep"></span><div class="o-tgrp">${history}</div>`
-      + `<span class="sep"></span><div class="o-tgrp o-kayit">${saveButton(this.state)}${status}</div>`
-      + '<button type="button" class="o-tkapat" data-kapat>Kalemi kapat</button>';
+      + `<div class="o-tgrp o-kayit">${saveButton(st)}${statusSlot(st)}</div>`
+      + `<button type="button" class="o-tkapat" data-kapat title="Kalemi kapat" aria-label="Kalemi kapat">${ICONS.kapat}<span>Kalemi kapat</span></button>`;
+    if (this.eraser) this.el.querySelectorAll<HTMLButtonElement>('.o-ayar button').forEach(b => { b.tabIndex = -1; });
   }
 }
 
+// Task 6.H1: icons; on narrow screens the buttons show only these (the name stays in title / aria-label).
+// Pen and highlighter: the shapes of the pen-mode cursors (styles.css). Kalemi kapat: the pen, struck through.
+const svg = (d: string) => `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+const ICONS = {
+  kalem: svg('<path d="M3 21l1.5-5L16 4.5 19.5 8 8 19.5z"/><path d="M14 6.5l3.5 3.5"/>'),
+  fosforlu: svg('<path d="M2.5 21.5l1.5-6.5L15 4l5 5-11 11z"/><path d="M4 15l5 5"/>'),
+  silgi: svg('<path d="M4.6 14.6l9-9a1.8 1.8 0 0 1 2.6 0l3.2 3.2a1.8 1.8 0 0 1 0 2.6L12 19H9z"/><path d="M8.5 10.7l5.8 5.8M9 19h11"/>'),
+  geri: svg('<path d="M9 5L4 10l5 5"/><path d="M4 10h10a5 5 0 0 1 0 10h-3"/>'),
+  ileri: svg('<path d="M15 5l5 5-5 5"/><path d="M20 10H10a5 5 0 0 0 0 10h3"/>'),
+  kaydet: svg('<path d="M7 18.5H6a4 4 0 0 1-.6-8A6 6 0 0 1 17 8.6a4.5 4.5 0 0 1 1 8.9h-1"/><path d="M12 20v-8M9 14.5l3-3 3 3"/>'),
+  kapat: svg('<path d="M5 20l1.2-4L15.5 6.7l2.8 2.8L9 18.8z"/><path d="M3.5 3.5l17 17"/>')
+};
+
+// Task 6.H1: the status always sits in a slot of fixed width (empty or not), so it never moves the bar.
+// On narrow screens only a coloured dot shows (an error: "Hata"); the iPad has no hover, so a tap on the
+// slot shows the full text in a toast for 2 s.
+export function statusSlot(st: ToolbarState): string {
+  const html = saveStatus(st);
+  const full = [...html.matchAll(/ title="([^"]*)"/g)].map(m => m[1]).join(' · ');
+  return `<button type="button" class="o-durum-yuva" data-durum${full ? ` aria-label="${full}"` : ' disabled aria-hidden="true"'}>${html}</button>`;
+}
+
+const STATUS_TOAST_MS = 2000;
 const DEVICE_TITLE = "Çizimler henüz PDF'e kaydedilmedi; bu cihazda saklanıyor";
 
 // Task 4.9b: every status has a long text and a short one; on a phone (styles.css, < 600 px) only
@@ -158,7 +186,7 @@ export function saveStatus(st: ToolbarState): string {
     : st.onDevice ? pill('o-tdurum kaydedilmedi', 'Kaydedilmedi <small>cihazda</small>', 'Cihazda', DEVICE_TITLE)
     : pill('o-tdurum kaydedilmedi', 'Kaydedilmedi', 'Kaydedilmedi', "Çizimler henüz PDF'e kaydedilmedi ve bu cihaza da kaydedilemiyor");
   if (k.kilit === 'ornek') return unsaved + pill('o-tipucu', "Örnek kitaplık: Drive'a kaydedilmez", 'Örnek', "Örnek kitaplık: Drive'a kaydedilmez");
-  if (d.tur === 'kaydediliyor') return pill('o-tdurum', 'Kaydediliyor…', 'Kaydediliyor…', 'Kaydediliyor…');
+  if (d.tur === 'kaydediliyor') return pill('o-tdurum kaydediliyor', 'Kaydediliyor…', 'Kaydediliyor…', 'Kaydediliyor…');
   if (d.tur === 'hata' && st.dirty) return pill('o-tdurum hata', 'Kaydedilemedi', 'Hata', `Kaydedilemedi: ${esc(d.mesaj)}`);
   if (d.tur === 'cevrimdisi' && st.dirty) return pill('o-tdurum kaydedilmedi', 'Çevrimdışı <small>cihazda</small>', 'Çevrimdışı', 'İnternet yok. Çizimler bu cihazda; bağlanınca kaydedilecek.');
   if (st.dirty) return unsaved;
@@ -172,5 +200,6 @@ export function saveButton(st: ToolbarState): string {
   const retry = k.kilit === 'acik' && k.durum.tur === 'hata' && st.dirty;
   const off = k.kilit !== 'acik' || k.durum.tur === 'kaydediliyor' || !st.dirty;
   const title = k.kilit === 'ornek' ? "Örnek kitaplıkta çizimler Drive'a kaydedilmez" : "Çizimleri Drive'daki PDF'e kaydet";
-  return `<button type="button" class="o-kaydet" data-kaydet title="${title}"${off ? ' disabled' : ''}>${retry ? 'Tekrar dene' : 'Kaydet'}</button>`;
+  const label = retry ? 'Tekrar dene' : 'Kaydet';   // ≤ 1024 px only the icon (task 6.H1)
+  return `<button type="button" class="o-kaydet" data-kaydet title="${title}" aria-label="${label}"${off ? ' disabled' : ''}>${ICONS.kaydet}<span>${label}</span></button>`;
 }
