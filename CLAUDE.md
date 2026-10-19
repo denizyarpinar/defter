@@ -63,7 +63,7 @@ Kitaplık/
 
 ## Değişmez kurallar
 - Uygulama Drive'daki dosyaları **kopyalamaz, taşımaz, silmez**. Faz 1'de sadece `kitaplik.json` ve `kitap.json` içindeki `kapak` alanı yazılabilir. Faz 5'ten itibaren: `kitaplar/<kitap>/` altında yeni PDF oluşturma ve PDF'in sonuna sayfa ekleme izinli (bkz. Faz 5).
-- Tek istisna: Kitaplık/ klasöründe kitaplik.json yoksa ilk raf/oda değişikliğinde bir kez oluşturulur. Başka hiçbir dosya oluşturulmaz; tek ek istisna Faz 5'teki PDF oluşturma kuralıdır.
+- Tek istisna: Kitaplık/ klasöründe kitaplik.json yoksa ilk raf/oda değişikliğinde bir kez oluşturulur. Başka hiçbir dosya oluşturulmaz; tek ek istisna Faz 5'teki PDF oluşturma kuralıdır. Uygulamanın kendi kökü (kurulum) için bkz. Faz 6.K.
 - Yazmadan önce dosyanın son halini oku (başka cihazda değişmiş olabilir).
 - Erişim token'ını localStorage'a yazma; bellekte tut. `.env.local` git'e girmez.
 - Hata mesajları Türkçe, kullanıcıya ne yapacağını söyler ("Drive'da Kitaplık klasörü bulunamadı. Klasörü ana dizine yükle ve yenile.").
@@ -319,6 +319,26 @@ Kitaplık/
 - Sahip + `drive.file` → "Tam erişim gerekiyor" kartı; popup sadece "Tam erişimi aç" dokunuşunda açılır.
 - Deneme anahtarları: `?kapsam=dar` (sadece drive.file, eski izinler dahil değil), `?sahip=0` (sahip değil gibi). `?olcum=1` kutusu kapsam, sahip ve scope listesini gösterir.
 - Kök bulma, yazma ve kurulum bu adımda değişmedi (K2 ve sonrası).
+
+## Faz 6.K — Kendi kökü ve kurulum
+
+### Kural istisnası (6.K2a, Deniz kararı)
+- Uygulama klasör ve yeni JSON dosyası (kitaplik.json, ileride kitap.json) oluşturabilir – SADECE kendi kökü (appProperties `defterKok=1`) altında ve SADECE kullanıcı düğmeye basınca.
+- Oluşturulan her şeyde appProperties `{ defter: '1', defterIslem: <islemId> }` (kökte ayrıca `defterKok: '1'`).
+- Önce "var mı" kontrolü, çift oluşturma yok. `files.delete` asla. Mevcut dosya/klasörlere (ör. eski "Kitaplık") yazılmaz, işaret de eklenmez.
+
+### Kökü bulma (`src/drive/kok.ts`, saf seçim testli)
+- Dar mod (`drive.file`): sadece `appProperties has { key='defterKok' and value='1' }` klasörü. Ad araması yapılmaz.
+- Sahip modu (`aktifKapsam() === 'tam'`): önce eski adla "Kitaplık" (davranış aynen: ilki + çoklu uyarısı); yoksa defterKok araması. Dar testte açılan "Defter Library" gerçek Kitaplık'ı gölgelemez.
+- Sonuç: `bulundu` (kaynak `defterKok` | `ad`) · `yok` · `cokKok` (en eski createdTime + uyarı) · `yarim` (kök var, `kitaplar/` ya da `kitaplik.json` eksik). Kökü bulma sadece GET (`saltOkunurFetch`).
+
+### Kurulum (`src/drive/kurulum.ts`, testli)
+- `kitaplikKur`: "Defter Library" (Drive kökünde) → `kitaplar/` → `kitaplik.json` (en son = kurulum tamam). `yarim` durumda sadece eksikler.
+- Yazma sadece `yok` ya da defterKok kaynaklı `yarim` durumda. Sahibin eski "Kitaplık"ı bulunursa (tam ya da yarım) hiçbir şey yazılmaz: `{ zatenVardi: true, kaynak: 'ad' }`. Sahip tam izindeyken ikinci kök oluşmaz.
+- kitaplik.json içeriği: bugünkü varsayılan (5 boş raf "Raf 1…5", varsayılan oda), `parseLibrary` ile okunur.
+- Çift koruması: önce ebeveynde `defterIslem` araması; `files.generateIds` ile önceden alınan id, tekrar denemede aynı id (409 = var; ad + defterIslem doğrulanır). generateIds çalışmazsa her tekrardan önce defterIslem araması.
+- Korumalar: `?kurulum=1` kilidi (yoksa `KurulumKilitli`, hiç istek yok); girişli ve örnek kitaplık değil (yoksa `KurulumYazmaYok`). Hatalar: `KurulumIzinYok`, `KurulumAgHatasi`, `KurulumBeklenmedik`.
+- Dev (sadece `npm run dev`): `window.defterKokDurumu()` (salt okunur), `window.defterKurulumDene(islemId?)` (`?kurulum=1` şart). Arayüz K2b'de, örnek kitap K3'te.
 
 ## Sonra bakılabilir
 - Oda zaman aşımı: şu an glb yüklemesine toplam 15 sn veriliyor; yavaş bağlantıda (masaüstü lightmap'leri ~3.3 MB) eski odaya düşüyor. Öneri: "15 sn hiç ilerleme yok" kuralı + yükleme göstergesi. Faz 2 kural metni değişeceği için Deniz'in onayı gerekir.

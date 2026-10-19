@@ -3,7 +3,7 @@ import { gidisPlani } from './arama/aramaPaneliDurumu';
 import { agacAl, agacGecersiz } from './arama/kitaplikAgaci';
 import { kitaplikAra, type KitaplikSonucu } from './arama/kitaplikAra';
 import { ornekAgac, type OrnekAgaci } from './arama/ornekAgac';
-import { AuthError, aktifKapsam, prepareAuth, rememberUser, rememberedUser, setSahip, signIn, signOut } from './drive/auth';
+import { AuthError, aktifKapsam, isSignedIn, prepareAuth, rememberUser, rememberedUser, setSahip, signIn, signOut } from './drive/auth';
 import { darZorlaUrl, girisKapsami, includeGranted, sahipMi, sahipZorlaYok, tamErisimDugmesi } from './drive/kapsam';
 import { getUser, setAccountHint, setSessionExpiredHandler } from './drive/drive';
 import { LibraryNotFound, loadDriveLibrary, type DriveLocation } from './drive/driveLibrary';
@@ -77,6 +77,8 @@ let durum: KitaplikDurumu = ilkDurum(startWithSample);
 // Every write to Drive goes through this: null unless the Drive library is on screen.
 const writer = () => etkinYazici(durum, saver);
 
+// dev only (task 6.K2a): window.defterKokDurumu() (reads only), window.defterKurulumDene() (needs ?kurulum=1)
+if (import.meta.env.DEV) void import('./drive/kurulumDene').then(m => m.installKurulumDene(() => aktifKapsam(), () => isSignedIn() && durum.tur !== 'demo'));
 // dev only (task 5.5): window.defterDosyaDene(kitapAdi) creates a test PDF
 if (import.meta.env.DEV) void import('./drive/dosyaDene').then(m => m.installDosyaDene(() => writer() ? driveLoc : null));
 // dev only (task 5.6): window.defterSayfaDene(kitapAdi, dosyaAdi) adds 2 test pages at the end
@@ -196,7 +198,7 @@ async function loadFromDrive(): Promise<void> {
   const current = () => seq === loadSeq && durum.tur === 'yukleniyor';
   await ready;
   try {
-    const r = await loadDriveLibrary();
+    const r = await loadDriveLibrary(aktifKapsam() === 'tam' ? 'tam' : 'dar');
     if (!current()) return;
     // the saver reads from the shared holder, whose contents useData replaces
     if (!await useData(r, new DriveSaver(r.loc, data!, { saving: showSaving, saved: showSaved, failed: showSaveError, warn: toast }), r.loc)) return;

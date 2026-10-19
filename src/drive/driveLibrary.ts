@@ -1,11 +1,13 @@
 import type { LoadedLibrary } from '../model/localSource';
 import { parseBook, parseLibrary } from '../model/parse';
 import type { Book } from '../model/types';
-import { findRootFolders, listChildren, readJson, type DriveFile } from './drive';
+import { listChildren, readJson, type DriveFile } from './drive';
+import { driveKokApi, kokBul, ROOT_NAME, type KokDrive, type KokModu } from './kok';
 
-// Reads the "Kitaplık" folder from My Drive (see CLAUDE.md → Veri modeli). Reads only; never moves/deletes.
+// Reads the library's root folder (see CLAUDE.md → Veri modeli). Reads only; never moves/deletes.
+// Task 6.K2a: the root is found by kok.ts (narrow: the app's defterKok root; full: "Kitaplık" first).
 
-export const ROOT_NAME = 'Kitaplık';
+export { ROOT_NAME };
 const MAX_PARALLEL = 4;
 
 // Where things are in Drive, so changes can be written back.
@@ -32,12 +34,13 @@ async function pool<T>(items: T[], n: number, fn: (item: T) => Promise<void>): P
   await Promise.all(Array.from({ length: Math.min(n, items.length) }, worker));
 }
 
-export async function loadDriveLibrary(): Promise<DriveLoad> {
+export async function loadDriveLibrary(mod: KokModu, kokDrive: KokDrive = driveKokApi): Promise<DriveLoad> {
   const warnings: string[] = [];
-  const roots = await findRootFolders(ROOT_NAME);
-  if (!roots.length) throw new LibraryNotFound();
-  if (roots.length > 1) warnings.push(`Drive'ın ana dizininde ${roots.length} tane "${ROOT_NAME}" klasörü var; ilki kullanılıyor. Karışmaması için birini yeniden adlandır.`);
-  const rootId = roots[0].id;
+  const kok = await kokBul(kokDrive, mod);
+  if (kok.tur === 'yok') throw new LibraryNotFound();
+  if (kok.uyari) warnings.push(kok.uyari);
+  const rootId = kok.kok.id;
+  const rootName = kok.kok.name;
 
   const children = await listChildren(rootId);
   const libFile = children.find(f => f.name === 'kitaplik.json' && !f.mimeType.endsWith('.folder'));
@@ -49,7 +52,7 @@ export async function loadDriveLibrary(): Promise<DriveLoad> {
   const loc: DriveLocation = { rootId, libraryFileId: libFile?.id ?? null, bookFolderIds: new Map(), bookFileIds: new Map() };
   const books = new Map<string, Book>();
   if (!kitaplar) {
-    warnings.push(`"${ROOT_NAME}" klasöründe "kitaplar" klasörü yok. Kitapları göstermek için içine "kitaplar" adlı bir klasör aç.`);
+    warnings.push(`"${rootName}" klasöründe "kitaplar" klasörü yok. Kitapları göstermek için içine "kitaplar" adlı bir klasör aç.`);
     return { library, books, loc, warnings };
   }
 
