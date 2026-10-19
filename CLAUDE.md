@@ -361,6 +361,15 @@ Kitaplık/
 - Yarım örnek (defterOrnek klasörü, kitap.json yok) kitaplıkta sessizce atlanır (`driveLibrary.ts`); kullanıcının kitap.json'suz klasörleri eskisi gibi gri kapakla görünür.
 - Kod: `src/drive/kurulum.ts` (`ornekKitapKur`, `ornekPlani`, `webOrnekKaynak`; testli). Dev: `window.defterKurulumDene(islemId?, ornek = true)`.
 
+### Kitap sihirbazı (6.K4a)
+- Özelleştir → "＋ Yeni kitap" (sadece Drive kitaplığında; örnek kitaplıkta yok). Boş Drive kitaplığında oda ipucunun yerinde "Kitaplığın boş · ＋ Yeni kitap".
+- Alanlar: kitap adı, raf (mevcut raflar), renk (`COVER_SWATCHES`), satır satır liste + canlı önizleme ağacı (+ / ↑ / ↓ metni `listeYaz` ile yeniden yazar).
+- Liste: `# Ünite` satırı + altındaki konular; boş satır sayılmaz; konuda baştaki `- `, `* `, `• `, `1.`, `1)` silinir; ilk `#`'ten önceki konular "Genel" + uyarı. Sınırlar 30 ünite / 50 konu / 80 karakter (aşılırsa Oluştur kapalı); aynı konu adı ve konusuz ünite sadece uyarı.
+- Klasör adları: `Unite-NN-<ad>`, `Konu-NN-<ad>`; konu numarası kitap boyunca artar (programlamaya-giris gibi). ASCII (ä→ae, ö→oe, ü→ue, ß→ss, ğ→g, ı→i, ş→s, ç→c, İ→I), işaretler → `-`, en fazla 40 karakter. Kitap id = küçük harf (`mathe-1`); var olan id ile çakışma = Oluştur kapalı, otomatik `-2` yok.
+- Plan (`kitapPlani`): kitap klasörü → ünite klasörleri → konu klasörleri → kitap.json → raf kaydı (kitaplik.json). Uebungen/Oedevler açılmaz (K6). Renk kitap.json `kapak.renk`'te, raf kitaplik.json'da.
+- K4a'da Drive'a hiçbir şey yazılmaz: Oluştur gri (`OLUSTUR_KILITLI`). `?olcum=1`: planın listesi kartta + Kopyala.
+- Kod: `src/kitap/kitapListesi.ts`, `klasorAdi.ts`, `kitapPlani.ts` (saf, testli), `src/ui/kitapSihirbaziDurumu.ts` (saf, testli), `src/ui/kitapSihirbazi.ts`. Ekran görüntüleri: `node scripts/kitap-sihirbazi-kontrol.mjs`.
+
 ## Sonra bakılabilir
 - Oda zaman aşımı: şu an glb yüklemesine toplam 15 sn veriliyor; yavaş bağlantıda (masaüstü lightmap'leri ~3.3 MB) eski odaya düşüyor. Öneri: "15 sn hiç ilerleme yok" kuralı + yükleme göstergesi. Faz 2 kural metni değişeceği için Deniz'in onayı gerekir.
 - Masaüstü lightmap PNG'lerinin küçültülmesi (boyut/sıkıştırma).

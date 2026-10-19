@@ -5,7 +5,7 @@ import { toast } from './toast';
 
 // "Özelleştir" side panel (as in the prototype). Changes stay in memory for now (Drive: task 1.5).
 
-const COVER_SWATCHES = ['#24476b', '#2f5d50', '#7cc47f', '#6cc5c9', '#7a8fa6', '#b0306d', '#e0453a', '#f08a3c', '#f0dc5a', '#6b3a2a', '#8a4b33', '#b89a7a'];
+export const COVER_SWATCHES = ['#24476b', '#2f5d50', '#7cc47f', '#6cc5c9', '#7a8fa6', '#b0306d', '#e0453a', '#f08a3c', '#f0dc5a', '#6b3a2a', '#8a4b33', '#b89a7a'];
 const WALL_SWATCHES: [string, string][] = [['Kum', '#efe6d8'], ['Kırık beyaz', '#f6f3ee'], ['Adaçayı', '#dfe5d6'], ['Pudra', '#f0dfd8'], ['Gece mavisi', '#c9d3e3']];
 const FLOOR_SWATCHES: [string, FloorKey, string, string][] = [['Meşe', 'mese', '#d9a46a', '#c48d55'], ['Ceviz', 'ceviz', '#9a6a45', '#7f5536'], ['Açık', 'acik', '#e6cfae', '#d6b98f']];
 
@@ -13,6 +13,7 @@ export interface PanelHooks {
   shelvesChanged(): void;
   bookChanged(id: string): void;
   roomChanged(): void;
+  yeniKitap?: { acik(): boolean; ac(): void };   // task 6.K4a: "＋ Yeni kitap" (only in a Drive library)
 }
 
 export function initPanel(data: { library: Library; books: Map<string, Book> }, hooks: PanelHooks): void {
@@ -36,6 +37,7 @@ export function initPanel(data: { library: Library; books: Map<string, Book> }, 
     const opt = (id: string) => `<option value="${esc(id)}" ${id === selBook ? 'selected' : ''}>${esc(books.get(id)!.baslik)}</option>`;
     const pile = newArrivals(lib, books);
     panel.innerHTML = `<div class="phead"><b>Özelleştir</b><button class="ibtn" id="pClose">Kapat</button></div>
+    ${hooks.yeniKitap?.acik() ? '<div class="prow" style="margin-top:12px"><button class="ibtn solid" id="pNewBook">＋ Yeni kitap</button></div>' : ''}
     <h3>Raflar (üstten alta)</h3>
     ${lib.raflar.map((s, i) => `<div class="prow"><span class="n">${i + 1}</span><input type="text" data-i="${i}" value="${esc(s.ad)}" maxlength="22" aria-label="Raf ${i + 1} adı">
        <button class="ibtn danger" data-del="${i}" ${lib.raflar.length <= MIN_SHELVES ? 'disabled' : ''}>${pendingDelete === i ? 'Emin misin?' : 'Sil'}</button></div>`).join('')}
@@ -55,6 +57,8 @@ export function initPanel(data: { library: Library; books: Map<string, Book> }, 
 
     const q = <T extends HTMLElement>(s: string) => panel.querySelector<T>(s);
     q('#pClose')!.onclick = () => setOpen(false);
+    const nb = q<HTMLButtonElement>('#pNewBook');
+    if (nb) nb.onclick = () => { setOpen(false); hooks.yeniKitap?.ac(); };
     panel.querySelectorAll<HTMLInputElement>('input[data-i]').forEach(inp => inp.addEventListener('input', () => {
       const i = +inp.dataset.i!;
       lib.raflar[i].ad = inp.value.trim() || `Raf ${i + 1}`;

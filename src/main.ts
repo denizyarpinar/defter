@@ -130,6 +130,7 @@ function showState(): void {
   setLibError(v.hataMesaji);
   if (v.kilitli) app.dataset.kilit = ''; else delete app.dataset.kilit;
   scene?.setLocked(v.kilitli);
+  bosIpucu();
 }
 
 // 5 empty shelves (as a Drive library without kitaplik.json), no books; nothing is fetched
@@ -151,8 +152,34 @@ function applyMode(instant = false): void {
 function updateChrome(): void {
   app.dataset.view = view;
   updateCrumb(view, openTitle);
-  updateHint(view, openTitle !== null);
+  bosIpucu();
 }
+
+// ---- task 6.K4a: "Yeni kitap" wizard (writes nothing yet; only in a Drive library, never in the sample one) ----
+
+function yeniKitapAcik(): boolean {
+  return durum.tur === 'drive' && !!data;
+}
+
+function yeniKitapAc(): void {
+  const d = data;
+  if (!yeniKitapAcik() || !d) return;
+  import('./ui/kitapSihirbazi')
+    .then(m => m.kitapSihirbaziAc({ raflar: d.library.raflar.map(s => ({ id: s.id, ad: s.ad })), mevcutIdler: [...d.books.keys()], olcum: new URLSearchParams(location.search).get('olcum') === '1' }))
+    .catch(e => toast(`Kitap sihirbazı açılamadı: ${e}`));
+}
+
+// The room's hint; an empty Drive library shows "Kitaplığın boş · ＋ Yeni kitap" in its place
+function bosIpucu(): void {
+  updateHint(view, openTitle !== null);
+  const btn = document.querySelector<HTMLElement>('#bosKitaplik');
+  if (!btn) return;
+  const v = gorunum(durum);
+  const goster = yeniKitapAcik() && data!.books.size === 0 && view === 'room' && openTitle === null && !v.kilitli && v.kart === null;
+  btn.hidden = !goster;
+  if (goster) document.querySelector<HTMLElement>('#hint')!.hidden = true;
+}
+document.querySelector('#bosKitaplik')?.addEventListener('click', yeniKitapAc);
 
 initTopBar({
   onSearch: () => aramaPaneli.ac(),
@@ -195,6 +222,7 @@ async function useData(next: LoadedLibrary, newSaver: DriveSaver | null, loc: Dr
   setReadingSink(r ? (id, patch) => r.change(id, patch) : null);
   hideSaveState();
   scene.reload();
+  bosIpucu();
   if (location.hash !== '#aksam') { mode = MODE_FROM_DATA[data.library.oda.mod]; applyMode(); }
   return true;
 }
@@ -460,7 +488,8 @@ function aramaSonucunaGit(s: KitaplikSonucu, q: string): void {
 
 const aramaPaneli = initAramaPaneli({
   kaynak: aramaKaynagi,
-  acilabilir: () => !isOkuyucuOpen() && !isReaderOpen() && !gorunum(durum).kilitli && gorunum(durum).kart === null && !!scene,
+  acilabilir: () => !isOkuyucuOpen() && !isReaderOpen() && !gorunum(durum).kilitli && gorunum(durum).kart === null && !!scene
+    && !document.getElementById('kitapSihirbazi'),
   git: aramaSonucunaGit,
 });
 initOkuyucu(() => writer() ? driveLoc : null);
@@ -531,7 +560,8 @@ async function boot(): Promise<void> {
   initPanel(d, {
     shelvesChanged: () => { scene?.shelvesChanged(); writer()?.libraryChanged(); },
     bookChanged: id => { scene?.refreshBook(id); writer()?.coverChanged(id); },
-    roomChanged: () => { scene?.applyRoom(d.library.oda); writer()?.libraryChanged(); }
+    roomChanged: () => { scene?.applyRoom(d.library.oda); writer()?.libraryChanged(); },
+    yeniKitap: { acik: yeniKitapAcik, ac: yeniKitapAc }
   });
   readerTextures();
 
