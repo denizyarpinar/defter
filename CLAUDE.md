@@ -1,6 +1,7 @@
 # Defter – sanal kitaplık uygulaması
 
 Bu dosya Claude Code'un her oturumda okuduğu proje kurallarıdır. Değiştirmeden önce Deniz'e sor.
+Durum ve sıradaki adım: docs/DURUM.md (Codex de aynı dosyayı kullanır).
 
 ## Kim için, ne yapıyoruz
 - Sahibi: Deniz (Uni Bremen Informatik, 1. dönem). İlk gerçek Claude Code projesi; programlamaya yeni başlıyor.
