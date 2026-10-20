@@ -51,7 +51,8 @@ async function ac(page, o = {}) {
       bekleyenEklemeler: () => o.bekleyen ? [{ tur: 'konuEkle', unite: 'k:Unite-01-Temeller', uniteSira: 0, baslik: 'Diziler ve listeler' }, { tur: 'uniteEkle', baslik: 'Nesneler' }] : [],
       durum: () => o.durum ?? { tur: 'bos' },
       dinle: fn => { dinleyiciler.add(fn); return () => dinleyiciler.delete(fn); },
-      tekrarDene() {}, vazgec() {}, girisYap() {}
+      tekrarDene() {}, vazgec() {}, girisYap() {},
+      copIste() {}, copBekleyenler: () => [], yonlendir: () => undefined   // 6.K5b (without them the edit mode doesn't open)
     });
     reader.readerShell(true);   // as the library search does: the reader's frame without a book on the desk
     void ok.openOkuyucu(b, ornek.sampleBookFolder(b.id), 0, 0, () => {});
@@ -133,6 +134,7 @@ const BOYUTLAR = [
 const dev = await startDev();
 const browser = await chromium.launch({ channel: 'chrome' });
 const tablo = [];
+const sayfalar = [];
 try {
   mkdirSync(OUT, { recursive: true });
   for (const [ad, viewport] of BOYUTLAR) {
@@ -144,6 +146,23 @@ try {
     const cek = async (dosya) => { await page.screenshot({ path: join(OUT, `${ad}-${dosya}.png`) }); tablo.push([`${ad} ${dosya}`, await olc(page)]); };
 
     await ac(page);
+    if (!laptop) {
+      // Task 6.K5b-4: reading with pages, the panel closed: the pages scroll, the page itself doesn't
+      await page.evaluate(() => document.querySelector('#oTocClose').click());
+      await page.click('#oMode [data-m="pdf"]');   // the pages in a scrolling list
+      await wait(1200);
+      const cdp = await ctx.newCDPSession(page);
+      const x = viewport.width / 2, y = viewport.height * 0.6;
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y, id: 1 }] });
+      for (let i = 1; i <= 10; i++) { await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y: y - 30 * i, id: 1 }] }); await wait(16); }
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      await wait(600);
+      sayfalar.push([ad, await page.evaluate(() => { const s = document.querySelector("#oScroll"); return `sayfalar ${Math.round(s.scrollTop)} px (liste ${s.scrollHeight}/${s.clientHeight}, kitap modu ${!document.querySelector("#oKitap").hidden}), scrollY ${Math.round(scrollY)}`; })]);
+      await page.click('#oMode [data-m="kitap"]');   // back to the default for the screenshots
+      await wait(600);
+      await page.click('#oTocBtn');
+      await wait(400);
+    }
     await cek('1-panel');
     await duzenle(page);
     await cek('2-duzenleme');
@@ -223,4 +242,6 @@ try {
 const sutunlar = Object.keys(tablo[0][1]);
 console.log(['durum', ...sutunlar].join(' | '));
 for (const [ad, o] of tablo) console.log([ad, ...sutunlar.map(k => String(o[k]))].join(' | '));
+console.log('\nParmakla kaydırma (6.K5b-4; sayfalar > 0, scrollY 0):');
+for (const [ad, s] of sayfalar) console.log(`${ad} | ${s}`);
 console.log(`\nEkran görüntüleri: ${OUT}`);

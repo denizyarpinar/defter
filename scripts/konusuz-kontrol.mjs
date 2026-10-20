@@ -84,6 +84,26 @@ async function olc(page) {
   });
 }
 
+// Task 6.K5b-4: a finger drag (CDP touch events, as on the iPad) from (x, y) by dy; the page's scrollY after it
+// and the scrollTop of the element under the finger's scrolling parent (#oTocList / #oScroll)
+async function surukle(page, cdp, x, y, dy, kutu) {
+  const nokta = (yy) => [{ x, y: yy, id: 1 }];
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: nokta(y) });
+  for (let i = 1; i <= 10; i++) { await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: nokta(y + dy * i / 10) }); await wait(16); }
+  await wait(100);
+  const surerken = await page.evaluate(() => Math.round(scrollY));   // before the touchend's reset (it could hide a move)
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await wait(600);
+  return page.evaluate(([kutu, surerken]) => `${surerken}→${Math.round(scrollY)}${kutu ? ' (liste ' + Math.round(document.querySelector(kutu).scrollTop) + ')' : ''}`, [kutu, surerken]);
+}
+
+// iPad Safari: the layout viewport (html.clientHeight 1048) is taller than the visible part (innerHeight 969),
+// so the page itself can move by 79 px. Chrome's emulation doesn't do that; a taller <html> gives the same room.
+// Chrome also stops the drag by html/body's touch-action: none and body's overflow: hidden (it goes to the page);
+// iPad Safari moves the page anyway (the recording). Both turned off here, as there.
+const SAFARI_PAYI = () => { const s = document.createElement('style'); s.id = 'safariPayi'; s.textContent = 'html { height: calc(100% + 79px) } html, body { touch-action: auto !important } body { overflow: visible !important }'; document.head.append(s); };
+const SIFIRLA = () => scrollTo(0, 0);
+
 const BOYUTLAR = [
   ['390', { width: 390, height: 844 }],
   ['820', { width: 820, height: 1180 }],
@@ -94,6 +114,7 @@ const BOYUTLAR = [
 const dev = await startDev();
 const browser = await chromium.launch({ channel: 'chrome' });
 const tablo = [];
+const surukleme = [];
 try {
   mkdirSync(OUT, { recursive: true });
   for (const [ad, viewport] of BOYUTLAR) {
@@ -126,6 +147,31 @@ try {
     await wait(700);
     await cek('2-konusuz');
 
+    if (!laptop) {
+      // Task 6.K5b-4: the page must not move; only the contents list scrolls
+      const cdp = await ctx.newCDPSession(page);
+      await page.evaluate(SAFARI_PAYI);
+      const { width: w, height: h } = viewport;
+      const scrim = await surukle(page, cdp, w - 40, h * 0.6, -300);
+      await page.evaluate(SIFIRLA);
+      // the list made short so that it can scroll (the book has no units yet)
+      await page.evaluate(() => { const l = document.querySelector('#oTocList'); l.style.flex = 'none'; l.style.height = '60px'; });
+      const liste = await surukle(page, cdp, 120, (await page.locator('#oTocList').boundingBox()).y + 30, -200, '#oTocList');
+      await page.evaluate(() => { const l = document.querySelector('#oTocList'); l.style.flex = ''; l.style.height = ''; l.scrollTop = 0; });
+      await page.evaluate(SIFIRLA);
+      await page.evaluate(() => document.querySelector('#oTocClose').click());
+      await wait(400);
+      const bos = await surukle(page, cdp, w / 2, h * 0.6, -300);
+      const ust = await surukle(page, cdp, w / 2, 30, 200);   // the top bar, the finger pulled down
+      await page.screenshot({ path: join(OUT, `${ad}-6-surukleme.png`) });
+      surukleme.push([`${ad} konusuz`, { scrim, liste, bosAlan: bos, ust }]);
+      await page.evaluate(SIFIRLA);
+      await page.evaluate(() => document.querySelector('#safariPayi').remove());
+      await page.click('#oTocBtn');
+      await wait(400);
+      if (!await page.locator('[data-uniteekle]').count()) { await page.click('#oTocEdit'); await wait(300); }   // closing the panel ended the edit mode
+    }
+
     await page.click('[data-uniteekle]');
     await page.fill('[data-girdi]', 'Temeller');
     await page.click('[data-ie-kaydet]');
@@ -143,6 +189,20 @@ try {
     await page.click('#oTocList [data-u="0"][data-t="0"]');
     await wait(1200);
     await cek('5-konu-acildi');
+
+    if (!laptop) {
+      // Task 6.K5b-4: a topic open (no material yet): the same drags
+      const cdp = await ctx.newCDPSession(page);
+      await page.evaluate(SAFARI_PAYI);
+      const { width: w, height: h } = viewport;
+      const bos = await surukle(page, cdp, w / 2, h * 0.6, -300);
+      await page.evaluate(SIFIRLA);
+      await page.click('#oTocBtn');
+      await wait(400);
+      const scrim = await surukle(page, cdp, w - 40, h * 0.6, -300);
+      surukleme.push([`${ad} konu açık`, { scrim, liste: '-', bosAlan: bos, ust: '-' }]);
+      await page.evaluate(() => document.querySelector('#safariPayi').remove());
+    }
     await ctx.close();
   }
 } finally {
@@ -153,4 +213,6 @@ try {
 const sutunlar = Object.keys(tablo[0][1]);
 console.log(['durum', ...sutunlar].join(' | '));
 for (const [ad, o] of tablo) console.log([ad, ...sutunlar.map(k => String(o[k]))].join(' | '));
+console.log('\nSürükleme (scrollY sürerken→sonra; beklenen 0→0, liste > 0):');
+for (const [ad, o] of surukleme) console.log(`${ad} | scrim ${o.scrim} | liste ${o.liste} | boş alan ${o.bosAlan} | üst çubuk ${o.ust}`);
 console.log(`\nEkran görüntüleri: ${OUT}`);

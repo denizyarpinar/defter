@@ -36,6 +36,8 @@ import { esc } from '../ui/dom';
 import { bosDurumMetni } from '../ui/icindekilerDurumu';
 import { IcindekilerDuzenleyici, type IcindekilerBaglami } from '../ui/icindekilerDuzenle';
 import { fpsCounter } from '../ui/fps';
+import { gorunurAlaniDuzelt } from '../ui/gorunurAlan';
+import { installOkuyucuKaydirma } from '../ui/okuyucuKaydirma';
 import { setCanvasStats } from '../ui/tani';
 import { ST } from '../ui/reader';
 import { toast } from '../ui/toast';
@@ -267,6 +269,7 @@ export function initOkuyucu(yer: () => DriveLocation | null): void {
     void import('./metinAraDene').then(m => m.installMetinAra(() => open && metin && pages.length ? { pages, metin } : null));
   }
   $('#oClose').addEventListener('click', closeOkuyucu);
+  installOkuyucuKaydirma($('#okuyucu'));   // task 6.K5b-4: the page itself never moves under the reader
   arama = new OkuyucuArama({
     pages: () => pages,
     metin: () => metin,
@@ -751,6 +754,7 @@ export async function openOkuyucu(b: Book, folderId: string, unit: number, topic
   const el = $('#okuyucu');
   el.hidden = false;
   requestAnimationFrame(() => el.classList.add('show'));
+  gorunurAlaniDuzelt('okuyucu açıldı');   // task 6.K5b-4: a page moved before (not while the keyboard is open)
   startFps();
 
   if (v2) { await openTopic(unit, topicIndex, resume); return; }
@@ -796,6 +800,7 @@ export function openOkuyucuDuzenle(b: Book, folderId: string, closed: () => void
   const el = $('#okuyucu');
   el.hidden = false;
   requestAnimationFrame(() => el.classList.add('show'));
+  gorunurAlaniDuzelt('okuyucu açıldı');
   startFps();
   openToc();
   if (duzenleyici.dugme(b, true).acik) { duzenleyici.ac(b); tocEditDugmesi(); }
