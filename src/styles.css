@@ -242,6 +242,8 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 
 /* table of contents */
 .toc h2 { margin-bottom: 5cqw }
+.toc .tochead.continued h2 { font-size: 4.2cqw }
+.toc-measure { position: absolute; top: 0; left: 0; visibility: hidden; pointer-events: none }
 .toc h3.unit { margin: 3cqw 0 1cqw; font: 600 2.3cqw var(--ui); letter-spacing: .12em; text-transform: uppercase; opacity: .6 }
 .toc h2 + h3.unit, .toc .tochead + h3.unit { margin-top: 0 }
 /* task 6.K5b-3: "İçindekileri düzenle" next to the heading (wraps under it on a narrow page) */
@@ -286,6 +288,8 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 .leaf { position: absolute; top: 0; height: 100%; transform-style: preserve-3d; z-index: 5; transition: transform .82s cubic-bezier(.45, .05, .2, 1) }
 .leaf.fw { transform-origin: 0 50%; transform: rotateY(0deg) }
 .leaf.fw.go { transform: rotateY(-180deg) }
+.leaf.bw { transform-origin: 100% 50%; transform: rotateY(0deg) }
+.leaf.bw.go { transform: rotateY(180deg) }
 .leaf.slow { transition-duration: 1.05s }
 .lf { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden }
 .lf.back { transform: rotateY(180deg) }
@@ -298,6 +302,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 .r-bottom { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 8px 16px calc(env(safe-area-inset-bottom, 0px) + 12px); color: #f5ecdf; flex-wrap: wrap }
 .r-bottom .arrow { width: 44px; height: 44px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, .25); background: rgba(0, 0, 0, .2); color: #f5ecdf; font-size: 22px; line-height: 1 }
 .r-bottom .arrow:disabled { opacity: .35; cursor: default }
+.r-bottom.no-turn .arrow { visibility: hidden }
 .r-bottom .pno { font-size: 13px; min-width: 110px; text-align: center; font-variant-numeric: tabular-nums; opacity: .85 }
 
 /* ---------- okuyucu: PDF mode (task 3.2), over the open book; desk background from #reader ---------- */

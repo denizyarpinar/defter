@@ -11,5 +11,6 @@ Kurallar CLAUDE.md'dedir; burada tekrar edilmez. Çelişki olursa CLAUDE.md geç
 5. Alınmış kararları (CLAUDE.md, docs/DURUM.md) onaysız değiştirme.
 6. Deneme adreslerini her zaman tam yaz (dar `?kapsam=dar&sahip=0&kurulum=1&olcum=1`, sahip `?kurulum=1&olcum=1`).
 7. Görev sonunda `docs/DURUM.md`'yi güncelle (durum + "Son güncelleyen" satırı).
+8. Oturum ya da limit bitmek üzereyse işi yarıda bırakmadan önce docs/DURUM.md'ye 'Yarım kalan iş' bölümü yaz (ne yapıldı, ne kaldı, hangi dosyalar değişti, sonraki adım). Sonraki oturum önce bu bölümü okur.
 
 Dil: Deniz ile Türkçe (bkz. CLAUDE.md → "Deniz ile çalışma kuralları").

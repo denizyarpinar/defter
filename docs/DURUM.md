@@ -1,6 +1,6 @@
 # Defter – Durum
 
-**Son güncelleyen:** Claude Code (Opus 5.5), 20 Ekim 2026 · dal `faz-6` (son commit b5100d1) · `main` b564351
+**Son güncelleyen:** Codex, 20 Ekim 2026 · dal `faz-6` (HEAD `9991eb4`; 6.K6c değişiklikleri henüz commit edilmedi) · `main` b564351
 
 Ayrıntılı tarihçe repo dışında (Cowork'ün devir notu); ortak ve güncel durum bu dosya.
 Kurallar: `CLAUDE.md`. Codex için giriş: `AGENTS.md`.
@@ -34,7 +34,7 @@ Defter, Google Drive'daki notları (PDF, defter fotoğrafı, Claude çıktılar�
 | 6.1–6.3 | Word/PPT çeviri, Renk düzelt + koseB, arama | Bitti (main b564351) |
 | 6.H | Kalem düzeltmeleri (çubuk, çizgi kalitesi) | Bitti (faz-6) |
 | 6.K0–K6b | Çok kullanıcı + kurulum: izin modu, kök/kurulum, örnek kitap, sihirbaz, içindekiler, çöpe atma, boş konu | Bitti (faz-6, 1265 test) |
-| **6.K6c** | Masadaki İçindekiler sayfalara bölünür | **Şimdi** |
+| **6.K6c** | Masadaki İçindekiler sayfalara bölünür | **Uygulandı; Deniz'in gerçek kitap/iPad denemesi bekleniyor** |
 | 6.K7, 6.K8 | Yayına hazırlık, gerçek test, main | Sırada |
 | 6.4 / 6.5 | OCR / iki dil (EN + TR) | Sonra |
 | 7 | Quiz/özet (LLM API) | Sonra |
@@ -42,8 +42,14 @@ Defter, Google Drive'daki notları (PDF, defter fotoğrafı, Claude çıktılar�
 ### Sıradaki 3 adım
 
 **6.K6c – İçindekiler sayfalara bölünür**
-- Sorun: masadaki açık kitabın İçindekiler sayfası uzun listede taşıyor (1920×632'de Ünite B sayfa numarasının altına iniyor).
-- Kabul: liste gerçek kitap gibi sonraki sayfalara bölünür; devam sayfasında "İçindekiler (devam)"; sayfa sonunda yetim ünite başlığı kalmaz; bölme gerçek ölçümle yapılır; boyut/içerik değişince yeniden bölünür; 1920×632'de taşma yok.
+- Uygulandı: fontlar yüklendikten sonra aynı genişlik/stillerle DOM ölçülür; başlık, düğmeler, satırlar, boşluklar, alt açıklama ve sayfa numarası için alan ayrılır. İlk İçindekiler sayfasında mevcut düğmeler; sonraki sayfalarda küçük "İçindekiler (devam)", bölünen ünitede "(devam)". Başlık ilk konusuyla birlikte taşınır; çok küçük alanda en az bir satır işlenir.
+- Masadaki liste başlık sayfası + ölçülen İçindekiler sayfalarıdır. Dar ekranda birer, geniş ekranda ikişer sayfa çevrilir (‹ ›, klavye okları, kaydırma hareketi). Geniş ekranda tek yayılım varsa oklar görünmez; yerleri korunur, kitap boyutu değişmez. Son boş eş sayfa numarasızdır.
+- Boyut/yön/font/içerik değişince yeniden ölçülür; görünen konu mümkün olduğunca korunur. Çevirme veya kapak açılışı sırasında yeniden ölçüm, eski animasyonları temizler. Konu ve durum düğmeleri mevcut işlevlerini kullanır. Ayrı PDF okuyucusunun sayfaları/numaraları/kurdeleleri değişmez.
+- Kod: `src/ui/reader.ts`, `icindekilerSayfalama.ts` (saf, 12 test), `icindekilerOlcum.ts`, `src/styles.css`. Kaynak bağlantısı: `scripts/icindekiler-sayfa-kaynak.test.ts` (3 test). K5a/K5b paneli, K6a/K6b, kalem, okuyucuKaydirma.ts, Drive yazıcıları ve 3D oda değiştirilmedi. AGENTS.md'ye istenen "Yarım kalan iş" kuralı (8) eklendi.
+- Kontroller: typecheck ve build geçti. Toplam **103 dosya / 1280 test geçti** (`npm test -- --testTimeout=20000 --maxWorkers=2`). İlk varsayılan koşuda mevcut filtre testi 5 sn sınırına, köşe ölçümü repo dışındaki tanı klasörünün yazma iznine takıldı; izinli ve 20 sn sınırıyla tam koşu geçti, bu testlerin kodu değiştirilmedi.
+- Tarayıcı: `node scripts/icindekiler-sayfa-kontrol.mjs`; Drive'a bağlanmadan uzun/kısa/konusuz/örnek kitaplık, dört boyutta **16 senaryo** geçti. 30 konulu kontrol kitabı başlık sayfası dahil 390×844 ve 820×1180'de 7; 1180×820 ve 1920×632'de 6 sayfa. Konu sırası/kaybı/tekrarı, devam başlığı, taşma, numaralar, son boş sayfa, ileri/geri oklar, devam sayfasından konu açma, yeniden boyutlandırma ve çevirme sırasında yeniden boyutlandırma denendi. Kısa sayfanın öğe konumları ve boyutları HEAD sürümüyle karşılaştırıldı, aynı.
+- Görüntüler + `olcum.json`: `%USERPROFILE%\iCloudDrive\uni_plan_claude_code\Claude outputs\kitap-6.K6c\`. Uzun/kısa kitaplar açıkça etiketli **kontrol verisidir**, gerçek `deneme-1` / `Mathe 1` değildir. Ölçüm kutusu yalnızca ekran görüntüsü çekilirken gizlenir.
+- **Sıradaki:** Deniz, dar modda `http://localhost:5173/?kapsam=dar&sahip=0&kurulum=1&olcum=1` → `deneme-1`: 390, 820, 1180, 1920×632; gerçek iPad Safari dikey/yatay. Sahip modunda `http://localhost:5173/?kurulum=1&olcum=1` → `Mathe 1`: sadece kısa liste görünümüne bak. Bağlı tarayıcıda girişli Defter sekmesi yoktu; gerçek kitaplar ve fiziksel iPad bu oturumda denenmedi. Deniz denedikten ve onayladıktan sonra commit; ardından K7.
 
 **6.K7 – Yayına hazırlık**
 - Kabul: gizlilik sayfası İngilizce + Türkçe; README'de "Kullanmaya başla" bölümü; Google Cloud'da Branding sayfası tamam ve uygulama Production'da.
