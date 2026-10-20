@@ -12,12 +12,11 @@ import {
 // What is typed (name, shelf, colour, list) → the tree for the preview (warnings at their rows), the warnings
 // under the text box, the plan, and whether "Oluştur" can be tapped.
 // The tree's + / ↑ / ↓ change the tree and write the list again (listeYaz).
-// Task 6.K4b: "Oluştur" opens only with ?kurulum=1 in the app's own root (defterKok); in the owner's "Kitaplık"
-// it stays grey with its own note. OlusturAkisi keeps one operation (islemId + ids) for "Tekrar dene".
+// Task 6.K4b: "Oluştur" opens only with ?kurulum=1. OlusturAkisi keeps one operation (islemId + ids) for "Tekrar dene".
+// Task 6.K4c: the owner's "Kitaplık" too (no note of its own any more).
 
-export type SihirbazKilidi = 'acik' | 'kilitli' | 'sahipKitapligi';
+export type SihirbazKilidi = 'acik' | 'kilitli';
 export const KILIT_METNI = 'Oluşturma şimdilik kilitli (deneme). Adrese ?kurulum=1 eklenmeli.';
-export const SAHIP_METNI = 'Sahip kitaplığına ekleme sonraki adımda.';
 
 export interface SihirbazGirdisi { ad: string; rafId: string; renk: string; metin: string }
 
@@ -91,7 +90,7 @@ export function sihirbazDurumu(g: SihirbazGirdisi, mevcutIdler: readonly string[
   });
 
   const engel = plan.engel ?? uyarilar.find(x => x.engel)?.metin ?? null;
-  const kilitNedeni = kilit === 'kilitli' ? KILIT_METNI : kilit === 'sahipKitapligi' ? SAHIP_METNI : '';
+  const kilitNedeni = kilit === 'kilitli' ? KILIT_METNI : '';
   const adHatali = !!g.ad.trim() && plan.engel !== null;
   return { liste, plan, agac, uyarilar, olusturAcik: !kilitNedeni && !engel, neden: engel ?? kilitNedeni, adHatali };
 }

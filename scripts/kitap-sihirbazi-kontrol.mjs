@@ -180,11 +180,6 @@ try {
     // 6.K4b
     await ac(page, false, DOLU, 'acik');
     tablo.push([`${ad} açık`, await olc(page)]);
-    await ac(page, false, DOLU, 'sahipKitapligi');
-    await kartKaydir(page, 99999);
-    await wait(150);
-    await page.screenshot({ path: join(OUT, `${ad}-sahip.png`) });
-    tablo.push([`${ad} sahip`, await olc(page)]);
     for (const y of ['suruyor', 'ag', 'izin']) {
       await ac(page, y === 'ag', DOLU, 'acik', y);
       await kartKaydir(page, 99999);

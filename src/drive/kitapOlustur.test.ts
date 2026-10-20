@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { kitapPlani } from '../kitap/kitapPlani';
 import { DriveError, FOLDER_MIME } from './drive';
 import {
-  AyniKitapVar, islemOzeti, kitapOlustur, KitapOlusturAgHatasi, KitapOlusturIzinYok, KitapOlusturKilitli, KitapOlusturYazmaYok,
-  rafaEkle, RafKaydiCakisma, YarimKitapVar, yeniKitapIslemi, type KitapOlusturDrive, type KitapOlusturSecenek
+  AyniKitapVar, ebeveynGecerliMi, islemOzeti, kitapOlustur, KitapOlusturAgHatasi, KitapOlusturBeklenmedik, KitapOlusturIzinYok,
+  KitapOlusturKilitli, KitapOlusturYazmaYok, KitaplikYapisiBeklenmedik, rafaEkle, RafKaydiCakisma, YarimKitapVar, yeniKitapIslemi, type KitapOlusturDrive, type KitapOlusturSecenek
 } from './kitapOlustur';
 import type { YeniOgeMeta } from './kurulum';
 import { IdZatenVar } from './pdfOlustur';
@@ -12,7 +12,7 @@ interface Item { name: string; parent: string; mimeType: string; appProperties: 
 type Davranis = 'ok' | 'ag' | 'agAmaOlustu' | '500' | '403';
 
 // An in-memory Drive with a set-up "Defter Library" (kok) → kitaplar + kitaplik.json. Every call is in `calls`.
-function fakeDrive(opts: { items?: Record<string, Partial<Item> & { name: string; parent: string }>; davranis?: Davranis[]; raflar?: unknown; yazHata?: Davranis[]; mtimeDegis?: number } = {}) {
+function fakeDrive(opts: { items?: Record<string, Partial<Item> & { name: string; parent: string }>; sil?: string[]; davranis?: Davranis[]; raflar?: unknown; yazHata?: Davranis[]; mtimeDegis?: number } = {}) {
   const items = new Map<string, Item>([
     ['kok', { name: 'Defter Library', parent: 'root', mimeType: FOLDER_MIME, appProperties: { defter: '1', defterKok: '1' } }],
     ['kitaplar', { name: 'kitaplar', parent: 'kok', mimeType: FOLDER_MIME, appProperties: { defter: '1' } }],
@@ -22,6 +22,7 @@ function fakeDrive(opts: { items?: Record<string, Partial<Item> & { name: string
     }]
   ]);
   for (const [id, it] of Object.entries(opts.items ?? {})) items.set(id, { mimeType: FOLDER_MIME, appProperties: {}, ...it });
+  for (const id of opts.sil ?? []) items.delete(id);
   const davranis = [...(opts.davranis ?? [])];
   const yazHata = [...(opts.yazHata ?? [])];
   let mtime = 1, mtimeDegis = opts.mtimeDegis ?? 0;
@@ -112,7 +113,7 @@ describe('kitapOlustur', () => {
     const r = await kitapOlustur(f.drive, islem, sec({ ilerleme: (i, n) => ilerleme.push(`${i}/${n}`) }));
     expect(f.olusturmalar()).toEqual(SIRA);
     expect(f.calls.filter(c => c.startsWith('yeniIdler'))).toEqual(['yeniIdler:7']);
-    expect(r).toEqual({ kitapId: 'mathe-2', olusturulan: 7, vardi: [], rafa: 'raf-2' });
+    expect(r).toEqual({ kitapId: 'mathe-2', olusturulan: 7, vardi: [], rafa: 'raf-2', kitaplikYok: false });
     expect(ilerleme.at(-1)).toBe('8/8');
     expect(ilerleme).toHaveLength(8);   // after every item and the shelf
 
@@ -130,7 +131,7 @@ describe('kitapOlustur', () => {
     expect(JSON.parse(json.icerik!)).toEqual(plan().kitapJson);
     // the shelf entry: only added, everything else as it was
     expect(f.kitaplik()).toEqual({ surum: 1, raflar: [{ id: 'raf-1', ad: 'Raf 1', kitaplar: ['eski'] }, { id: 'raf-2', ad: 'Raf 2', kitaplar: ['mathe-2'] }], oda: { duvar: '#fff' }, bilinmeyen: 7 });
-    expect(islemOzeti(islem)).toBe('işlem: islem-1\ndurum: 8/8\nvardı: yok');
+    expect(islemOzeti(islem)).toBe('işlem: islem-1\ndurum: 8/8\nvardı: yok\nraf: raf-2');
   });
 
   it('no connection at item 3 (3 tries) → KitapOlusturAgHatasi; "Tekrar dene" goes on where it stopped, nothing twice', async () => {
@@ -239,10 +240,10 @@ describe('kitapOlustur', () => {
     expect(g.kitaplik().raflar[1].kitaplar).toEqual(['mathe-2']);
   });
 
-  it('locked (no ?kurulum=1, the owner\'s "Kitaplık", not signed in): no request at all', async () => {
+  it('locked (no ?kurulum=1 — the owner\'s "Kitaplık" too —, no root, not signed in): no request at all', async () => {
     for (const [o, hata] of [
       [{ kilitAcik: false }, KitapOlusturKilitli],
-      [{ kokKaynagi: 'ad' as const }, KitapOlusturKilitli],
+      [{ kilitAcik: false, kokKaynagi: 'ad' as const }, KitapOlusturKilitli],
       [{ kokKaynagi: null }, KitapOlusturKilitli],
       [{ yazabilir: () => false }, KitapOlusturYazmaYok]
     ] as const) {
@@ -257,6 +258,75 @@ describe('kitapOlustur', () => {
     await expect(kitapOlustur(f.drive, yeniKitapIslemi('islem-1', plan()), sec())).rejects.toBeInstanceOf(KitapOlusturIzinYok);
     const g = fakeDrive({ yazHata: ['403'] });
     await expect(kitapOlustur(g.drive, yeniKitapIslemi('islem-1', plan()), sec())).rejects.toBeInstanceOf(KitapOlusturIzinYok);
+  });
+});
+
+// 6.K4c: the owner's "Kitaplık" (found by name): nothing in it is marked
+describe('kitapOlustur in the owner\'s "Kitaplık"', () => {
+  const sahip = {
+    kok: { name: 'Kitaplık', parent: 'root' },
+    kitaplar: { name: 'kitaplar', parent: 'kok' },
+    eski: { name: 'eski', parent: 'kitaplar' }
+  };
+  const sahipSec = (o: Partial<KitapOlusturSecenek> = {}) => sec({ kokKaynagi: 'ad', ...o });
+
+  it('with ?kurulum=1: the same order, everything under its kitaplar/, the shelf entry written', async () => {
+    const f = fakeDrive({ items: sahip });
+    const islem = yeniKitapIslemi('islem-1', plan());
+    const r = await kitapOlustur(f.drive, islem, sahipSec());
+    expect(f.olusturmalar()).toEqual(SIRA);
+    expect(r).toEqual({ kitapId: 'mathe-2', olusturulan: 7, vardi: [], rafa: 'raf-2', kitaplikYok: false });
+    expect(ad(f.items, 'mathe-2')[1].parent).toBe('kitaplar');
+    // every new item is inside the book folder, the book folder in kitaplar/
+    const yeni = new Set(islem.idler);
+    for (const id of yeni) {
+      let p = f.items.get(id)!.parent;
+      while (yeni.has(p)) p = f.items.get(p)!.parent;
+      expect(p).toBe('kitaplar');
+    }
+    expect(f.kitaplik().raflar[1].kitaplar).toEqual(['mathe-2']);
+    expect(f.items.get('eski')!.appProperties).toEqual({});   // untouched, no mark
+  });
+
+  it('no kitaplar/ → KitaplikYapisiBeklenmedik; only the root listed, nothing else asked or written', async () => {
+    const f = fakeDrive({ items: sahip, sil: ['kitaplar'] });
+    await expect(kitapOlustur(f.drive, yeniKitapIslemi('islem-1', plan()), sahipSec())).rejects.toBeInstanceOf(KitaplikYapisiBeklenmedik);
+    expect(f.calls).toEqual(['kokCocuklari']);
+  });
+
+  it('no kitaplik.json → the book without the shelf entry; the file is not created ("Yeni gelenler")', async () => {
+    const f = fakeDrive({ items: sahip, sil: ['lib'] });
+    const islem = yeniKitapIslemi('islem-1', plan());
+    const r = await kitapOlustur(f.drive, islem, sahipSec());
+    expect(f.olusturmalar()).toEqual(SIRA);
+    expect(f.calls.filter(c => c === 'jsonYaz' || c === 'jsonOku' || c === 'degisimZamani')).toEqual([]);
+    expect([...f.items.values()].some(i => i.name === 'kitaplik.json')).toBe(false);
+    expect(r).toMatchObject({ rafa: null, kitaplikYok: true });
+    expect(islemOzeti(islem)).toMatch(/raf: yok \(kitaplik\.json yok, Yeni gelenler\)$/);
+  });
+
+  it('our own root without kitaplik.json: an error, as before', async () => {
+    const f = fakeDrive({ sil: ['lib'] });
+    await expect(kitapOlustur(f.drive, yeniKitapIslemi('islem-1', plan()), sec())).rejects.toBeInstanceOf(KitapOlusturBeklenmedik);
+    expect(f.olusturmalar()).toEqual([]);
+  });
+
+  it('an old, unmarked folder with the book\'s name → AyniKitapVar, nothing written', async () => {
+    const f = fakeDrive({ items: { ...sahip, m: { name: 'mathe-2', parent: 'kitaplar' } } });
+    await expect(kitapOlustur(f.drive, yeniKitapIslemi('islem-1', plan()), sahipSec())).rejects.toBeInstanceOf(AyniKitapVar);
+    expect(f.olusturmalar()).toEqual([]);
+    expect(f.calls).not.toContain('jsonYaz');
+  });
+});
+
+describe('ebeveynGecerliMi', () => {
+  it('only the root\'s kitaplar/ or a folder this operation made', () => {
+    const izinli = new Set(['id1', 'id2']);
+    expect(ebeveynGecerliMi('kitaplar', 'kitaplar', izinli)).toBe(true);
+    expect(ebeveynGecerliMi('id2', 'kitaplar', izinli)).toBe(true);
+    expect(ebeveynGecerliMi('kok', 'kitaplar', izinli)).toBe(false);
+    expect(ebeveynGecerliMi('eski', 'kitaplar', izinli)).toBe(false);
+    expect(ebeveynGecerliMi('id1', 'kitaplar', new Set())).toBe(false);
   });
 });
 

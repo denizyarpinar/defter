@@ -159,6 +159,7 @@ function updateChrome(): void {
 
 // ---- task 6.K4a: "Yeni kitap" wizard (only in a Drive library, never in the sample one) ----
 // Task 6.K4b: "Oluştur" writes the book (kitapOlustur.ts) — only with ?kurulum=1 in the app's own root (defterKok).
+// Task 6.K4c: also in the owner's "Kitaplık" (still only with ?kurulum=1).
 
 function yeniKitapAcik(): boolean {
   return durum.tur === 'drive' && !!data;
@@ -177,16 +178,14 @@ function yeniKitapAc(): void {
 
 const OLCUM = new URLSearchParams(location.search).get('olcum') === '1';
 
-// The loaded root: the owner's "Kitaplık" (by name) is never written to; our own root only with ?kurulum=1
+// The loaded root: our own (defterKok) or the owner's "Kitaplık" (by name, 6.K4c); both only with ?kurulum=1
 function kokKaynagi(): 'defterKok' | 'ad' | null {
   const k = sonKok();
   return !k || k.tur === 'yok' ? null : k.tur === 'cokKok' ? 'defterKok' : k.kaynak;
 }
 
 function sihirbazKilidi(): SihirbazKilidi {
-  const kaynak = kokKaynagi();
-  if (kaynak === 'ad') return 'sahipKitapligi';
-  return KURULUM_KILIT_ACIK && kaynak === 'defterKok' ? 'acik' : 'kilitli';
+  return KURULUM_KILIT_ACIK && kokKaynagi() !== null ? 'acik' : 'kilitli';
 }
 
 // dev (DEV or ?olcum=1): window.defterSihirbazHata = n → a made-up network error at item n (once); -n: after writing it
@@ -205,14 +204,14 @@ async function kitapOlusturDugmesi(islem: KitapIslemi, ilerleme: (i: number, n: 
   const loc = driveLoc;
   const { driveKitapOlusturApi, kitapOlustur, KitapOlusturYazmaYok } = await import('./drive/kitapOlustur');
   if (!loc || durum.tur !== 'drive') throw new KitapOlusturYazmaYok();
-  await kitapOlustur(driveKitapOlusturApi, islem, {
+  const sonuc = await kitapOlustur(driveKitapOlusturApi, islem, {
     kilitAcik: KURULUM_KILIT_ACIK, kokKaynagi: kokKaynagi(), kokId: loc.rootId,
     yazabilir: () => isSignedIn() && durum.tur === 'drive', ilerleme, yapayHata
   });
   const baslik = String(islem.plan.kitapJson.baslik);
   try {
     await kitaplikYenile();
-    toast(`Kitap oluşturuldu: ${baslik}`);
+    toast(sonuc.kitaplikYok ? `Kitap oluşturuldu: ${baslik}. kitaplik.json yok; kitap "Yeni gelenler"de.` : `Kitap oluşturuldu: ${baslik}`);
   } catch (e) {
     console.warn('Kitaplık yenilenemedi.', e);
     toast(`Kitap oluşturuldu: ${baslik}. Kitaplık yenilenemedi; sayfayı yenile.`);

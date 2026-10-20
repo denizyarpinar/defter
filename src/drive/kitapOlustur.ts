@@ -7,7 +7,7 @@ import { IdZatenVar, tekrarlanabilir } from './pdfOlustur';
 // Task 6.K4b: the book wizard's "Oluştur" — kitapPlani's items written to Drive, in order:
 // kitaplar/<kitapId>/ → unit folders → topic folders → kitap.json (last: the book is whole once it is there)
 // → the shelf entry in kitaplik.json. Rules (CLAUDE.md → Faz 6.K4b):
-// - Only with ?kurulum=1 and only in the app's own root (defterKok). The owner's "Kitaplık" is never written to.
+// - Only with ?kurulum=1. Task 6.K4c: in the owner's "Kitaplık" (found by name) too, only under its kitaplar/.
 // - Every item carries appProperties { defter: "1", defterIslem: <islemId> }. The ids come from files.generateIds
 //   once, at the start; they and the islemId stay in memory (KitapIslemi), so "Tekrar dene" goes on where it
 //   stopped and never makes a second one (Drive's 409 = an earlier try did arrive). Not kept on the device.
@@ -16,6 +16,10 @@ import { IdZatenVar, tekrarlanabilir } from './pdfOlustur';
 // - kitaplik.json: the latest file, the id added to the chosen shelf (the first one if it is gone) only when no
 //   shelf has it yet; modifiedTime before and after reading, one more try when it changed.
 // - Creates only (and the one kitaplik.json update). No files.delete.
+// - 6.K4c: kitaplar/ and kitaplik.json are the root's children by name (the owner's are not marked). No kitaplar/ →
+//   nothing is written (no folder is made). No kitaplik.json in the owner's root → the book is made without the
+//   shelf entry (the file is not created here; it lands in "Yeni gelenler"); in our own root that is an error.
+// - Before each create: the parent is the root's kitaplar/ or a folder this operation made (ebeveynGecerliMi).
 
 export interface KitapOlusturDrive extends KurulumDrive {
   yeniIdler(n: number): Promise<string[]>;                                  // files.generateIds
@@ -29,7 +33,11 @@ export interface KitapOlusturDrive extends KurulumDrive {
 // ---- errors (Turkish, say what to do) ----
 
 export class KitapOlusturKilitli extends Error {
-  constructor() { super('Kitap oluşturma kilitli: hiçbir şey yazılmadı. Denemek için adrese ?kurulum=1 eklenmeli; sadece uygulamanın kendi kitaplığında çalışır.'); }
+  constructor() { super('Kitap oluşturma kilitli: hiçbir şey yazılmadı. Denemek için adrese ?kurulum=1 eklenmeli.'); }
+}
+
+export class KitaplikYapisiBeklenmedik extends Error {
+  constructor() { super('Kitaplık yapısı beklenmedik: kökte "kitaplar" klasörü yok. Hiçbir şey yazılmadı; klasör oluşturulmaz. Drive\'da kitaplığın içine "kitaplar" klasörü açıp tekrar dene.'); }
 }
 
 export class KitapOlusturYazmaYok extends Error {
@@ -112,10 +120,11 @@ export interface KitapIslemi {
   vardi: number[];                // the last try: items that were there already
   rafTamam: boolean;
   rafa: string | null;            // the shelf the book was put on (null: no shelf at all)
+  kitaplikYok: boolean;           // 6.K4c: the owner's root has no kitaplik.json: no shelf entry ("Yeni gelenler")
 }
 
 export const yeniKitapIslemi = (islemId: string, plan: KitapPlani): KitapIslemi =>
-  ({ islemId, plan, idler: null, tamam: new Map(), denenen: new Set(), vardi: [], rafTamam: false, rafa: null });
+  ({ islemId, plan, idler: null, tamam: new Map(), denenen: new Set(), vardi: [], rafTamam: false, rafa: null, kitaplikYok: false });
 
 // Nothing has reached Drive yet (a new name can be chosen with a new operation)
 export const hicYazilmadi = (i: KitapIslemi): boolean => !i.denenen.size && !i.tamam.size && !i.rafTamam;
@@ -129,7 +138,8 @@ export function islemOzeti(i: KitapIslemi): string {
   return [
     `işlem: ${i.islemId}`,
     `durum: ${bitti}/${n}`,
-    `vardı: ${i.vardi.length ? i.vardi.map(k => ogeAdi(i.plan.ogeler[k])).join(', ') : 'yok'}`
+    `vardı: ${i.vardi.length ? i.vardi.map(k => ogeAdi(i.plan.ogeler[k])).join(', ') : 'yok'}`,
+    `raf: ${i.kitaplikYok ? 'yok (kitaplik.json yok, Yeni gelenler)' : i.rafTamam ? i.rafa ?? 'yok (raf yok)' : '-'}`
   ].join('\n');
 }
 
@@ -159,7 +169,7 @@ export function rafaEkle(ham: unknown, rafId: string, kitapId: string): { json: 
 
 export interface KitapOlusturSecenek {
   kilitAcik: boolean;                    // ?kurulum=1
-  kokKaynagi: KokKaynagi | null;         // the loaded root: only 'defterKok' may be written to
+  kokKaynagi: KokKaynagi | null;         // the loaded root (null: none → locked); 'ad' = the owner's "Kitaplık" (6.K4c)
   kokId: string;
   yazabilir: () => boolean;              // signed in and not the sample library
   ilerleme?: (i: number, n: number) => void;
@@ -175,7 +185,12 @@ export interface KitapOlusturSonucu {
   olusturulan: number;    // items made in this try
   vardi: string[];        // items that were there already (an earlier try)
   rafa: string | null;
+  kitaplikYok: boolean;   // no kitaplik.json (owner's root): no shelf entry, the book is in "Yeni gelenler"
 }
+
+// 6.K4c: a create goes only into the root's kitaplar/ or a folder this operation made (pure)
+export const ebeveynGecerliMi = (ebeveynId: string, kitaplarId: string, izinli: ReadonlySet<string>): boolean =>
+  ebeveynId === kitaplarId || izinli.has(ebeveynId);
 
 const bekle = (ms: number) => new Promise(r => setTimeout(r, ms));
 const ebeveyn = (yol: string) => yol.includes('/') ? yol.slice(0, yol.lastIndexOf('/')) : '';
@@ -183,7 +198,7 @@ const sonAd = (yol: string) => yol.slice(yol.lastIndexOf('/') + 1);
 
 export async function kitapOlustur(drive: KitapOlusturDrive, islem: KitapIslemi, s: KitapOlusturSecenek): Promise<KitapOlusturSonucu> {
   // checks without any request
-  if (!s.kilitAcik || s.kokKaynagi !== 'defterKok') throw new KitapOlusturKilitli();
+  if (!s.kilitAcik || s.kokKaynagi === null) throw new KitapOlusturKilitli();
   if (!s.yazabilir()) throw new KitapOlusturYazmaYok();
   const { plan } = islem;
   if (plan.engel) throw new KitapOlusturBeklenmedik(plan.engel);
@@ -198,8 +213,9 @@ export async function kitapOlustur(drive: KitapOlusturDrive, islem: KitapIslemi,
     const cocuklar = await drive.kokCocuklari(s.kokId);
     const kitaplarId = cocuklar.find(c => c.name === 'kitaplar' && c.mimeType === FOLDER_MIME)?.id;
     const kitaplikId = cocuklar.find(c => c.name === 'kitaplik.json' && c.mimeType !== FOLDER_MIME)?.id;
-    if (!kitaplarId) throw new KitapOlusturBeklenmedik('"kitaplar" klasörü bulunamadı');
-    if (!kitaplikId) throw new KitapOlusturBeklenmedik('kitaplik.json bulunamadı');
+    if (!kitaplarId) throw new KitaplikYapisiBeklenmedik();
+    // the owner's root may have no kitaplik.json yet: it is not created here (the saver makes it on a shelf change)
+    if (!kitaplikId && s.kokKaynagi !== 'ad') throw new KitapOlusturBeklenmedik('kitaplik.json bulunamadı');
 
     // a folder with the book's name that this operation didn't make: nothing is written
     const ayni = await drive.cocukAra(kitaplarId, plan.kitapId);
@@ -216,6 +232,7 @@ export async function kitapOlustur(drive: KitapOlusturDrive, islem: KitapIslemi,
     const bulunan = new Set((await drive.islemAra(islem.islemId)).map(f => f.id));
 
     const klasorId = new Map<string, string>([['', kitaplarId]]);
+    const izinli = new Set<string>();   // folders this operation made (or found as its own) in this try
     let olusturulan = 0;
     for (let i = 0; i < yazilacak.length; i++) {
       const o = yazilacak[i] as Exclude<PlanOgesi, { tur: 'rafKaydi' }>;
@@ -223,6 +240,7 @@ export async function kitapOlustur(drive: KitapOlusturDrive, islem: KitapIslemi,
       const ad = sonAd(o.yol);
       const ebeveynId = klasorId.get(ebeveyn(o.yol));
       if (!ebeveynId) throw new KitapOlusturBeklenmedik(`"${ad}" için üst klasör yok`);
+      if (!ebeveynGecerliMi(ebeveynId, kitaplarId, izinli)) throw new KitapOlusturBeklenmedik(`"${ad}" için üst klasör doğrulanamadı`);
       let vardi = islem.tamam.has(i) || bulunan.has(id);
       if (!vardi && islem.denenen.has(i)) {
         const f = await drive.oge(id);
@@ -243,18 +261,19 @@ export async function kitapOlustur(drive: KitapOlusturDrive, islem: KitapIslemi,
         if (yapay === -(i + 1)) throw new KitapOlusturAgHatasi();
       }
       islem.tamam.set(i, id);
-      if (o.tur === 'klasor') klasorId.set(o.yol, id);
+      if (o.tur === 'klasor') { klasorId.set(o.yol, id); izinli.add(id); }
       s.ilerleme?.(i + 1, n);
     }
 
     if (!islem.rafTamam) {
-      islem.rafa = await rafaKaydet(drive, kitaplikId, raf.rafId, raf.kitapId);
+      islem.kitaplikYok = !kitaplikId;
+      islem.rafa = kitaplikId ? await rafaKaydet(drive, kitaplikId, raf.rafId, raf.kitapId) : null;
       islem.rafTamam = true;
     } else {
       islem.vardi.push(n - 1);
     }
     s.ilerleme?.(n, n);
-    return { kitapId: plan.kitapId, olusturulan, vardi: islem.vardi.map(k => ogeAdi(plan.ogeler[k])), rafa: islem.rafa };
+    return { kitapId: plan.kitapId, olusturulan, vardi: islem.vardi.map(k => ogeAdi(plan.ogeler[k])), rafa: islem.rafa, kitaplikYok: islem.kitaplikYok };
   } catch (e) {
     if (e instanceof TypeError) throw new KitapOlusturAgHatasi();   // fetch failed: no connection
     if (e instanceof DriveError && e.status === 403) throw new KitapOlusturIzinYok();

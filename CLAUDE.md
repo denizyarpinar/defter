@@ -371,7 +371,7 @@ Kitaplık/
 - Kod: `src/kitap/kitapListesi.ts`, `klasorAdi.ts`, `kitapPlani.ts` (saf, testli), `src/ui/kitapSihirbaziDurumu.ts` (saf, testli), `src/ui/kitapSihirbazi.ts`. Ekran görüntüleri: `node scripts/kitap-sihirbazi-kontrol.mjs`.
 
 ### Kitap oluşturma (6.K4b)
-- Oluştur sadece `?kurulum=1` + aktif kök bizim `defterKok` kökümüzse açık. Sahibin "Kitaplık"ında gri + "Sahip kitaplığına ekleme sonraki adımda." (hiç yazma yok). Örnek kitaplıkta sihirbaz yok.
+- Oluştur sadece `?kurulum=1` ile açık (6.K4c'den beri sahibin "Kitaplık"ında da; aşağıya bak). Kilit yoksa gri. Örnek kitaplıkta sihirbaz yok.
 - Sıra: kitap klasörü (`kitaplar/` altında) → ünite → konu klasörleri → kitap.json (surum 2) → kitaplik.json raf kaydı. Her öğede appProperties `{ defter: '1', defterIslem }`; id'ler işlem başında generateIds ile bir kez alınır, islemId ile bellekte (`KitapIslemi`; cihazda saklanmaz).
 - Tekrar dene: aynı islemId + aynı id'ler; başta defterIslem araması, daha önce denenen öğede id ile get, 409 = var → kaldığı yerden, çift yok.
 - Güvenlik: `kitaplar/` altında aynı adlı (bu işlemin olmayan) klasör → hiçbir şey yazılmaz: `AyniKitapVar`, defter=1 ve kitap.json yoksa `YarimKitapVar` ("Yarım kalmış bir kitap var"). Var olan klasörün içine yazılmaz.
@@ -379,6 +379,7 @@ Kitaplık/
 - Hata: sihirbaz açık, metin + Tekrar dene (izin hatasında "Tekrar giriş yap"); alanlar kilitli kalır. Oluşturma sürerken Vazgeç/Esc/dışa dokunma kapalı. Başarı: sihirbaz kapanır, kitaplık yeniden yüklenir, toast "Kitap oluşturuldu: <ad>".
 - Yarım kitap (6.K4b-2): defterIslem'li, kitap.json'suz kitap klasörü kitaplıkta ve arama ağacında görünmez (ağaç sadece kitaplıktaki kitapların klasörlerini tarar: `agacKitapKlasorleri`). Sihirbazda aynı ad plan engeline takılmaz; Drive kontrolü `YarimKitapVar` der ("…Başka bir ad seç; yarım klasör daha sonra çöpe atılabilir."), hiçbir şey yazılmaz. `?olcum=1` kutusunda `yarım kitap:` satırı (sayı, ad, neden, id).
 - 6.K4b-3: mesaj alanı (`.ks-neden`) yapışkan alt satırda (geniş: Vazgeç/Oluştur'un solunda; ≤ 600 px: üstünde), en çok 3 satır, `aria-live`; ad hatasında (plan engeli, `AyniKitapVar`, `YarimKitapVar`) Kitap adı kutusu kırmızı çerçeve. `#kitapSihirbazi` `box-sizing: border-box` (klavye takibinin yüksekliğine dolgu eklenmesin).
+- Sahip kitaplığı (6.K4c): `?kurulum=1` ile adla bulunan "Kitaplık"a da yazılır, sadece kökün `kitaplar/` klasörü altına. `kitaplar/` ve `kitaplik.json` kökün çocukları arasında adla bulunur (sahibinkiler işaretsiz). `kitaplar/` yoksa hiçbir şey yazılmaz (`KitaplikYapisiBeklenmedik`, klasör oluşturulmaz). Sahipte `kitaplik.json` yoksa oluşturulmaz: raf adımı atlanır, kitap "Yeni gelenler"de (toast + olcum `raf: yok`); kendi kökümüzde bu yine hata. Her oluşturmadan önce ebeveyn = kökün `kitaplar/`'ı ya da bu işlemin klasörü (`ebeveynGecerliMi`). İşaretsiz aynı adlı klasör = `AyniKitapVar`; yarım kitap kuralı ve hasUnsaved koruması aynen. kitaplik.json'da olup klasörü olmayan (çöpteki) kitap id'si sessizce atlanır, dosyadan silinmez (K5).
 - Kod: `src/drive/kitapOlustur.ts` (testli), `OlusturAkisi`/`olusturHatasi` (`kitapSihirbaziDurumu.ts`, testli). Dev (DEV ya da `?olcum=1`): `window.defterSihirbazHata = n` → n'inci öğede yazmadan önce yapay ağ hatası (−n: yazdıktan sonra, cevap kayıp), bir kez; `?olcum=1` kutusunda işlem özeti (islemId, n/N, vardı).
 
 ## Sonra bakılabilir
