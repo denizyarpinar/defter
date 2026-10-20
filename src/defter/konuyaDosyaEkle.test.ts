@@ -4,6 +4,7 @@ import { FOLDER_MIME, type DriveFile } from '../drive/drive';
 import type { DriveLocation } from '../drive/driveLibrary';
 import { AyniIsimVar, DosyaOlusturAgHatasi, DosyaYazmaYok, IdZatenVar, PdfDegil, yerBelleginiSifirla, type KlasorBilgisi, type PdfOlusturDrive, type YeniPdfMeta } from '../drive/pdfOlustur';
 import { PdfSampleNoWrite, RESUMABLE_LIMIT } from '../drive/pdfYazici';
+import { AltKlasorAdiFarkli, altKlasorAc, altKlasorBelleginiSifirla, type AltKlasorDrive } from '../drive/altKlasorAc';
 import {
   AdCozumGibi, AdGecersiz, dosyaAdiHazirla, EklemeSuruyor, HedefBulunamadi, KlasorYok, konuyaDosyaEkle, OzetZatenVar, PdfHazirlanamadi,
   type DosyaEklemeOrtami, type DosyaHedefi
@@ -338,3 +339,90 @@ describe('konuyaDosyaEkle: two addings at the same time (5.10c-ek)', () => {
 });
 
 const children = (d: ReturnType<typeof fakeDrive>, parent: string) => [...d.items.values()].filter(it => it.parent === parent).map(it => it.name);
+
+describe('konuyaDosyaEkle: task 6.K6a, Uebungen / Oedevler made with the first file', () => {
+  // the real altKlasorAc over the same fake Drive (C2 "Konu-02" in book B: no subfolders)
+  const ac = (d: ReturnType<typeof fakeDrive>, kilitAcik = true): DosyaEklemeOrtami => {
+    const drive: AltKlasorDrive = {
+      async yeniIdler(n) { return Array.from({ length: n }, (_, i) => `klasor${d.items.size}-${i}`); },
+      async islemAra(islemId) { return [...d.items].filter(([, it]) => it.appProperties?.defterIslem === islemId).map(([id, it]) => ({ id, name: it.name, parents: [it.parent], appProperties: it.appProperties })); },
+      async olustur(meta) {
+        if (d.ayar.agYok) throw new TypeError('Failed to fetch');
+        d.log.push(`klasor:${meta.parents[0]}/${meta.name}`);
+        d.items.set(meta.id!, { name: meta.name, parent: meta.parents[0], mimeType: meta.mimeType, appProperties: meta.appProperties });
+        return { id: meta.id! };
+      },
+      async kokCocuklari(id) { return [...d.items].filter(([, it]) => it.parent === id).map(([i, it]) => ({ id: i, name: it.name, mimeType: it.mimeType })); },
+      async oge(id) { const it = d.items.get(id); return it ? { id, name: it.name, mimeType: it.mimeType, parents: [it.parent], appProperties: it.appProperties } : null; },
+      async cocuklar(id) { return [...d.items].filter(([, it]) => it.parent === id).map(([i, it]) => ({ id: i, name: it.name, mimeType: it.mimeType, modifiedTime: 't' })); },
+    };
+    return {
+      ...d.ortam,
+      altKlasorAc: (konuId, klasor, islemId) => altKlasorAc(drive, { konuId, konuYolu: 'Konu-02', kitapKlasorId: 'B', kokId: 'R', klasor, islemId }, { kilitAcik, bekleMs: 0 }),
+    };
+  };
+  const ekleAc = (d: ReturnType<typeof fakeDrive>, hedef: DosyaHedefi, ad: string, islemId: string, kilitAcik = true) =>
+    konuyaDosyaEkle({ konu: 'C2', hedef, ad, bytes: pdf, islemId }, ac(d, kilitAcik), HIZLI);
+  const klasorler = (d: ReturnType<typeof fakeDrive>) => [...d.items].filter(([, it]) => it.parent === 'C2' && it.mimeType === FOLDER_MIME).map(([id, it]) => ({ id, ...it }));
+
+  beforeEach(() => altKlasorBelleginiSifirla());
+
+  it('the folder first, then the file inside it; the second Übung uses the same folder; Ödev gets its own', async () => {
+    const d = fakeDrive();
+    const a = await ekleAc(d, 'uebungen', 'Blatt 1.pdf', 'is-1');
+    const b = await ekleAc(d, 'uebungen', 'Blatt 2.pdf', 'is-2');
+    const c = await ekleAc(d, 'oedevler', 'HA 1.pdf', 'is-3');
+    const [ue, oe] = [klasorler(d).find(k => k.name === 'Uebungen')!, klasorler(d).find(k => k.name === 'Oedevler')!];
+    expect(klasorler(d)).toHaveLength(2);
+    expect(ue.appProperties).toEqual({ defter: '1', defterIslem: 'is-1' });
+    expect(d.log.filter(l => /^(klasor|multipart)/.test(l))).toEqual([
+      'klasor:C2/Uebungen', `multipart:${ue.id}/Blatt 1.pdf`, `multipart:${ue.id}/Blatt 2.pdf`, 'klasor:C2/Oedevler', `multipart:${oe.id}/HA 1.pdf`,
+    ]);
+    expect([a.kind, b.kind, c.kind]).toEqual(['yeni', 'yeni', 'yeni']);
+    expect(d.olaylar.filter(o => o === 'konuDegisti').length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('locked: KlasorYok as before, no folder request, nothing written', async () => {
+    const d = fakeDrive();
+    await expect(ekleAc(d, 'uebungen', 'Blatt 1.pdf', 'is-1', false)).rejects.toThrow(KlasorYok);
+    expect(klasorler(d)).toEqual([]);
+    expect(d.yazmalar()).toEqual([]);
+  });
+
+  it('the folder made, the file failed: "Tekrar dene" (same islemId) makes no second folder and no second file', async () => {
+    const d = fakeDrive();
+    d.ayar.kayip = 1;   // the file arrives, the answer is lost, the connection stays off
+    await expect(ekleAc(d, 'uebungen', 'Blatt 1.pdf', 'ayni')).rejects.toThrow(DosyaOlusturAgHatasi);
+    expect(klasorler(d)).toHaveLength(1);
+    d.ayar.agYok = false;
+    const r = await ekleAc(d, 'uebungen', 'Blatt 1.pdf', 'ayni');
+    expect(r.kind).toBe('zatenVardi');
+    expect(klasorler(d)).toHaveLength(1);
+    expect(d.log.filter(l => l.startsWith('klasor:'))).toHaveLength(1);
+    expect(d.yazmalar()).toHaveLength(1);
+  });
+
+  it('the folder\'s create failed: "Tekrar dene" goes on, still one folder', async () => {
+    const d = fakeDrive();
+    const ortam = ac(d);
+    d.ayar.agYok = true;
+    await expect(konuyaDosyaEkle({ konu: 'C2', hedef: 'oedevler', ad: 'HA.pdf', bytes: pdf, islemId: 'x' }, ortam, HIZLI)).rejects.toThrow();
+    d.ayar.agYok = false;
+    await konuyaDosyaEkle({ konu: 'C2', hedef: 'oedevler', ad: 'HA.pdf', bytes: pdf, islemId: 'x' }, ortam, HIZLI);
+    expect(klasorler(d).map(k => k.name)).toEqual(['Oedevler']);
+  });
+
+  it('an existing folder is used without asking altKlasorAc; Übungen there → no second folder', async () => {
+    const d = fakeDrive();
+    let soruldu = false;
+    await konuyaDosyaEkle({ konu: 'C', hedef: 'uebungen', ad: 'B.pdf', bytes: pdf, islemId: 'y' }, { ...d.ortam, altKlasorAc: async () => { soruldu = true; return 'X'; } }, HIZLI);
+    expect(soruldu).toBe(false);
+    expect(d.yazmalar()).toEqual(['multipart:UE/B.pdf']);
+
+    const u = fakeDrive();
+    u.items.set('UU', { name: 'Übungen', parent: 'C2', mimeType: FOLDER_MIME });
+    await expect(ekleAc(u, 'uebungen', 'Blatt 1.pdf', 'is-1')).rejects.toThrow(AltKlasorAdiFarkli);
+    expect(klasorler(u).map(k => k.name)).toEqual(['Übungen']);
+    expect(u.yazmalar()).toEqual([]);
+  });
+});

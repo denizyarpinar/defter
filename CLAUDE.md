@@ -227,7 +227,7 @@ Kitaplık/
 ### Dosya ekle (5.10)
 - Okuyucudaki "Dosya ekle": dosya sadece açık konunun klasörüne (`kitaplar/<kitap>/` altında) ve sadece PDF olarak eklenir. Görsel → tek sayfalı PDF; birden çok görsel → tek PDF (sırala/sil/+, kırpma yok). Kod: `src/defter/dosyaTuru.ts`, `dosyaHazirla.ts`, `konuyaDosyaEkle.ts`, `src/ui/dosyaPanel.ts`.
 - Hedefler: Übungen (`Uebungen/`), Ödevler (`Oedevler/`), Çözüm (`X_cozum.pdf`, `X.pdf`'in klasörüne), Orijinal (sadece `orijinal.pdf` yoksa), Özet (sadece hiç özet yoksa; tek `brifing.pdf` de özet sayılır).
-- Klasör oluşturulmaz: `Uebungen/` ya da `Oedevler/` yoksa o hedef gri (seçilemez); yine de istenirse hata (KlasorYok).
+- Klasör oluşturulmaz: `Uebungen/` ya da `Oedevler/` yoksa o hedef gri (seçilemez); yine de istenirse hata (KlasorYok). 6.K6a'dan beri `?kurulum=1` ile ilk dosyada açılır (bkz. Faz 6.K6a); kilitsiz bugünkü gibi.
 - Aynı ad (büyük/küçük harf duyarsız) = uyarı; üzerine yazılmaz, otomatik yeniden adlandırma yok; kullanıcı adı değiştirir. `_cozum` ile biten ad Übungen/Ödevler'e normal dosya olarak eklenmez (AdCozumGibi).
 - Kilit: aynı sekmede aynı konu + hedef + ad için aynı anda tek ekleme (kilitAnahtari → EklemeSuruyor).
 - islemId: hedef + ad (+ görsel listesi) için bir kez üretilir, bunlar değişmedikçe aynı kalır; `appProperties.defterIslem`'e yazılır. Tekrar denemede aynı ad + aynı islemId + aynı boyut → "zaten eklenmiş" (çift dosya yok). generateIds ile önceden alınan id kuralı (5.5) aynen geçerli.
@@ -405,6 +405,14 @@ Kitaplık/
 - Geri al: 8 sn korumalı toast (diğer toast'lar sırada bekler; kitapta yeniden yüklemeden sonra en az 4 sn daha). Klasör önce, sonra kitap.json / raf eski yerine. Geri al hata verirse aynı pencere hata adımında açılır, toast gitse de tamamlanabilir. Toast kaybolunca öğe sadece Drive çöpünde kalır.
 - Açık okuyucu: açık konu gidince komşu konuya geçer, konu kalmazsa kapanır; kitap gidince kitaplık yeniden yüklenir.
 - Kod: `src/kitap/copeAt.ts` (saf), `src/drive/copeAt.ts`, `icindekilerCop.ts`, `kitapCop.ts`, `jsonDegistir.ts`, `src/ui/copOnay.ts`, `copOnayDurumu.ts`, `copAkisi.ts` (testli). Ekran görüntüleri: `node scripts/cop-kontrol.mjs` (Drive yok).
+
+### Boş konu ve ilk dosyada klasör (6.K6a)
+- Materyali olmayan konuda (`topic.kind = null`) çubukta Fotoğraf ekle ve Dosya ekle görünür; kalem, arama, Kitap/PDF gizli (`o-materyalsiz`). Metin "Henüz materyal yok. Dosya ekle ile başla." Konu klasörü yoksa (klasor boş ya da Drive'da yok) iki düğme gri + not. Karar: `bosKonuDurumu` (`src/okuma/bosKonu.ts`, testli).
+- Boş konuda okuma durumu, kurdele ve kitap.json yazılmaz (`girildi` ancak materyal açılınca). İlk dosya eklenince materyal hemen açılır (toast var, "Göster" yok); dolu konuda 5.10f aynen.
+- Dosya ekle: konu boşken varsayılan hedef Orijinal. Adlar 5.10'daki gibi (orijinal.pdf, ozet.pdf, Uebungen/<ad>, Oedevler/<ad>; aynı ad = uyarı, "(2)" yok).
+- Uebungen/Oedevler yoksa SADECE `?kurulum=1` ile (dar ve sahip modu aynı, örnek kitaplıkta yok) ilk dosya eklenirken açılır; panelde not "(klasör ilk dosyada açılır)". Kilitsiz: gri, `KlasorYok`, istek yok. Önce klasör, sonra dosya. Ofis çevirisinin geçici dosyası yine konu klasörüne; klasör sadece Ekle'de açılır.
+- Klasör açma (`src/drive/altKlasorAc.ts`, testli): ebeveyn zinciri (konu → yolundaki klasörler → kitap klasörü → kökün `kitaplar/`'ı) yazmadan önce; "var mı" okuyucunun eşleştiricisiyle (`altKlasorBul`, trashed=false) → varsa o; `Übungen`/`Ödevler` adlı klasör varsa açılmaz (`AltKlasorAdiFarkli`, Deniz kararı: konuKesfi değişmez); generateIds id'si islemId başına bellekte, `defter=1` + `defterIslem`, islemAra / 409 = var; açılan klasör oturum belleğinde. Tekrar dene ikinci klasör ya da dosya açmaz.
+- Ekran görüntüleri: `node scripts/bos-konu-kontrol.mjs` (Drive yok).
 
 ## Sonra bakılabilir
 - Oda zaman aşımı: şu an glb yüklemesine toplam 15 sn veriliyor; yavaş bağlantıda (masaüstü lightmap'leri ~3.3 MB) eski odaya düşüyor. Öneri: "15 sn hiç ilerleme yok" kuralı + yükleme göstergesi. Faz 2 kural metni değişeceği için Deniz'in onayı gerekir.

@@ -4,11 +4,11 @@ import { AyniIsimVar } from '../drive/pdfOlustur';
 import { emptyMaterials, type Material, type TopicMaterials } from '../okuma/konuKesfi';
 import {
   adDurumu, AYNI_AD_METIN, cozumAdaylari, dosyaHedefi, eklendiMetni, ekleDurumu, hataMetni, hedefSecenekleri, islemAnahtari,
-  kaynakEtiketi, ofisBilgi, ORNEK_METIN, sayfaYazi, tekDosyaYolu, varsayilanHedef, type AdDurumu, type Secenek
+  kaynakEtiketi, KLASOR_ACILIR_METIN, ofisBilgi, ORNEK_METIN, sayfaYazi, tekDosyaYolu, varsayilanHedef, type AdDurumu, type Secenek
 } from './dosyaPanelDurumu';
 import { BOS_DOSYA_METIN, boyutMetni } from './dosyaEklemeMetin';
 import { dosyaTuru } from './dosyaTuru';
-import { KlasorYok } from './konuyaDosyaEkle';
+import { hedefYeri, KlasorYok } from './konuyaDosyaEkle';
 
 // Task 5.10e: the "Dosya ekle" panel's pure part.
 
@@ -39,6 +39,30 @@ describe('hedefSecenekleri', () => {
     expect(sec(bilinmiyor, 'uebungen').secilebilir).toBe(true);
     expect(sec(bilinmiyor, 'oedevler').secilebilir).toBe(true);
   });
+  it('task 6.K6a: a missing folder with the lock open: can be chosen, with a note; locked: grey as before', () => {
+    const acik = hedefSecenekleri(emptyMaterials(), { Uebungen: false, Oedevler: true }, true);
+    expect(sec(acik, 'uebungen')).toMatchObject({ secilebilir: true, neden: KLASOR_ACILIR_METIN });
+    expect(sec(acik, 'oedevler')).toMatchObject({ secilebilir: true, neden: null });
+    const kilitli = hedefSecenekleri(emptyMaterials(), { Uebungen: false, Oedevler: false }, false);
+    expect(sec(kilitli, 'uebungen')).toMatchObject({ secilebilir: false, neden: '(klasör yok)' });
+    expect(sec(kilitli, 'oedevler')).toMatchObject({ secilebilir: false, neden: '(klasör yok)' });
+  });
+  it('task 6.K6a: any summary there (ozet, brifing + sorular, sorular alone): Özet grey', () => {
+    for (const ozet of [[mat('ozet.pdf')], [mat('brifing.pdf'), mat('sorular.pdf')], [mat('sorular.pdf')]]) {
+      expect(sec(hedefSecenekleri(konu({ ozet }), null, true), 'ozet')).toMatchObject({ secilebilir: false, neden: 'Bu konuda özet var' });
+    }
+  });
+  it('task 6.K6a: kind → name and folder (the app gives them; Übungen / Ödevler from the box)', () => {
+    const m = emptyMaterials();
+    expect(adDurumu(m, 'orijinal', 'Vorlesung 3.pdf', null)).toEqual({ duzenlenebilir: false, ad: 'orijinal.pdf', hata: null });
+    expect(adDurumu(m, 'ozet', 'Zusammenfassung.pdf', null)).toEqual({ duzenlenebilir: false, ad: 'ozet.pdf', hata: null });
+    expect(adDurumu(m, 'uebungen', 'Blatt 3', null)).toEqual({ duzenlenebilir: true, ad: 'Blatt 3.pdf', hata: null });
+    expect(adDurumu(konu({ oedevler: [mat('HA1.pdf')] }), 'oedevler', 'ha1', null).hata).toBe(AYNI_AD_METIN);   // no "(2)"
+    expect(hedefYeri('orijinal', '', [])).toEqual({ klasor: 'kok', ad: 'orijinal.pdf' });
+    expect(hedefYeri('ozet', '', [])).toEqual({ klasor: 'kok', ad: 'ozet.pdf' });
+    expect(hedefYeri('uebungen', 'Blatt 3.pdf', [])).toEqual({ klasor: 'Uebungen', ad: 'Blatt 3.pdf' });
+    expect(hedefYeri('oedevler', 'HA.pdf', [])).toEqual({ klasor: 'Oedevler', ad: 'HA.pdf' });
+  });
   it('a folder with files exists even if the listing says otherwise', () => {
     const l = hedefSecenekleri(konu({ uebungen: [mat('Blatt01.pdf')] }), { Uebungen: false, Oedevler: false });
     expect(sec(l, 'uebungen').secilebilir).toBe(true);
@@ -65,7 +89,14 @@ describe('varsayilanHedef', () => {
   });
   it('the open tab grey (Özet there): the first that can be chosen', () => {
     expect(varsayilanHedef(l, 'ozet')).toBe('uebungen');
-    expect(varsayilanHedef(l, null)).toBe('uebungen');
+  });
+  it('task 6.K6a: no tab open (a topic without materials) → Orijinal first, even with the folders makeable', () => {
+    expect(varsayilanHedef(l, null)).toBe('orijinal');
+    const bos = hedefSecenekleri(emptyMaterials(), { Uebungen: false, Oedevler: false }, true);
+    expect(varsayilanHedef(bos, null)).toBe('orijinal');
+    // orijinal there: the first that can be chosen
+    const orijinalli = hedefSecenekleri(konu({ orijinal: [mat('orijinal.pdf')] }), { Uebungen: false, Oedevler: false }, true);
+    expect(varsayilanHedef(orijinalli, null)).toBe('uebungen');
   });
   it('none can be chosen: null', () => {
     const hic = hedefSecenekleri(konu({ orijinal: [mat('orijinal.pdf')], ozet: [mat('ozet.pdf')] }), { Uebungen: false, Oedevler: false });

@@ -24,7 +24,7 @@ import type { HazirDosya } from '../defter/dosyaHazirla';
 import type { DosyaPanelKaynak } from '../ui/dosyaPanel';
 import type { SecimKarari } from '../defter/gorselListesi';
 import type { TekDosyaYolu } from '../defter/dosyaPanelDurumu';
-import type { DosyaEklendi, DosyaHedefi } from '../defter/konuyaDosyaEkle';
+import type { AltKlasor, DosyaEklemeOrtami, DosyaEklendi, DosyaHedefi } from '../defter/konuyaDosyaEkle';
 import type { DriveFile } from '../drive/drive';
 import type { DriveLocation } from '../drive/driveLibrary';
 import { PdfYazilamaz, readDefterStrokes } from '../kalem/pdfNotlari';
@@ -34,6 +34,7 @@ import type { Book, ChapterStatus, PageMark } from '../model/types';
 import { bookUnits, usesUnits } from '../model/units';
 import { esc } from '../ui/dom';
 import { bosDurumMetni } from '../ui/icindekilerDurumu';
+import { bosKonuDurumu, konuKurdelesi, kurdeleSecimi, okumaKaydiYazilsinMi, type BosKonuDurumu } from './bosKonu';
 import { IcindekilerDuzenleyici, type IcindekilerBaglami } from '../ui/icindekilerDuzenle';
 import { fpsCounter } from '../ui/fps';
 import { gorunurAlaniDuzelt } from '../ui/gorunurAlan';
@@ -52,7 +53,7 @@ import {
 import { visiblePages } from './kitapDuzen';
 import { BookView } from './kitapModu';
 import { buildBookPages, buildSolutionPages, buildTopicPages, type BookPage } from './kitapSayfalari';
-import { MATERIAL_LABEL, availableKinds, defaultKind, discoverTopic, type MaterialKind, type TopicMaterials } from './konuKesfi';
+import { MATERIAL_LABEL, availableKinds, defaultKind, discoverTopic, emptyMaterials, type MaterialKind, type TopicMaterials } from './konuKesfi';
 import { discoverSampleTopic, isSampleId } from './ornekKaynak';
 import { autoTopicStatus, cycleStatus, markChapterPage, markTopicPage, type Resume } from './okumaDurumu';
 import { MetinOnbellek } from './metinOnbellek';
@@ -106,7 +107,7 @@ interface OpenTopic {
   title: string;
   klasor: string;         // the topic's folder, from the book's folder
   materials: TopicMaterials;
-  kind: MaterialKind;
+  kind: MaterialKind | null;   // task 6.K6a: null = no materials yet (the bar shows only Fotoğraf / Dosya ekle)
   fileIndex: number;      // Übungen / Ödevler: the chosen file
   solution: boolean;      // "Çözümü göster" is on
 }
@@ -150,6 +151,11 @@ let duzenleyici: IcindekilerDuzenleyici;
 // Task 6.K5b-3: opened from the desk's "İçindekileri düzenle" with no topic open (also a book without topics):
 // a text in the page area, the contents panel in edit mode; pen, search and Kitap/PDF hidden. A topic opens → off.
 let konusuz = false;
+// Task 6.K6a: the open topic has no materials (topic.kind null): its buttons and text (bosKonu.ts)
+let bosDurum: BosKonuDurumu | null = null;
+// Task 6.K6a: main.ts tells whether a missing Uebungen / Oedevler may be made (?kurulum=1 and a root loaded)
+let klasorAcma: () => { kokId: string } | null = () => null;
+export function setKlasorAcma(f: () => { kokId: string } | null): void { klasorAcma = f; }
 
 export function setIcindekilerBaglami(b: IcindekilerBaglami | null): void {
   icBirak?.();
@@ -297,7 +303,7 @@ export function initOkuyucu(yer: () => DriveLocation | null): void {
   addEventListener('keydown', e => {
     if (!open || document.getElementById('fotoPanel') || document.getElementById('dosyaPanel')) return;   // task 5.8a / 5.10e: the panel has the keys
     // task 6.3c: Ctrl/Cmd+F opens our search box (not the browser's)
-    if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'f') { e.preventDefault(); e.stopPropagation(); if (!konusuz) arama.ac(); return; }
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'f') { e.preventDefault(); e.stopPropagation(); if (!konusuz && !bosDurum) arama.ac(); return; }
     if (e.key === 'Escape') { e.stopPropagation(); if (toolbar?.closePopover()) return; if (tocOpen) closeToc(); else if (arama.acik) arama.kapat(); else closeOkuyucu(); return; }
     // pen mode: Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z and Ctrl+Y redo (not while typing somewhere)
     if (penOn && (e.ctrlKey || e.metaKey) && !e.altKey && !typing(e.target)) {
@@ -574,6 +580,7 @@ function recordReading(cur: number, shown: number[]): void {
   const atEnd = mode === 'pdf' && s.scrollTop + s.clientHeight >= s.scrollHeight - 2;
   const seen = (i: number) => shown.includes(i) || (atEnd && i === pages.length - 1);
   if (topic) {
+    if (!okumaKaydiYazilsinMi(topic.kind)) return;   // task 6.K6a: no material, nothing written
     if (p.ad && p.pdfSayfa) markTopicPage(b, current.unit, current.topic, topic.kind, { dosya: p.ad, sayfa: p.pdfSayfa });
     if (topic.kind === readKind(topic.materials) && mainCount && seen(mainCount - 1)) autoTopicStatus(b, current.unit, current.topic, 'bitti');
   } else if (!usesUnits(b)) {
@@ -811,6 +818,12 @@ function konusuzMod(on: boolean): void {
   $('#okuyucu').classList.toggle('o-konusuz', on);
 }
 
+// Task 6.K6a: a topic without materials (pen, search and Kitap/PDF hidden in CSS); null: off
+function materyalsizMod(d: BosKonuDurumu | null): void {
+  bosDurum = d;
+  $('#okuyucu').classList.toggle('o-materyalsiz', !!d);
+}
+
 // Task 6.K5b-3: the desk's contents page shows "İçindekileri düzenle" by the same rule as the panel's "Düzenle"
 export function icindekilerDugmesi(b: Book): ReturnType<IcindekilerDuzenleyici['dugme']> {
   return duzenleyici.dugme(b, true);
@@ -850,7 +863,7 @@ async function openTopic(unit: number, topicIndex: number, resume?: Resume): Pro
   const my = ++session;
   current = { unit, topic: topicIndex };
   konusuzMod(false);
-  autoTopicStatus(book, unit, topicIndex, 'girildi');
+  materyalsizMod(null);
   topic = null;
   photoBox.seritGoster(null);
   zoom.reset();
@@ -862,10 +875,18 @@ async function openTopic(unit: number, topicIndex: number, resume?: Resume): Pro
   try {
     const m = await discover(folder, t.klasor ?? '');
     if (my !== session) return;
-    if (!m) { setMessage(`Konu klasörü bulunamadı: ${t.klasor}. Drive'da kitabın klasöründe bu klasörü oluştur ve yenile.`); return; }
-    const kind = resume?.materyal && m[resume.materyal].length ? resume.materyal : defaultKind(m);
-    if (!kind) { setMessage('Henüz materyal yok.'); return; }
-    topic = { title: t.baslik, klasor: t.klasor ?? '', materials: m, kind, fileIndex: 0, solution: false };
+    const kind = m ? resume?.materyal && m[resume.materyal].length ? resume.materyal : defaultKind(m) : null;
+    topic = { title: t.baslik, klasor: t.klasor ?? '', materials: m ?? emptyMaterials(), kind, fileIndex: 0, solution: false };
+    if (!kind) {
+      // task 6.K6a: no materials (or no folder): the bar with Fotoğraf / Dosya ekle; nothing of the reading state written
+      const klasorYokMetni = m ? undefined : `Konu klasörü bulunamadı: ${t.klasor}. Drive'da kitabın klasöründe bu klasörü oluştur ve yenile.`;
+      materyalsizMod(bosKonuDurumu({ klasorVar: !!m && !!t.klasor?.trim(), klasorYokMetni }));
+      renderBar();
+      setMessage(bosDurum!.metin);
+      if (m) void photoStrip(topic);
+      return;
+    }
+    autoTopicStatus(book, unit, topicIndex, 'girildi');   // task 6.K6a: only once there is a material
     void photoStrip(topic);
   } catch (e) {
     if (my === session) loadFailed(e);
@@ -877,25 +898,22 @@ async function openTopic(unit: number, topicIndex: number, resume?: Resume): Pro
 
 // The ribbon of the open topic's current material.
 function savedMark(t: OpenTopic): PageMark | null {
-  return book?.uniteler[current.unit]?.konular[current.topic]?.kurdeleler[t.kind] ?? null;
+  return konuKurdelesi(book?.uniteler[current.unit]?.konular[current.topic]?.kurdeleler, t.kind);
 }
 
 // Übungen / Ödevler: the mark chooses the file (and the solution, if it was in it). null: its file is gone.
 function useMark(t: OpenTopic, mark: PageMark): PageMark | null {
-  const list = t.kind === 'uebungen' || t.kind === 'oedevler' ? t.materials[t.kind] : null;
-  if (!list) return mark;
-  const i = list.findIndex(m => m.file.name === mark.dosya || m.cozum?.name === mark.dosya);
-  if (i < 0) return null;
-  t.fileIndex = i;
-  t.solution = list[i].cozum?.name === mark.dosya;
-  return mark;
+  const r = kurdeleSecimi(t.materials, t.kind, mark);
+  if (r.fileIndex !== undefined) { t.fileIndex = r.fileIndex; t.solution = !!r.solution; }
+  return r.mark;
 }
 
 // The chosen material of the open topic (+ its solution below it, when "Çözümü göster" is on).
 // start: open at this page (a ribbon); otherwise at the start (or at the solution).
 async function showMaterial(start?: PageMark | null): Promise<void> {
-  if (!topic || !content) return;
-  const t = topic, my = ++session;
+  if (!topic || !content || topic.kind === null) return;
+  const t = topic, kind = topic.kind, my = ++session;
+  materyalsizMod(null);
   uploadNow();   // task 4.8b: another material / topic
   mainCount = 0;
   zoom.reset();
@@ -905,7 +923,7 @@ async function showMaterial(start?: PageMark | null): Promise<void> {
   setMessage('Sayfalar hazırlanıyor…');
 
   const material = t.kind === 'uebungen' || t.kind === 'oedevler' ? t.materials[t.kind][t.fileIndex] : null;
-  const files = material ? [material.file] : t.materials[t.kind].map(m => m.file);
+  const files = material ? [material.file] : t.materials[kind].map(m => m.file);
   const cozum = t.solution ? material?.cozum ?? null : null;
   const key = (list: { id: string; modifiedTime: string }[]) => list.map(f => `${f.id}@${f.modifiedTime}`).join(',');
   const at = (list: BookPage[], def: number) => {
@@ -913,7 +931,7 @@ async function showMaterial(start?: PageMark | null): Promise<void> {
     return i >= 0 ? i : def;
   };
   try {
-    const main = await cached(key(files), () => buildTopicPages(t.materials, t.kind, t.fileIndex), my);
+    const main = await cached(key(files), () => buildTopicPages(t.materials, kind, t.fileIndex), my);
     if (my !== session) return;
     mainCount = main.pages.length;
     if (!cozum) { showPages(main.pages, main.ratios, at(main.pages, 0), 'Bu materyalde gösterilecek sayfa yok.'); return; }
@@ -953,6 +971,12 @@ function renderBar(): void {
   bar.hidden = !topic;
   if (!topic) return;
   const t = topic;
+  // task 6.K6a: a topic without materials: the add buttons by bosKonu.ts (grey without a folder)
+  for (const [id, d] of [['#oFoto', bosDurum?.foto], ['#oDosya', bosDurum?.dosya]] as const) {
+    const btn = $<HTMLButtonElement>(id);
+    btn.disabled = t.kind === null && !!d && !d.aktif;
+    btn.title = (btn.disabled && d?.not) || (id === '#oFoto' ? 'Fotoğraf ekle' : 'Dosya ekle');
+  }
   $('#oTabs').replaceChildren(...availableKinds(t.materials).map(k => {
     const b = document.createElement('button');
     b.type = 'button';
@@ -1084,6 +1108,7 @@ function openFilePanel(t: OpenTopic, kaynak: DosyaPanelKaynak): void {
     materials: t.materials,
     acikSekme: t.kind,
     ornek: isSampleId(folder),
+    klasorAcabilir: !isSampleId(folder) && !!driveLocation() && !!klasorAcma(),
     klasorler: async () => {
       if (isSampleId(folder) || !driveLocation()) return null;
       try {
@@ -1100,7 +1125,10 @@ function openFilePanel(t: OpenTopic, kaynak: DosyaPanelKaynak): void {
       if (om) { om.bilgi.ad = ad; om.bilgi.boyut = mb(bytes.byteLength); om.adimlar.push(...hazirlikAl()); fileMeasureId = islemId; }
       try {
         const [{ konuyaDosyaEkle }, konu] = await Promise.all([import('../defter/konuyaDosyaEkle'), topicFolderId(t)]);
-        const ortam = { yer: driveLocation(), olusturDrive: drivePdfOlusturApi, yeniDosya: sayfaEklemeOrtami().yeniDosya, konuDegisti: sayfaEklemeOrtami().konuDegisti };
+        const ortam: DosyaEklemeOrtami = {
+          yer: driveLocation(), olusturDrive: drivePdfOlusturApi, yeniDosya: sayfaEklemeOrtami().yeniDosya, konuDegisti: sayfaEklemeOrtami().konuDegisti,
+          altKlasorAc: (konuId, klasor, islemId) => altKlasoruAc(t, konuId, klasor, islemId),
+        };
         return await (om ? konuyaDosyaEkle({ konu, hedef, ad, bytes, islemId }, ortam, { olcum: om }) : konuyaDosyaEkle({ konu, hedef, ad, bytes, islemId }, ortam));
       } catch (e) {
         if (om) { om.bilgi.hata = e instanceof Error ? e.message.slice(0, 80) : 'hata'; olcumBitir(islemId); }
@@ -1117,6 +1145,13 @@ function openFilePanel(t: OpenTopic, kaynak: DosyaPanelKaynak): void {
     kapanis: kapanis.signal,
   };
   import('../ui/dosyaPanel').then(m => m.acDosyaPanel(ctx, kaynak)).catch(e => { console.warn(e); toast('Dosya paneli açılamadı. Sayfayı yenileyip tekrar dene.'); });
+}
+
+// Task 6.K6a: the topic's missing Uebungen / Oedevler (drive/altKlasorAc.ts, lazy); the lock asked again at "Ekle"
+async function altKlasoruAc(t: OpenTopic, konuId: string, klasor: AltKlasor, islemId: string): Promise<string> {
+  const m = await import('../drive/altKlasorAc');
+  const kilit = isSampleId(folder) || !driveLocation() ? null : klasorAcma();
+  return m.altKlasorAc(await m.driveAltKlasorApi(), { konuId, konuYolu: t.klasor, kitapKlasorId: folder, kokId: kilit?.kokId ?? '', klasor, islemId }, { kilitAcik: !!kilit });
 }
 
 // Task 6.1c: closing the reader cancels a conversion in the file panel (and closes it)
@@ -1293,6 +1328,14 @@ async function refreshTopic(t: OpenTopic): Promise<void> {
   const old = list(t.materials), now = list(next);
   if (old && now) t.fileIndex = acikIndeks(old, now, t.fileIndex);
   t.materials = next;
+  // task 6.K6a: the topic had no materials: the first one opens at once (the bar as usual again)
+  const ilk = t.kind === null ? defaultKind(next) : null;
+  if (ilk && book) {
+    t.kind = ilk; t.fileIndex = 0; t.solution = false;
+    autoTopicStatus(book, current.unit, current.topic, 'girildi');
+    await showMaterial();
+    return;
+  }
   renderBar();
 }
 
@@ -1317,6 +1360,7 @@ async function afterFileAdded(t: OpenTopic, hedef: DosyaHedefi, r: DosyaEklendi)
   let metin = `Eklendi: ${r.ad}`;
   try { metin = (await import('../defter/dosyaPanelDurumu')).eklendiMetni(r.ad, r.uyari); } catch (e) { console.warn(e); }
   const e = eklenenMateryal(hedef, r, t.materials);
+  const bosKonu = t.kind === null;   // task 6.K6a: the topic's first file: it opens at once (refreshTopic), no "Göster"
   const karar = dosyaEklemeKarari(e, { acik: open, ayniKonu: topic === t });
   const olcumId = fileMeasureId;
   fileMeasureId = null;
@@ -1326,7 +1370,7 @@ async function afterFileAdded(t: OpenTopic, hedef: DosyaHedefi, r: DosyaEklendi)
     console.warn('Okuyucu yeni dosyayla yenilenemedi; konuyu kapatıp açınca görünür.', err);
   });
   if (olcumId) measureToast(olcumId, ready);
-  if (!karar.goster) { toast(metin); return; }
+  if (!karar.goster || bosKonu) { toast(metin); return; }
   const go = () => { void ready.then(() => showAddedFile(t, e)); };
   if (GOSTER_OTOMATIK) { toast(metin); go(); } else toast(metin, { etiket: 'Göster', calistir: go });
 }
@@ -1412,6 +1456,7 @@ export function closeOkuyucu(): void {
   metin = null;
   topic = null;
   konusuzMod(false);
+  materyalsizMod(null);
   const el = $('#okuyucu');
   el.classList.remove('show');
   setTimeout(() => {

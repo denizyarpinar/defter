@@ -35,6 +35,7 @@ export interface DosyaPanelBaglam {
   acikSekme: MaterialKind | null;
   ornek: boolean;
   klasorler(): Promise<KlasorBilgisi | null>;   // Uebungen / Oedevler there? (one Drive listing; null: not known)
+  klasorAcabilir?: boolean;   // task 6.K6a: a missing Uebungen / Oedevler is made with the first file (?kurulum=1)
   ekle(hedef: DosyaHedefi, ad: string, islemId: string, bytes: Uint8Array): Promise<DosyaEklendi>;   // rejects on any error
   bitti(r: DosyaEklendi, hedef: DosyaHedefi): void;   // after the panel closed; hedef: what was chosen
   cevir(dosya: File, signal: AbortSignal): Promise<Uint8Array>;   // task 6.1c: Word / PowerPoint → PDF bytes
@@ -84,7 +85,7 @@ export function acDosyaPanel(b: DosyaPanelBaglam, kaynak: DosyaPanelKaynak): voi
   const ofis = kaynak.tur === 'ofis' ? kaynak : null;
   let klasor: KlasorBilgisi | null = null;
   let sayfa: number | null | undefined;   // undefined: being counted
-  let hedef: PanelHedef | null = varsayilanHedef(hedefSecenekleri(b.materials, null), b.acikSekme);
+  let hedef: PanelHedef | null = varsayilanHedef(hedefSecenekleri(b.materials, null, b.klasorAcabilir), b.acikSekme);
   let girilen = hazir?.ad ?? (ofis ? pdfAdi(ofis.dosya.name) : '');
   let cozumOf: DriveFile | null = null;
   let ekleniyor = false;
@@ -129,7 +130,7 @@ export function acDosyaPanel(b: DosyaPanelBaglam, kaynak: DosyaPanelKaynak): voi
   const hedefler = el('fieldset', 'dp-hedefler');
   hedefler.append(el('legend', 'dp-baslik2', 'Nereye?'));
   const radyolar = new Map<PanelHedef, { input: HTMLInputElement; satir: HTMLLabelElement; neden: HTMLElement }>();
-  for (const s of hedefSecenekleri(b.materials, null)) {
+  for (const s of hedefSecenekleri(b.materials, null, b.klasorAcabilir)) {
     const satir = el('label', 'dp-hedef');
     const input = el('input');
     input.type = 'radio';
@@ -227,7 +228,7 @@ export function acDosyaPanel(b: DosyaPanelBaglam, kaynak: DosyaPanelKaynak): voi
       girilen = listeAdi(gorseller[0]?.ad, girilen, adElle);
       cizListe();
     }
-    const secenekler = hedefSecenekleri(b.materials, klasor);
+    const secenekler = hedefSecenekleri(b.materials, klasor, b.klasorAcabilir);
     // the chosen one went grey (the folder listing came): the default again
     if (!secenekler.find(s => s.hedef === hedef)?.secilebilir) hedef = varsayilanHedef(secenekler, b.acikSekme);
     for (const s of secenekler) {

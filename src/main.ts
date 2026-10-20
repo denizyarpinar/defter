@@ -24,7 +24,7 @@ import type { Book, ModeKey } from './model/types';
 import { usesUnits } from './model/units';
 import { markOpened, setReadingSink } from './okuma/okumaDurumu';
 import { sampleBookFolder, sampleFolders } from './okuma/ornekKaynak';
-import { bekleyenKalemIdleri, closeOkuyucu, forgetBook, fotoYuklemeSuruyor, initOkuyucu, isOkuyucuOpen, okuyucuAra, openOkuyucu, openOkuyucuDuzenle, sayfaEklemeOrtami, setIcindekilerBaglami } from './okuma/Okuyucu';
+import { bekleyenKalemIdleri, closeOkuyucu, forgetBook, fotoYuklemeSuruyor, initOkuyucu, isOkuyucuOpen, okuyucuAra, openOkuyucu, openOkuyucuDuzenle, sayfaEklemeOrtami, setIcindekilerBaglami, setKlasorAcma } from './okuma/Okuyucu';
 import { createRoomScene, type LibraryData, type RoomScene, type View } from './scene';
 import { canvas, drawWood, noise } from './scene/textures';
 import { updateHint } from './ui/hint';
@@ -375,6 +375,9 @@ const copAkisi = copAkisiKur({
   kitaplikYenile,
   girisYap: () => googleSignIn()
 });
+
+// ---- task 6.K6a: "Dosya ekle" may make a topic's missing Uebungen / Oedevler (only with ?kurulum=1) ----
+setKlasorAcma(() => driveLoc && durum.tur === 'drive' && KURULUM_KILIT_ACIK && kokKaynagi() !== null ? { kokId: driveLoc.rootId } : null);
 
 // The same warning (e.g. two "Defter Library" roots) only once per page load
 const uyarilar = new Set<string>();

@@ -329,6 +329,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 .o-foto { flex: none; display: inline-flex; align-items: center; gap: 7px; min-height: 40px; padding: 0 14px; margin-left: auto; border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, .22); background: rgba(0, 0, 0, .18); color: #f5ecdf; font: 500 14px var(--ui) }
 .o-foto svg { width: 20px; height: 20px }
+.o-foto:disabled { opacity: .45; cursor: not-allowed }   /* task 6.K6a: a topic without a folder */
 .fp { position: fixed; inset: 0; z-index: 55; display: flex; align-items: center; justify-content: center; padding: 16px;
   padding-top: calc(env(safe-area-inset-top, 0px) + 16px); padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 16px); background: rgba(10, 7, 4, .55) }
 .fp-kart { box-sizing: border-box; width: min(640px, 100%); max-height: 100%; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 12px;
@@ -591,6 +592,8 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 .o-penbtn { position: relative }
 /* task 6.K5b-3: the reader with no topic open (the desk's "İçindekileri düzenle"): nothing to draw on, search or turn */
 #okuyucu.o-konusuz #oPenBtn, #okuyucu.o-konusuz #oAraBtn, #okuyucu.o-konusuz #oMode { display: none }
+/* task 6.K6a: a topic without materials: only Fotoğraf / Dosya ekle in the bar */
+#okuyucu.o-materyalsiz #oPenBtn, #okuyucu.o-materyalsiz #oAraBtn, #okuyucu.o-materyalsiz #oMode { display: none }
 .o-penbtn.bekleyen::after { content: ''; position: absolute; top: 4px; right: 4px; width: 8px; height: 8px; border-radius: 50%; background: #e0a040; box-shadow: 0 0 0 1.5px rgba(0, 0, 0, .35) }
 .o-tools { flex: none; box-sizing: border-box; height: 58px; display: flex; flex-wrap: nowrap; align-items: stretch; gap: 8px; padding: 0 12px; overflow: hidden; color: #f5ecdf;
   background: rgba(0, 0, 0, .24); border-bottom: 1px solid rgba(255, 255, 255, .08); touch-action: manipulation }
