@@ -46,5 +46,34 @@ describe('loadDriveLibrary: the sample book folder', () => {
     expect(r.books.get('tam-ornek')!.hasJson).toBe(true);
     expect(r.loc.bookFolderIds.has('programlamaya-giris')).toBe(false);
     expect(r.loc.bookFileIds.get('tam-ornek')).toBe('J3');
+    expect(r.yarimlar).toEqual([{ ad: 'programlamaya-giris', id: 'B1', neden: 'ornek' }]);
+  });
+});
+
+// Task 6.K4b-2: a half made wizard book (defterIslem folder without kitap.json) is skipped the same way
+describe('loadDriveLibrary: the half made wizard book', () => {
+  beforeEach(() => {
+    agac = {
+      D: [klasor('K', 'kitaplar'), dosya('LJ', 'kitaplik.json')],
+      K: [
+        klasor('W1', 'deneme-6', { defter: '1', defterIslem: 'islem-6' }),   // half made: no kitap.json
+        klasor('W2', 'mathe-2', { defter: '1', defterIslem: 'islem-2' }),    // whole
+        klasor('E1', 'eski-kitap')                                           // no marks, no kitap.json
+      ],
+      W1: [klasor('U1', 'Unite-01-A')],
+      W2: [dosya('JW', 'kitap.json')]
+    };
+  });
+
+  it('defterIslem + no kitap.json: skipped and listed; defterIslem + kitap.json: a book; no marks: grey as before', async () => {
+    const r = await loadDriveLibrary('dar', kokDrive);
+    expect([...r.books.keys()].sort()).toEqual(['eski-kitap', 'mathe-2']);
+    expect(r.books.get('mathe-2')!.hasJson).toBe(true);
+    expect(r.books.get('eski-kitap')!.hasJson).toBe(false);
+    expect(r.loc.bookFolderIds.has('deneme-6')).toBe(false);
+    expect([...r.loc.bookFolderIds.keys()].sort()).toEqual(['eski-kitap', 'mathe-2']);
+    expect(r.yarimlar).toEqual([{ ad: 'deneme-6', id: 'W1', neden: 'sihirbaz' }]);
+    const { sonYarimlar } = await import('./driveLibrary');
+    expect(sonYarimlar()).toEqual(r.yarimlar);
   });
 });

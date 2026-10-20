@@ -358,7 +358,7 @@ Kitaplık/
 - Sıra: kök → `kitaplar/` → örnek (kitap klasörü → alt klasörler → PDF'ler → en son kitap.json) → `kitaplik.json` (örnek başarılıysa Raf 1'de). Düğmede ilerleme: "Kuruluyor… (örnek kitap 7/18)".
 - Her örnek öğesinde appProperties `{ defter: '1', defterIslem, defterOrnek: '1' }`. Örnek öğeleri islemId'ye değil `defterOrnek`'e göre aranır; "Kurulumu tamamla" eksikleri tamamlar, çift oluşturmaz. Aynı adda işaretsiz öğe varsa dokunulmaz (`OrnekAdDolu`).
 - Örnek hatası kurulumu durdurmaz: `kitaplik.json` örneksiz yazılır, sonuç `ornekHata`, toast "Örnek kitap eklenemedi".
-- Yarım örnek (defterOrnek klasörü, kitap.json yok) kitaplıkta sessizce atlanır (`driveLibrary.ts`); kullanıcının kitap.json'suz klasörleri eskisi gibi gri kapakla görünür.
+- Yarım örnek (defterOrnek klasörü, kitap.json yok) kitaplıkta sessizce atlanır (`driveLibrary.ts`); kullanıcının kitap.json'suz klasörleri eskisi gibi gri kapakla görünür. 6.K4b-2: yarım sihirbaz kitabı (defterIslem klasörü, kitap.json yok) da aynı yerde atlanır; kural tek yerde: `yarimKitapNedeni` (`src/model/yarimKitap.ts`).
 - Kod: `src/drive/kurulum.ts` (`ornekKitapKur`, `ornekPlani`, `webOrnekKaynak`; testli). Dev: `window.defterKurulumDene(islemId?, ornek = true)`.
 
 ### Kitap sihirbazı (6.K4a)
@@ -367,8 +367,19 @@ Kitaplık/
 - Liste: `# Ünite` satırı + altındaki konular; boş satır sayılmaz; konuda baştaki `- `, `* `, `• `, `1.`, `1)` silinir; ilk `#`'ten önceki konular "Genel" + uyarı. Sınırlar 30 ünite / 50 konu / 80 karakter (aşılırsa Oluştur kapalı); aynı konu adı ve konusuz ünite sadece uyarı.
 - Klasör adları: `Unite-NN-<ad>`, `Konu-NN-<ad>`; konu numarası kitap boyunca artar (programlamaya-giris gibi). ASCII (ä→ae, ö→oe, ü→ue, ß→ss, ğ→g, ı→i, ş→s, ç→c, İ→I), işaretler → `-`, en fazla 40 karakter. Kitap id = küçük harf (`mathe-1`); var olan id ile çakışma = Oluştur kapalı, otomatik `-2` yok.
 - Plan (`kitapPlani`): kitap klasörü → ünite klasörleri → konu klasörleri → kitap.json → raf kaydı (kitaplik.json). Uebungen/Oedevler açılmaz (K6). Renk kitap.json `kapak.renk`'te, raf kitaplik.json'da.
-- K4a'da Drive'a hiçbir şey yazılmaz: Oluştur gri (`OLUSTUR_KILITLI`). `?olcum=1`: planın listesi kartta + Kopyala.
+- K4a'da Drive'a hiçbir şey yazılmadı; Oluştur K4b'de açıldı (aşağıda). `?olcum=1`: planın listesi kartta + Kopyala.
 - Kod: `src/kitap/kitapListesi.ts`, `klasorAdi.ts`, `kitapPlani.ts` (saf, testli), `src/ui/kitapSihirbaziDurumu.ts` (saf, testli), `src/ui/kitapSihirbazi.ts`. Ekran görüntüleri: `node scripts/kitap-sihirbazi-kontrol.mjs`.
+
+### Kitap oluşturma (6.K4b)
+- Oluştur sadece `?kurulum=1` + aktif kök bizim `defterKok` kökümüzse açık. Sahibin "Kitaplık"ında gri + "Sahip kitaplığına ekleme sonraki adımda." (hiç yazma yok). Örnek kitaplıkta sihirbaz yok.
+- Sıra: kitap klasörü (`kitaplar/` altında) → ünite → konu klasörleri → kitap.json (surum 2) → kitaplik.json raf kaydı. Her öğede appProperties `{ defter: '1', defterIslem }`; id'ler işlem başında generateIds ile bir kez alınır, islemId ile bellekte (`KitapIslemi`; cihazda saklanmaz).
+- Tekrar dene: aynı islemId + aynı id'ler; başta defterIslem araması, daha önce denenen öğede id ile get, 409 = var → kaldığı yerden, çift yok.
+- Güvenlik: `kitaplar/` altında aynı adlı (bu işlemin olmayan) klasör → hiçbir şey yazılmaz: `AyniKitapVar`, defter=1 ve kitap.json yoksa `YarimKitapVar` ("Yarım kalmış bir kitap var"). Var olan klasörün içine yazılmaz.
+- Raf kaydı: modifiedTime → son kitaplik.json → id hiçbir rafta yoksa seçilen rafa (yoksa ilk rafa) eklenir → modifiedTime tekrar; değiştiyse bir kez baştan, yine değiştiyse `RafKaydiCakisma`. Bilinmeyen alanlar korunur. Bekleyen raf değişikliği varsa Oluştur başlamaz.
+- Hata: sihirbaz açık, metin + Tekrar dene (izin hatasında "Tekrar giriş yap"); alanlar kilitli kalır. Oluşturma sürerken Vazgeç/Esc/dışa dokunma kapalı. Başarı: sihirbaz kapanır, kitaplık yeniden yüklenir, toast "Kitap oluşturuldu: <ad>".
+- Yarım kitap (6.K4b-2): defterIslem'li, kitap.json'suz kitap klasörü kitaplıkta ve arama ağacında görünmez (ağaç sadece kitaplıktaki kitapların klasörlerini tarar: `agacKitapKlasorleri`). Sihirbazda aynı ad plan engeline takılmaz; Drive kontrolü `YarimKitapVar` der ("…Başka bir ad seç; yarım klasör daha sonra çöpe atılabilir."), hiçbir şey yazılmaz. `?olcum=1` kutusunda `yarım kitap:` satırı (sayı, ad, neden, id).
+- 6.K4b-3: mesaj alanı (`.ks-neden`) yapışkan alt satırda (geniş: Vazgeç/Oluştur'un solunda; ≤ 600 px: üstünde), en çok 3 satır, `aria-live`; ad hatasında (plan engeli, `AyniKitapVar`, `YarimKitapVar`) Kitap adı kutusu kırmızı çerçeve. `#kitapSihirbazi` `box-sizing: border-box` (klavye takibinin yüksekliğine dolgu eklenmesin).
+- Kod: `src/drive/kitapOlustur.ts` (testli), `OlusturAkisi`/`olusturHatasi` (`kitapSihirbaziDurumu.ts`, testli). Dev (DEV ya da `?olcum=1`): `window.defterSihirbazHata = n` → n'inci öğede yazmadan önce yapay ağ hatası (−n: yazdıktan sonra, cevap kayıp), bir kez; `?olcum=1` kutusunda işlem özeti (islemId, n/N, vardı).
 
 ## Sonra bakılabilir
 - Oda zaman aşımı: şu an glb yüklemesine toplam 15 sn veriliyor; yavaş bağlantıda (masaüstü lightmap'leri ~3.3 MB) eski odaya düşüyor. Öneri: "15 sn hiç ilerleme yok" kuralı + yükleme göstergesi. Faz 2 kural metni değişeceği için Deniz'in onayı gerekir.
@@ -386,5 +397,4 @@ Kitaplık/
 - Her fotoğraf eklemede ve kalem kaydında ozet.pdf'in tamamı yeniden yükleniyor (22 MB'ta ~26 sn). Mimari çözüm adayı: defter fotoğraflarını ayrı/küçük PDF'lere eklemek (Faz 5 kararını değiştirir, Deniz onayı gerekir).
 - Fotoğraf küçültme (1600 px / JPEG 0.80) ile bugünkü (2000 px / 0.85) karşılaştırması yapılmadı.
 - Sayfa yenilenince yarım kalan yükleme kaldığı yerden devam etmiyor (baştan yükleniyor).
-- Arama ağacı (`kitaplikAgaci.ts`) yarım örnek klasörünü (defterOrnek, kitap.json yok) atlamıyor; dosya adları aramada çıkabilir.
 - 'Kurulumu tamamla'da `kitaplik.json` zaten varsa (sadece `kitaplar/` eksikse) örnek kitap rafa değil "Yeni gelenler"e düşüyor (kitaplik.json güncellenmez).

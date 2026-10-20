@@ -756,6 +756,9 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
    one under the other below. Round 40 px buttons (as the pen bar, 6.H1b); touch screens: the card at the top. */
 .bosipucu { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 16px); transform: translateX(-50%); z-index: 15; white-space: nowrap; max-width: calc(100vw - 32px) }
 .bosipucu[hidden], #app[data-kilit] .bosipucu { display: none }
+/* 6.K4b-3: panelKlavyeTakibi gives .fp the visible height; with content-box its padding came on top of it and the
+   card's sticky bottom row ended 16–32 px below the screen */
+#kitapSihirbazi { box-sizing: border-box }
 .ks-kart { width: min(1040px, 100%) }
 .ks-ust { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: flex-end }
 .ks-adalan { flex: 2 1 260px; min-width: 0 }
@@ -793,12 +796,30 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 .ks-yuvarlak:disabled { opacity: .3 }
 .ks-bos { padding: 10px; opacity: .6; font-size: 13px }
 .ks-uniteekle { align-self: flex-start; min-height: 40px; padding: 0 16px; border-radius: 99px; border: 1px solid rgba(255, 255, 255, .22); background: rgba(0, 0, 0, .18); color: #f5ecdf; font: 500 14px var(--ui) }
-.ks-neden { margin: 0 }
-.ks-kart .fp-alt { position: sticky; bottom: -16px; margin: 0 -18px -16px; padding: 10px 18px 16px; background: #2a231d; border-top: 1px solid rgba(255, 255, 255, .08) }
-.ks-neden[hidden], .ks-olcum[hidden] { display: none }
+/* 6.K4b: an operation started: the fields can't change */
+.ks-kilitli .ks-ust, .ks-kilitli .ks-govde { opacity: .55 }
+.ks-kart .fp-vazgec:disabled { opacity: .4 }
+.ks-kart .fp-ekle { white-space: nowrap }
+.ks-kart .fp-alt { position: sticky; bottom: -16px; margin: 0 -18px -16px; padding: 10px 18px 16px; background: #2a231d; border-top: 1px solid rgba(255, 255, 255, .08); align-items: center }
+/* 6.K4b-3: the message in the bottom row, left of the buttons: at most 3 lines, then it scrolls by itself
+   (it never pushes the buttons off the screen); phone (≤ 600 px): full width above the buttons, no room when empty */
+.ks-kart .ks-neden { flex: 1 1 0; min-width: 0; margin: 0 auto 0 0; line-height: 1.35; max-height: calc(3 * 1.35em); overflow-y: auto; overscroll-behavior: contain; overflow-wrap: anywhere }
+.dp-ad input.ks-ad-hata { border-color: #ff8a73; box-shadow: 0 0 0 1px #ff8a73 }
+.ks-olcum[hidden] { display: none }
 .ks-olcum { position: relative; border-radius: 8px; background: rgba(0, 0, 0, .35) }
 .ks-olcum pre { margin: 0; padding: 8px 10px; max-height: 160px; overflow: auto; font: 11px/1.4 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; -webkit-user-select: text }
 .ks-kopyala { position: absolute; right: 6px; top: 6px; min-height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, .22); background: rgba(0, 0, 0, .4); color: #f5ecdf; font: 12px var(--ui) }
+@media (max-width: 600px) {
+  .ks-kart .fp-alt { flex-wrap: wrap; row-gap: 0 }
+  .ks-kart .ks-neden { flex-basis: 100% }
+  .ks-kart .ks-neden:not(:empty) { margin-bottom: 8px }
+}
+/* the phone card's own padding (16 px sides, 14 px + safe area bottom): the bottom row matches it exactly
+   (it stuck out 2 px to the side and below) */
+@media (max-width: 599px) {
+  .ks-kart .fp-alt { bottom: calc(-14px - env(safe-area-inset-bottom, 0px)); margin: 0 -16px calc(-14px - env(safe-area-inset-bottom, 0px));
+    padding: 10px 16px calc(14px + env(safe-area-inset-bottom, 0px)) }
+}
 @media (min-width: 820px) {
   .ks-govde { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) }
   .ks-metin { min-height: 0; height: min(52vh, 460px); resize: none }

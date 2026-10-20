@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { listeAyristir } from '../kitap/kitapListesi';
-import { agacIslemi, KILIT_METNI, satirAraligi, sihirbazDurumu, type SihirbazGirdisi } from './kitapSihirbaziDurumu';
+import { AyniKitapVar, KitapOlusturAgHatasi, KitapOlusturIzinYok, YarimKitapVar } from '../drive/kitapOlustur';
+import { kitapPlani } from '../kitap/kitapPlani';
+import {
+  agacIslemi, KILIT_METNI, OlusturAkisi, olusturHatasi, SAHIP_METNI, satirAraligi, sihirbazDurumu, type SihirbazGirdisi
+} from './kitapSihirbaziDurumu';
 
 const g = (metin: string, ad = 'Mathe 2'): SihirbazGirdisi => ({ ad, rafId: 'raf-1', renk: '#24476b', metin });
 const satirlar = (metin: string, ad?: string) => sihirbazDurumu(g(metin, ad), ['mathe-1']).agac
@@ -26,19 +30,23 @@ describe('sihirbazDurumu', () => {
     expect(s[6]).toBe('- X [Konu-04-X] @6 !Bu ünitede aynı adlı bir konu daha var. ↑');
   });
 
-  it('Oluştur is closed in K4a, with the reason', () => {
-    const d = sihirbazDurumu(g('# A\nx'), []);
-    expect(d.olusturAcik).toBe(false);
-    expect(d.neden).toBe(KILIT_METNI);
+  it('Oluştur is closed without the lock (the default) and in the owner\'s "Kitaplık", with the reason', () => {
+    expect(sihirbazDurumu(g('# A\nx'), [])).toMatchObject({ olusturAcik: false, neden: KILIT_METNI });
+    expect(sihirbazDurumu(g('# A\nx'), [], 'kilitli')).toMatchObject({ olusturAcik: false, neden: KILIT_METNI });
+    expect(sihirbazDurumu(g('# A\nx'), [], 'sahipKitapligi')).toMatchObject({ olusturAcik: false, neden: SAHIP_METNI });
+    // a blocking warning says more than the lock
+    expect(sihirbazDurumu(g('# A\nx', ''), [], 'sahipKitapligi').neden).toBe('Kitap adı gerekli.');
   });
 
   it('without the lock: open only without a blocking warning', () => {
-    expect(sihirbazDurumu(g('# A\nx'), [], false)).toMatchObject({ olusturAcik: true, neden: '' });
-    expect(sihirbazDurumu(g('# A\n# B'), [], false).olusturAcik).toBe(true);           // warnings only
-    expect(sihirbazDurumu(g(''), [], false)).toMatchObject({ olusturAcik: false, neden: 'En az bir ünite gerekli (“# Ünite adı” satırı).' });
-    expect(sihirbazDurumu(g('# A\nx', ''), [], false)).toMatchObject({ olusturAcik: false, neden: 'Kitap adı gerekli.' });
-    expect(sihirbazDurumu(g('# A\nx', 'Mathe 1'), ['mathe-1'], false).neden).toMatch(/zaten var/);
-    expect(sihirbazDurumu(g(`# A\n${'x'.repeat(81)}`), [], false).neden).toBe('Ad en fazla 80 karakter olabilir.');
+    expect(sihirbazDurumu(g('# A\nx'), [], 'acik')).toMatchObject({ olusturAcik: true, neden: '' });
+    expect(sihirbazDurumu(g('# A\n# B'), [], 'acik').olusturAcik).toBe(true);           // warnings only
+    expect(sihirbazDurumu(g(''), [], 'acik')).toMatchObject({ olusturAcik: false, neden: 'En az bir ünite gerekli (“# Ünite adı” satırı).' });
+    expect(sihirbazDurumu(g('# A\nx', ''), [], 'acik')).toMatchObject({ olusturAcik: false, neden: 'Kitap adı gerekli.' });
+    expect(sihirbazDurumu(g('# A\nx', 'Mathe 1'), ['mathe-1'], 'acik').neden).toMatch(/zaten var/);
+    // 6.K4b-2: a half made book is not in the library → no plan block; Drive's check says YarimKitapVar
+    expect(sihirbazDurumu(g('# A\nx', 'Deneme 6'), ['mathe-1'], 'acik')).toMatchObject({ olusturAcik: true, neden: '' });
+    expect(sihirbazDurumu(g(`# A\n${'x'.repeat(81)}`), [], 'acik').neden).toBe('Ad en fazla 80 karakter olabilir.');
   });
 
   it('the list\'s warnings by line, for under the text box', () => {
@@ -76,5 +84,62 @@ describe('satirAraligi', () => {
     expect(satirAraligi(m, 1)).toEqual([0, 2]);
     expect(satirAraligi(m, 2)).toEqual([3, 6]);
     expect(satirAraligi(m, 4)).toEqual([8, 9]);
+  });
+});
+
+describe('OlusturAkisi (6.K4b)', () => {
+  const plan = kitapPlani({ kitapAdi: 'Mathe 2', rafId: 'raf-1', renk: '#24476b', uniteler: [{ ad: 'A', konular: ['x'] }], mevcutIdler: [] });
+  let n = 0;
+  const akis = () => new OlusturAkisi(() => 'islem-' + ++n);
+
+  it('one operation: running once, "Tekrar dene" uses the same one', () => {
+    const a = akis();
+    expect(a.alanlarKilitli).toBe(false);
+    const i1 = a.basla(plan)!;
+    expect(a.basla(plan)).toBeNull();             // running: no second start
+    expect(a.mesgul && a.alanlarKilitli).toBe(true);
+    a.bitti();
+    expect(a.alanlarKilitli).toBe(true);           // failed: the fields stay as they were
+    expect(a.basla(plan)).toBe(i1);                // the same islemId and ids
+    a.bitti();
+    a.sifirla();
+    expect(a.alanlarKilitli).toBe(false);
+    expect(a.basla(plan)!.islemId).not.toBe(i1.islemId);
+  });
+
+  it('errors: retry, sign in again, or a new name when nothing was written', () => {
+    const a = akis();
+    const i = a.basla(plan)!;
+    expect(olusturHatasi(new KitapOlusturAgHatasi(), i)).toMatchObject({ tekrarDene: true, girisYap: false, duzenlenebilir: false });
+    expect(olusturHatasi(new TypeError('Failed to fetch'), i)).toMatchObject({ tekrarDene: true, mesaj: expect.stringMatching(/bağlanılamadı/) });
+    expect(olusturHatasi(new KitapOlusturIzinYok(), i)).toMatchObject({ tekrarDene: false, girisYap: true });
+    expect(olusturHatasi(new AyniKitapVar('mathe-2'), i)).toMatchObject({ tekrarDene: false, girisYap: false, duzenlenebilir: true });
+    // 6.K4b-2: a half made book: its message, a new name can be typed
+    expect(olusturHatasi(new YarimKitapVar('mathe-2'), i)).toMatchObject({
+      tekrarDene: false, girisYap: false, duzenlenebilir: true,
+      mesaj: expect.stringMatching(/^Yarım kalmış bir kitap var: mathe-2\..*Başka bir ad seç; yarım klasör daha sonra çöpe atılabilir\.$/)
+    });
+    i.denenen.add(0);                             // something went to Drive: no new name
+    expect(olusturHatasi(new AyniKitapVar('mathe-2'), i).duzenlenebilir).toBe(false);
+  });
+
+  it('6.K4b-3: only a folder already in Drive is the name\'s fault (red frame)', () => {
+    const i = akis().basla(plan)!;
+    expect(olusturHatasi(new AyniKitapVar('mathe-2'), i).adHatasi).toBe(true);
+    expect(olusturHatasi(new YarimKitapVar('mathe-2'), i).adHatasi).toBe(true);
+    expect(olusturHatasi(new KitapOlusturAgHatasi(), i).adHatasi).toBe(false);
+    expect(olusturHatasi(new KitapOlusturIzinYok(), i).adHatasi).toBe(false);
+    expect(olusturHatasi(new TypeError('Failed to fetch'), i).adHatasi).toBe(false);
+  });
+});
+
+describe('adHatali (6.K4b-3)', () => {
+  it('a book already there or a too long name; not an empty name, not the list\'s warnings', () => {
+    expect(sihirbazDurumu(g('# A\nx', 'Mathe 1'), ['mathe-1'], 'acik').adHatali).toBe(true);
+    expect(sihirbazDurumu(g('# A\nx', 'm'.repeat(81)), [], 'acik').adHatali).toBe(true);
+    expect(sihirbazDurumu(g('# A\nx', ''), [], 'acik').adHatali).toBe(false);
+    expect(sihirbazDurumu(g('# A\nx', '   '), [], 'acik').adHatali).toBe(false);
+    expect(sihirbazDurumu(g(`# A\n${'x'.repeat(81)}`), [], 'acik').adHatali).toBe(false);
+    expect(sihirbazDurumu(g('# A\nx', 'Mathe 2'), ['mathe-1'], 'kilitli').adHatali).toBe(false);
   });
 });

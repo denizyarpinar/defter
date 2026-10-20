@@ -87,6 +87,12 @@ export function klasorHaritasi(klasorler: readonly HamKlasor[], bookFolderIds: R
   return harita;
 }
 
+// The book folders to scan: only the library's books (6.K4b-2: a half made book, model/yarimKitap.ts,
+// is not in the library, so its files are not searched either)
+export function agacKitapKlasorleri(bookFolderIds: ReadonlyMap<string, string>, books: ReadonlyMap<string, Book>): Map<string, string> {
+  return new Map([...bookFolderIds].filter(([kitap]) => books.has(kitap)));
+}
+
 // Folder → the book it is in (the book's folder and everything under it)
 export function kitapKlasorleri(harita: ReadonlyMap<string, KlasorBilgi>, bookFolderIds: ReadonlyMap<string, string>): Map<string, string> {
   const kitapOf = new Map<string, string>();
@@ -235,9 +241,10 @@ async function kitaplardanTara(getir: Getirici, bookFolderIds: ReadonlyMap<strin
 
 export async function agacKur(o: AgacOrtami, getir: Getirici = saltOkunurFetch): Promise<KitaplikAgaci> {
   const kuruldu = Date.now(), t0 = performance.now();
-  const { klasorler, dosyalar, katmanlar } = await kitaplardanTara(getir, o.loc.bookFolderIds);
-  const harita = klasorHaritasi(klasorler, o.loc.bookFolderIds);
-  const a = agacCikar(harita, dosyalar, { bookFolderIds: o.loc.bookFolderIds, books: o.books, library: o.library });
+  const bookFolderIds = agacKitapKlasorleri(o.loc.bookFolderIds, o.books);
+  const { klasorler, dosyalar, katmanlar } = await kitaplardanTara(getir, bookFolderIds);
+  const harita = klasorHaritasi(klasorler, bookFolderIds);
+  const a = agacCikar(harita, dosyalar, { bookFolderIds, books: o.books, library: o.library });
   const istek = katmanlar.reduce((t, k) => t + k.istek, 0);
   return { ...a, sure: { ms: performance.now() - t0, istek, klasor: harita.size, katmanlar }, kuruldu };
 }

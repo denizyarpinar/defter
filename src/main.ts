@@ -6,7 +6,8 @@ import { ornekAgac, type OrnekAgaci } from './arama/ornekAgac';
 import { AuthError, aktifKapsam, isSignedIn, kapsamDurumu, prepareAuth, rememberUser, rememberedUser, setSahip, signIn, signOut } from './drive/auth';
 import { darZorlaUrl, girisKapsami, includeGranted, sahipMi, sahipZorlaYok, tamErisimDugmesi } from './drive/kapsam';
 import { getUser, setAccountHint, setSessionExpiredHandler } from './drive/drive';
-import { LibraryNotFound, loadDriveLibrary, type DriveLocation } from './drive/driveLibrary';
+import { LibraryNotFound, loadDriveLibrary, sonKok, type DriveLocation } from './drive/driveLibrary';
+import type { KitapIslemi } from './drive/kitapOlustur';
 import { driveKurulumApi, kitaplikKur, KurulumIzinYok, webOrnekKaynak } from './drive/kurulum';
 import { bekleyenFotoDepo } from './defter/bekleyenFoto';
 import { acilisToastMetni } from './defter/fotoEklemeMetin';
@@ -27,6 +28,7 @@ import { initPanel } from './ui/panel';
 import { hideSaveState, initFullAccess, initKurulum, initLibError, initSaveState, ornekIstendi, setFullAccess, setKurulum, setLibError, setLibraryLoading, showSaveError, showSaved, showSaving } from './ui/driveStatus';
 import { etkinYazici, gecis, gorunum, ilkDurum, type KitaplikDurumu, type KitaplikOlayi } from './ui/kitaplikDurumu';
 import { kartSec, KurulumAkisi } from './ui/kurulumDurumu';
+import type { SihirbazKilidi } from './ui/kitapSihirbaziDurumu';
 import { closeReader, initReader, isReaderOpen, openReader, readerShell, refreshReader } from './ui/reader';
 import { initAramaPaneli, type AramaKaynagi } from './ui/aramaPaneli';
 import { hideLogin, initLogin, setLoginBusy, setRememberedName, showLogin } from './ui/login';
@@ -155,7 +157,8 @@ function updateChrome(): void {
   bosIpucu();
 }
 
-// ---- task 6.K4a: "Yeni kitap" wizard (writes nothing yet; only in a Drive library, never in the sample one) ----
+// ---- task 6.K4a: "Yeni kitap" wizard (only in a Drive library, never in the sample one) ----
+// Task 6.K4b: "Oluştur" writes the book (kitapOlustur.ts) — only with ?kurulum=1 in the app's own root (defterKok).
 
 function yeniKitapAcik(): boolean {
   return durum.tur === 'drive' && !!data;
@@ -165,8 +168,55 @@ function yeniKitapAc(): void {
   const d = data;
   if (!yeniKitapAcik() || !d) return;
   import('./ui/kitapSihirbazi')
-    .then(m => m.kitapSihirbaziAc({ raflar: d.library.raflar.map(s => ({ id: s.id, ad: s.ad })), mevcutIdler: [...d.books.keys()], olcum: new URLSearchParams(location.search).get('olcum') === '1' }))
+    .then(m => m.kitapSihirbaziAc({
+      raflar: d.library.raflar.map(s => ({ id: s.id, ad: s.ad })), mevcutIdler: [...d.books.keys()], olcum: OLCUM,
+      kilit: sihirbazKilidi(), olustur: kitapOlusturDugmesi, girisYap: () => googleSignIn()
+    }))
     .catch(e => toast(`Kitap sihirbazı açılamadı: ${e}`));
+}
+
+const OLCUM = new URLSearchParams(location.search).get('olcum') === '1';
+
+// The loaded root: the owner's "Kitaplık" (by name) is never written to; our own root only with ?kurulum=1
+function kokKaynagi(): 'defterKok' | 'ad' | null {
+  const k = sonKok();
+  return !k || k.tur === 'yok' ? null : k.tur === 'cokKok' ? 'defterKok' : k.kaynak;
+}
+
+function sihirbazKilidi(): SihirbazKilidi {
+  const kaynak = kokKaynagi();
+  if (kaynak === 'ad') return 'sahipKitapligi';
+  return KURULUM_KILIT_ACIK && kaynak === 'defterKok' ? 'acik' : 'kilitli';
+}
+
+// dev (DEV or ?olcum=1): window.defterSihirbazHata = n → a made-up network error at item n (once); -n: after writing it
+function yapayHata(): number | undefined {
+  if (!import.meta.env.DEV && !OLCUM) return undefined;
+  const w = window as { defterSihirbazHata?: unknown };
+  const n = w.defterSihirbazHata;
+  delete w.defterSihirbazHata;
+  return typeof n === 'number' && n !== 0 ? n : undefined;
+}
+
+// Errors go back to the wizard (it stays open); success: the library again, then the toast
+async function kitapOlusturDugmesi(islem: KitapIslemi, ilerleme: (i: number, n: number) => void): Promise<void> {
+  // a shelf change not written yet would write the old shelves over the new entry
+  if (saver?.hasUnsaved) throw new Error('Raf değişiklikleri kaydediliyor; birkaç saniye sonra tekrar dene.');
+  const loc = driveLoc;
+  const { driveKitapOlusturApi, kitapOlustur, KitapOlusturYazmaYok } = await import('./drive/kitapOlustur');
+  if (!loc || durum.tur !== 'drive') throw new KitapOlusturYazmaYok();
+  await kitapOlustur(driveKitapOlusturApi, islem, {
+    kilitAcik: KURULUM_KILIT_ACIK, kokKaynagi: kokKaynagi(), kokId: loc.rootId,
+    yazabilir: () => isSignedIn() && durum.tur === 'drive', ilerleme, yapayHata
+  });
+  const baslik = String(islem.plan.kitapJson.baslik);
+  try {
+    await kitaplikYenile();
+    toast(`Kitap oluşturuldu: ${baslik}`);
+  } catch (e) {
+    console.warn('Kitaplık yenilenemedi.', e);
+    toast(`Kitap oluşturuldu: ${baslik}. Kitaplık yenilenemedi; sayfayı yenile.`);
+  }
 }
 
 // The room's hint; an empty Drive library shows "Kitaplığın boş · ＋ Yeni kitap" in its place
@@ -238,7 +288,7 @@ async function loadFromDrive(): Promise<void> {
     const r = await loadDriveLibrary(aktifKapsam() === 'tam' ? 'tam' : 'dar');
     if (!current()) return;
     // the saver reads from the shared holder, whose contents useData replaces
-    if (!await useData(r, new DriveSaver(r.loc, data!, { saving: showSaving, saved: showSaved, failed: showSaveError, warn: toast }), r.loc)) return;
+    if (!await useData(r, driveSaver(r.loc), r.loc)) return;
     olay({ tur: 'driveGeldi' });
     if (r.warnings.length) uyar(r.warnings[0]);
     remindPendingPhotos();
@@ -252,6 +302,16 @@ async function loadFromDrive(): Promise<void> {
     kurulum.yeniKart();
     olay({ tur: 'kurulumGerekli', dugme: k.kart === 'kurulum' ? k.dugme : e.dugme, kilitli: !KURULUM_KILIT_ACIK });
   }
+}
+
+const driveSaver = (loc: DriveLocation) => new DriveSaver(loc, data!, { saving: showSaving, saved: showSaved, failed: showSaveError, warn: toast });
+
+// Task 6.K4b: the Drive library read again (a new book), the state stays 'drive'
+async function kitaplikYenile(): Promise<void> {
+  const r = await loadDriveLibrary(aktifKapsam() === 'tam' ? 'tam' : 'dar');
+  if (durum.tur !== 'drive') return;
+  await useData(r, driveSaver(r.loc), r.loc);
+  if (r.warnings.length) uyar(r.warnings[0]);
 }
 
 // The same warning (e.g. two "Defter Library" roots) only once per page load

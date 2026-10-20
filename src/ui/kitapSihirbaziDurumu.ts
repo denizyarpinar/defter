@@ -3,14 +3,21 @@ import {
   type AgacKonumu, type ListeSonucu, type ListeUnite, type ListeUyari, type UyariTuru
 } from '../kitap/kitapListesi';
 import { kitapPlani, type KitapPlani } from '../kitap/kitapPlani';
+import {
+  AyniKitapVar, hicYazilmadi, KitapOlusturIzinYok, KitapOlusturKilitli, KitapOlusturYazmaYok, YarimKitapVar, yeniKitapIslemi,
+  type KitapIslemi
+} from '../drive/kitapOlustur';
 
 // Task 6.K4a: the book wizard's state, without the DOM. Pure, tested.
 // What is typed (name, shelf, colour, list) → the tree for the preview (warnings at their rows), the warnings
-// under the text box, the plan, and whether "Oluştur" can be tapped (never in K4a: it comes in K4b).
+// under the text box, the plan, and whether "Oluştur" can be tapped.
 // The tree's + / ↑ / ↓ change the tree and write the list again (listeYaz).
+// Task 6.K4b: "Oluştur" opens only with ?kurulum=1 in the app's own root (defterKok); in the owner's "Kitaplık"
+// it stays grey with its own note. OlusturAkisi keeps one operation (islemId + ids) for "Tekrar dene".
 
-export const OLUSTUR_KILITLI = true;   // K4b opens it
-export const KILIT_METNI = 'Oluşturma bir sonraki adımda (K4b) gelecek.';
+export type SihirbazKilidi = 'acik' | 'kilitli' | 'sahipKitapligi';
+export const KILIT_METNI = 'Oluşturma şimdilik kilitli (deneme). Adrese ?kurulum=1 eklenmeli.';
+export const SAHIP_METNI = 'Sahip kitaplığına ekleme sonraki adımda.';
 
 export interface SihirbazGirdisi { ad: string; rafId: string; renk: string; metin: string }
 
@@ -35,6 +42,7 @@ export interface SihirbazDurumu {
   uyarilar: SihirbazUyarisi[];   // the list's, by line
   olusturAcik: boolean;
   neden: string;                 // why "Oluştur" is closed
+  adHatali: boolean;             // the name itself is the problem (too long, a book already there): red frame (6.K4b-3)
 }
 
 const METIN: Record<UyariTuru, string> = {
@@ -51,7 +59,7 @@ export const uyariMetni = (u: ListeUyari): SihirbazUyarisi => ({ satir: u.satir,
 
 const sonParca = (yol: string) => yol.slice(yol.lastIndexOf('/') + 1);
 
-export function sihirbazDurumu(g: SihirbazGirdisi, mevcutIdler: readonly string[], kilitli = OLUSTUR_KILITLI): SihirbazDurumu {
+export function sihirbazDurumu(g: SihirbazGirdisi, mevcutIdler: readonly string[], kilit: SihirbazKilidi = 'kilitli'): SihirbazDurumu {
   const liste = listeAyristir(g.metin);
   const plan = kitapPlani({ kitapAdi: g.ad, rafId: g.rafId, renk: g.renk, uniteler: liste.uniteler, mevcutIdler });
   const uyarilar = liste.uyarilar.map(uyariMetni);
@@ -83,7 +91,58 @@ export function sihirbazDurumu(g: SihirbazGirdisi, mevcutIdler: readonly string[
   });
 
   const engel = plan.engel ?? uyarilar.find(x => x.engel)?.metin ?? null;
-  return { liste, plan, agac, uyarilar, olusturAcik: !kilitli && !engel, neden: engel ?? (kilitli ? KILIT_METNI : '') };
+  const kilitNedeni = kilit === 'kilitli' ? KILIT_METNI : kilit === 'sahipKitapligi' ? SAHIP_METNI : '';
+  const adHatali = !!g.ad.trim() && plan.engel !== null;
+  return { liste, plan, agac, uyarilar, olusturAcik: !kilitNedeni && !engel, neden: engel ?? kilitNedeni, adHatali };
+}
+
+// ---- "Oluştur" (6.K4b) ----
+
+// One operation per wizard: started once, "Tekrar dene" uses it again (the same islemId, the same ids);
+// closing the wizard drops it. sifirla: nothing was written and a new name may be chosen.
+export class OlusturAkisi {
+  private islem_: KitapIslemi | null = null;
+  private mesgul_ = false;
+
+  constructor(private readonly yeniId: () => string) {}
+
+  get islem(): KitapIslemi | null { return this.islem_; }
+  get mesgul(): boolean { return this.mesgul_; }
+  // the fields stay as they were once an operation is there (its plan must not change)
+  get alanlarKilitli(): boolean { return this.mesgul_ || this.islem_ !== null; }
+
+  // null: already running
+  basla(plan: KitapPlani): KitapIslemi | null {
+    if (this.mesgul_) return null;
+    this.islem_ ??= yeniKitapIslemi(this.yeniId(), plan);
+    this.mesgul_ = true;
+    return this.islem_;
+  }
+
+  bitti(): void { this.mesgul_ = false; }
+
+  sifirla(): void { if (!this.mesgul_) this.islem_ = null; }
+}
+
+export interface OlusturHatasi {
+  mesaj: string;
+  tekrarDene: boolean;     // "Tekrar dene" (the same operation)
+  girisYap: boolean;       // "Tekrar giriş yap" in its place
+  duzenlenebilir: boolean; // nothing written: the fields open again, a new operation next time
+  adHatasi: boolean;       // a folder with this name is already in Drive: the name box gets a red frame (6.K4b-3)
+}
+
+const AG_METNI = "Drive'a bağlanılamadı. İnternet bağlantını kontrol et ve tekrar dene.";
+
+export function olusturHatasi(e: unknown, islem: KitapIslemi | null): OlusturHatasi {
+  const mesaj = e instanceof TypeError || !(e instanceof Error) ? AG_METNI : e.message;
+  if (e instanceof KitapOlusturIzinYok) return { mesaj, tekrarDene: false, girisYap: true, duzenlenebilir: false, adHatasi: false };
+  const bos = !islem || hicYazilmadi(islem);
+  if (e instanceof AyniKitapVar || e instanceof YarimKitapVar || e instanceof KitapOlusturKilitli || e instanceof KitapOlusturYazmaYok) {
+    const adHatasi = e instanceof AyniKitapVar || e instanceof YarimKitapVar;
+    return { mesaj, tekrarDene: false, girisYap: false, duzenlenebilir: bos, adHatasi };
+  }
+  return { mesaj, tekrarDene: true, girisYap: false, duzenlenebilir: false, adHatasi: false };
 }
 
 export type AgacIslemi =

@@ -4,7 +4,7 @@ import type { DriveLocation } from '../drive/driveLibrary';
 import type { Getirici } from '../drive/saltOkunur';
 import { parseBook, parseLibrary } from '../model/parse';
 import type { Book } from '../model/types';
-import { agacAl, agacBellekte, agacCikar, agacGecersiz, agacKur, klasorHaritasi, kitapSirasi, type HamDosya, type HamKlasor } from './kitaplikAgaci';
+import { agacAl, agacBellekte, agacCikar, agacKitapKlasorleri, agacGecersiz, agacKur, klasorHaritasi, kitapSirasi, type HamDosya, type HamKlasor } from './kitaplikAgaci';
 
 // A small Drive: Kitaplık/kitaplar/<books>/... (+ a folder outside Kitaplık)
 let n = 0;
@@ -143,6 +143,17 @@ describe('agacKur', () => {
     expect(a.sure.klasor).toBe(10);   // 3 books + 2 + 2 + 3
     const ozet = (l: typeof a.dosyalar) => l.map(f => `${f.id}:${f.materyal}:${f.konu?.baslik}`).sort();
     expect(ozet(a.dosyalar)).toEqual(ozet(cikar().dosyalar));
+  });
+
+  // 6.K4b-2: a book folder that is not in the library (a half made book) is not scanned
+  it('only the library\'s book folders', async () => {
+    const yarimli = new Map([...bookFolderIds, ['deneme-6', 'yarim-klasor']]);
+    expect([...agacKitapKlasorleri(yarimli, books).keys()]).toEqual(['mathe-1', 'prog', 'json-yok']);
+    const d = sahteDrive();
+    const a = await agacKur({ loc: { ...loc, bookFolderIds: yarimli }, books, library }, d.getir);
+    expect(d.sorgular.some(q => q.includes('yarim-klasor'))).toBe(false);
+    expect(a.kitaplar.map(k => k.id)).not.toContain('deneme-6');
+    expect(a.sure.klasor).toBe(10);
   });
 });
 
