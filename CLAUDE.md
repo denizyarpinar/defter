@@ -128,7 +128,7 @@ Kitaplık/
 
 ### Yazılan alanlar (Faz 3)
 - kitaplik.json: raflar ve oda (Faz 1'deki gibi).
-- kitap.json: kapak, sonAcilis, kurdele, uniteler[].konular[].durum ve .kurdeleler (surum 1: kurdele ({ bolum, sayfa }), bolumler[].durum). Başka alana dokunma; bilinmeyen alanları koru. Yazmadan önce dosyanın son halini oku, sadece bu alanları güncelle.
+- kitap.json: kapak, sonAcilis, kurdele, uniteler[].konular[].durum ve .kurdeleler (surum 1: kurdele ({ bolum, sayfa }), bolumler[].durum). 6.K5a: ayrıca uniteler[].baslik/.klasor, konuların başlığı ve sırası, yeni ünite/konu (bkz. İçindekiler düzenleme). Başka alana dokunma; bilinmeyen alanları koru. Yazmadan önce dosyanın son halini oku, sadece bu alanları güncelle.
 
 ### Okuma durumu ve kurdele (Görev 3.5)
 - Durum değerleri: `okunmadi` (Okunmadı), `okunuyor` (Okunuyor), `okundu` (Okundu), `calisildi` (Çalışıldı), `tekrar` (Tekrar). Duruma dokununca bu sırayla döner.
@@ -151,7 +151,8 @@ Kitaplık/
 - Kalem ve çizimler: Faz 4 kurallarına bak (aşağıda).
 
 ### Veri modeli (kitap.json surum 2)
-- `kitap.json`: `{ surum: 2, baslik, sirt, kod, ders, kapak, sonAcilis, kurdele, uniteler: [ { baslik, konular: [ { baslik, klasor, durum, kurdeleler? } ] } ] }`.
+- `kitap.json`: `{ surum: 2, baslik, sirt, kod, ders, kapak, sonAcilis, kurdele, uniteler: [ { baslik, klasor?, konular: [ { baslik, klasor, durum, kurdeleler? } ] } ] }`.
+- `uniteler[].klasor` (6.K5a, isteğe bağlı): ünitenin klasörü (ör. `Unite-03-Graphen`). Sihirbaz ve içindekiler düzenleme yazar; yoksa konuların yolundan çıkarılır.
 - `klasor` kitabın klasörüne göre yoldur (ör. `Unite-01-Logik/Konu-01-Aussagenlogik`). Dosyalar kitap.json'da tek tek yazılmaz; konu klasörüne bakılarak bulunur.
 - Konu klasörü (dosya adları büyük/küçük harf duyarsız, ASCII):
   - Orijinal: `orijinal.pdf`
@@ -382,6 +383,18 @@ Kitaplık/
 - Sahip kitaplığı (6.K4c): `?kurulum=1` ile adla bulunan "Kitaplık"a da yazılır, sadece kökün `kitaplar/` klasörü altına. `kitaplar/` ve `kitaplik.json` kökün çocukları arasında adla bulunur (sahibinkiler işaretsiz). `kitaplar/` yoksa hiçbir şey yazılmaz (`KitaplikYapisiBeklenmedik`, klasör oluşturulmaz). Sahipte `kitaplik.json` yoksa oluşturulmaz: raf adımı atlanır, kitap "Yeni gelenler"de (toast + olcum `raf: yok`); kendi kökümüzde bu yine hata. Her oluşturmadan önce ebeveyn = kökün `kitaplar/`'ı ya da bu işlemin klasörü (`ebeveynGecerliMi`). İşaretsiz aynı adlı klasör = `AyniKitapVar`; yarım kitap kuralı ve hasUnsaved koruması aynen. kitaplik.json'da olup klasörü olmayan (çöpteki) kitap id'si sessizce atlanır, dosyadan silinmez (K5).
 - Kod: `src/drive/kitapOlustur.ts` (testli), `OlusturAkisi`/`olusturHatasi` (`kitapSihirbaziDurumu.ts`, testli). Dev (DEV ya da `?olcum=1`): `window.defterSihirbazHata = n` → n'inci öğede yazmadan önce yapay ağ hatası (−n: yazdıktan sonra, cevap kayıp), bir kez; `?olcum=1` kutusunda işlem özeti (islemId, n/N, vardı).
 
+### İçindekiler düzenleme (6.K5a)
+- Okuyucudaki İçindekiler panelinde "Düzenle" (sadece Drive kitaplığı, sadece surum 2 + kitap.json; surum 1 / kitap.json yok → gri + not; örnek kitaplıkta düğme yok). Yazma `?kurulum=1` ile (dar ve sahip modu aynı); kilit yoksa düğmeler gri + not, istek gitmez.
+- İşlemler: + Ünite, + Konu (ünite altında), ad değiştir (✎ / çift dokunuş; kural `adTemizle`, `kitapListesi.ts`), ↑↓ (konu kendi ünitesinde, üniteler). Taşıma, silme, çöpe atma yok (K5b).
+- Ad ve sıra SADECE kitap.json'da; Drive klasör adı ve yeri değişmez. Bellek hemen değişir (iyimser); ↑↓ 800 ms içinde tek yazma. Ekleme iyimser değil: klasör + kitap.json yazılınca görünür, o sırada "Ekleniyor…".
+- Yeni ünite/konu = yeni klasör (kitapOlustur desenleri: generateIds, `defter=1` + `defterIslem`, islemId ile "var mı", 409 = var, Tekrar dene kaldığı yerden). Ünite → kitap klasörüne, konu → o kitabın ünite klasörüne; kitap klasörü kökün `kitaplar/`'ında olmalı (`ebeveynGecerliMi`, `ebeveyn.ts`).
+- Numara: kitap.json'daki ve Drive'daki (yarım dahil) klasörlerin en büyüğü + 1; Konu-NN kitap boyunca; aynı ad → sonraki numara (`klasorNumarasi.ts`). Uebungen/Oedevler açılmaz.
+- Klasörü bilinmeyen eski boş ünite: kitap klasöründe, `defter=1`, başka ünitenin kullanmadığı, adı tam `klasorAdi('unite', sıra, başlık)` olan TEK klasör kullanılır ve kitap.json'a `klasor` olarak yazılır; yoksa "+ Konu" gri + not (`uniteKlasoruBul`).
+- kitap.json: önce okuma kaydı ve kapak kaydı bekleyenleri yazılır (`reading.flush`, `DriveSaver.bekleyenleriYaz`) → modifiedTime → son hal → değişiklik (`icindekilerUygula`; bilinmeyen alanlar, kurdeleler, kapak, durum korunur) → modifiedTime; değiştiyse bir kez baştan, sonra `IcindekilerCakisma`. Klasör önce, kitap.json en son. Ünite/konu anahtarla eşleşir (konu: `topicKey` = klasor; ünite: klasor ya da başlık).
+- Hata: panelin üstünde durum satırı (Kaydediliyor…/Kaydedildi/hata + Tekrar dene / izinde Tekrar giriş yap / Vazgeç); kuyruk sırayla, hatada bekler. Başarıda arama ağacı geçersiz, masadaki sayfa yeniden çizilir.
+- 6.K5a-2: Tekrar dene ilk denemeyle aynı yoldan geçer (`src/ui/icindekilerBaglami.ts`, testli): bellek → arama ağacı + masadaki sayfa → panel. Okuyucu kuyruğu her zaman dinler (düzenleme modu kapalıyken de). Yenileme hatası yazılmış işi "hata" yapmaz. Vazgeç (ad/sıra) → kitap.json son hali (`kitabiEsitle`: sadece ad ve sıra; bekleyen değişiklikler üstüne), okunamazsa işlem öncesi (`geri`). `?olcum=1` → `içindekiler:` satırı (son olaylar).
+- Kod: `src/kitap/icindekiler.ts`, `klasorNumarasi.ts`, `src/drive/icindekilerYaz.ts` (kuyruk dahil), `src/ui/icindekilerBaglami.ts`, `src/ui/icindekilerDurumu.ts` (testli), `src/ui/icindekilerDuzenle.ts`. Ekran görüntüleri: `node scripts/icindekiler-kontrol.mjs` (Drive yok).
+
 ## Sonra bakılabilir
 - Oda zaman aşımı: şu an glb yüklemesine toplam 15 sn veriliyor; yavaş bağlantıda (masaüstü lightmap'leri ~3.3 MB) eski odaya düşüyor. Öneri: "15 sn hiç ilerleme yok" kuralı + yükleme göstergesi. Faz 2 kural metni değişeceği için Deniz'in onayı gerekir.
 - Masaüstü lightmap PNG'lerinin küçültülmesi (boyut/sıkıştırma).
@@ -398,4 +411,6 @@ Kitaplık/
 - Her fotoğraf eklemede ve kalem kaydında ozet.pdf'in tamamı yeniden yükleniyor (22 MB'ta ~26 sn). Mimari çözüm adayı: defter fotoğraflarını ayrı/küçük PDF'lere eklemek (Faz 5 kararını değiştirir, Deniz onayı gerekir).
 - Fotoğraf küçültme (1600 px / JPEG 0.80) ile bugünkü (2000 px / 0.85) karşılaştırması yapılmadı.
 - Sayfa yenilenince yarım kalan yükleme kaldığı yerden devam etmiyor (baştan yükleniyor).
+- Masadaki açık kitabın İçindekiler sayfası uzun listede taşıyor (kesiliyor, kaydırma yok; 6.K5a'dan önce de böyleydi).
+- Okuyucudaki × (kapat) düğmeleri 36 px (iPad için 40–44 px önerilir).
 - 'Kurulumu tamamla'da `kitaplik.json` zaten varsa (sadece `kitaplar/` eksikse) örnek kitap rafa değil "Yeni gelenler"e düşüyor (kitaplik.json güncellenmez).

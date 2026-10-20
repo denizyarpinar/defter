@@ -12,6 +12,8 @@ import { driveKurulumApi, kitaplikKur, KurulumIzinYok, webOrnekKaynak } from './
 import { bekleyenFotoDepo } from './defter/bekleyenFoto';
 import { acilisToastMetni } from './defter/fotoEklemeMetin';
 import { ReadingSaver, driveReadingApi } from './drive/okumaKaydi';
+import { driveIcindekilerApi, uniteKlasorDurumu, type IcindekilerKuyrugu } from './drive/icindekilerYaz';
+import { icindekilerBaglamiKur } from './ui/icindekilerBaglami';
 import { DriveSaver } from './drive/save';
 import { daysSinceOpened, shelfOf } from './model/library';
 import { loadLocalLibrary, type LoadedLibrary } from './model/localSource';
@@ -20,7 +22,7 @@ import type { Book, ModeKey } from './model/types';
 import { usesUnits } from './model/units';
 import { markOpened, setReadingSink } from './okuma/okumaDurumu';
 import { sampleBookFolder, sampleFolders } from './okuma/ornekKaynak';
-import { closeOkuyucu, forgetBook, fotoYuklemeSuruyor, initOkuyucu, isOkuyucuOpen, okuyucuAra, openOkuyucu, sayfaEklemeOrtami } from './okuma/Okuyucu';
+import { closeOkuyucu, forgetBook, fotoYuklemeSuruyor, initOkuyucu, isOkuyucuOpen, okuyucuAra, openOkuyucu, sayfaEklemeOrtami, setIcindekilerBaglami } from './okuma/Okuyucu';
 import { createRoomScene, type LibraryData, type RoomScene, type View } from './scene';
 import { canvas, drawWood, noise } from './scene/textures';
 import { updateHint } from './ui/hint';
@@ -269,6 +271,7 @@ async function useData(next: LoadedLibrary, newSaver: DriveSaver | null, loc: Dr
   reading = loc ? new ReadingSaver(id => loc.bookFileIds.get(id), driveReadingApi, { saving: () => {}, saved: showSaved, failed: showSaveError }) : null;
   const r = reading;
   setReadingSink(r ? (id, patch) => r.change(id, patch) : null);
+  icindekilerKur(loc);
   hideSaveState();
   scene.reload();
   bosIpucu();
@@ -311,6 +314,43 @@ async function kitaplikYenile(): Promise<void> {
   if (durum.tur !== 'drive') return;
   await useData(r, driveSaver(r.loc), r.loc);
   if (r.warnings.length) uyar(r.warnings[0]);
+}
+
+// ---- task 6.K5a: the contents' edit mode (the reader's panel; drive/icindekilerYaz.ts) ----
+// Only a Drive library; writing only with ?kurulum=1. Before every write the book's other kitap.json writers
+// (ribbon / status, cover) finish what is waiting, so they don't write over each other.
+
+let icKuyruk: IcindekilerKuyrugu | null = null;
+
+// task 6.K5a-2: the queue and the panel's context in ui/icindekilerBaglami.ts (one refresh way for every write)
+function icindekilerKur(loc: DriveLocation | null): void {
+  if (!loc) { icKuyruk = null; setIcindekilerBaglami(null); return; }
+  const { baglam, kuyruk } = icindekilerBaglamiKur({
+    drive: driveIcindekilerApi,
+    secenek: kitapId => ({
+      kilitAcik: KURULUM_KILIT_ACIK, kokKaynagi: kokKaynagi(), kokId: loc.rootId,
+      yazabilir: () => isSignedIn() && durum.tur === 'drive' && driveLoc === loc,
+      surum: data?.books.get(kitapId)?.surum ?? 0,
+      kitapKlasorId: loc.bookFolderIds.get(kitapId), kitapJsonId: loc.bookFileIds.get(kitapId),
+      oncesi: async () => { await reading?.flush(); await saver?.bekleyenleriYaz(); }
+    }),
+    kilitAcik: KURULUM_KILIT_ACIK && kokKaynagi() !== null,
+    hasJson: b => b.hasJson && loc.bookFileIds.has(b.id),
+    uniteKlasorleri: async b => {
+      const id = loc.bookFolderIds.get(b.id);
+      return id ? uniteKlasorDurumu(driveIcindekilerApi, id, b.uniteler) : b.uniteler.map(() => null);
+    },
+    kitap: id => data?.books.get(id),
+    yenile: () => { agacGecersiz(); refreshReader(); },   // the search tree knows the new topic / name
+    jsonOku: async id => {
+      const fileId = loc.bookFileIds.get(id);
+      if (!fileId) throw new Error('kitap.json yok');
+      return driveIcindekilerApi.jsonOku(fileId);
+    },
+    girisYap: () => { void googleSignIn(); }
+  });
+  icKuyruk = kuyruk;
+  setIcindekilerBaglami(baglam);
 }
 
 // The same warning (e.g. two "Defter Library" roots) only once per page load
@@ -375,7 +415,7 @@ initKurulum({ onSetup: kitaplikKurDugmesi, onSignIn: () => void googleSignIn(), 
 initLibError({ onRetry: retryDrive, onSample: () => void useSample() });
 initSaveState();
 // task 6.2e-2: photos still uploading too (they stay on the device either way)
-addEventListener('beforeunload', e => { if (saver?.hasUnsaved || fotoYuklemeSuruyor()) e.preventDefault(); });
+addEventListener('beforeunload', e => { if (saver?.hasUnsaved || icKuyruk?.hasUnsaved || fotoYuklemeSuruyor()) e.preventDefault(); });
 // tab hidden / page closed: write the reading state now (keepalive: may finish after the page is gone)
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') void reading?.flush(true); });
 addEventListener('pagehide', () => { void reading?.flush(true); });

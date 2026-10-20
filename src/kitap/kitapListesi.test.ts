@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GENEL, konuEkle, konuTasi, listeAyristir, listeYaz, SINIR, uniteEkle, uniteTasi, yazilmisSatir, type ListeUnite } from './kitapListesi';
+import { adTemizle, GENEL, konuEkle, konuTasi, listeAyristir, listeYaz, SINIR, uniteEkle, uniteTasi, yazilmisSatir, type ListeUnite } from './kitapListesi';
 
 const turler = (metin: string) => listeAyristir(metin).uyarilar.map(u => `${u.satir}:${u.tur}${u.engel ? '!' : ''}`);
 
@@ -105,5 +105,19 @@ describe('tree changes', () => {
   it('a unit moves with its topics', () => {
     expect(uniteTasi(a, 1, -1)).toEqual({ agac: [a[1], a[0]], konum: { u: 0, k: null } });
     expect(uniteTasi(a, 0, -1).agac).toEqual(a);
+  });
+});
+
+describe('adTemizle (task 6.K5a: a name in the edit mode)', () => {
+  it('the same rules as the list: a topic loses its prefix, a unit its "#"; trimmed', () => {
+    expect(adTemizle('  - Aussagenlogik ', 'konu')).toEqual({ ad: 'Aussagenlogik', hata: null });
+    expect(adTemizle('1) Beweisen', 'konu').ad).toBe('Beweisen');
+    expect(adTemizle('# 1. Woche', 'unite').ad).toBe('1. Woche');
+  });
+  it('empty or too long → an error', () => {
+    expect(adTemizle('  - ', 'konu').hata).toMatch(/boş/);
+    expect(adTemizle('#', 'unite').hata).toMatch(/boş/);
+    expect(adTemizle('x'.repeat(SINIR.ad + 1), 'konu').hata).toMatch(/80/);
+    expect(adTemizle('x'.repeat(SINIR.ad), 'konu').hata).toBeNull();
   });
 });

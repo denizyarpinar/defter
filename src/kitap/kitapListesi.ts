@@ -51,7 +51,7 @@ export function listeAyristir(metin: string): ListeSonucu {
       uzunMu(ad, satir);
       return;
     }
-    const ad = s.replace(ONEK, '').trim();
+    const ad = onekSil(s);
     if (!ad) return;
     if (!uniteler.length) {
       yeniUnite(GENEL, satir);
@@ -69,6 +69,18 @@ export function listeAyristir(metin: string): ListeSonucu {
   if (!uniteler.length) uyar(0, 'bosListe', true);
   uyarilar.sort((a, b) => a.satir - b.satir);
   return { uniteler, uyarilar, satirlar };
+}
+
+// A topic line without its leading "- ", "* ", "• ", "1." or "1)"
+const onekSil = (s: string) => s.trim().replace(ONEK, '').trim();
+
+// Task 6.K5a: a name typed in the contents' edit mode, by the same rules as the list: a topic loses its prefix,
+// a unit its "#"; empty or longer than SINIR.ad → an error (Turkish, says what to do).
+export function adTemizle(ham: string, tur: 'unite' | 'konu'): { ad: string; hata: string | null } {
+  const ad = tur === 'unite' ? ham.trim().replace(/^#+\s*/, '').trim() : onekSil(ham);
+  if (!ad) return { ad, hata: 'Ad boş olamaz.' };
+  if ([...ad].length > SINIR.ad) return { ad, hata: `Ad en fazla ${SINIR.ad} karakter olabilir.` };
+  return { ad, hata: null };
 }
 
 export function listeYaz(uniteler: readonly ListeUnite[]): string {

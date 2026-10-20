@@ -34,6 +34,7 @@ export function bookToJson(b: Book): Record<string, unknown> {
       uniteler: b.uniteler.map(u => ({
         ...u.extra,
         baslik: u.baslik,
+        ...(u.klasor ? { klasor: u.klasor } : {}),
         konular: u.konular.map(t => ({
           ...t.extra, baslik: t.baslik, klasor: t.klasor, durum: t.durum,
           ...(Object.keys(t.kurdeleler).length ? { kurdeleler: { ...t.kurdeleler } } : {})

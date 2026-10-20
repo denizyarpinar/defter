@@ -39,12 +39,12 @@ describe('kitapPlani', () => {
       surum: 2, baslik: 'Programmieren 1', sirt: 'Programmieren 1', kod: '', ders: '',
       kapak: { renk: '#24476b', stil: 'kumas' }, sonAcilis: null, kurdele: null,
       uniteler: [
-        { baslik: 'Grundlagen', konular: [
+        { baslik: 'Grundlagen', klasor: 'Unite-01-Grundlagen', konular: [
           { baslik: 'Werte, Typen, Ausdrücke', klasor: 'Unite-01-Grundlagen/Konu-01-Werte-Typen-Ausdruecke', durum: 'okunmadi' },
           { baslik: 'Kontrollstrukturen', klasor: 'Unite-01-Grundlagen/Konu-02-Kontrollstrukturen', durum: 'okunmadi' }
         ] },
-        { baslik: 'Objekte', konular: [{ baslik: 'Klassen', klasor: 'Unite-02-Objekte/Konu-03-Klassen', durum: 'okunmadi' }] },
-        { baslik: 'Leer', konular: [] }
+        { baslik: 'Objekte', klasor: 'Unite-02-Objekte', konular: [{ baslik: 'Klassen', klasor: 'Unite-02-Objekte/Konu-03-Klassen', durum: 'okunmadi' }] },
+        { baslik: 'Leer', klasor: 'Unite-03-Leer', konular: [] }
       ]
     });
   });

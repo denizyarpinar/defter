@@ -2,6 +2,7 @@ import type { KitapPlani, PlanOgesi } from '../kitap/kitapPlani';
 import { DriveError, driveFetch, FOLDER_MIME, getModifiedTime, ok, qv, readJsonStrict, updateJson } from './drive';
 import type { KokKaynagi } from './kok';
 import { driveKurulumApi, type KurulumDrive, type KurulumOgesi, type YeniOgeMeta } from './kurulum';
+import { ebeveynGecerliMi } from './ebeveyn';
 import { IdZatenVar, tekrarlanabilir } from './pdfOlustur';
 
 // Task 6.K4b: the book wizard's "Oluştur" — kitapPlani's items written to Drive, in order:
@@ -188,9 +189,8 @@ export interface KitapOlusturSonucu {
   kitaplikYok: boolean;   // no kitaplik.json (owner's root): no shelf entry, the book is in "Yeni gelenler"
 }
 
-// 6.K4c: a create goes only into the root's kitaplar/ or a folder this operation made (pure)
-export const ebeveynGecerliMi = (ebeveynId: string, kitaplarId: string, izinli: ReadonlySet<string>): boolean =>
-  ebeveynId === kitaplarId || izinli.has(ebeveynId);
+// 6.K4c: the parent rule (ebeveyn.ts; also used by the contents' edit mode, 6.K5a)
+export { ebeveynGecerliMi };
 
 const bekle = (ms: number) => new Promise(r => setTimeout(r, ms));
 const ebeveyn = (yol: string) => yol.includes('/') ? yol.slice(0, yol.lastIndexOf('/')) : '';

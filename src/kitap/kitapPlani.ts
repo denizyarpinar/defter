@@ -6,6 +6,7 @@ import { kitapKlasorAdi, klasorAdi } from './klasorAdi';
 //   whole once it is there) → the shelf entry (kitaplik.json: the id at the end of the chosen shelf).
 // - No Uebungen/ or Oedevler/ folders (they come with a topic's first file, K6).
 // - The cover colour is in kitap.json (kapak.renk), the shelf in kitaplik.json (raflar[].kitaplar).
+// - Task 6.K5a: every unit has its folder in kitap.json (uniteler[].klasor).
 // - kitap.json: surum 2, the same fields in the same order as the sample book; the names as typed, the folders ASCII.
 
 export interface KitapGirdisi {
@@ -38,6 +39,7 @@ export function kitapPlani(g: KitapGirdisi): KitapPlani {
   let konuNo = 0;   // the topics count on through the whole book (Unite-02 starts with Konu-03)
   const uniteler = g.uniteler.map((u, i) => ({
     baslik: u.ad,
+    klasor: uniteYollari[i],   // task 6.K5a: the unit's folder, so a topic can be added to it later
     konular: u.konular.map(k => {
       const klasor = `${uniteYollari[i]}/${klasorAdi('konu', ++konuNo, k)}`;
       ogeler.push({ tur: 'klasor', yol: `${kitapId}/${klasor}` });

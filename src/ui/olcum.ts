@@ -4,6 +4,7 @@ import { sonKok, sonYarimlar } from '../drive/driveLibrary';
 import { darZorlaUrl, kisaScope, sahipZorlaYok } from '../drive/kapsam';
 import { kalemOlcer, kalemOlcumJson, ozet, toplam } from '../kalem/kalemOlcum';
 import { alanDurumu } from './gorunurAlan';
+import { icindekilerIzi } from './icindekilerBaglami';
 
 // Task 5.10g-ek: ?olcum=1 — a small box in the corner with the numbers of the page's position
 // (iPad Safari: the screen stayed moved up after the keyboard / photo picker). Only for diagnosis.
@@ -14,6 +15,7 @@ import { alanDurumu } from './gorunurAlan';
 // Task 6.K2b: the library's root (name, source; several roots: how many and the id in use).
 // Task 6.H2: the last pen stroke in one line; a third box (bottom right) with the last stroke, the last 50
 // together, Kopyala (all 50 as JSON, raw events included) and Sıfırla.
+// Task 6.K5a-2: the contents' write queue: listeners, waiting changes, the last events.
 
 const n = (x: number | undefined | null) => x == null ? '–' : String(Math.round(x * 10) / 10);
 
@@ -48,6 +50,7 @@ export function installOlcum(): void {
       `scope: ${k.scopes.map(kisaScope).join(', ') || '–'}`,
       `kök: ${kokSatiri()}`,
       `yarım kitap: ${yarimSatiri()}`,
+      `içindekiler: ${icindekilerIzi()}`,
       vv ? `vv offsetTop ${n(vv.offsetTop)} · pageTop ${n(vv.pageTop)} · scrollY ${n(scrollY)}` : `vv yok · scrollY ${n(scrollY)}`,
       `olay: ${olay} (#${sayac})`,
       `html.scrollTop ${n(de.scrollTop)} · body.scrollTop ${n(document.body.scrollTop)}`,

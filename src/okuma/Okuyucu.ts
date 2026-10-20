@@ -33,6 +33,7 @@ import { FotoDurumKutusu } from '../ui/fotoDurum';
 import type { Book, ChapterStatus, PageMark } from '../model/types';
 import { bookUnits, usesUnits } from '../model/units';
 import { esc } from '../ui/dom';
+import { IcindekilerDuzenleyici, type IcindekilerBaglami } from '../ui/icindekilerDuzenle';
 import { fpsCounter } from '../ui/fps';
 import { setCanvasStats } from '../ui/tani';
 import { ST } from '../ui/reader';
@@ -138,6 +139,37 @@ const mounted = new Map<number, Mounted>();
 let onClosed: () => void = () => {};
 let sliding = false;
 let tocOpen = false;
+
+// Task 6.K5a: the contents' edit mode (a Drive library only: main.ts sets the context, null = the sample library)
+let icBaglam: IcindekilerBaglami | null = null;
+let icBirak: (() => void) | null = null;
+let duzenleyici: IcindekilerDuzenleyici;
+
+export function setIcindekilerBaglami(b: IcindekilerBaglami | null): void {
+  icBirak?.();
+  icBaglam = b;
+  // task 6.K5a-2: the reader listens all the time (also outside the edit mode): every change of the queue
+  // (a write done, "Tekrar dene", "Vazgeç") redraws the open panel the same way
+  icBirak = b?.dinle(icindekilerDegisti) ?? null;
+  duzenleyici?.kapat();
+  if (tocOpen) renderToc();
+}
+
+function icindekilerDegisti(): void {
+  konumuBul();
+  adlarDegisti();
+  if (tocOpen && book) renderToc(); else duzenleyici?.durumCiz();
+}
+
+// The open topic's place again (units / topics moved, e.g. back to Drive's order after "Vazgeç")
+function konumuBul(): void {
+  const k = topic?.klasor;
+  if (!book || !k || !usesUnits(book)) return;
+  for (const [ui, u] of book.uniteler.entries()) {
+    const ti = u.konular.findIndex(t => (t.klasor ?? '') === k);
+    if (ti >= 0) { current = { unit: ui, topic: ti }; return; }
+  }
+}
 
 // PDF pages are drawn one at a time (iPad memory), the one nearest the current page first.
 const queue = new Map<number, () => Promise<void>>();
@@ -408,7 +440,19 @@ export function initOkuyucu(yer: () => DriveLocation | null): void {
   $('#oTocBtn').addEventListener('click', () => { if (tocOpen) closeToc(); else openToc(); });
   $('#oTocClose').addEventListener('click', closeToc);
   $('#oScrim').addEventListener('click', closeToc);
+  duzenleyici = new IcindekilerDuzenleyici({
+    liste: $('#oTocList'), durum: $('#oTocDurum'), baglam: () => icBaglam, yerDegisti: konumuKoru, yeniden: adlarDegisti
+  });
+  $('#oTocEdit').addEventListener('click', () => {
+    if (!book) return;
+    if (duzenleyici.acik) { duzenleyici.kapat(); renderToc(); return; }
+    const k = duzenleyici.dugme(book, true);
+    if (!k.acik) { if (k.not) duzenleyici.not(k.not); return; }
+    duzenleyici.ac(book);
+    tocEditDugmesi();
+  });
   $('#oTocList').addEventListener('click', e => {
+    if (duzenleyici.acik) return;   // the edit mode has its own taps
     const b = (e.target as HTMLElement).closest<HTMLElement>('[data-u]');
     if (!b || !book) return;
     // the status icon: next status, the panel stays open
@@ -570,6 +614,7 @@ function openToc(): void {
 function closeToc(): void {
   if (!tocOpen) return;
   tocOpen = false;
+  if (duzenleyici.acik) { duzenleyici.kapat(); tocEditDugmesi(); }
   $('#okuyucu').classList.remove('toc-open');
   $('#oTocBtn').setAttribute('aria-expanded', 'false');
   setTimeout(() => { if (!tocOpen) $('#oToc').hidden = $('#oScrim').hidden = true; }, 260);
@@ -581,7 +626,43 @@ function currentTopic(): { unit: number; topic: number } {
   return { unit: 0, topic: pages[focusPage()].bolumIndex };
 }
 
+// Task 6.K5a: "Düzenle" / "Bitti" (grey with a note when the book can't be edited; hidden in the sample library)
+function tocEditDugmesi(): void {
+  const btn = $<HTMLButtonElement>('#oTocEdit');
+  const k = book ? duzenleyici.dugme(book, true) : null;
+  btn.hidden = !k?.goster;
+  btn.classList.toggle('gri', !!k && !k.acik);
+  btn.setAttribute('aria-disabled', String(!!k && !k.acik));
+  if (k?.not) btn.title = k.not; else btn.removeAttribute('title');
+  btn.textContent = duzenleyici.acik ? 'Bitti' : 'Düzenle';
+  btn.setAttribute('aria-pressed', String(duzenleyici.acik));
+}
+
+// Units / topics moved: the open topic keeps its place in the reader (its unit / topic index)
+function konumuKoru(fn: () => void): void {
+  const b = book;
+  const t = b?.uniteler[current.unit]?.konular[current.topic];
+  fn();
+  if (!b || !t) return;
+  for (const [ui, u] of b.uniteler.entries()) {
+    const ti = u.konular.indexOf(t);
+    if (ti >= 0) { current = { unit: ui, topic: ti }; return; }
+  }
+}
+
+// A name changed: the open topic's title in the top bar
+function adlarDegisti(): void {
+  const t = book?.uniteler[current.unit]?.konular[current.topic];
+  if (topic && t && topic.klasor === (t.klasor ?? '') && topic.title !== t.baslik) {
+    topic.title = t.baslik;
+    $('#oChap').textContent = t.baslik;
+  }
+}
+
 function renderToc(): void {
+  tocEditDugmesi();
+  if (duzenleyici.acik) { duzenleyici.ciz(); return; }
+  duzenleyici.durumCiz();
   const b = book!, cur = currentTopic(), v1 = !usesUnits(b);
   const html = bookUnits(b).map((u, ui) => `<section><h3>${esc(u.baslik)}</h3><ol>${u.konular.map((t, ti) => {
     const [cls, label] = ST[t.durum];

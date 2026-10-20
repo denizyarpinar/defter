@@ -520,6 +520,38 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 .o-toclist button:hover { background: rgba(0, 0, 0, .05) }
 .o-toclist button[aria-current="true"] { background: rgba(181, 82, 59, .14); font-weight: 600; box-shadow: inset 3px 0 0 var(--accent, #b5523b) }
 .o-toclist button.empty { opacity: .5 }
+/* task 6.K5a: the contents' edit mode. "Düzenle" in the head; the status line stays above the list (seen without scrolling) */
+.o-tochead b { flex: 1 }
+.o-tocedit { min-height: 40px; margin-right: 6px; padding: 0 14px; border-radius: 10px; border: 1px solid rgba(0, 0, 0, .18); background: none; color: inherit; font: 600 14px var(--ui) }
+.o-tocedit[aria-pressed="true"] { background: var(--accent, #b5523b); border-color: transparent; color: #fff }
+.o-tocedit.gri { opacity: .45 }
+.o-tocedit[hidden], .o-tocdurum[hidden] { display: none }
+.o-tocdurum { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 0 12px 8px; padding: 8px 12px; border-radius: 10px; background: rgba(0, 0, 0, .06); font: 500 13px/1.3 var(--ui) }
+.o-tocdurum .ie-metin { flex: 1 1 180px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden }
+.o-tocdurum.hata { background: rgba(181, 82, 59, .14); color: #7a2e1d }
+.o-tocdurum .ie-dugmeler { display: flex; gap: 6px }
+.o-tocdurum button { min-height: 40px; padding: 0 12px; border-radius: 8px; border: 1px solid rgba(0, 0, 0, .2); background: var(--paper, #f4ecdd); color: inherit; font: 600 13px var(--ui) }
+.o-toclist .ie-unite { margin-bottom: 10px }
+.o-toclist .ie-satir { display: flex; align-items: center; gap: 2px; min-height: 44px; padding: 0 2px 0 8px; border-radius: 10px }
+.o-toclist .ie-ubas { margin-top: 8px; font: 600 12px var(--ui); letter-spacing: .1em; text-transform: uppercase }
+.o-toclist .ie-ubas .ie-ad { opacity: .7 }
+.o-toclist .ie-ad { flex: 1; min-width: 0; overflow-wrap: anywhere; font: inherit; user-select: none; -webkit-user-select: none }
+.o-toclist li.ie-satir .ie-ad { font: 500 15px/1.25 var(--ui) }
+.o-toclist .ie-satir button.ie-ik { flex: none; width: 40px; min-height: 40px; padding: 0; justify-content: center; font: 600 16px var(--ui); color: inherit }
+.o-toclist .ie-ik svg { width: 16px; height: 16px }
+.o-toclist button.ie-ik:disabled, .o-toclist button.ie-ekle:disabled { opacity: .3 }
+.o-toclist button.ie-ekle { width: auto; min-height: 40px; margin: 2px 0 0 4px; padding: 0 12px; border: 1px dashed rgba(0, 0, 0, .25); font: 600 14px var(--ui); color: var(--accent, #b5523b) }
+.o-toclist button.ie-uekle { margin-top: 12px }
+.o-toclist .ie-not { margin: 4px 8px 0; font: 500 12px/1.3 var(--ui); opacity: .7 }
+.o-toclist .ie-bekliyor { opacity: .6 }
+.o-toclist .ie-ekleniyor { flex: none; padding: 0 8px; font: italic 500 13px var(--ui); text-transform: none; letter-spacing: 0 }
+.o-toclist .ie-girdi { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 0 }
+.o-toclist .ie-girdi input { flex: 1 1 140px; min-width: 0; min-height: 40px; box-sizing: border-box; padding: 0 10px; border-radius: 8px; border: 1px solid rgba(0, 0, 0, .3); background: #fff; color: #2a231d; font: 500 16px var(--ui); text-transform: none; letter-spacing: 0 }
+.o-toclist .ie-girdi button { width: auto; min-height: 40px; padding: 0 12px; border: 1px solid rgba(0, 0, 0, .2); font: 600 14px var(--ui); text-transform: none; letter-spacing: 0 }
+.o-toclist .ie-girdi button.ie-ok { background: var(--accent, #b5523b); border-color: transparent; color: #fff }
+.o-toclist .ie-hata { flex-basis: 100%; margin: 2px 8px 4px; font: 500 13px var(--ui); color: #9b2f1c; text-transform: none; letter-spacing: 0 }
+.o-toclist .ie-satir:has(.ie-hata) { flex-wrap: wrap }
+.o-toclist .ie-satir:has(.ie-hata) input { border-color: #b5523b; box-shadow: 0 0 0 1px #b5523b; outline-color: #b5523b }
 /* task 4.6: pen button, pen tool bar (prototype .r-tools; 44 px to tap on the iPad), pen mode */
 /* task 6.3c: search in the top bar. The button looks like "Fotoğraf ekle" (icon + label; up to 1024 px only the icon).
    Open: the title makes room for one row [box] 3/12 ‹ › ×; the button itself is hidden (× closes) */
