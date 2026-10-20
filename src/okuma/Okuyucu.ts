@@ -33,6 +33,7 @@ import { FotoDurumKutusu } from '../ui/fotoDurum';
 import type { Book, ChapterStatus, PageMark } from '../model/types';
 import { bookUnits, usesUnits } from '../model/units';
 import { esc } from '../ui/dom';
+import { bosDurumMetni } from '../ui/icindekilerDurumu';
 import { IcindekilerDuzenleyici, type IcindekilerBaglami } from '../ui/icindekilerDuzenle';
 import { fpsCounter } from '../ui/fps';
 import { setCanvasStats } from '../ui/tani';
@@ -144,6 +145,9 @@ let tocOpen = false;
 let icBaglam: IcindekilerBaglami | null = null;
 let icBirak: (() => void) | null = null;
 let duzenleyici: IcindekilerDuzenleyici;
+// Task 6.K5b-3: opened from the desk's "İçindekileri düzenle" with no topic open (also a book without topics):
+// a text in the page area, the contents panel in edit mode; pen, search and Kitap/PDF hidden. A topic opens → off.
+let konusuz = false;
 
 export function setIcindekilerBaglami(b: IcindekilerBaglami | null): void {
   icBirak?.();
@@ -156,7 +160,9 @@ export function setIcindekilerBaglami(b: IcindekilerBaglami | null): void {
 }
 
 function icindekilerDegisti(): void {
+  if (konusuz && book) setMessage(bosDurumMetni(book, !!icBaglam?.hasJson(book)));   // the first topic added: the text changes
   konumuBul();
+  if (konuGittiyse()) return;
   adlarDegisti();
   if (tocOpen && book) renderToc(); else duzenleyici?.durumCiz();
 }
@@ -169,6 +175,32 @@ function konumuBul(): void {
     const ti = u.konular.findIndex(t => (t.klasor ?? '') === k);
     if (ti >= 0) { current = { unit: ui, topic: ti }; return; }
   }
+}
+
+// Task 6.K5b: the open topic went to the trash → the topic the context names instead (the next in its unit, else
+// the one before, else another unit's; the contents panel stays as it is); none left → the reader closes (the book
+// stays on the desk). true: the reader moved on / closed.
+function konuGittiyse(): boolean {
+  const k = topic?.klasor;
+  if (!open || !book || !k || !usesUnits(book)) return false;
+  if (book.uniteler.some(u => u.konular.some(t => (t.klasor ?? '') === k))) return false;
+  const yeni = icBaglam?.yonlendir(k);
+  if (yeni === undefined) return false;   // not gone by the trash
+  for (const [ui, u] of book.uniteler.entries()) {
+    const ti = u.konular.findIndex(t => (t.klasor ?? '') === yeni);
+    if (ti >= 0) {
+      void openTopic(ui, ti);
+      if (tocOpen) renderToc();
+      return true;
+    }
+  }
+  closeOkuyucu();
+  return true;
+}
+
+// Task 6.K5b: files with pen strokes not in Drive yet (on the device, and in the open reader's memory)
+export async function bekleyenKalemIdleri(): Promise<string[]> {
+  return [...new Set([...await pendingStore.listIds(), ...penModel.dirtyFileIds()])];
 }
 
 // PDF pages are drawn one at a time (iPad memory), the one nearest the current page first.
@@ -262,7 +294,7 @@ export function initOkuyucu(yer: () => DriveLocation | null): void {
   addEventListener('keydown', e => {
     if (!open || document.getElementById('fotoPanel') || document.getElementById('dosyaPanel')) return;   // task 5.8a / 5.10e: the panel has the keys
     // task 6.3c: Ctrl/Cmd+F opens our search box (not the browser's)
-    if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'f') { e.preventDefault(); e.stopPropagation(); arama.ac(); return; }
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'f') { e.preventDefault(); e.stopPropagation(); if (!konusuz) arama.ac(); return; }
     if (e.key === 'Escape') { e.stopPropagation(); if (toolbar?.closePopover()) return; if (tocOpen) closeToc(); else if (arama.acik) arama.kapat(); else closeOkuyucu(); return; }
     // pen mode: Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z and Ctrl+Y redo (not while typing somewhere)
     if (penOn && (e.ctrlKey || e.metaKey) && !e.altKey && !typing(e.target)) {
@@ -743,6 +775,42 @@ export async function openOkuyucu(b: Book, folderId: string, unit: number, topic
   showPages(prepared.pages, prepared.ratios, Math.max(0, at), 'Bu kitapta gösterilecek sayfa yok.');
 }
 
+// Task 6.K5b-3: the desk's "İçindekileri düzenle": the reader without a topic, the contents panel in edit mode.
+// A topic tapped in the panel (after "Bitti") opens as usual (chooseTopic → openTopic).
+export function openOkuyucuDuzenle(b: Book, folderId: string, closed: () => void): void {
+  if (open) return;
+  open = true;
+  ++session;
+  book = b; folder = folderId; onClosed = closed;
+  current = { unit: -1, topic: -1 };   // no topic marked in the panel
+  content = new PageContent();
+  metin = new MetinOnbellek(content);
+  topic = null;
+  zoom.reset();
+  $('#oBook').textContent = b.baslik;
+  $('#oChap').textContent = 'İçindekiler';
+  clearPages();
+  renderBar();
+  konusuzMod(true);
+  setMessage(bosDurumMetni(b, !!icBaglam?.hasJson(b)));
+  const el = $('#okuyucu');
+  el.hidden = false;
+  requestAnimationFrame(() => el.classList.add('show'));
+  startFps();
+  openToc();
+  if (duzenleyici.dugme(b, true).acik) { duzenleyici.ac(b); tocEditDugmesi(); }
+}
+
+function konusuzMod(on: boolean): void {
+  konusuz = on;
+  $('#okuyucu').classList.toggle('o-konusuz', on);
+}
+
+// Task 6.K5b-3: the desk's contents page shows "İçindekileri düzenle" by the same rule as the panel's "Düzenle"
+export function icindekilerDugmesi(b: Book): ReturnType<IcindekilerDuzenleyici['dugme']> {
+  return duzenleyici.dugme(b, true);
+}
+
 function loadFailed(e: unknown): void {
   closeOkuyucu();
   if (e instanceof SessionExpired) return;
@@ -776,6 +844,7 @@ async function openTopic(unit: number, topicIndex: number, resume?: Resume): Pro
   if (!t || !book) return;
   const my = ++session;
   current = { unit, topic: topicIndex };
+  konusuzMod(false);
   autoTopicStatus(book, unit, topicIndex, 'girildi');
   topic = null;
   photoBox.seritGoster(null);
@@ -1337,6 +1406,7 @@ export function closeOkuyucu(): void {
   metin?.kapat();
   metin = null;
   topic = null;
+  konusuzMod(false);
   const el = $('#okuyucu');
   el.classList.remove('show');
   setTimeout(() => {

@@ -1,7 +1,7 @@
 import type { Book, ChapterStatus, SourceType } from '../model/types';
 import { bookUnits, topicCount, usesUnits } from '../model/units';
 import { cycleStatus, resumeOf, type Resume } from '../okuma/okumaDurumu';
-import { isOkuyucuOpen } from '../okuma/Okuyucu';
+import { icindekilerDugmesi, isOkuyucuOpen } from '../okuma/Okuyucu';
 import { isDark } from '../scene/units';
 import { esc } from './dom';
 import { viewSize } from './ekran';
@@ -45,6 +45,7 @@ let ctx: ReaderContext = { shelfName: null, daysSinceOpened: null, owner: null }
 let idx = 0, pw = 0, single = false, busy = false;
 let onClose: () => void = () => {};
 let onChapter: (unit: number, topic: number, resume?: Resume) => void = () => {};
+let onEdit: () => void = () => {};
 const PAGES = ['title', 'toc'] as const;
 
 function el(tag: string, cls: string, parent?: HTMLElement, html?: string): HTMLElement {
@@ -57,9 +58,11 @@ function el(tag: string, cls: string, parent?: HTMLElement, html?: string): HTML
 
 // chapter(unit, topic): indices as in bookUnits (surum 1: unit 0 "Genel", topic = chapter)
 // resume: "Kaldığın yerden devam" (task 3.5)
-export function initReader(close: () => void, chapter: (unit: number, topic: number, resume?: Resume) => void): void {
+// edit (6.K5b-3): "İçindekileri düzenle" → the full-screen reader with no topic, its contents panel in edit mode
+export function initReader(close: () => void, chapter: (unit: number, topic: number, resume?: Resume) => void, edit: () => void): void {
   onClose = close;
   onChapter = chapter;
+  onEdit = edit;
   $('#rClose').addEventListener('click', closeReader);
   $('#prev').addEventListener('click', () => flipTo(idx - 1));
   $('#next').addEventListener('click', () => flipTo(idx + 1));
@@ -164,7 +167,10 @@ function renderPage(i: number, side: 'l' | 'r'): HTMLElement {
       ${resume ? `<button class="go" data-ribbon>Kaldığın yer: ${esc(resume.label)} →</button>` : ''}
       <div class="exl">${ctx.owner ? esc(genitive(ctx.owner)) + ' kitaplığından' : 'Örnek kitaplıktan'}</div>`;
   } else {
-    let html = '<div class="src">Kitap · içindekiler</div><h2>İçindekiler</h2>';
+    // 6.K5b-3: the same rule as the reader panel's "Düzenle" (none in the sample library); also for a book without topics
+    const duzenle = icindekilerDugmesi(b).goster
+      ? '<button type="button" class="tocedit" data-duzenle><span aria-hidden="true">✎</span> İçindekileri düzenle</button>' : '';
+    let html = `<div class="src">Kitap · içindekiler</div><div class="tochead"><h2>İçindekiler</h2>${duzenle}</div>`;
     if (resume) html += `<button class="resume" data-ribbon><span class="rib" aria-hidden="true"></span><span>Kaldığın yerden devam: <b>${esc(resume.label)}</b></span></button>`;
     const units = bookUnits(b);
     if (!units.some(u => u.konular.length)) {
@@ -188,7 +194,8 @@ function renderPage(i: number, side: 'l' | 'r'): HTMLElement {
   p.addEventListener('click', e => {
     const t = e.target as HTMLElement;
     const ch = t.closest<HTMLElement>('[data-t]');
-    if (ch && t.closest('[data-st]')) {
+    if (t.closest('[data-duzenle]')) onEdit();
+    else if (ch && t.closest('[data-st]')) {
       // the status label: next status (only this page is drawn again)
       cycleStatus(b, Number(ch.dataset.u), Number(ch.dataset.t));
       p.replaceWith(renderPage(i, side));

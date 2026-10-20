@@ -1,6 +1,7 @@
 import type { KitapIslemi } from '../drive/kitapOlustur';
 import { islemOzeti } from '../drive/kitapOlustur';
 import { planMetni } from '../kitap/kitapPlani';
+import { copOnayAcikMi } from './copOnay';
 import { esc } from './dom';
 import { gorunurAlaniDuzelt } from './gorunurAlan';
 import {
@@ -30,6 +31,7 @@ export interface SihirbazBaglam {
   kilit: SihirbazKilidi;
   olustur?: (islem: KitapIslemi, ilerleme: (i: number, n: number) => void) => Promise<void>;
   girisYap?: () => Promise<void>;
+  yarimCopeAt?: (ad: string, klasorId: string) => Promise<boolean>;   // 6.K5b: the dialog; true: in the trash now
 }
 
 const ORNEK_LISTE = '# Logik\nAussagenlogik\nBeweisen\n\n# Mengen\nRelationen\nAbbildungen';
@@ -128,7 +130,10 @@ export function kitapSihirbaziAc(b: SihirbazBaglam): void {
   const alt = el('div', 'fp-alt');
   const vazgec = dugme('fp-vazgec', 'Vazgeç');
   const olustur = dugme('fp-ekle', 'Oluştur');
-  alt.append(neden, vazgec, olustur);
+  // 6.K5b: a half-made book with this name: it can go to the trash from here (then "Oluştur" with the same name)
+  const yarimCop = dugme('fp-vazgec ks-yarimcop', 'Yarım kitabı çöpe at');
+  yarimCop.hidden = true;
+  alt.append(neden, yarimCop, vazgec, olustur);
 
   kart.append(baslik, ust, govde, olcumKutu, alt);
   kok.append(kart);
@@ -180,6 +185,8 @@ export function kitapSihirbaziAc(b: SihirbazBaglam): void {
     const not = hata?.mesaj ?? d.neden;
     if (neden.textContent !== not) neden.textContent = not;   // the same text is not read out again on each key
     neden.classList.toggle('fp-hata', !!hata);
+    yarimCop.hidden = !(hata?.yarim && b.yarimCopeAt);
+    yarimCop.disabled = akis.mesgul;
     const adHatali = !!hata?.adHatasi || d.adHatali;
     adKutu.classList.toggle('ks-ad-hata', adHatali);
     if (adHatali) adKutu.setAttribute('aria-invalid', 'true'); else adKutu.removeAttribute('aria-invalid');
@@ -212,6 +219,11 @@ export function kitapSihirbaziAc(b: SihirbazBaglam): void {
     }
   }
   olustur.onclick = () => void olusturDugmesi();
+  yarimCop.onclick = async () => {
+    const y = hata?.yarim;
+    if (!y || !b.yarimCopeAt || akis.mesgul) return;
+    if (await b.yarimCopeAt(y.ad, y.klasorId)) { hata = null; ciz(); }
+  };
 
   // a tap in the tree: the list is written again; the changed row lights up
   agac.addEventListener('click', e => {
@@ -262,6 +274,7 @@ export function kitapSihirbaziAc(b: SihirbazBaglam): void {
   }
 
   function tus(e: KeyboardEvent): void {
+    if (copOnayAcikMi()) return;   // 6.K5b: the trash dialog above takes Esc
     if (e.key === 'Escape') { e.stopPropagation(); e.preventDefault(); if (!akis.mesgul) kapat(); }
   }
 

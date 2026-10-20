@@ -1,4 +1,6 @@
-import { eklemeMi, IcindekilerKuyrugu, yeniIs, type IcindekilerDrive, type IcindekilerIsi, type IcindekilerSecenek, type KayitDurumu } from '../drive/icindekilerYaz';
+import { geriAlIsi, type CopIsi } from '../drive/icindekilerCop';
+import { copIsi, eklemeMi, IcindekilerKuyrugu, yeniIs, type IcindekilerDrive, type IcindekilerIsi, type IcindekilerSecenek, type KayitDurumu } from '../drive/icindekilerYaz';
+import { gidenKonular, kitabaGeriKoy, kitaptanCikar, komsuKonu, type CopHedefi } from '../kitap/copeAt';
 import { kitabaUygula, kitabiEsitle, type IcindekilerIslemi } from '../kitap/icindekiler';
 import type { Book } from '../model/types';
 import type { IcindekilerBaglami } from './icindekilerDuzenle';
@@ -10,6 +12,10 @@ import type { IcindekilerBaglami } from './icindekilerDuzenle';
 // - "Vazgeç" on a name / order: the screen goes back to Drive (kitap.json read again, the changes still waiting put
 //   on top); kitap.json can't be read → the change is undone in memory (`geri`, taken before it was made).
 // - iz: the last events, for the ?olcum=1 box (the iPad has no console).
+// - Task 6.K5b: a topic / unit to the trash (and "Geri al") runs in the same queue. The book in memory changes only
+//   when Drive took it (folder and kitap.json); before that, the reader is told where to go when its open topic
+//   goes (yonlendir). "Vazgeç" on a failed trash = "Geri al" of what was done. The dialog follows its operation by
+//   copCalistir / copGeriAl (a promise per try; "Tekrar dene" goes on with the same operation).
 
 export interface BaglamGirdisi {
   drive: IcindekilerDrive;
@@ -22,6 +28,7 @@ export interface BaglamGirdisi {
   jsonOku(kitapId: string): Promise<unknown>;
   girisYap(): void;
   islemId?: () => string;
+  copIste?: (b: Book, hedef: CopHedefi | { tur: 'kitap' }) => void;   // 6.K5b: opens the dialog (main.ts)
 }
 
 export interface IcindekilerBaglantisi {
@@ -29,6 +36,8 @@ export interface IcindekilerBaglantisi {
   kuyruk: IcindekilerKuyrugu;
   vazgec(): Promise<void>;                  // as baglam.vazgec; resolves when the screen is back to Drive
   iz(): string;
+  copCalistir(kitapId: string, c: CopIsi): Promise<void>;   // 6.K5b: the first try / "Tekrar dene"
+  copGeriAl(kitapId: string, c: CopIsi): Promise<void>;     // 6.K5b: "Geri al" (also Vazgeç after a failed try)
 }
 
 const IZ_UZUNLUK = 6;
@@ -58,17 +67,35 @@ export function icindekilerBaglamiKur(o: BaglamGirdisi): IcindekilerBaglantisi {
   const uygula = (b: Book, islem: IcindekilerIslemi) => {
     try { kitabaUygula(b, islem); } catch (e) { console.warn('İçindekiler: bellekteki kitap güncellenemedi.', e); }
   };
+  // 6.K5b: a topic folder that went → the topic to show instead (null: none left)
+  const yonlendirme = new Map<string, string | null>();
+  const copIsleri = new Map<CopIsi, IcindekilerIsi>();
+  const copBellek = (b: Book, c: CopIsi) => {
+    try {
+      if (!c.geriAl) {
+        const giden = new Set(gidenKonular(b.uniteler, c.hedef));
+        for (const k of giden) yonlendirme.set(k, komsuKonu(b.uniteler, k, giden));
+        c.bellek = kitaptanCikar(b, c.hedef);
+      } else if (c.bellek) {
+        kitabaGeriKoy(b, c.bellek);
+        c.bellek = null;
+        for (const k of gidenKonular(b.uniteler, c.hedef)) yonlendirme.delete(k);
+      }
+    } catch (e) { console.warn('İçindekiler: bellekteki kitap güncellenemedi.', e); }
+  };
 
   const kuyruk = new IcindekilerKuyrugu({
     drive: o.drive,
     secenek: o.secenek,
     durum: d => { iz('durum ' + d.tur); durum = d; haber(); },
     basarili: (is, islem) => {
-      iz('basarılı ' + is.istek.tur);
+      const c = copIsi(is);
+      iz('basarılı ' + (c ? (c.geriAl ? 'geri al' : 'çöp') : is.istek.tur));
       geriler.delete(is);
-      // adding: the book in memory changes only now (names and order changed at once)
+      // adding / trash: the book in memory changes only now (names and order changed at once)
       const b = o.kitap(is.kitapId);
-      if (b && eklemeMi(is)) uygula(b, islem);
+      if (b && c) copBellek(b, c);
+      else if (b && eklemeMi(is) && islem) uygula(b, islem);
       yenile();
       haber();
     }
@@ -78,6 +105,20 @@ export function icindekilerBaglamiKur(o: BaglamGirdisi): IcindekilerBaglantisi {
     const is = kuyruk.vazgec();
     iz('vazgeç' + (is ? ' ' + is.istek.tur : ' (iş yok)'));
     if (!is) return;
+    const c = copIsi(is);
+    if (c) {
+      // a failed trash: what was done goes back (the same listener hears it); a failed "Geri al": dropped
+      if (!c.geriAl) {
+        copIsleri.delete(c);
+        geriAlIsi(c);
+        const yeni = yeniIs(o.islemId?.() ?? crypto.randomUUID(), is.kitapId, { tur: 'cop', cop: c });
+        yeni.bitti = is.bitti;
+        copIsleri.set(c, yeni);
+        void kuyruk.ekle(yeni);
+      }
+      haber();
+      return;
+    }
     const geri = geriler.get(is);
     geriler.delete(is);
     const b = o.kitap(is.kitapId);
@@ -96,6 +137,33 @@ export function icindekilerBaglamiKur(o: BaglamGirdisi): IcindekilerBaglantisi {
     haber();
   }
 
+  // 6.K5b: one try of a trash / "Geri al" operation; a failed one in the queue is tried again (where it stopped)
+  function copCalistir(kitapId: string, c: CopIsi): Promise<void> {
+    return new Promise((res, rej) => {
+      const bitti = (e: unknown) => { if (e) rej(e); else res(); };
+      const is = copIsleri.get(c);
+      if (is && kuyruk.bekleyenler.includes(is)) { is.bitti = bitti; iz('tekrar dene (çöp)'); void kuyruk.tekrarDene(); return; }
+      const yeni = yeniIs(o.islemId?.() ?? crypto.randomUUID(), kitapId, { tur: 'cop', cop: c });
+      yeni.bitti = bitti;
+      copIsleri.set(c, yeni);
+      void kuyruk.ekle(yeni);
+    });
+  }
+
+  function copGeriAl(kitapId: string, c: CopIsi): Promise<void> {
+    if (!c.geriAl) {
+      const eski = copIsleri.get(c);
+      // the failed trash still waits in the queue: it goes (it is the failed one: Vazgeç takes it out)
+      if (eski && kuyruk.bekleyenler.includes(eski)) {
+        eski.bitti = undefined;
+        if (kuyruk.hataVar && kuyruk.bekleyenler[0] === eski) kuyruk.vazgec();
+      }
+      copIsleri.delete(c);
+      geriAlIsi(c);
+    }
+    return copCalistir(kitapId, c);
+  }
+
   const baglam: IcindekilerBaglami = {
     kilitAcik: o.kilitAcik,
     hasJson: o.hasJson,
@@ -110,10 +178,13 @@ export function icindekilerBaglamiKur(o: BaglamGirdisi): IcindekilerBaglantisi {
     dinle: fn => { dinleyiciler.add(fn); return () => { dinleyiciler.delete(fn); }; },
     tekrarDene: () => { iz('tekrar dene'); void kuyruk.tekrarDene(); },
     vazgec: () => { void vazgec(); },
-    girisYap: o.girisYap
+    girisYap: o.girisYap,
+    copIste: (b, hedef) => o.copIste?.(b, hedef),
+    copBekleyenler: b => kuyruk.bekleyenler.filter(i => i.kitapId === b.id && copIsi(i) && !copIsi(i)!.geriAl).map(i => copIsi(i)!.hedef),
+    yonlendir: k => yonlendirme.has(k) ? yonlendirme.get(k)! : undefined
   };
   // one event per line (the ?olcum=1 box cuts long lines)
   const izMetni = () => `dinleyici ${dinleyiciler.size} · bekleyen ${kuyruk.bekleyenler.length}` + olaylar.map(x => '\n  ' + x).join('');
   sonIz = izMetni;
-  return { baglam, kuyruk, vazgec, iz: izMetni };
+  return { baglam, kuyruk, vazgec, iz: izMetni, copCalistir, copGeriAl };
 }

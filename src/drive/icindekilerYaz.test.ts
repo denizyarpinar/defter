@@ -33,6 +33,21 @@ describe('icindekilerYaz: adding', () => {
     expect(f.kitap().uniteler[0].konular.at(-1)).toEqual({ baslik: 'Induktion', klasor: 'Unite-01-Logik/Konu-08-Induktion', durum: 'okunmadi' });
   });
 
+  it('6.K5b-3: a book without topics (sihirbaz, no unit): + Ünite, then + Konu under it; both numbers start at 01', async () => {
+    const f = fakeDrive({ kitap: { ...KITAP, uniteler: [] }, sil: ['u1', 't1', 'f1', 'f2', 't2', 'f3', 'u2'] });
+    const u = await icindekilerYaz(f.drive, yeniIs('islem-u', 'deneme-1', { tur: 'uniteEkle', baslik: 'Graphen' }), sec());
+    expect(u).toEqual({ tur: 'uniteEkle', baslik: 'Graphen', klasor: 'Unite-01-Graphen' });
+    await icindekilerYaz(f.drive, yeniIs('islem-k', 'deneme-1', { tur: 'konuEkle', unite: 'k:Unite-01-Graphen', uniteSira: 0, baslik: 'Bäume' }), sec());
+    expect(f.yazmalar()).toEqual(['olustur:Unite-01-Graphen', 'jsonYaz', 'olustur:Konu-01-Baeume', 'jsonYaz']);
+    const [uId, uItem] = [...f.items].find(([, i]) => i.name === 'Unite-01-Graphen')!;
+    expect(uItem.parent).toBe('kb');
+    expect([...f.items.values()].find(i => i.name === 'Konu-01-Baeume')!.parent).toBe(uId);
+    const k = f.kitap();
+    expect(k.uniteler).toEqual([{ baslik: 'Graphen', klasor: 'Unite-01-Graphen', konular: [{ baslik: 'Bäume', klasor: 'Unite-01-Graphen/Konu-01-Baeume', durum: 'okunmadi' }] }]);
+    expect(k.bilinmeyen).toBe(7);
+    expect(k.kapak).toEqual(KITAP.kapak);
+  });
+
   it('an old empty unit: the one matching folder of ours is used and goes into kitap.json as its klasor', async () => {
     const f = fakeDrive();
     const is = yeniIs('islem-3', 'deneme-1', { tur: 'konuEkle', unite: 'b:Leer#0', uniteSira: 1, baslik: 'Erstes' });
@@ -195,7 +210,7 @@ describe('IcindekilerKuyrugu', () => {
     const biten: string[] = [];
     const k = new IcindekilerKuyrugu({
       drive: f.drive, secenek: () => sec(), durum: d => durumlar.push(d.tur),
-      basarili: (_is, islem) => biten.push(islem.tur + (islem.tur === 'uniteEkle' ? ':' + islem.klasor : ''))
+      basarili: (_is, i) => { const islem = i!; biten.push(islem.tur + (islem.tur === 'uniteEkle' ? ':' + islem.klasor : '')); }
     });
     const a = k.ekle(yeniIs('a', 'deneme-1', { tur: 'uniteAdi', unite: 'k:Unite-01-Logik', baslik: 'L' }));
     void k.ekle(yeniIs('b', 'deneme-1', { tur: 'uniteEkle', baslik: 'Neu' }));

@@ -1,7 +1,10 @@
 import { icindekilerUygula, IcindekilerUyusmuyor, uniteAnahtarlari, uniteKlasoru, uniteKlasoruBul, type AltKlasor, type IcindekilerIslemi } from '../kitap/icindekiler';
 import { bosAd, sonrakiNumara } from '../kitap/klasorNumarasi';
+import { CopAgHatasi, CopIzinYok, driveAltAgac, driveCopDurumu, driveOge, type CopDrive } from './copeAt';
 import { DriveError, driveFetch, FOLDER_MIME, getModifiedTime, ok, qv, readJsonStrict, updateJson } from './drive';
 import { ebeveynGecerliMi } from './ebeveyn';
+import { copYaz, type CopIsi } from './icindekilerCop';
+import { jsonDegistir } from './jsonDegistir';
 import type { KokCocuk, KokKaynagi } from './kok';
 import type { KurulumOgesi, YeniOgeMeta } from './kurulum';
 import { IdZatenVar, tekrarlanabilir } from './pdfOlustur';
@@ -16,10 +19,10 @@ import { IdZatenVar, tekrarlanabilir } from './pdfOlustur';
 // - kitap.json: modifiedTime → the latest file → the change (icindekilerUygula) → modifiedTime again; changed
 //   meanwhile → once more from the start, then IcindekilerCakisma. PATCH on the same id. Names and order: only this.
 // - Creates folders and updates kitap.json only. No files.delete, no trash, no move, no rename in Drive.
+// - Task 6.K5b: a topic / unit to the trash (and back) goes through the same queue (icindekilerCop.ts).
 
-export interface IcindekilerDrive {
+export interface IcindekilerDrive extends CopDrive {
   yeniIdler(n: number): Promise<string[]>;
-  oge(id: string): Promise<(KurulumOgesi & { trashed?: boolean }) | null>;
   islemAra(islemId: string): Promise<KurulumOgesi[]>;
   olustur(meta: YeniOgeMeta, icerik?: string | Uint8Array): Promise<{ id: string }>;
   kokCocuklari(id: string): Promise<KokCocuk[]>;
@@ -69,7 +72,9 @@ const kitapApi = () => import('./kitapOlustur').then(m => m.driveKitapOlusturApi
 
 export const driveIcindekilerApi: IcindekilerDrive = {
   yeniIdler: async n => (await kitapApi()).yeniIdler(n),
-  oge: async id => (await kitapApi()).oge(id),
+  oge: driveOge,
+  altAgac: driveAltAgac,
+  copDurumu: driveCopDurumu,
   islemAra: async islemId => (await kitapApi()).islemAra(islemId),
   olustur: async (meta, icerik) => (await kitapApi()).olustur(meta, icerik),
   kokCocuklari: async id => (await kitapApi()).kokCocuklari(id),
@@ -100,6 +105,7 @@ export const driveIcindekilerApi: IcindekilerDrive = {
 export type IcindekilerIstegi =
   | { tur: 'uniteEkle'; baslik: string }
   | { tur: 'konuEkle'; unite: string; uniteSira: number; baslik: string }   // unite: its key; uniteSira: 0-based
+  | { tur: 'cop'; cop: CopIsi }                                              // 6.K5b: to the trash / "Geri al"
   | Exclude<IcindekilerIslemi, { tur: 'uniteEkle' | 'konuEkle' }>;
 
 export interface IcindekilerIsi {
@@ -111,14 +117,16 @@ export interface IcindekilerIsi {
   id: string | null;                 // adding: from generateIds
   denendi: boolean;                  // a create request was sent: a retry asks Drive by id first
   klasorTamam: boolean;
+  bitti?: (hata: unknown) => void;   // 6.K5b: told after each try (null: done), e.g. the trash dialog
 }
 
 export const yeniIs = (islemId: string, kitapId: string, istek: IcindekilerIstegi): IcindekilerIsi => ({
-  islemId, kitapId, istek, islem: istek.tur === 'uniteEkle' || istek.tur === 'konuEkle' ? null : istek,
+  islemId, kitapId, istek, islem: istek.tur === 'uniteEkle' || istek.tur === 'konuEkle' || istek.tur === 'cop' ? null : istek,
   ebeveynId: null, id: null, denendi: false, klasorTamam: false
 });
 
 export const eklemeMi = (i: IcindekilerIsi) => i.istek.tur === 'uniteEkle' || i.istek.tur === 'konuEkle';
+export const copIsi = (i: IcindekilerIsi): CopIsi | null => i.istek.tur === 'cop' ? i.istek.cop : null;
 
 export interface IcindekilerSecenek {
   kilitAcik: boolean;               // ?kurulum=1
@@ -133,14 +141,27 @@ export interface IcindekilerSecenek {
   deneme?: number;
 }
 
-// Resolves with the change as written (adding: with its folder names).
-export async function icindekilerYaz(drive: IcindekilerDrive, is: IcindekilerIsi, s: IcindekilerSecenek): Promise<IcindekilerIslemi> {
+// Resolves with the change as written (adding: with its folder names; the trash: null).
+export async function icindekilerYaz(drive: IcindekilerDrive, is: IcindekilerIsi, s: IcindekilerSecenek): Promise<IcindekilerIslemi | null> {
   // checks without any request
   if (!s.kilitAcik || s.kokKaynagi === null) throw new IcindekilerKilitli();
   if (!s.yazabilir()) throw new IcindekilerYazmaYok();
   if (s.surum < 2) throw new Surum1Duzenlenemez();
   if (!s.kitapJsonId || !s.kitapKlasorId) throw new KitapJsonYok();
   const jsonId = s.kitapJsonId, kitapKlasorId = s.kitapKlasorId;
+
+  if (is.istek.tur === 'cop') {
+    try {
+      await s.oncesi?.();
+      await copYaz(drive, is.istek.cop, { kokId: s.kokId, kitapKlasorId, kitapJsonId: jsonId });
+      return null;
+    } catch (e) {
+      if (e instanceof TypeError) throw new CopAgHatasi();
+      if (e instanceof DriveError && e.status === 403) throw new CopIzinYok();
+      if (tekrarlanabilir(e)) throw new CopAgHatasi();
+      throw e;
+    }
+  }
 
   try {
     await s.oncesi?.();
@@ -160,12 +181,13 @@ export async function icindekilerYaz(drive: IcindekilerDrive, is: IcindekilerIsi
 type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => typeof v === 'object' && v !== null && !Array.isArray(v);
 
-async function sonHal(drive: IcindekilerDrive, jsonId: string): Promise<Obj> {
-  const j = await drive.jsonOku(jsonId);
+function sonHalKontrol(j: unknown): Obj {
   if (!isObj(j)) throw new IcindekilerBeklenmedik('kitap.json okunamadı');
   if (typeof j.surum !== 'number' || j.surum < 2) throw new Surum1Duzenlenemez();
   return j;
 }
+
+const sonHal = async (drive: IcindekilerDrive, jsonId: string): Promise<Obj> => sonHalKontrol(await drive.jsonOku(jsonId));
 
 interface HamUnite { baslik: unknown; klasor?: unknown; konular: { klasor: unknown }[] }
 const hamUniteler = (j: Obj): HamUnite[] =>
@@ -267,17 +289,7 @@ async function olusturIdIle(drive: IcindekilerDrive, meta: YeniOgeMeta, islemId:
 
 // kitap.json: modifiedTime → latest → the change → modifiedTime again (changed: once more, then an error)
 async function jsonaYaz(drive: IcindekilerDrive, jsonId: string, islem: IcindekilerIslemi): Promise<void> {
-  for (let tur = 1; ; tur++) {
-    const once = await drive.degisimZamani(jsonId);
-    const { json, degisti } = icindekilerUygula(await sonHal(drive, jsonId), islem);
-    if (!degisti) return;
-    if (await drive.degisimZamani(jsonId) !== once) {
-      if (tur >= 2) throw new IcindekilerCakisma();
-      continue;
-    }
-    await drive.jsonYaz(jsonId, json);
-    return;
-  }
+  await jsonDegistir(drive, jsonId, latest => icindekilerUygula(sonHalKontrol(latest), islem), () => new IcindekilerCakisma());
 }
 
 // ---- the edit mode's read-only look: which units can take a new topic ----
@@ -294,7 +306,7 @@ export async function uniteKlasorDurumu(drive: Pick<IcindekilerDrive, 'klasorler
 
 export type KayitDurumu =
   | { tur: 'bos' }
-  | { tur: 'kaydediliyor'; ekleme: boolean }
+  | { tur: 'kaydediliyor'; ekleme: boolean; cop?: 'at' | 'geri' }
   | { tur: 'kaydedildi' }
   | { tur: 'hata'; mesaj: string; izin: boolean };
 
@@ -302,7 +314,12 @@ export interface KuyrukBaglami {
   drive: IcindekilerDrive;
   secenek: (kitapId: string) => IcindekilerSecenek;
   durum: (d: KayitDurumu) => void;
-  basarili: (is: IcindekilerIsi, islem: IcindekilerIslemi) => void;   // adding: the book in memory changes only now
+  basarili: (is: IcindekilerIsi, islem: IcindekilerIslemi | null) => void;   // adding / trash: the book in memory changes only now
+}
+
+// a listener's error never stops the queue
+function haberVer(is: IcindekilerIsi, hata: unknown): void {
+  try { is.bitti?.(hata); } catch (e) { console.warn('İçindekiler: dinleyici hata verdi.', e); }
 }
 
 export class IcindekilerKuyrugu {
@@ -314,6 +331,7 @@ export class IcindekilerKuyrugu {
   constructor(b: KuyrukBaglami) { this.b = b; }
 
   get hasUnsaved(): boolean { return this.isler.length > 0; }
+  get hataVar(): boolean { return this.hata !== null; }
   get bekleyenler(): readonly IcindekilerIsi[] { return this.isler; }
 
   ekle(is: IcindekilerIsi): Promise<void> {
@@ -344,14 +362,17 @@ export class IcindekilerKuyrugu {
     try {
       while (this.isler.length) {
         const is = this.isler[0];
-        this.b.durum({ tur: 'kaydediliyor', ekleme: eklemeMi(is) });
+        const cop = copIsi(is);
+        this.b.durum(cop ? { tur: 'kaydediliyor', ekleme: false, cop: cop.geriAl ? 'geri' : 'at' } : { tur: 'kaydediliyor', ekleme: eklemeMi(is) });
         try {
           const islem = await icindekilerYaz(this.b.drive, is, this.b.secenek(is.kitapId));
           this.isler.shift();
           this.b.basarili(is, islem);
+          haberVer(is, null);
         } catch (e) {
           this.hata = is;
-          this.b.durum({ tur: 'hata', mesaj: e instanceof Error ? e.message : 'İçindekiler kaydedilemedi.', izin: e instanceof IcindekilerIzinYok });
+          this.b.durum({ tur: 'hata', mesaj: e instanceof Error ? e.message : 'İçindekiler kaydedilemedi.', izin: e instanceof IcindekilerIzinYok || e instanceof CopIzinYok });
+          haberVer(is, e);
           return;
         }
       }

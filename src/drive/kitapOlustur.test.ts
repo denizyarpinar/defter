@@ -189,6 +189,20 @@ describe('kitapOlustur', () => {
     expect(e.message).toMatch(/Başka bir ad seç; yarım klasör daha sonra çöpe atılabilir\.$/);
     expect(f.olusturmalar().length).toBe(once);
     expect(f.calls).not.toContain('jsonYaz');
+    // 6.K5b: the half-made folder's id for "Yarım kitabı çöpe at"
+    expect(e.klasorId).toBe(ad(f.items, 'mathe-2')[0]);
+  });
+
+  // 6.K5b: the old book with this name is in the trash; its shelf entry is still in kitaplik.json (on raf-1)
+  it('an old entry of a book in the trash → the new book on the chosen shelf, the old entry gone', async () => {
+    const f = fakeDrive({
+      raflar: { surum: 1, raflar: [{ id: 'raf-1', ad: 'Raf 1', kitaplar: ['eski', 'mathe-2', 'x'] }, { id: 'raf-2', ad: 'Raf 2', kitaplar: [] }], bilinmeyen: 7 },
+      items: { copteki: { name: 'mathe-2', parent: 'kitaplar', appProperties: { defter: '1', defterIslem: 'eski-islem' }, trashed: true } }
+    });
+    const r = await kitapOlustur(f.drive, yeniKitapIslemi('islem-1', plan()), sec());
+    expect(r.rafa).toBe('raf-2');
+    expect(f.kitaplik()).toEqual({ surum: 1, raflar: [{ id: 'raf-1', ad: 'Raf 1', kitaplar: ['eski', 'x'] }, { id: 'raf-2', ad: 'Raf 2', kitaplar: ['mathe-2'] }], bilinmeyen: 7 });
+    expect(f.items.get('copteki')).toMatchObject({ trashed: true });   // never touched
   });
 
   it('a folder with the book\'s name (not ours, or a whole book of ours) → AyniKitapVar, no request that writes', async () => {
@@ -335,9 +349,16 @@ describe('rafaEkle', () => {
   it('on the chosen shelf, the other fields as they were', () => {
     expect(rafaEkle(lib, 'b', 'y')).toEqual({ degisti: true, rafa: 'b', json: { raflar: [{ id: 'a', kitaplar: ['x'] }, { id: 'b', ad: 'B', ozel: 1, kitaplar: ['y'] }], oda: { mod: 'auto' } } });
   });
-  it('a shelf that is gone → the first shelf; on a shelf already → no change; no shelves → no change', () => {
+  it('a shelf that is gone → the first shelf; on the chosen shelf already → no change; no shelves → no change', () => {
     expect(rafaEkle(lib, 'yok', 'y')).toMatchObject({ degisti: true, rafa: 'a', json: { raflar: [{ id: 'a', kitaplar: ['x', 'y'] }, lib.raflar[1]] } });
-    expect(rafaEkle(lib, 'b', 'x')).toMatchObject({ degisti: false, rafa: 'a' });
+    expect(rafaEkle(lib, 'a', 'x')).toMatchObject({ degisti: false, rafa: 'a' });
     expect(rafaEkle({ raflar: [] }, 'b', 'y')).toMatchObject({ degisti: false, rafa: null });
+  });
+  // 6.K5b: the id on another shelf = an old entry (its folder is in the trash or gone): moved to the chosen shelf
+  it('an old entry on another shelf → taken out there, the book on the chosen shelf; other fields stay', () => {
+    expect(rafaEkle(lib, 'b', 'x')).toEqual({ degisti: true, rafa: 'b', json: { raflar: [{ id: 'a', kitaplar: [] }, { id: 'b', ad: 'B', ozel: 1, kitaplar: ['x'] }], oda: { mod: 'auto' } } });
+    // on the chosen shelf and an old one elsewhere: only the old one goes
+    const iki = { raflar: [{ id: 'a', kitaplar: ['x', 'q'] }, { id: 'b', kitaplar: ['p', 'x'] }] };
+    expect(rafaEkle(iki, 'b', 'x').json).toEqual({ raflar: [{ id: 'a', kitaplar: ['q'] }, { id: 'b', kitaplar: ['p', 'x'] }] });
   });
 });

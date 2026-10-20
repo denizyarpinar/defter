@@ -243,7 +243,13 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 /* table of contents */
 .toc h2 { margin-bottom: 5cqw }
 .toc h3.unit { margin: 3cqw 0 1cqw; font: 600 2.3cqw var(--ui); letter-spacing: .12em; text-transform: uppercase; opacity: .6 }
-.toc h2 + h3.unit { margin-top: 0 }
+.toc h2 + h3.unit, .toc .tochead + h3.unit { margin-top: 0 }
+/* task 6.K5b-3: "İçindekileri düzenle" next to the heading (wraps under it on a narrow page) */
+.toc .tochead { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1.6cqw 3cqw; margin-bottom: 5cqw }
+.toc .tochead h2 { margin: 0 }
+.toc .tocedit { flex: none; min-height: 40px; padding: 0 3cqw; border: 1px solid #c9b590; border-radius: 99px; background: none; color: var(--ink);
+  font: 600 max(11px, 2.6cqw) var(--ui); cursor: pointer }
+.toc .tocedit:hover { background: #f2eadb }
 .toc ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1.2cqw }
 .toc li button { width: 100%; display: grid; grid-template-columns: 5cqw 1fr; gap: 2cqw; align-items: baseline; border: 0; background: none; padding: 1.6cqw 1.2cqw; border-radius: 1.4cqw; text-align: left; color: var(--ink); font: inherit }
 .toc li button:hover { background: #f2eadb }
@@ -583,6 +589,8 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 .o-penbtn.on { background: #f5ecdf; color: #2a231d }
 /* task 4.8a: unsaved strokes (kept on the device): a dot on the pen button */
 .o-penbtn { position: relative }
+/* task 6.K5b-3: the reader with no topic open (the desk's "İçindekileri düzenle"): nothing to draw on, search or turn */
+#okuyucu.o-konusuz #oPenBtn, #okuyucu.o-konusuz #oAraBtn, #okuyucu.o-konusuz #oMode { display: none }
 .o-penbtn.bekleyen::after { content: ''; position: absolute; top: 4px; right: 4px; width: 8px; height: 8px; border-radius: 50%; background: #e0a040; box-shadow: 0 0 0 1.5px rgba(0, 0, 0, .35) }
 .o-tools { flex: none; box-sizing: border-box; height: 58px; display: flex; flex-wrap: nowrap; align-items: stretch; gap: 8px; padding: 0 12px; overflow: hidden; color: #f5ecdf;
   background: rgba(0, 0, 0, .24); border-bottom: 1px solid rgba(255, 255, 255, .08); touch-action: manipulation }
@@ -909,4 +917,29 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 @media (max-width: 600px) {
   .ap { padding: 0 }
   .ap-kart { width: 100%; border-radius: 0 0 16px 16px; padding-top: env(safe-area-inset-top, 0px) }
+}
+
+/* ---------- task 6.K5b: to the trash ---------- */
+#copOnay { z-index: 58 }
+.co-kart { width: min(480px, 100%) }
+.co-ad { margin: 0; font: 600 15px var(--ui); overflow-wrap: anywhere }
+.co-ad[hidden] { display: none }
+.co-metin { font-size: 14px; line-height: 1.45; opacity: .9; overflow-wrap: anywhere }
+.co-adalan { display: flex; flex-direction: column; gap: 6px; font-size: 13px; overflow-wrap: anywhere }
+.co-adalan[hidden] { display: none }
+.co-adalan input { min-height: 44px; box-sizing: border-box; padding: 0 10px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, .22); background: rgba(0, 0, 0, .25); color: #f5ecdf; font: 16px var(--ui) }
+.fp-ekle.co-kirmizi { background: #b3261e; border-color: #b3261e }
+.co-kart .fp-alt { flex-wrap: wrap }
+.o-toclist button.ie-cop { color: #9b2f1c }
+.o-toclist button.ie-kitapcop { width: auto; margin: 24px 0 8px 4px; padding: 0 14px; gap: 8px; border: 1px solid #b3261e; color: #9b2f1c; font: 600 14px var(--ui) }
+.o-toclist .ie-kitapcop svg { width: 16px; height: 16px; flex: none }
+.o-toclist button.ie-kitapcop:disabled { opacity: .35 }
+.o-toclist p.ie-not:first-child { margin-top: 12px }
+.ks-kart .ks-yarimcop { border-color: #b3261e; color: #ffb4a2 }
+.ks-kart .ks-yarimcop[hidden] { display: none }
+/* a small card also on a phone (the photo / file panel's phone rule makes .fp full screen) */
+@media (max-width: 599px) {
+  #copOnay.fp { padding: calc(env(safe-area-inset-top, 0px) + 16px) 16px calc(env(safe-area-inset-bottom, 0px) + 16px); align-items: center }
+  #copOnay .fp-kart { border-radius: 16px; padding: 18px 16px 16px }
+  .co-kart .fp-alt button { flex: 1 1 auto }
 }

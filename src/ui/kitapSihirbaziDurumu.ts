@@ -129,6 +129,7 @@ export interface OlusturHatasi {
   girisYap: boolean;       // "Tekrar giriş yap" in its place
   duzenlenebilir: boolean; // nothing written: the fields open again, a new operation next time
   adHatasi: boolean;       // a folder with this name is already in Drive: the name box gets a red frame (6.K4b-3)
+  yarim?: { ad: string; klasorId: string };   // 6.K5b: a half-made book in the way: "Yarım kitabı çöpe at"
 }
 
 const AG_METNI = "Drive'a bağlanılamadı. İnternet bağlantını kontrol et ve tekrar dene.";
@@ -139,7 +140,9 @@ export function olusturHatasi(e: unknown, islem: KitapIslemi | null): OlusturHat
   const bos = !islem || hicYazilmadi(islem);
   if (e instanceof AyniKitapVar || e instanceof YarimKitapVar || e instanceof KitapOlusturKilitli || e instanceof KitapOlusturYazmaYok) {
     const adHatasi = e instanceof AyniKitapVar || e instanceof YarimKitapVar;
-    return { mesaj, tekrarDene: false, girisYap: false, duzenlenebilir: bos, adHatasi };
+    const h: OlusturHatasi = { mesaj, tekrarDene: false, girisYap: false, duzenlenebilir: bos, adHatasi };
+    if (e instanceof YarimKitapVar && e.klasorId) h.yarim = { ad: e.ad, klasorId: e.klasorId };
+    return h;
   }
   return { mesaj, tekrarDene: true, girisYap: false, duzenlenebilir: false, adHatasi: false };
 }

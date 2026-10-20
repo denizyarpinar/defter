@@ -13,7 +13,9 @@ import { bekleyenFotoDepo } from './defter/bekleyenFoto';
 import { acilisToastMetni } from './defter/fotoEklemeMetin';
 import { ReadingSaver, driveReadingApi } from './drive/okumaKaydi';
 import { driveIcindekilerApi, uniteKlasorDurumu, type IcindekilerKuyrugu } from './drive/icindekilerYaz';
-import { icindekilerBaglamiKur } from './ui/icindekilerBaglami';
+import { driveKitapCopApi } from './drive/kitapCop';
+import { icindekilerBaglamiKur, type IcindekilerBaglantisi } from './ui/icindekilerBaglami';
+import { copAkisiKur } from './ui/copAkisi';
 import { DriveSaver } from './drive/save';
 import { daysSinceOpened, shelfOf } from './model/library';
 import { loadLocalLibrary, type LoadedLibrary } from './model/localSource';
@@ -22,7 +24,7 @@ import type { Book, ModeKey } from './model/types';
 import { usesUnits } from './model/units';
 import { markOpened, setReadingSink } from './okuma/okumaDurumu';
 import { sampleBookFolder, sampleFolders } from './okuma/ornekKaynak';
-import { closeOkuyucu, forgetBook, fotoYuklemeSuruyor, initOkuyucu, isOkuyucuOpen, okuyucuAra, openOkuyucu, sayfaEklemeOrtami, setIcindekilerBaglami } from './okuma/Okuyucu';
+import { bekleyenKalemIdleri, closeOkuyucu, forgetBook, fotoYuklemeSuruyor, initOkuyucu, isOkuyucuOpen, okuyucuAra, openOkuyucu, openOkuyucuDuzenle, sayfaEklemeOrtami, setIcindekilerBaglami } from './okuma/Okuyucu';
 import { createRoomScene, type LibraryData, type RoomScene, type View } from './scene';
 import { canvas, drawWood, noise } from './scene/textures';
 import { updateHint } from './ui/hint';
@@ -173,7 +175,8 @@ function yeniKitapAc(): void {
   import('./ui/kitapSihirbazi')
     .then(m => m.kitapSihirbaziAc({
       raflar: d.library.raflar.map(s => ({ id: s.id, ad: s.ad })), mevcutIdler: [...d.books.keys()], olcum: OLCUM,
-      kilit: sihirbazKilidi(), olustur: kitapOlusturDugmesi, girisYap: () => googleSignIn()
+      kilit: sihirbazKilidi(), olustur: kitapOlusturDugmesi, girisYap: () => googleSignIn(),
+      yarimCopeAt: (ad, klasorId) => copAkisi.yarimCopeAt(ad, klasorId)
     }))
     .catch(e => toast(`Kitap sihirbazı açılamadı: ${e}`));
 }
@@ -321,11 +324,12 @@ async function kitaplikYenile(): Promise<void> {
 // (ribbon / status, cover) finish what is waiting, so they don't write over each other.
 
 let icKuyruk: IcindekilerKuyrugu | null = null;
+let icBaglanti: IcindekilerBaglantisi | null = null;
 
 // task 6.K5a-2: the queue and the panel's context in ui/icindekilerBaglami.ts (one refresh way for every write)
 function icindekilerKur(loc: DriveLocation | null): void {
-  if (!loc) { icKuyruk = null; setIcindekilerBaglami(null); return; }
-  const { baglam, kuyruk } = icindekilerBaglamiKur({
+  if (!loc) { icKuyruk = null; icBaglanti = null; setIcindekilerBaglami(null); return; }
+  const baglanti = icindekilerBaglamiKur({
     drive: driveIcindekilerApi,
     secenek: kitapId => ({
       kilitAcik: KURULUM_KILIT_ACIK, kokKaynagi: kokKaynagi(), kokId: loc.rootId,
@@ -347,11 +351,30 @@ function icindekilerKur(loc: DriveLocation | null): void {
       if (!fileId) throw new Error('kitap.json yok');
       return driveIcindekilerApi.jsonOku(fileId);
     },
-    girisYap: () => { void googleSignIn(); }
+    girisYap: () => { void googleSignIn(); },
+    copIste: (b, hedef) => copAkisi.copIste(b, hedef)
   });
-  icKuyruk = kuyruk;
-  setIcindekilerBaglami(baglam);
+  icBaglanti = baglanti;
+  icKuyruk = baglanti.kuyruk;
+  setIcindekilerBaglami(baglanti.baglam);
 }
+
+// ---- task 6.K5b: a topic / unit / book / half-made book to the trash (ui/copAkisi.ts; ?kurulum=1) ----
+const copAkisi = copAkisiKur({
+  kilitAcik: () => KURULUM_KILIT_ACIK && kokKaynagi() !== null,
+  kokKaynagi,
+  yazabilir: () => isSignedIn() && durum.tur === 'drive',
+  loc: () => driveLoc,
+  icApi: driveIcindekilerApi,
+  kitapApi: driveKitapCopApi,
+  baglanti: () => icBaglanti,
+  bekleyenKalem: bekleyenKalemIdleri,
+  bekleyenFoto: async () => (await bekleyenFotoDepo.hepsi()).map(k => k.konuKlasorId),
+  oncesi: async () => { await reading?.flush(); await saver?.bekleyenleriYaz(); },
+  mesgul: () => icKuyruk?.hasUnsaved ? 'İçindekiler kaydediliyor; bitince tekrar dene.' : null,
+  kitaplikYenile,
+  girisYap: () => googleSignIn()
+});
 
 // The same warning (e.g. two "Defter Library" roots) only once per page load
 const uyarilar = new Set<string>();
@@ -524,6 +547,13 @@ initReader(() => {
   // the room is behind the reader: don't draw it (it stays paused under the contents page too)
   scene?.setPaused(true);
   void openOkuyucu(b, folderId, unit, topic, okuyucuClosed, resume);
+}, () => {
+  // task 6.K5b-3: "İçindekileri düzenle" (also a book without topics: + Ünite, Kitabı çöpe at)
+  const b = deskBook ? data?.books.get(deskBook) : undefined;
+  const folderId = b && bookFolder(b);
+  if (!b || !folderId) return;
+  scene?.setPaused(true);
+  openOkuyucuDuzenle(b, folderId, okuyucuClosed);
 });
 
 // The full-screen reader closed: back to the desk (its contents page) or, opened from the search, the library

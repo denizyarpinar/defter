@@ -50,7 +50,8 @@ export class AyniKitapVar extends Error {
 }
 
 export class YarimKitapVar extends Error {
-  constructor(ad: string) { super(`Yarım kalmış bir kitap var: ${ad}. Hiçbir şey yazılmadı. Başka bir ad seç; yarım klasör daha sonra çöpe atılabilir.`); }
+  // 6.K5b: the folder's id for "Yarım kitabı çöpe at"
+  constructor(readonly ad: string, readonly klasorId?: string) { super(`Yarım kalmış bir kitap var: ${ad}. Hiçbir şey yazılmadı. Başka bir ad seç; yarım klasör daha sonra çöpe atılabilir.`); }
 }
 
 export class KitapOlusturIzinYok extends Error {
@@ -149,21 +150,30 @@ export function islemOzeti(i: KitapIslemi): string {
 type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => typeof v === 'object' && v !== null && !Array.isArray(v);
 
-// The book id on the chosen shelf (the first shelf if it is gone). Already on a shelf → no change.
+// The book id on the chosen shelf (the first shelf if it is gone). Already on that shelf → no change.
 // No shelf at all → no change (the book shows among "Yeni gelenler"). Every other field stays.
+// 6.K5b: an entry of the id on another shelf is an old one (the folder this operation made is new: when it started
+// no folder with that name was there, else AyniKitapVar — the old one is in the trash or gone): it is taken out, the
+// book goes on the chosen shelf. On the chosen shelf already (e.g. an earlier try whose answer was lost) → as it is.
 export function rafaEkle(ham: unknown, rafId: string, kitapId: string): { json: Obj; degisti: boolean; rafa: string | null } {
   const base = isObj(ham) ? ham : {};
   const raflar = Array.isArray(base.raflar) ? base.raflar : [];
   const rafIdsi = (r: unknown) => isObj(r) && typeof r.id === 'string' ? r.id : null;
   const kitaplari = (r: unknown) => isObj(r) && Array.isArray(r.kitaplar) ? r.kitaplar : [];
-  const bulundugu = raflar.find(r => kitaplari(r).includes(kitapId));
-  if (bulundugu) return { json: base, degisti: false, rafa: rafIdsi(bulundugu) };
-  let i = raflar.findIndex(r => rafIdsi(r) === rafId);
+  let i = raflar.findIndex(r => isObj(r) && rafIdsi(r) === rafId);
   if (i < 0) i = raflar.findIndex(isObj);
-  if (i < 0) return { json: base, degisti: false, rafa: null };
-  const raf = raflar[i] as Obj;
-  const yeniRaflar = raflar.map((r, k) => k === i ? { ...raf, kitaplar: [...kitaplari(raf), kitapId] } : r);
-  return { json: { ...base, raflar: yeniRaflar }, degisti: true, rafa: rafIdsi(raf) };
+  if (i < 0) {
+    const bulundugu = raflar.find(r => kitaplari(r).includes(kitapId));
+    return { json: base, degisti: false, rafa: bulundugu ? rafIdsi(bulundugu) : null };
+  }
+  const eski = raflar.some((r, k) => k !== i && kitaplari(r).includes(kitapId));
+  const zatenOrada = kitaplari(raflar[i]).includes(kitapId);
+  if (zatenOrada && !eski) return { json: base, degisti: false, rafa: rafIdsi(raflar[i]) };
+  const yeniRaflar = raflar.map((r, k) => {
+    if (k === i) return zatenOrada ? r : { ...(r as Obj), kitaplar: [...kitaplari(r), kitapId] };
+    return kitaplari(r).includes(kitapId) ? { ...(r as Obj), kitaplar: kitaplari(r).filter(x => x !== kitapId) } : r;
+  });
+  return { json: { ...base, raflar: yeniRaflar }, degisti: true, rafa: rafIdsi(raflar[i]) };
 }
 
 // ---- kitapOlustur ----
@@ -222,7 +232,7 @@ export async function kitapOlustur(drive: KitapOlusturDrive, islem: KitapIslemi,
     const yabanci = ayni.find(f => f.appProperties?.defterIslem !== islem.islemId);
     if (yabanci) {
       const yarim = yabanci.appProperties?.defter === '1' && !(await drive.cocukAra(yabanci.id, 'kitap.json')).length;
-      throw yarim ? new YarimKitapVar(plan.kitapId) : new AyniKitapVar(plan.kitapId);
+      throw yarim ? new YarimKitapVar(plan.kitapId, yabanci.id) : new AyniKitapVar(plan.kitapId);
     }
 
     islem.idler ??= await drive.yeniIdler(yazilacak.length);

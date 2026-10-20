@@ -4,6 +4,7 @@ import { sonKok, sonYarimlar } from '../drive/driveLibrary';
 import { darZorlaUrl, kisaScope, sahipZorlaYok } from '../drive/kapsam';
 import { kalemOlcer, kalemOlcumJson, ozet, toplam } from '../kalem/kalemOlcum';
 import { alanDurumu } from './gorunurAlan';
+import { copIzi } from './copAkisi';
 import { icindekilerIzi } from './icindekilerBaglami';
 
 // Task 5.10g-ek: ?olcum=1 — a small box in the corner with the numbers of the page's position
@@ -51,6 +52,7 @@ export function installOlcum(): void {
       `kök: ${kokSatiri()}`,
       `yarım kitap: ${yarimSatiri()}`,
       `içindekiler: ${icindekilerIzi()}`,
+      `çöp: ${copIzi()}`,
       vv ? `vv offsetTop ${n(vv.offsetTop)} · pageTop ${n(vv.pageTop)} · scrollY ${n(scrollY)}` : `vv yok · scrollY ${n(scrollY)}`,
       `olay: ${olay} (#${sayac})`,
       `html.scrollTop ${n(de.scrollTop)} · body.scrollTop ${n(document.body.scrollTop)}`,

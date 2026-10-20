@@ -21,16 +21,28 @@ export const KITAP = {
   ]
 };
 
-// kok → kitaplar → deneme-1 (kb) → Unite-01-Logik (u1: Konu-01, Konu-02), Unite-02-Leer (u2) + kitap.json (kj)
-export function fakeDrive(opts: { items?: Record<string, Partial<Item> & { name: string; parent: string }>; sil?: string[]; davranis?: Davranis[]; yazHata?: Davranis[]; mtimeDegis?: number; kitap?: unknown } = {}) {
+// Task 6.K5b: the shelves in kitaplik.json (kl): deneme-1 is the second book on r1
+export const KITAPLIK = {
+  surum: 1, raflar: [{ id: 'r1', ad: 'Raf 1', kitaplar: ['a', 'deneme-1', 'b'], renk: 'x' }, { id: 'r2', ad: 'Raf 2', kitaplar: ['c'] }],
+  oda: { duvar: '#fff', zemin: '#000', mod: 'otomatik' }, bilinmeyen: 3
+};
+
+// kok → kitaplar → deneme-1 (kb) → Unite-01-Logik (u1: Konu-01 (t1: f1, f2), Konu-02 (t2: f3)), Unite-02-Leer (u2)
+// + kitap.json (kj); kok → kitaplik.json (kl)
+export function fakeDrive(opts: { items?: Record<string, Partial<Item> & { name: string; parent: string }>; sil?: string[]; davranis?: Davranis[]; yazHata?: Davranis[]; copHata?: Davranis[]; mtimeDegis?: number; kitap?: unknown; kitaplik?: unknown } = {}) {
   const k = (name: string, parent: string, defter = true): Item => ({ name, parent, mimeType: FOLDER_MIME, appProperties: defter ? { defter: '1' } : {} });
+  const pdf = (name: string, parent: string): Item => ({ name, parent, mimeType: 'application/pdf', appProperties: {} });
   const items = new Map<string, Item>([
     ['kok', k('Defter Library', 'root')],
     ['kitaplar', k('kitaplar', 'kok')],
+    ['kl', { name: 'kitaplik.json', parent: 'kok', mimeType: 'application/json', appProperties: { defter: '1' }, icerik: JSON.stringify(opts.kitaplik ?? KITAPLIK) }],
     ['kb', k('deneme-1', 'kitaplar')],
     ['u1', k('Unite-01-Logik', 'kb')],
     ['t1', k('Konu-01-Aussagen', 'u1')],
+    ['f1', pdf('orijinal.pdf', 't1')],
+    ['f2', pdf('ozet.pdf', 't1')],
     ['t2', k('Konu-02-Beweisen', 'u1')],
+    ['f3', pdf('orijinal.pdf', 't2')],
     ['u2', k('Unite-02-Leer', 'kb')],
     ['kj', { name: 'kitap.json', parent: 'kb', mimeType: 'application/json', appProperties: { defter: '1' }, icerik: JSON.stringify(opts.kitap ?? KITAP) }]
   ]);
@@ -38,15 +50,42 @@ export function fakeDrive(opts: { items?: Record<string, Partial<Item> & { name:
   for (const id of opts.sil ?? []) items.delete(id);
   const davranis = [...(opts.davranis ?? [])];
   const yazHata = [...(opts.yazHata ?? [])];
+  const copHata = [...(opts.copHata ?? [])];
   let mtime = 1, mtimeDegis = opts.mtimeDegis ?? 0, n = 0;
   const calls: string[] = [];
-  const canli = (id: string) => { const i = items.get(id); return i && !i.trashed ? i : undefined; };
+  // in the trash itself or inside a folder in the trash (as Drive shows it)
+  const copte = (id: string): boolean => {
+    for (let i = items.get(id), d = 0; i && d < 20; i = items.get(i.parent), d++) if (i.trashed) return true;
+    return false;
+  };
+  const canli = (id: string) => { const i = items.get(id); return i && !copte(id) ? i : undefined; };
   const drive: IcindekilerDrive = {
     async yeniIdler(c) { calls.push('yeniIdler:' + c); return Array.from({ length: c }, () => 'id' + ++n); },
     async oge(id) {
       calls.push('oge');
       const i = items.get(id);
-      return i ? { id, name: i.name, parents: [i.parent], appProperties: i.appProperties, trashed: !!i.trashed } : null;
+      return i ? { id, name: i.name, mimeType: i.mimeType, parents: [i.parent], appProperties: i.appProperties, trashed: copte(id) } : null;
+    },
+    async altAgac(ebeveynler) {
+      calls.push('altAgac');
+      const out: { id: string; name: string; mimeType: string; parents: string[] }[] = [];
+      let katman = [...ebeveynler];
+      while (katman.length) {
+        const c = [...items].filter(([id, i]) => katman.includes(i.parent) && canli(id));
+        out.push(...c.map(([id, i]) => ({ id, name: i.name, mimeType: i.mimeType, parents: [i.parent] })));
+        katman = c.filter(([, i]) => i.mimeType === FOLDER_MIME).map(([id]) => id);
+      }
+      return out;
+    },
+    async copDurumu(id, trashed) {
+      calls.push(`cop:${items.get(id)?.name ?? id}:${trashed}`);
+      const d = copHata.shift() ?? 'ok';
+      if (d === 'ag') throw new TypeError('Failed to fetch');
+      if (d === '403') throw new DriveError(403, 'x');
+      const i = items.get(id);
+      if (!i) throw new DriveError(404, 'x');
+      i.trashed = trashed;
+      if (d === 'agAmaOlustu') throw new TypeError('Failed to fetch');
     },
     async islemAra(islemId) {
       calls.push('islemAra');
@@ -95,8 +134,9 @@ export function fakeDrive(opts: { items?: Record<string, Partial<Item> & { name:
   };
   const kitap = () => JSON.parse(items.get('kj')!.icerik!) as typeof KITAP & { uniteler: { baslik: string; klasor?: string; konular: { baslik: string; klasor: string; durum: string; kurdeleler?: unknown }[] }[] };
   const olusturmalar = () => calls.filter(c => c.startsWith('olustur:'));
-  const yazmalar = () => calls.filter(c => c === 'jsonYaz' || c.startsWith('olustur:') || c === 'okuma:write');
-  return { drive, items, calls, kitap, olusturmalar, yazmalar, okuma };
+  const yazmalar = () => calls.filter(c => c === 'jsonYaz' || c.startsWith('olustur:') || c === 'okuma:write' || c.startsWith('cop:'));
+  const kitaplik = () => JSON.parse(items.get('kl')!.icerik!) as typeof KITAPLIK;
+  return { drive, items, calls, kitap, kitaplik, olusturmalar, yazmalar, okuma, copte };
 }
 
 export const sec = (o: Partial<IcindekilerSecenek> = {}): IcindekilerSecenek => ({
