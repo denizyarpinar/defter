@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DriveError, driveFetch, driveXhr } from './drive';
 import {
-  DEVAM_BEKLEME, devamBaslangici, devamliGonder, drivePdfApi, ensureOriginalKept, PdfConflict, PdfReadOnly,
+  DEVAM_BEKLEME, devamBaslangici, devamliGonder, drivePdfApi, ensureOriginalKept, PdfConflict, PdfCopte, PdfReadOnly,
   PdfSampleNoWrite, PdfUploadSession, RESUMABLE_LIMIT, uploadPdf, yedekBelleginiSifirla,
   YuklemeOturumuDustu, type Gonderici, type PdfDrive, type Revision, type YuklemeSecenek
 } from './pdfYazici';
@@ -16,14 +16,14 @@ vi.mock('./drive', async importOriginal => ({
 beforeEach(() => { yedekBelleginiSifirla(); });
 
 // A fake Drive with one PDF; every call is logged.
-function fakeDrive(opts: { canEdit?: boolean; pages?: Revision[][] } = {}) {
+function fakeDrive(opts: { canEdit?: boolean; pages?: Revision[][]; trashed?: boolean } = {}) {
   const file = { modifiedTime: 't1', head: 'r1' };
   const pages = opts.pages ?? [[{ id: 'r1', keepForever: false }]];
   const log: string[] = [];
   const hooks = { afterKeep: null as null | (() => void) };
   const secenekler: (YuklemeSecenek | undefined)[] = [];
   const drive: PdfDrive = {
-    async durum() { log.push('durum'); return { canEdit: opts.canEdit ?? true, modifiedTime: file.modifiedTime, headRevisionId: file.head }; },
+    async durum() { log.push('durum'); return { canEdit: opts.canEdit ?? true, modifiedTime: file.modifiedTime, headRevisionId: file.head, trashed: opts.trashed }; },
     async listRevisions(_id, token) {
       log.push(`listRevisions:${token ?? '-'}`);
       const i = token ? Number(token) : 0;
@@ -83,6 +83,12 @@ describe('ensureOriginalKept', () => {
 });
 
 describe('uploadPdf', () => {
+  it('task 6.K6b: a file in Drive trash: PdfCopte, nothing written', async () => {
+    const { drive, log } = fakeDrive({ trashed: true });
+    await expect(uploadPdf(drive, 'f', bytes(10), 't1')).rejects.toBeInstanceOf(PdfCopte);
+    expect(log).toEqual(['durum']);
+  });
+
   it('first write: one durum, the backup, durum again, then the upload', async () => {
     const { drive, log } = fakeDrive();
     const r = await uploadPdf(drive, 'f', bytes(10), 't1');
@@ -348,10 +354,10 @@ describe('drivePdfApi requests', () => {
     const r = await uploadPdf(drivePdfApi, 'f', bytes(10), 't1');
     expect(r).toEqual({ id: 'f', modifiedTime: 't9', headRevisionId: 'r9' });
     expect(calls()).toEqual([
-      'GET files/f?fields=capabilities/canEdit,modifiedTime,headRevisionId',
+      'GET files/f?fields=capabilities/canEdit,modifiedTime,headRevisionId,trashed',
       'GET files/f/revisions?fields=nextPageToken%2Crevisions%28id%2CkeepForever%29',
       'PATCH files/f/revisions/r1?fields=id',
-      'GET files/f?fields=capabilities/canEdit,modifiedTime,headRevisionId',
+      'GET files/f?fields=capabilities/canEdit,modifiedTime,headRevisionId,trashed',
       'PATCH https://www.googleapis.com/upload/drive/v3/files/f?uploadType=media&fields=id,modifiedTime,headRevisionId'
     ]);
     expect(fetchMock.mock.calls[2][1]?.body).toBe('{"keepForever":true}');
@@ -365,7 +371,7 @@ describe('drivePdfApi requests', () => {
     xhrMock.mockClear();
     await uploadPdf(drivePdfApi, 'f', bytes(10), 't1');
     expect(calls()).toEqual([
-      'GET files/f?fields=capabilities/canEdit,modifiedTime,headRevisionId',
+      'GET files/f?fields=capabilities/canEdit,modifiedTime,headRevisionId,trashed',
       'PATCH https://www.googleapis.com/upload/drive/v3/files/f?uploadType=media&fields=id,modifiedTime,headRevisionId'
     ]);
   });

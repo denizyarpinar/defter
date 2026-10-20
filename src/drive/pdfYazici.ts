@@ -20,7 +20,7 @@ export const RESUMABLE_LIMIT = 5 * 1024 * 1024;   // bigger → resumable upload
 export interface Revision { id: string; keepForever?: boolean }
 export interface RevisionPage { revisions: Revision[]; nextPageToken?: string }
 export interface UploadResult { id: string; modifiedTime: string; headRevisionId: string }
-export interface DosyaDurumu { canEdit: boolean; modifiedTime: string; headRevisionId: string }
+export interface DosyaDurumu { canEdit: boolean; modifiedTime: string; headRevisionId: string; trashed?: boolean }   // trashed: task 6.K6b
 
 // What the caller hears about an upload (only the photo adding listens, task 6.2e-2)
 export interface YuklemeDinleyici {
@@ -53,6 +53,11 @@ export class PdfReadOnly extends Error {
 
 export class PdfConflict extends Error {
   constructor() { super('PDF bu arada başka bir yerde değişmiş, o yüzden üstüne yazılmadı.'); }
+}
+
+// Task 6.K6b: the file is in Drive's trash (or in a folder there): nothing is written, a pen record stays on the device
+export class PdfCopte extends Error {
+  constructor() { super("PDF Drive'ın çöpünde; üstüne yazılmadı. Geri alınırsa kayıt yeniden denenir."); }
 }
 
 export class PdfUploadSession extends Error {
@@ -176,9 +181,9 @@ export async function resumableUpload(
 
 export const drivePdfApi: PdfDrive = {
   async durum(fileId) {
-    const res = await ok(await driveFetch(`${fileUrl(fileId)}?fields=capabilities/canEdit,modifiedTime,headRevisionId`), WHAT);
-    const j = await res.json() as { capabilities?: { canEdit?: boolean }; modifiedTime?: string; headRevisionId?: string };
-    return { canEdit: j.capabilities?.canEdit === true, modifiedTime: j.modifiedTime ?? '', headRevisionId: j.headRevisionId ?? '' };
+    const res = await ok(await driveFetch(`${fileUrl(fileId)}?fields=capabilities/canEdit,modifiedTime,headRevisionId,trashed`), WHAT);
+    const j = await res.json() as { capabilities?: { canEdit?: boolean }; modifiedTime?: string; headRevisionId?: string; trashed?: boolean };
+    return { canEdit: j.capabilities?.canEdit === true, modifiedTime: j.modifiedTime ?? '', headRevisionId: j.headRevisionId ?? '', trashed: j.trashed === true };
   },
   async listRevisions(fileId, pageToken) {
     const params = new URLSearchParams({ fields: 'nextPageToken,revisions(id,keepForever)' });
@@ -240,6 +245,7 @@ export async function uploadPdf(
 ): Promise<UploadResult> {
   if (isSampleId(fileId)) throw new PdfSampleNoWrite();   // sample library: no request at all
   const d = await drive.durum(fileId);
+  if (d.trashed) throw new PdfCopte();   // task 6.K6b: never into a file in the trash
   if (!d.canEdit) throw new PdfReadOnly();
   if (d.modifiedTime !== expectedModifiedTime) throw new PdfConflict();
   const head = d.headRevisionId;

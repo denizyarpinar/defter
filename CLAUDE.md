@@ -397,7 +397,7 @@ Kitaplık/
 - Kod: `src/kitap/icindekiler.ts`, `klasorNumarasi.ts`, `src/drive/icindekilerYaz.ts` (kuyruk dahil), `src/ui/icindekilerBaglami.ts`, `src/ui/icindekilerDurumu.ts` (testli), `src/ui/icindekilerDuzenle.ts`. Ekran görüntüleri: `node scripts/icindekiler-kontrol.mjs` (Drive yok).
 
 ### Çöpe atma (6.K5b, Deniz kararı)
-- "Hiçbir dosya silinmez" kuralının istisnası: konu, ünite, kitap ve yarım kitap KLASÖRÜ çöpe atılabilir; sadece `files.update` `trashed=true` (Geri al = `trashed=false`; Drive çöpünde 30 gün). `files.delete` ve `emptyTrash` asla (`scripts/silme-yok.test.ts`). Tek dosya çöpe atılmaz (K6).
+- "Hiçbir dosya silinmez" kuralının istisnası: konu, ünite, kitap ve yarım kitap KLASÖRÜ çöpe atılabilir; sadece `files.update` `trashed=true` (Geri al = `trashed=false`; Drive çöpünde 30 gün). `files.delete` ve `emptyTrash` asla (`scripts/silme-yok.test.ts`). Tek dosya: sadece okuyucuda açık dosya (6.K6b).
 - Kök, `kitaplar/` ve `kitaplik.json` asla. Ebeveyn zinciri her denemede, yazmadan önce: konu → bu kitabın ünite klasörü → kitap klasörü → kökün `kitaplar/`'ı; kitap / yarım kitap → kökün `kitaplar/`'ı (yarım: `defter=1` + kitap.json yok). Sahip modunda da sadece kitaplık kökünün içi. Uymazsa istek yok.
 - Sadece `?kurulum=1` (dar ve sahip modu aynı); kilit yoksa çöp düğmeleri gri + not. Örnek kitaplıkta yok. surum 1 / kitap.json'suz kitapta sadece "Kitabı çöpe at".
 - Sıra: konu/ünite → önce kitap.json'dan çıkar (K5a kuyruğu, `jsonDegistir`: modifiedTime, bilinmeyen alanlar/kurdeleler/kapak korunur; kitap `kurdele`'si çöpe giden konuya bakıyorsa `null`), sonra klasör. Kitap → önce `kitaplik.json` raf kaydı, sonra klasör. Zaten çöpte = başarı; Tekrar dene kaldığı yerden; Vazgeç = yapılanın geri alınması (kitap "Yeni gelenler"e düşmez).
@@ -413,6 +413,17 @@ Kitaplık/
 - Uebungen/Oedevler yoksa SADECE `?kurulum=1` ile (dar ve sahip modu aynı, örnek kitaplıkta yok) ilk dosya eklenirken açılır; panelde not "(klasör ilk dosyada açılır)". Kilitsiz: gri, `KlasorYok`, istek yok. Önce klasör, sonra dosya. Ofis çevirisinin geçici dosyası yine konu klasörüne; klasör sadece Ekle'de açılır.
 - Klasör açma (`src/drive/altKlasorAc.ts`, testli): ebeveyn zinciri (konu → yolundaki klasörler → kitap klasörü → kökün `kitaplar/`'ı) yazmadan önce; "var mı" okuyucunun eşleştiricisiyle (`altKlasorBul`, trashed=false) → varsa o; `Übungen`/`Ödevler` adlı klasör varsa açılmaz (`AltKlasorAdiFarkli`, Deniz kararı: konuKesfi değişmez); generateIds id'si islemId başına bellekte, `defter=1` + `defterIslem`, islemAra / 409 = var; açılan klasör oturum belleğinde. Tekrar dene ikinci klasör ya da dosya açmaz.
 - Ekran görüntüleri: `node scripts/bos-konu-kontrol.mjs` (Drive yok).
+
+### Açık dosyayı çöpe at (6.K6b, Deniz kararı)
+- Okuyucuda açık PDF (ve isterse çözümü) çöpe atılabilir; sadece `files.update` `trashed=true` (Geri al = `false`). Klasör hiç gitmez (boş kalan Uebungen dahil). Sadece `?kurulum=1`, Drive kitaplığı, surum 2 + kitap.json; örnek kitaplıkta yok; kalem açıkken düğme gizli. Düğme `#oCop` (her genişlikte simge), dosya seçicinin yanında.
+- Hedef: Übungen/Ödevler'de seçili dosya; çözüm sayfası odaktaysa sadece çözüm; Orijinal/Özet'te odaktaki sayfanın dosyası (brifing ya da sorular). X'in `X_cozum.pdf`'i varsa pencerede "Çözümü de çöpe at" (varsayılan işaretli).
+- Ebeveyn (her denemede, yazmadan önce): konu → ünite → kitap → kökün `kitaplar/`'ı (`zincirKontrol`) ve dosya: beklenen adlı PDF, doğrudan konu klasöründe ya da konunun `Uebungen`/`Oedevler`'inde (`dosyaEbeveyniGecerliMi`, `ebeveyn.ts`). Uymazsa istek yok.
+- Sıra: bekleyen okuma/kapak kaydı → kitap.json'dan o dosyalara bakan kurdeleler (konu `kurdeleler[materyal]`, kitap `kurdele` → null) → dosya → çözüm. Geri al tersi; kurdele sadece yeri boşsa geri konur. Bellekteki kitap da aynı.
+- Geri al'da aynı klasörde aynı adlı (büyük/küçük harf duyarsız) çöpte olmayan dosya varsa hiçbir şey geri gelmez, kurdeleler konmaz: "Aynı adlı yeni bir dosya var; eski dosya Drive çöpünde kaldı." (sadece Kapat).
+- Bekleyen kalem kaydı ya da yükleme → önce uyarı (kayıtlar cihazda kalır). Konuda bekleyen fotoğraf varken özet dosyası çöpe atılamaz (pencere sadece not + Kapat).
+- Yükleyici: `durum` `trashed` okur; çöpteki dosyaya `uploadPdf` yazmaz (`PdfCopte`); kalem yükleyicisi bunu sessiz geçer (hata yok, tekrar yok, kayıt silinmez); Geri al'dan sonra `uploader.request`.
+- Okuyucu: aynı türde komşu dosya, yoksa başka tür, hiç yoksa K6a boş konu. Dosya ekle hedefleri yeni listeden (ör. orijinal.pdf gidince Orijinal yeniden seçilebilir). Pencere açıkken Esc sadece pencereyi kapatır.
+- Kod: `src/kitap/dosyaCop.ts` (saf), `src/drive/dosyaCop.ts`, `copAkisi.ts` (`dosyaCopIste`), `copOnay.ts` (`cozumKutusu`, `engel`) (testli). Ekran görüntüleri: `node scripts/dosya-cop-kontrol.mjs` (Drive yok; düğme ölçüm için zorla gösterilir).
 
 ## Sonra bakılabilir
 - Oda zaman aşımı: şu an glb yüklemesine toplam 15 sn veriliyor; yavaş bağlantıda (masaüstü lightmap'leri ~3.3 MB) eski odaya düşüyor. Öneri: "15 sn hiç ilerleme yok" kuralı + yükleme göstergesi. Faz 2 kural metni değişeceği için Deniz'in onayı gerekir.

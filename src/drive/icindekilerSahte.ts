@@ -59,7 +59,7 @@ export function fakeDrive(opts: { items?: Record<string, Partial<Item> & { name:
     return false;
   };
   const canli = (id: string) => { const i = items.get(id); return i && !copte(id) ? i : undefined; };
-  const drive: IcindekilerDrive = {
+  const drive: IcindekilerDrive & { cocuklar(id: string): Promise<{ id: string; name: string; mimeType: string }[]> } = {
     async yeniIdler(c) { calls.push('yeniIdler:' + c); return Array.from({ length: c }, () => 'id' + ++n); },
     async oge(id) {
       calls.push('oge');
@@ -104,6 +104,11 @@ export function fakeDrive(opts: { items?: Record<string, Partial<Item> & { name:
     },
     async kokCocuklari(id) {
       calls.push('kokCocuklari');
+      return [...items].filter(([cid, i]) => i.parent === id && canli(cid)).map(([cid, i]) => ({ id: cid, name: i.name, mimeType: i.mimeType }));
+    },
+    // task 6.K6b: a folder's children (not in the trash)
+    async cocuklar(id) {
+      calls.push('cocuklar');
       return [...items].filter(([cid, i]) => i.parent === id && canli(cid)).map(([cid, i]) => ({ id: cid, name: i.name, mimeType: i.mimeType }));
     },
     async klasorler(ebeveynler) {

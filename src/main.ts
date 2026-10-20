@@ -14,6 +14,7 @@ import { acilisToastMetni } from './defter/fotoEklemeMetin';
 import { ReadingSaver, driveReadingApi } from './drive/okumaKaydi';
 import { driveIcindekilerApi, uniteKlasorDurumu, type IcindekilerKuyrugu } from './drive/icindekilerYaz';
 import { driveKitapCopApi } from './drive/kitapCop';
+import { driveDosyaCopApi } from './drive/dosyaCop';
 import { icindekilerBaglamiKur, type IcindekilerBaglantisi } from './ui/icindekilerBaglami';
 import { copAkisiKur } from './ui/copAkisi';
 import { DriveSaver } from './drive/save';
@@ -24,7 +25,7 @@ import type { Book, ModeKey } from './model/types';
 import { usesUnits } from './model/units';
 import { markOpened, setReadingSink } from './okuma/okumaDurumu';
 import { sampleBookFolder, sampleFolders } from './okuma/ornekKaynak';
-import { bekleyenKalemIdleri, closeOkuyucu, forgetBook, fotoYuklemeSuruyor, initOkuyucu, isOkuyucuOpen, okuyucuAra, openOkuyucu, openOkuyucuDuzenle, sayfaEklemeOrtami, setIcindekilerBaglami, setKlasorAcma } from './okuma/Okuyucu';
+import { bekleyenKalemIdleri, closeOkuyucu, forgetBook, fotoYuklemeSuruyor, initOkuyucu, isOkuyucuOpen, okuyucuAra, openOkuyucu, openOkuyucuDuzenle, sayfaEklemeOrtami, setDosyaCop, setIcindekilerBaglami, setKlasorAcma } from './okuma/Okuyucu';
 import { createRoomScene, type LibraryData, type RoomScene, type View } from './scene';
 import { canvas, drawWood, noise } from './scene/textures';
 import { updateHint } from './ui/hint';
@@ -367,6 +368,7 @@ const copAkisi = copAkisiKur({
   loc: () => driveLoc,
   icApi: driveIcindekilerApi,
   kitapApi: driveKitapCopApi,
+  dosyaApi: driveDosyaCopApi,
   baglanti: () => icBaglanti,
   bekleyenKalem: bekleyenKalemIdleri,
   bekleyenFoto: async () => (await bekleyenFotoDepo.hepsi()).map(k => k.konuKlasorId),
@@ -378,6 +380,12 @@ const copAkisi = copAkisiKur({
 
 // ---- task 6.K6a: "Dosya ekle" may make a topic's missing Uebungen / Oedevler (only with ?kurulum=1) ----
 setKlasorAcma(() => driveLoc && durum.tur === 'drive' && KURULUM_KILIT_ACIK && kokKaynagi() !== null ? { kokId: driveLoc.rootId } : null);
+
+// ---- task 6.K6b: the reader's open file to the trash (only with ?kurulum=1; ui/copAkisi.ts) ----
+setDosyaCop({
+  acik: () => !!driveLoc && durum.tur === 'drive' && KURULUM_KILIT_ACIK && kokKaynagi() !== null,
+  iste: d => copAkisi.dosyaCopIste(d)
+});
 
 // The same warning (e.g. two "Defter Library" roots) only once per page load
 const uyarilar = new Set<string>();

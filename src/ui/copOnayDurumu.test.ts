@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CopIzinYok } from '../drive/copeAt';
-import { adSorulur, copAcik, hataAdimi, hataDugmeleri, kapatilabilir, ozetMetni, sayildi, uyariMetni } from './copOnayDurumu';
+import { GeriAlAdDolu } from '../drive/dosyaCop';
+import { adSorulur, BASLIKLAR, copAcik, ENGEL_FOTO, hataAdimi, hataDugmeleri, kapatilabilir, ozetMetni, sayildi, uyariMetni } from './copOnayDurumu';
 
 // Task 6.K5b: the trash dialog's steps (pure).
 
@@ -39,5 +40,23 @@ describe('copOnayDurumu', () => {
     expect(hataDugmeleri(ag as Extract<typeof ag, { tur: 'hata' }>)).toEqual({ ana: 'tekrar', yan: 'kapat' });
     expect(kapatilabilir({ tur: 'calisiyor', geri: false })).toBe(false);
     expect(kapatilabilir(ag)).toBe(true);
+  });
+
+  it('task 6.K6b, a file: the text, a summary with photos waiting → only a note, pen records → the warning', () => {
+    expect(BASLIKLAR.dosya).toBe('Dosyayı çöpe at');
+    expect(ozetMetni('dosya', { konu: 0, dosya: 1, bekleyen: 0 })).toBe("Dosya çöpe gidecek. Drive'ın çöpünden 30 gün içinde geri alınabilir.");
+    expect(ozetMetni('dosya', { konu: 0, dosya: 2, bekleyen: 0 })).toMatch(/^Dosya ve çözümü çöpe gidecek/);
+    const engel = sayildi({ konu: 0, dosya: 1, bekleyen: 2, engel: ENGEL_FOTO });
+    expect(engel).toEqual({ tur: 'engel', metin: ENGEL_FOTO });
+    expect(ENGEL_FOTO).toMatch(/Önce bekleyen fotoğrafları ekle/);
+    expect(copAcik(engel, false, '', 'x')).toBe(false);
+    expect(kapatilabilir(engel)).toBe(true);
+    expect(sayildi({ konu: 0, dosya: 1, bekleyen: 1 }).tur).toBe('uyari');
+  });
+
+  it('task 6.K6b: Geri al with a new file of the same name: only Kapat (Tekrar dene no help)', () => {
+    const a = hataAdimi(new GeriAlAdDolu(), 'geri');
+    expect(a).toMatchObject({ tur: 'hata', mesaj: 'Aynı adlı yeni bir dosya var; eski dosya Drive çöpünde kaldı.', tekrarYok: true });
+    expect(hataDugmeleri(a as Extract<typeof a, { tur: 'hata' }>)).toEqual({ ana: null, yan: 'kapat' });
   });
 });

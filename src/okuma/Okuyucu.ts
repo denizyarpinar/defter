@@ -34,6 +34,8 @@ import type { Book, ChapterStatus, PageMark } from '../model/types';
 import { bookUnits, usesUnits } from '../model/units';
 import { esc } from '../ui/dom';
 import { bosDurumMetni } from '../ui/icindekilerDurumu';
+import { copDugmesiGorunur, copSonrasiSecim, dosyaCopHedefi, geriGelenSecim, materyallerdenCikar } from '../kitap/dosyaCop';
+import type { DosyaCopIstegi } from '../ui/copAkisi';
 import { bosKonuDurumu, konuKurdelesi, kurdeleSecimi, okumaKaydiYazilsinMi, type BosKonuDurumu } from './bosKonu';
 import { IcindekilerDuzenleyici, type IcindekilerBaglami } from '../ui/icindekilerDuzenle';
 import { fpsCounter } from '../ui/fps';
@@ -156,6 +158,10 @@ let bosDurum: BosKonuDurumu | null = null;
 // Task 6.K6a: main.ts tells whether a missing Uebungen / Oedevler may be made (?kurulum=1 and a root loaded)
 let klasorAcma: () => { kokId: string } | null = () => null;
 export function setKlasorAcma(f: () => { kokId: string } | null): void { klasorAcma = f; }
+// Task 6.K6b: main.ts tells whether the open file may go to the trash (?kurulum=1, a root loaded, a Drive library)
+// and runs the dialog (ui/copAkisi.ts)
+let dosyaCop: { acik: () => boolean; iste: (d: DosyaCopIstegi) => void } | null = null;
+export function setDosyaCop(d: typeof dosyaCop): void { dosyaCop = d; if (open) renderBar(); }
 
 export function setIcindekilerBaglami(b: IcindekilerBaglami | null): void {
   icBirak?.();
@@ -301,7 +307,8 @@ export function initOkuyucu(yer: () => DriveLocation | null): void {
   });
 
   addEventListener('keydown', e => {
-    if (!open || document.getElementById('fotoPanel') || document.getElementById('dosyaPanel')) return;   // task 5.8a / 5.10e: the panel has the keys
+    // task 5.8a / 5.10e: the panel has the keys; task 6.K6b: so has the trash dialog (Esc closes only it)
+    if (!open || document.getElementById('fotoPanel') || document.getElementById('dosyaPanel') || document.getElementById('copOnay')) return;
     // task 6.3c: Ctrl/Cmd+F opens our search box (not the browser's)
     if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'f') { e.preventDefault(); e.stopPropagation(); if (!konusuz && !bosDurum) arama.ac(); return; }
     if (e.key === 'Escape') { e.stopPropagation(); if (toolbar?.closePopover()) return; if (tocOpen) closeToc(); else if (arama.acik) arama.kapat(); else closeOkuyucu(); return; }
@@ -345,6 +352,8 @@ export function initOkuyucu(yer: () => DriveLocation | null): void {
     topic.solution = !topic.solution;
     void showMaterial();
   });
+  // Task 6.K6b: the open file to the trash (only with ?kurulum=1; hidden with the pen on)
+  $('#oCop').addEventListener('click', () => { void dosyayiCopeAt(); });
   // Task 5.8a: "Fotoğraf ekle" (draft, writes nothing). The picker opens inside the tap (iPad Safari),
   // the panel (a lazy import) after the photos are chosen.
   const fotoInput = $<HTMLInputElement>('#oFotoInput');
@@ -988,6 +997,10 @@ function renderBar(): void {
     return b;
   }));
   showSelectedTab();
+  $('#oCop').hidden = !copDugmesiGorunur({
+    kilitAcik: !!dosyaCop?.acik(), drive: !isSampleId(folder) && !!driveLocation(),
+    surum2: !!book && usesUnits(book) && book.hasJson && book.surum >= 2, materyal: t.kind !== null, kalem: penOn
+  });
   const list = t.kind === 'uebungen' || t.kind === 'oedevler' ? t.materials[t.kind] : null;
   $('#oFiles').hidden = !list;
   if (!list) return;
@@ -1350,6 +1363,82 @@ function showAdded(t: OpenTopic, g: GosterHedefi): void {
   if (mt) for (const m of t.materials.ozet) if (m.file.id === g.fileId) m.file.modifiedTime = mt;
   t.kind = 'ozet'; t.fileIndex = 0; t.solution = false;
   void showMaterial({ dosya: g.ad, sayfa: g.sayfa });
+}
+
+// ---- task 6.K6b: the open file to the trash (ui/copAkisi.ts; decisions: kitap/dosyaCop.ts) ----
+
+async function dosyayiCopeAt(): Promise<void> {
+  const t = topic, b = book, d = dosyaCop;
+  if (!t || !b || !open || penOn || !d?.acik()) return;
+  const odak = focusPage();
+  const h = dosyaCopHedefi(t, pages[odak]?.dosyaId ?? null, odak, mainCount);
+  if (!h) return;
+  let konuKlasorId: string;
+  try {
+    konuKlasorId = await topicFolderId(t);
+  } catch (e) {
+    toast(e instanceof Error ? e.message : String(e));
+    return;
+  }
+  if (topic !== t || !open) return;
+  d.iste({
+    kitap: b, konu: t.klasor, konuKlasorId, hedef: h,
+    kalemYukleniyor: id => uploader.bekliyorMu(id),
+    bitti: giden => { void dosyaGitti(t, giden); },
+    geriGeldi: gelen => { void dosyaGeldi(t, b, gelen); }
+  });
+}
+
+// The file went: the same kind's next file (else another kind); nothing left → the empty topic (6.K6a).
+// The list follows without a request (Drive may still list a file just trashed); the next open lists again.
+async function dosyaGitti(t: OpenTopic, giden: readonly string[]): Promise<void> {
+  agacGecersiz();   // the search tree knew the file
+  topicCache.delete(`${folder}|${t.klasor}`);
+  if (!open || topic !== t) return;
+  const eski = t.kind;
+  t.materials = materyallerdenCikar(t.materials, giden);
+  const s = copSonrasiSecim(t.kind, t.fileIndex, t.materials);
+  if (!s) {
+    ++session;   // a page still loading is not shown
+    t.kind = null; t.fileIndex = 0; t.solution = false;
+    mainCount = 0;
+    if (arama.acik) arama.kapat();
+    zoom.reset();
+    releaseAll();
+    clearPages();
+    $('#oPno').textContent = '';
+    materyalsizMod(bosKonuDurumu({ klasorVar: true }));
+    renderBar();
+    setMessage(bosDurum!.metin);
+    void photoStrip(t);
+    return;
+  }
+  t.kind = s.kind; t.fileIndex = s.fileIndex; t.solution = false;
+  const mark = s.kind !== eski ? savedMark(t) : null;   // another kind opens at its ribbon
+  await showMaterial(mark && useMark(t, mark));
+}
+
+// "Geri al" done: the topic is listed again and the file that came back opens; its pen record goes now
+async function dosyaGeldi(t: OpenTopic, b: Book, gelen: readonly string[]): Promise<void> {
+  agacGecersiz();
+  topicCache.delete(`${folder}|${t.klasor}`);
+  void uploader.request(gelen);
+  if (!open || topic !== t || book !== b) return;
+  let m: TopicMaterials | null;
+  try {
+    m = await discover(folder, t.klasor);
+  } catch (e) {
+    if (!(e instanceof SessionExpired)) console.warn('Konu yeniden listelenemedi; konuyu kapatıp açınca görünür.', e);
+    return;
+  }
+  if (!m || !open || topic !== t) return;
+  t.materials = m;
+  const s = geriGelenSecim(m, gelen);
+  if (!s) { renderBar(); return; }
+  const bosKonu = t.kind === null;
+  t.kind = s.kind; t.fileIndex = s.fileIndex; t.solution = s.solution;
+  if (bosKonu) autoTopicStatus(b, current.unit, current.topic, 'girildi');
+  await showMaterial();
 }
 
 // ---- task 5.10f: the open reader after "Dosya ekle" (decisions: eklemeYenileme.ts) ----

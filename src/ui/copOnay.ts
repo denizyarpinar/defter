@@ -15,6 +15,8 @@ import { gorunurAlaniDuzelt } from './gorunurAlan';
 //   too: then Tekrar dene / Kapat). Done → the dialog closes and `basarili` (the caller shows "Çöpe atıldı · Geri al").
 // - ilkHata: "Geri al" failed after the toast: the dialog opens in its error state (Tekrar dene / Kapat); it finishes
 //   "Geri al" even when the toast is gone.
+// - Task 6.K6b, a file: cozumKutusu → "Çözümü de çöpe at" (checked; its value goes to calistir, fixed once it runs);
+//   engel → only the text and Kapat (e.g. a summary with photos waiting).
 // The look is the file panel's (.fp); it sits above the wizard (#copOnay z-index).
 
 export const COP_ONAY_ID = 'copOnay';
@@ -23,7 +25,8 @@ export interface CopOnayGirdisi {
   tur: CopTuru;
   ad: string;
   onizle?: () => Promise<CopOzeti>;
-  calistir: () => Promise<void>;
+  calistir: (cozumDahil: boolean) => Promise<void>;
+  cozumKutusu?: { ad: string };   // task 6.K6b: the file's X_cozum.pdf
   vazgec?: () => Promise<void>;
   girisYap: () => Promise<void> | void;
   basarili: () => void;
@@ -73,11 +76,17 @@ export function copOnayAc(g: CopOnayGirdisi): void {
   adKutu.spellcheck = false;
   adKutu.enterKeyHint = 'done';
   adEt.append(adKutu);
+  const cozumEt = el('label', 'co-cozum');
+  const cozumKutu = el('input');
+  cozumKutu.type = 'checkbox';
+  cozumKutu.checked = true;
+  cozumEt.append(cozumKutu, ` Çözümü de çöpe at (${g.cozumKutusu?.ad ?? ''})`);
+  let basladi = false;   // the box is fixed once the operation ran
   const alt = el('div', 'fp-alt');
   const yan = dugme('fp-vazgec', 'Vazgeç');
   const ana = dugme('fp-ekle co-cop', 'Çöpe at');
   alt.append(yan, ana);
-  kart.append(baslik, adSatiri, metin, adEt, alt);
+  kart.append(baslik, adSatiri, metin, adEt, cozumEt, alt);
   kok.append(kart);
   document.body.append(kok);
 
@@ -85,6 +94,9 @@ export function copOnayAc(g: CopOnayGirdisi): void {
     const a = adim;
     let m = '';
     adEt.hidden = !(adSorulur(g.tur) && a.tur === 'onay');
+    cozumEt.hidden = !g.cozumKutusu || geriModu || a.tur === 'engel' || a.tur === 'sayiliyor';
+    cozumKutu.disabled = basladi || a.tur === 'calisiyor';
+    ana.hidden = a.tur === 'engel' || (a.tur === 'hata' && hataDugmeleri(a).ana === null);
     yan.disabled = !kapatilabilir(a);
     yan.textContent = 'Vazgeç';
     ana.classList.toggle('co-kirmizi', a.tur === 'onay' || a.tur === 'uyari');
@@ -100,9 +112,14 @@ export function copOnayAc(g: CopOnayGirdisi): void {
         ana.disabled = false;
         break;
       case 'onay':
-        m = ozetMetni(g.tur, a.ozet);
+        m = ozetMetni(g.tur, g.cozumKutusu ? { ...a.ozet, dosya: 1 + (cozumKutu.checked ? 1 : 0) } : a.ozet);
         ana.textContent = 'Çöpe at';
         ana.disabled = !copAcik(a, adSorulur(g.tur), yazilan, g.ad);
+        break;
+      case 'engel':
+        m = a.metin;
+        ana.disabled = true;
+        yan.textContent = 'Kapat';
         break;
       case 'calisiyor':
         m = a.geri ? 'Geri alınıyor…' : 'Çöpe atılıyor…';
@@ -119,7 +136,7 @@ export function copOnayAc(g: CopOnayGirdisi): void {
       }
     }
     if (metin.textContent !== m) metin.textContent = m;   // the same text is not read out again
-    metin.classList.toggle('fp-hata', a.tur === 'hata' || a.tur === 'uyari');
+    metin.classList.toggle('fp-hata', a.tur === 'hata' || a.tur === 'uyari' || a.tur === 'engel');
   }
 
   async function say(): Promise<void> {
@@ -138,7 +155,8 @@ export function copOnayAc(g: CopOnayGirdisi): void {
     adim = { tur: 'calisiyor', geri: geriModu };
     ciz();
     try {
-      await (geriModu && !g.ilkHata ? g.vazgec!() : g.calistir());
+      if (!geriModu) basladi = true;
+      await (geriModu && !g.ilkHata ? g.vazgec!() : g.calistir(!!g.cozumKutusu && cozumKutu.checked));
     } catch (e) {
       adim = hataAdimi(e, geriModu ? 'geri' : 'cop');
       ciz();
@@ -174,6 +192,7 @@ export function copOnayAc(g: CopOnayGirdisi): void {
   };
 
   adKutu.addEventListener('input', () => { yazilan = adKutu.value; ciz(); });
+  cozumKutu.addEventListener('change', ciz);
   adKutu.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); ana.click(); } });
 
   function tus(e: KeyboardEvent): void {

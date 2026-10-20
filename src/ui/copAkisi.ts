@@ -1,16 +1,18 @@
 import type { AgacOgesi } from '../drive/copeAt';
 import { FOLDER_MIME } from '../drive/drive';
+import { dosyaCopYaz, dosyaGeriAlIsi, yeniDosyaCopIsi, type DosyaCopDrive, type DosyaCopSecenek } from '../drive/dosyaCop';
 import type { DriveLocation } from '../drive/driveLibrary';
 import { klasorleriBul, yeniCopIsi } from '../drive/icindekilerCop';
 import type { IcindekilerDrive } from '../drive/icindekilerYaz';
 import { kitapCopYaz, kitapGeriAlIsi, yeniKitapCopIsi, type KitapCopDrive, type KitapCopIsi, type KitapCopSecenek } from '../drive/kitapCop';
 import type { KokKaynagi } from '../drive/kok';
 import { bekleyenSay, gidenKonular, type CopHedefi } from '../kitap/copeAt';
+import { dosyaCopSayimi, kitabaKurdeleGeriKoy, kitaptanKurdeleCikar, type DosyaCopHedefi } from '../kitap/dosyaCop';
 import { kitapKonuAnahtari, uniteKlasoru } from '../kitap/icindekiler';
 import type { Book } from '../model/types';
 import { usesUnits } from '../model/units';
 import { copOnayAc } from './copOnay';
-import type { CopOzeti, CopTuru } from './copOnayDurumu';
+import { ENGEL_FOTO, type CopOzeti, type CopTuru } from './copOnayDurumu';
 import type { IcindekilerBaglantisi } from './icindekilerBaglami';
 import { toast, toastUzat } from './toast';
 
@@ -22,6 +24,8 @@ import { toast, toastUzat } from './toast';
 // - "Geri al" keeps everything it needs in its own operation (ids, shelf places, what went out of kitap.json), so it
 //   works after the library was loaded again. A failing "Geri al" opens the dialog in its error state: it can finish
 //   it even when the toast is gone.
+// - Task 6.K6b: the reader's open file (dosyaCopIste; drive/dosyaCop.ts): the same dialog with "Çözümü de çöpe at";
+//   a summary while photos for its topic wait on the device → only a note (no new ozet.pdf may come from them).
 // - ?olcum=1: the last events (copIzi).
 
 export interface CopAkisiGirdisi {
@@ -31,6 +35,7 @@ export interface CopAkisiGirdisi {
   loc: () => DriveLocation | null;
   icApi: IcindekilerDrive;
   kitapApi: KitapCopDrive;
+  dosyaApi: DosyaCopDrive;
   baglanti: () => IcindekilerBaglantisi | null;
   bekleyenKalem: () => Promise<string[]>;      // file ids
   bekleyenFoto: () => Promise<string[]>;       // the topic folder of each waiting photo record
@@ -38,6 +43,17 @@ export interface CopAkisiGirdisi {
   mesgul: () => string | null;                 // something else is being written (no trash now)
   kitaplikYenile: () => Promise<void>;
   girisYap: () => Promise<void>;
+}
+
+// Task 6.K6b: what the reader gives for its open file
+export interface DosyaCopIstegi {
+  kitap: Book;
+  konu: string;                          // the topic's folder path
+  konuKlasorId: string;                  // its Drive folder (the photo records name it)
+  hedef: DosyaCopHedefi;
+  kalemYukleniyor: (fileId: string) => boolean;   // waiting / going in the pen uploader
+  bitti: (giden: readonly string[]) => void;       // in the trash: the reader moves on
+  geriGeldi: (gelen: readonly string[]) => void;   // "Geri al" done: the reader shows it again
 }
 
 const GERI_AL_MS = 8000;
@@ -151,7 +167,61 @@ export function copAkisiKur(g: CopAkisiGirdisi) {
     kitapAkisi('kitap', yeniKitapCopIsi(b.id, b.baslik.trim() || b.id, klasorId), konu, () => {});
   }
 
+  // ---- task 6.K6b: the reader's open file ----
+
+  function dosya(d: DosyaCopIstegi): void {
+    const loc = g.loc(), b = d.kitap, h = d.hedef;
+    if (!loc || !g.kilitAcik()) return;
+    const m = g.mesgul();
+    if (m) { toast(m); return; }
+    const kokId = loc.rootId, kokKaynagi = g.kokKaynagi();   // kept: "Geri al" after the library is loaded again
+    const s = (): DosyaCopSecenek => ({
+      kilitAcik: g.kilitAcik(), kokKaynagi, kokId, yazabilir: g.yazabilir, surum: b.surum,
+      kitapKlasorId: loc.bookFolderIds.get(b.id), kitapJsonId: loc.bookFileIds.get(b.id), oncesi: g.oncesi
+    });
+    const is = yeniDosyaCopIsi(b.id, d.konu, h.materyal, [{ id: h.dosya.id, ad: h.dosya.name }]);
+    const ad = () => is.dosyalar.length > 1 ? `${h.dosya.name} ve çözümü` : h.dosya.name;
+    const ids = () => is.dosyalar.map(x => x.id);
+    const geriAl = async () => {
+      if (!is.geriAl) dosyaGeriAlIsi(is);
+      await dosyaCopYaz(g.dosyaApi, is, s());
+      if (is.bellek) { kitabaKurdeleGeriKoy(b, d.konu, h.materyal, is.bellek); is.bellek = null; }
+      d.geriGeldi(ids());
+    };
+    iz(`aç dosya: ${h.dosya.name}`);
+    copOnayAc({
+      tur: 'dosya', ad: h.etiket,
+      ...(h.cozum ? { cozumKutusu: { ad: h.cozum.name } } : {}),
+      onizle: async () => {
+        const [kalem, foto] = await Promise.all([
+          g.bekleyenKalem().catch(() => [] as string[]),
+          g.bekleyenFoto().catch(() => [] as string[])
+        ]);
+        const n = dosyaCopSayimi({ hedef: h, konuKlasorId: d.konuKlasorId, kalemIdleri: kalem, fotoKonulari: foto, yukleniyor: d.kalemYukleniyor });
+        return { konu: 0, dosya: 1, bekleyen: n.bekleyen, ...(n.engel ? { engel: ENGEL_FOTO } : {}) };
+      },
+      calistir: async cozumDahil => {
+        if (!is.basladi && cozumDahil && h.cozum) {
+          is.dosyalar.push({ id: h.cozum.id, ad: h.cozum.name });
+          is.copte.push(false);
+          is.geriGelen.push(false);
+        }
+        await dosyaCopYaz(g.dosyaApi, is, s());
+      },
+      vazgec: geriAl,
+      girisYap: g.girisYap,
+      basarili: () => {
+        iz('çöpe atıldı dosya');
+        // the ribbons in memory follow kitap.json (the reading state never writes them back)
+        is.bellek = kitaptanKurdeleCikar(b, d.konu, h.materyal, is.dosyalar.map(x => x.ad));
+        d.bitti(ids());
+        geriAlToast('dosya', ad(), geriAl);
+      }
+    });
+  }
+
   return {
+    dosyaCopIste: dosya,
     copIste(b: Book, hedef: CopHedefi | { tur: 'kitap' }): void {
       if (hedef.tur === 'kitap') kitap(b); else icerik(b, hedef);
     },
