@@ -21,6 +21,23 @@
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=Figtree:wght@400;500;600;700&family=Caveat:wght@500;600&family=JetBrains+Mono:wght@400;500&display=swap" />
   </head>
   <body>
+    <noscript>
+      <style>
+        #app { display: none }
+        body { margin: 0; background: #f4eee4; color: #2a231d; font: 16px/1.7 system-ui, sans-serif }
+        .no-script-intro { max-width: 640px; margin: auto; padding: 24px; overflow-wrap: anywhere }
+        .no-script-intro a { display: inline-block; padding: 10px 0; color: #204d72 }
+      </style>
+      <main class="no-script-intro">
+        <h1>Defter</h1>
+        <p>Defter, Google Drive’daki ders belgelerini 3D kitaplıkta gösterir. PDF oku, kalemle not al ve belgelerinde ara. Dosyaların kendi Drive’ında kalır.</p>
+        <p lang="en">Defter displays your Google Drive study documents in a 3D library. Read PDFs, add pen annotations and search your documents. Your files stay in your own Drive.</p>
+        <p>Uygulamayı kullanmak için JavaScript gerekir. <span lang="en">JavaScript is needed to use the app.</span></p>
+        <nav aria-label="Gizlilik ve kullanım şartları">
+          <a href="/privacy.html">Gizlilik / Privacy</a> · <a href="/terms.html">Şartlar / Terms</a>
+        </nav>
+      </main>
+    </noscript>
     <div id="app" data-mode="day" data-view="room">
       <div id="stage"></div>
       <div id="loading">Oda hazırlanıyor…</div>
@@ -50,12 +67,20 @@
         <div class="card" role="dialog" aria-labelledby="loginTitle">
           <div class="brand" id="loginTitle">Defter</div>
           <p id="loginText">Drive'daki notların, çalışma odandaki kitaplıkta.</p>
+          <div class="login-intro">
+            <p>Defter, Google Drive’daki ders belgelerini 3D kitaplıkta gösterir. PDF oku, kalemle not al ve belgelerinde ara. Dosyaların kendi Drive’ında kalır.</p>
+            <p lang="en">Defter displays your Google Drive study documents in a 3D library. Read PDFs, add pen annotations and search your documents. Your files stay in your own Drive.</p>
+          </div>
           <button class="gbtn" id="loginGoogle">
             <svg viewBox="0 0 18 18" aria-hidden="true"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.97 10.72A5.4 5.4 0 0 1 3.68 9c0-.6.1-1.18.29-1.72V4.95H.96A9 9 0 0 0 0 9c0 1.45.35 2.83.96 4.05l3.01-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"/></svg>
             <span>Google ile giriş yap</span>
           </button>
           <a href="#" id="loginOther" hidden>Başka bir hesapla giriş yap</a>
           <a href="#" id="loginSample">Örnek kitaplıkla dene</a>
+          <nav class="legal-links" aria-label="Gizlilik ve kullanım şartları">
+            <a href="/privacy.html" target="_blank" rel="noopener noreferrer" aria-label="Gizlilik / Privacy (yeni sekmede)">Gizlilik / Privacy ↗</a>
+            <a href="/terms.html" target="_blank" rel="noopener noreferrer" aria-label="Kullanım şartları / Terms (yeni sekmede)">Şartlar / Terms ↗</a>
+          </nav>
           <p class="err" id="loginError" role="alert" hidden></p>
         </div>
       </div>
