@@ -12,7 +12,7 @@ import { mb, olc, zamanliDrive, type Olcum } from './sureOlcum';
 // - orijinal → orijinal.pdf in the topic folder; ozet → ozet.pdf there (only if the topic has no summary at all)
 // - uebungen / oedevler → Uebungen/<ad>, Oedevler/<ad>; { cozumOf: X } → <X>_cozum.pdf next to X
 // - Same name → AyniIsimVar (createPdf checks it): nothing written over, nothing renamed.
-// - Task 6.K6a: a missing Uebungen / Oedevler is made by o.altKlasorAc (drive/altKlasorAc.ts, only with ?kurulum=1)
+// - Task 6.K6a: a missing Uebungen / Oedevler is made by o.altKlasorAc (drive/altKlasorAc.ts, in a validated Drive context)
 //   before the file; without it (locked) → KlasorYok, no folder created.
 // - The bytes go as they are. Only a PDF with bytes before %PDF- is saved again with pdf-lib (a clean file).
 //   Encrypted / signed / unreadable PDFs are added, but the pen can't write them later: uyari 'kalemYazamaz'.

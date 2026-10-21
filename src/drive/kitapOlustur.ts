@@ -8,7 +8,7 @@ import { IdZatenVar, tekrarlanabilir } from './pdfOlustur';
 // Task 6.K4b: the book wizard's "Oluştur" — kitapPlani's items written to Drive, in order:
 // kitaplar/<kitapId>/ → unit folders → topic folders → kitap.json (last: the book is whole once it is there)
 // → the shelf entry in kitaplik.json. Rules (CLAUDE.md → Faz 6.K4b):
-// - Only with ?kurulum=1. Task 6.K4c: in the owner's "Kitaplık" (found by name) too, only under its kitaplar/.
+// - Only in a writable Drive context. Task 6.K4c: in the owner's "Kitaplık" (found by name) too, only under its kitaplar/.
 // - Every item carries appProperties { defter: "1", defterIslem: <islemId> }. The ids come from files.generateIds
 //   once, at the start; they and the islemId stay in memory (KitapIslemi), so "Tekrar dene" goes on where it
 //   stopped and never makes a second one (Drive's 409 = an earlier try did arrive). Not kept on the device.
@@ -34,7 +34,7 @@ export interface KitapOlusturDrive extends KurulumDrive {
 // ---- errors (Turkish, say what to do) ----
 
 export class KitapOlusturKilitli extends Error {
-  constructor() { super('Kitap oluşturma kilitli: hiçbir şey yazılmadı. Denemek için adrese ?kurulum=1 eklenmeli.'); }
+  constructor() { super('Kitap oluşturulamıyor: hiçbir şey yazılmadı. Google ile giriş yap ve kitaplığı yeniden aç.'); }
 }
 
 export class KitaplikYapisiBeklenmedik extends Error {
@@ -179,7 +179,7 @@ export function rafaEkle(ham: unknown, rafId: string, kitapId: string): { json: 
 // ---- kitapOlustur ----
 
 export interface KitapOlusturSecenek {
-  kilitAcik: boolean;                    // ?kurulum=1
+  kilitAcik: boolean;                    // writable context, independent of URL parameters
   kokKaynagi: KokKaynagi | null;         // the loaded root (null: none → locked); 'ad' = the owner's "Kitaplık" (6.K4c)
   kokId: string;
   yazabilir: () => boolean;              // signed in and not the sample library

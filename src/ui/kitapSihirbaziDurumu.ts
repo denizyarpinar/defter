@@ -12,11 +12,11 @@ import {
 // What is typed (name, shelf, colour, list) → the tree for the preview (warnings at their rows), the warnings
 // under the text box, the plan, and whether "Oluştur" can be tapped.
 // The tree's + / ↑ / ↓ change the tree and write the list again (listeYaz).
-// Task 6.K4b: "Oluştur" opens only with ?kurulum=1. OlusturAkisi keeps one operation (islemId + ids) for "Tekrar dene".
+// Task 6.K4b: "Oluştur" requires a validated Drive context. OlusturAkisi keeps one operation (islemId + ids) for "Tekrar dene".
 // Task 6.K4c: the owner's "Kitaplık" too (no note of its own any more).
 
 export type SihirbazKilidi = 'acik' | 'kilitli';
-export const KILIT_METNI = 'Oluşturma şimdilik kilitli (deneme). Adrese ?kurulum=1 eklenmeli.';
+export const KILIT_METNI = 'Kitap oluşturmak için Google ile giriş yap ve kitaplığı aç.';
 
 export interface SihirbazGirdisi { ad: string; rafId: string; renk: string; metin: string }
 

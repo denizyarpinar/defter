@@ -10,7 +10,7 @@ import { duzenleKarari, kayitMetni, SiraBirlestirici, UNITE_KLASORU_YOK } from '
 // - "+ Ünite", "+ Konu" (under a unit), rename (✎ or a double tap), ↑ ↓ (topics inside their unit, the units).
 // - Names and order: the book in memory changes at once, the write follows (↑ ↓ taps within 800 ms: one write).
 //   Adding: the book changes only after Drive took the folder and kitap.json ("Ekleniyor…" until then).
-// - Locked (no ?kurulum=1): the buttons are grey, a note says why; nothing is sent.
+// - Without a writable context: the buttons are grey; nothing is sent.
 // - 6.K5a-2: a name / order change goes with its undo (`geri`, for "Vazgeç" when kitap.json can't be read).
 //   The panel is redrawn by the reader on every change of the queue (Okuyucu.ts), not by this class.
 // - 6.K5b: a trash button on each unit / topic row and a red "Kitabı çöpe at" at the bottom; they open the dialog

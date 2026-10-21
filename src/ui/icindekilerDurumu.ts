@@ -8,14 +8,14 @@ export interface DuzenleGirdisi {
   drive: boolean;      // a Drive library (the sample one has no edit mode at all)
   hasJson: boolean;    // the book has a kitap.json
   surum: number;
-  kilitAcik: boolean;  // ?kurulum=1
+  kilitAcik: boolean;  // writable context, independent of URL parameters
 }
 
 // goster: the "Düzenle" button is there; acik: it opens the edit mode; yazar: its buttons write; not: why not
 // kitapCop (6.K5b): "Kitabı çöpe at" works (also in a surum 1 book and one without kitap.json: only that one)
 export interface DuzenleKarari { goster: boolean; acik: boolean; yazar: boolean; kitapCop: boolean; not: string | null }
 
-export const KILIT_NOTU = 'Düzenleme şimdilik kilitli (deneme). Denemek için adrese ?kurulum=1 eklenmeli.';
+export const KILIT_NOTU = 'Düzenlemek için Google ile giriş yap ve kitaplığı aç.';
 
 export function duzenleKarari(g: DuzenleGirdisi): DuzenleKarari {
   if (!g.drive) return { goster: false, acik: false, yazar: false, kitapCop: false, not: null };

@@ -10,7 +10,7 @@ import type { KurulumOgesi, YeniOgeMeta } from './kurulum';
 import { IdZatenVar, tekrarlanabilir } from './pdfOlustur';
 
 // Task 6.K5a: the contents' changes written to Drive (CLAUDE.md → Faz 6.K5a).
-// - Only with ?kurulum=1, only a Drive library (never the sample one), only surum 2 books with a kitap.json.
+// - Only a writable Drive library (never the sample one), only surum 2 books with a kitap.json.
 // - A new unit / topic = a new folder first (kitapOlustur's ways: the id from generateIds once, appProperties
 //   { defter: "1", defterIslem }, "is it there?" by islemId, Drive's 409 = an earlier try arrived, "Tekrar dene" goes
 //   on where it stopped), then kitap.json. The folder's name is chosen once (klasorNumarasi.ts) and kept for retries.
@@ -35,7 +35,7 @@ export interface IcindekilerDrive extends CopDrive {
 // ---- errors (Turkish, say what to do) ----
 
 export class IcindekilerKilitli extends Error {
-  constructor() { super('İçindekiler düzenleme kilitli: hiçbir şey yazılmadı. Denemek için adrese ?kurulum=1 eklenmeli.'); }
+  constructor() { super('İçindekiler düzenlenemiyor: hiçbir şey yazılmadı. Google ile giriş yap ve kitaplığı yeniden aç.'); }
 }
 export class IcindekilerYazmaYok extends Error {
   constructor() { super('İçindekiler kaydedilemez: Google ile giriş yapılmamış ya da örnek kitaplık açık. Google ile giriş yapıp tekrar dene.'); }
@@ -129,7 +129,7 @@ export const eklemeMi = (i: IcindekilerIsi) => i.istek.tur === 'uniteEkle' || i.
 export const copIsi = (i: IcindekilerIsi): CopIsi | null => i.istek.tur === 'cop' ? i.istek.cop : null;
 
 export interface IcindekilerSecenek {
-  kilitAcik: boolean;               // ?kurulum=1
+  kilitAcik: boolean;               // writable context, independent of URL parameters
   kokKaynagi: KokKaynagi | null;    // null: no root loaded → locked
   kokId: string;
   yazabilir: () => boolean;         // signed in and not the sample library

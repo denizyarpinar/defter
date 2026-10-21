@@ -155,10 +155,10 @@ let duzenleyici: IcindekilerDuzenleyici;
 let konusuz = false;
 // Task 6.K6a: the open topic has no materials (topic.kind null): its buttons and text (bosKonu.ts)
 let bosDurum: BosKonuDurumu | null = null;
-// Task 6.K6a: main.ts tells whether a missing Uebungen / Oedevler may be made (?kurulum=1 and a root loaded)
+// Task 6.K6a: main.ts tells whether a missing Uebungen / Oedevler may be made (a signed-in Drive context and a root loaded)
 let klasorAcma: () => { kokId: string } | null = () => null;
 export function setKlasorAcma(f: () => { kokId: string } | null): void { klasorAcma = f; }
-// Task 6.K6b: main.ts tells whether the open file may go to the trash (?kurulum=1, a root loaded, a Drive library)
+// Task 6.K6b: main.ts tells whether the open file may go to the trash (a root loaded, a signed-in Drive library)
 // and runs the dialog (ui/copAkisi.ts)
 let dosyaCop: { acik: () => boolean; iste: (d: DosyaCopIstegi) => void } | null = null;
 export function setDosyaCop(d: typeof dosyaCop): void { dosyaCop = d; if (open) renderBar(); }
@@ -352,7 +352,7 @@ export function initOkuyucu(yer: () => DriveLocation | null): void {
     topic.solution = !topic.solution;
     void showMaterial();
   });
-  // Task 6.K6b: the open file to the trash (only with ?kurulum=1; hidden with the pen on)
+  // Task 6.K6b: the open file to the trash (in a validated Drive context; hidden with the pen on)
   $('#oCop').addEventListener('click', () => { void dosyayiCopeAt(); });
   // Task 5.8a: "Fotoğraf ekle" (draft, writes nothing). The picker opens inside the tap (iPad Safari),
   // the panel (a lazy import) after the photos are chosen.

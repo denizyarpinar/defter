@@ -29,7 +29,7 @@ import { toast, toastUzat } from './toast';
 // - ?olcum=1: the last events (copIzi).
 
 export interface CopAkisiGirdisi {
-  kilitAcik: () => boolean;                    // ?kurulum=1 and a root loaded
+  kilitAcik: () => boolean;                    // authenticated Drive context and a root loaded
   kokKaynagi: () => KokKaynagi | null;
   yazabilir: () => boolean;                    // signed in, a Drive library
   loc: () => DriveLocation | null;

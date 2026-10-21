@@ -37,7 +37,7 @@ export function cozumAdaylari(m: TopicMaterials): CozumAdayi[] {
 
 export const KLASOR_ACILIR_METIN = '(klasör ilk dosyada açılır)';
 
-// Task 6.K6a: klasorAcabilir (?kurulum=1): a missing Uebungen / Oedevler can be chosen, the folder is made with the
+// Task 6.K6a: klasorAcabilir (validated Drive context): a missing Uebungen / Oedevler can be chosen, the folder is made with the
 // first file (a note says so); locked: grey as before
 export function hedefSecenekleri(m: TopicMaterials, klasor: KlasorBilgisi | null, klasorAcabilir = false): Secenek[] {
   const s = (hedef: PanelHedef, neden: string | null, not: string | null = null): Secenek =>

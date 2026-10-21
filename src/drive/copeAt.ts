@@ -23,7 +23,7 @@ export interface CopDrive {
 // ---- errors (Turkish, say what to do) ----
 
 export class CopKilitli extends Error {
-  constructor() { super('Çöpe atma kilitli: hiçbir şey yazılmadı. Denemek için adrese ?kurulum=1 eklenmeli.'); }
+  constructor() { super('Çöpe atma kullanılamıyor: hiçbir şey yazılmadı. Google ile giriş yap ve kitaplığı yeniden aç.'); }
 }
 export class CopYazmaYok extends Error {
   constructor() { super('Çöpe atılamaz: Google ile giriş yapılmamış ya da örnek kitaplık açık. Google ile giriş yapıp tekrar dene.'); }

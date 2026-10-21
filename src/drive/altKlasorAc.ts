@@ -6,7 +6,7 @@ import { IdZatenVar, tekrarlanabilir } from './pdfOlustur';
 
 // Task 6.K6a: a topic's Uebungen / Oedevler folder, made when the first file of that kind is added
 // (CLAUDE.md → Faz 6.K6a). kitapOlustur's / K5a's ways:
-// - Only with ?kurulum=1 (and a root loaded); locked → KlasorYok, as before, without any request.
+// - Only with a validated root context; unavailable context → KlasorYok, as before, without any request.
 // - The parent chain before any write: the topic folder → (each folder of its path) → the book's folder → the
 //   root's kitaplar/. The owner's "Kitaplık" too, only inside its root. Anything else: no create.
 // - "Is it there?" first: the same matcher as the reader (altKlasorBul), not in the trash → that one is used.
@@ -65,7 +65,7 @@ const UMLAUTLU: Record<AltKlasor, string> = { Uebungen: 'übungen', Oedevler: '�
 const umlautlu = (f: DriveFile, klasor: AltKlasor) => f.mimeType === FOLDER_MIME && f.name.normalize('NFC').trim().toLowerCase() === UMLAUTLU[klasor];
 
 export async function altKlasorAc(drive: AltKlasorDrive, i: AltKlasorIstek, s: AltKlasorSecenek): Promise<string> {
-  if (!s.kilitAcik) throw new KlasorYok(i.klasor);   // as before the lock opened: no request
+  if (!s.kilitAcik) throw new KlasorYok(i.klasor);   // no writable context: no request
   const bellek = `${i.konuId}|${i.klasor}`;
   try {
     await zincir(drive, i);

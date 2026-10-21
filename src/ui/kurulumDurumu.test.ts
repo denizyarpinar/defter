@@ -49,7 +49,7 @@ describe('kartSec: mode × Drive × owner × lock', () => {
     });
   }
 
-  it('without ?kurulum=1: the same card, the button locked', () => {
+  it('without an authenticated context: the same card, the button locked', () => {
     expect(kartSec({ sahip: false, aktif: 'dar', kok: { tur: 'yok' }, kilitAcik: false })).toEqual({ kart: 'kurulum', dugme: 'kur', kilitli: true });
     expect(kartSec({ sahip: false, aktif: 'dar', kok: { tur: 'yarim', kok: d1, kaynak: 'defterKok', eksik: ['kitaplar'] }, kilitAcik: false }))
       .toEqual({ kart: 'kurulum', dugme: 'tamamla', kilitli: true });
@@ -73,7 +73,7 @@ describe('KurulumAkisi: click lock and islemId', () => {
     expect(a.basla(true)).toBe(true);
   });
 
-  it('locked (?kurulum=1 missing): never starts', () => {
+  it('without an authenticated context: never starts', () => {
     const a = new KurulumAkisi(sayac());
     a.yeniKart();
     expect(a.basla(false)).toBe(false);

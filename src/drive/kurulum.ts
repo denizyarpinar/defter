@@ -8,7 +8,7 @@ import { multipartPdfBody, UPLOAD } from './pdfYazici';
 // Task 6.K2a: sets up an empty library in Drive: "Defter Library" (in My Drive's root) → kitaplar/ → kitaplik.json.
 // Rules (CLAUDE.md → Faz 6.K):
 // - Only under the app's own root (appProperties defterKok = "1"), only when asked (a tap; today the dev helper),
-//   and only with ?kurulum=1 (kilitAcik). Locked → KurulumKilitli before any request.
+//   in a writable context (kilitAcik). Unavailable context → KurulumKilitli before any request.
 // - Everything created carries appProperties { defter: "1", defterIslem: <islemId> } (the root also defterKok: "1").
 // - "Is it there?" first, no duplicates: the root is looked up (kokBul), missing parts only ('yarim'); every item
 //   is looked up by its defterIslem first; the id is taken beforehand (files.generateIds) and every retry uses it
@@ -41,7 +41,7 @@ export interface KurulumDrive extends KokDrive {
 // ---- errors (Turkish, say what to do) ----
 
 export class KurulumKilitli extends Error {
-  constructor() { super('Kurulum kilitli: hiçbir şey oluşturulmadı. Denemek için adrese ?kurulum=1 ekle.'); }
+  constructor() { super('Kurulum kullanılamıyor: hiçbir şey oluşturulmadı. Google ile giriş yap ve tekrar dene.'); }
 }
 
 export class KurulumYazmaYok extends Error {
@@ -326,7 +326,7 @@ export async function ornekKitapKur(drive: KurulumDrive, s: OrnekKitapSecenek): 
 export interface KitaplikKurSecenek extends KurulumSecenek {
   islemId: string;
   mod: KokModu;               // aktifKapsam() === 'tam' ? 'tam' : 'dar'
-  kilitAcik: boolean;         // ?kurulum=1
+  kilitAcik: boolean;         // writable context, independent of URL parameters
   yazabilir: () => boolean;   // signed in and not the sample library
   ornek?: { kaynak: OrnekKaynak; ilerleme?: (i: number, n: number) => void };   // the box "Örnek bir kitap da koy" (6.K3)
 }

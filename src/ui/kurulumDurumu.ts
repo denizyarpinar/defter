@@ -5,7 +5,7 @@ import type { KokSonucu } from '../drive/kok';
 // - No root → "Kitaplığı kur"; the app's own root half set up (defterKok) → "Kurulumu tamamla".
 // - The owner's old "Kitaplık" (found by name) is loaded as before, even without kitaplik.json / kitaplar.
 // - The owner signed in with drive.file only → the "Tam erişim gerekiyor" card first (task 6.K1).
-// - ?kurulum=1 missing → the button is grey; a tap sends no request.
+// - Without an authenticated context the button is grey; a tap sends no request.
 
 export type KurulumDugmesi = 'kur' | 'tamamla';
 
@@ -41,7 +41,7 @@ export class KurulumAkisi {
     if (!this.mesgul) this.id = this.yeniId();
   }
 
-  // false: locked (?kurulum=1 missing) or already running → no request
+  // false: unavailable context or already running → no request
   basla(kilitAcik: boolean): boolean {
     if (!kilitAcik || this.mesgul) return false;
     if (!this.id) this.id = this.yeniId();

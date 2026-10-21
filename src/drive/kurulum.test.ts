@@ -155,7 +155,7 @@ describe('kitaplikKur', () => {
     });
   });
 
-  it('locked (no ?kurulum=1): KurulumKilitli, no request at all', async () => {
+  it('unavailable context: KurulumKilitli, no request at all', async () => {
     const f = fakeDrive();
     await expect(kitaplikKur(f.drive, sec({ kilitAcik: false }))).rejects.toBeInstanceOf(KurulumKilitli);
     expect(f.calls).toEqual([]);

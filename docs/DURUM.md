@@ -1,6 +1,6 @@
 # Defter – Durum
 
-**Son güncelleyen:** Codex, 21 Ekim 2026 · 6.K8a tamamlandı: ikinci hesapta dar/drive.file, sahip=false; kurulum ve örnek PDF laptop + gerçek iPad'de geçti, iPad'de yeniden kurulum gerekmedi (Deniz bildirimi) · faz-6 Preview 2a7a7fc Ready · `main` c0da010, faz-6 birleşmedi · yalnız durum belgesi için yerel commit onaylandı; yeni push/merge yok.
+**Son güncelleyen:** Codex, 21 Ekim 2026 · 6.K8b yerelde uygulandı: URL kurulum kilidi kaldırıldı; oturum/kök/ebeveyn, kapsam/sahip, çift oluşturma ve çöpe atma onayları korundu · 1284 test + typecheck + build geçti; parametresiz 6 tarayıcı senaryosu geçti (sahte Drive, iPad boyutu emülasyon) · K8b laptop testi geçti (Deniz bildirimi), gerçek iPad testi bekleniyor · yalnız Preview testi için commit/push onaylandı; main birleştirmesi/canlı yayın yok.
 
 Ayrıntılı tarihçe repo dışında (Cowork'ün devir notu); ortak ve güncel durum bu dosya.
 Kurallar: `CLAUDE.md`. Codex için giriş: `AGENTS.md`.
@@ -39,6 +39,7 @@ Defter, Google Drive'daki notları (PDF, defter fotoğrafı, Claude çıktılar�
 | 6.K7a | Girişsiz gizlilik ve kısa şartlar sayfaları (EN/TR), giriş/Özelleştir bağlantıları | Bitti; laptop + gerçek iPad Safari geçti (faz-6 07f47a7, push edildi) |
 | 6.K7b | README yeni kullanıcı rehberi | Bitti; 2a7a7fc, origin/faz-6 dalına push edildi |
 | 6.K8a | İkinci hesapla gerçek test hazırlığı | Tamamlandı; dar/drive.file, sahip=false; kurulum ve örnek PDF laptop + gerçek iPad'de geçti, iPad'de yeniden kurulum gerekmedi (Deniz bildirimi) |
+| 6.K8b | Kurulum URL kilidini kaldırma | Uygulandı; kontroller ve laptop testi geçti (Deniz bildirimi), gerçek iPad bekliyor; yalnız Preview testi için commit/push onaylandı |
 | 6.K8 | Gerçek test, main | Sırada |
 | 6.4 / 6.5 | OCR / iki dil (EN + TR) | Sonra |
 | 7 | Quiz/özet (LLM API) | Sonra |
@@ -89,6 +90,21 @@ Defter, Google Drive'daki notları (PDF, defter fotoğrafı, Claude çıktılar�
 - K7c'nin güncel durumu: main c0da010 yasal sayfalarla canlı; OAuth In production, doğrulama başlatılmadı, Console sınırı 1/100. Bu daldaki eski K7 notları tarihçedir. Main'deki ek açıklama/noscript, canlı–önizleme ayrımlı metinler ve küçük stil farkları faz-6'ya alınmadı; ortak legal.css aynı. Otomatik birleştirme yapılmadı.
 - `?kurulum=1` kilidi, eski test kökü, Google ayarları ve main korundu. Bu kayıt dışında repo dosyası değiştirilmedi. Deniz yalnız durum belgesi değişikliğini `Faz 6.K8a: İkinci hesap laptop ve iPad testi` mesajıyla yerel commit etmeyi onayladı; bu commit push edilmez, merge yapılmaz. Kök temizliği ve kilit kaldırma bu adımda yapılmaz.
 
+**6.K8b – Parametresiz kurulum ve işlemler (21 Ekim, Deniz onayıyla):**
+- Başlangıç: temiz `faz-6`, HEAD `3aa5c79`; uzak dal `2a7a7fc`, main `c0da010` değişmemiş. Otomatik birleştirme yapılmadı.
+- `main.ts` ve DEV kurulum yardımcısındaki URL okuması kaldırıldı. Kurulum/tamamlama, yeni kitap, içindekiler düzenleme, çöpe atma ve eksik Uebungen/Oedevler oluşturma URL parametresi gerektirmez. Kaynak işlem katmanları da tarandı; URL şartı kalmadı. `kilitAcik` alanları artık yalnız uygun oturum/Drive/kök bağlamını ileten savunma kontrolleridir; sürekli `true` yapılmadı ve bağımsız güvenlik kontrolleri kaldırılmadı.
+- Sayfa açılışı ve giriş kurulum başlatmaz; yalnız ilgili kullanıcı düğmesi başlatır. Girişsiz/demo yazma engeli, kök/ebeveyn doğrulaması, dar/sahip ayrımı, aynı işlem/id ile tekrar deneme, çift tıklama koruması, çöpe atma onayı ve Geri al korunur. Kalıcı silme eklenmedi.
+- Kontrol: 104 dosyada **1284/1284 test** (önce 103 dosya/1280; hiçbir test kaldırılmadı), `silme-yok.test.ts` dahil. Typecheck ve build geçti. Mevcut fotoğraf ölçüm testi repo dışına tanı çıktısı yazdığı için izinli çalıştırma gerekti; testin kendisi değiştirilmedi.
+- `node scripts/kurulum-parametresiz-kontrol.mjs`: gerçek `main.ts` bağlantılarıyla 6 senaryo geçti (laptop + iPad boyutunda Chromium; kök yok/yarım/hazır). URL tamamen parametresiz; girişsiz/demo/açılış ve kart/sihirbazı doldurmak yazma yapmadı. Kurulum/tamamlama/kitap oluşturma ancak düğmeyle bir yazma isteği başlattı; çift kurulum tıklaması ikinci yazma başlatmadı. Dar scope isteği doğrulandı. Tüm Google/Drive yanıtları sahte, ilk yazma 403 ile kesilir: gerçek hesap/veri değişmedi. Bu kontrol başarılı gerçek kurulum/PDF testi veya fiziksel iPad testi değildir.
+- Yerel deneme: **http://localhost:5173/**. İsteğe bağlı teşhis: **http://localhost:5173/?olcum=1**. Gerçek ikinci hesapta kapsam/sahip zorlaması yok. Giriş sonrası aynı kitaplığı aç; yeni kitap/içindekiler düğmelerini kontrol et. Çöpe atmayı yalnız onay penceresini açıp Vazgeç ile dene; eski test köküne dokunma.
+- Parametresiz K8b laptop testi geçti (21 Ekim, Deniz bildirimi); gerçek iPad testi bekleniyor. Deniz yalnız Preview testi için 28 dosyanın commit edilmesini ve origin/faz-6 dalına push edilmesini onayladı; yeni commit için Preview Ready doğrulanacak. iPad adresi: https://defter-git-faz-6-deniz-b571.vercel.app/ . Google/Vercel ayarları, eski test kökü ve main değiştirilmedi; main birleştirmesi ve canlı yayın yapılmaz.
+- Değişen dosyalar (28):
+  - Giriş ve bağlama: `index.html`, `src/main.ts`, `src/drive/kurulumDene.ts`.
+  - İşlem katmanı açıklama/uyarıları: `src/drive/kurulum.ts`, `src/drive/kitapOlustur.ts`, `src/drive/icindekilerYaz.ts`, `src/drive/kitapCop.ts`, `src/drive/dosyaCop.ts`, `src/drive/copeAt.ts`, `src/drive/altKlasorAc.ts`.
+  - Arayüz ve dosya akışı açıklama/uyarıları: `src/ui/kurulumDurumu.ts`, `src/ui/kitapSihirbaziDurumu.ts`, `src/ui/icindekilerDurumu.ts`, `src/ui/icindekilerDuzenle.ts`, `src/ui/copAkisi.ts`, `src/ui/dosyaPanel.ts`, `src/okuma/Okuyucu.ts`, `src/defter/dosyaPanelDurumu.ts`, `src/defter/konuyaDosyaEkle.ts`.
+  - Testler: `src/drive/kurulumDene.test.ts` (yeni), `scripts/kurulum-parametresiz-kontrol.mjs` (yeni), `src/drive/kurulum.test.ts`, `src/drive/kitapOlustur.test.ts`, `src/ui/kurulumDurumu.test.ts`, `src/ui/icindekilerDurumu.test.ts`.
+  - Belgeler: `CLAUDE.md`, `README.md`, `docs/DURUM.md`.
+
 **6.K8 – Gerçek test ve main**
 - Kabul: ikinci Google hesabıyla (Cowork geçici test kullanıcısı ekler) laptop + iPad'de kurulum ve kullanım çalışır; `?kurulum=1` kilidi kalkar; Drive'daki test kökü bütünüyle çöpe; faz-6 → main (sadece Deniz onayıyla).
 
@@ -129,7 +145,7 @@ Ardından: 6.4 OCR (önce keşif, kararlar Deniz'e örnekle) → 6.5 iki dil.
 - Masadaki İçindekiler gerçek DOM ölçümüyle sayfalara bölünür; devam sayfasında "İçindekiler (devam)", yetim ünite başlığı yok (6.K6c; kontrol: `node scripts/icindekiler-sayfa-kontrol.mjs`).
 - Uebungen/Oedevler ilk dosyada açılır; Übungen/Ödevler adlı klasör varsa engel.
 - Çöpe atma: konu, ünite, kitap ve açık dosya; sadece trashed=true, Geri al; kök, `kitaplar/`, `kitaplik.json` asla.
-- Yazma kodu `?kurulum=1` kilidiyle gelir, K8'de kalkar.
+- 6.K8b: yerel kodda kurulum URL kilidi kaldırıldı; işlemler uygun Drive bağlamında yalnız kullanıcı eylemiyle başlar. Laptop testi geçti, gerçek iPad bekleniyor; yalnız Preview testi için commit/push onaylandı.
 - Genel kullanım için gizlilik sayfası (EN/TR) + Google Branding + Production (K7).
 
 ## Sonra bakılabilir (kısaltılmış; tam liste CLAUDE.md sonunda)
@@ -183,8 +199,9 @@ Paslaşma döngüsü:
 - Arayüz metinleri edilgen (birinci tekil şahıs yok).
 
 Deneme adresleri (her zaman tam yaz):
-- Dar mod (yeni kullanıcı gibi): `?kapsam=dar&sahip=0&kurulum=1&olcum=1`
-- Sahip modu: `?kurulum=1&olcum=1`
+- Normal / gerçek ikinci hesap: `http://localhost:5173/` (kapsam/sahip zorlaması yok).
+- Teşhis: `http://localhost:5173/?olcum=1`.
+- Yalnız yapay dar mod testi: `http://localhost:5173/?kapsam=dar&sahip=0&olcum=1`.
 
 Kontrol görüntüleri (ekran görüntüleri, karşılaştırmalar): `%USERPROFILE%\iCloudDrive\uni_plan_claude_code\Claude outputs\`
 

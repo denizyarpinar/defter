@@ -89,7 +89,7 @@ let durum: KitaplikDurumu = ilkDurum(startWithSample);
 // Every write to Drive goes through this: null unless the Drive library is on screen.
 const writer = () => etkinYazici(durum, saver);
 
-// dev only (task 6.K2a): window.defterKokDurumu() (reads only), window.defterKurulumDene() (needs ?kurulum=1)
+// dev only (task 6.K2a): window.defterKokDurumu() (reads only), window.defterKurulumDene() (requires a signed-in, writable context)
 if (import.meta.env.DEV) void import('./drive/kurulumDene').then(m => m.installKurulumDene(() => aktifKapsam(), () => isSignedIn() && durum.tur !== 'demo'));
 // dev only (task 5.5): window.defterDosyaDene(kitapAdi) creates a test PDF
 if (import.meta.env.DEV) void import('./drive/dosyaDene').then(m => m.installDosyaDene(() => writer() ? driveLoc : null));
@@ -163,8 +163,8 @@ function updateChrome(): void {
 }
 
 // ---- task 6.K4a: "Yeni kitap" wizard (only in a Drive library, never in the sample one) ----
-// Task 6.K4b: "Oluştur" writes the book (kitapOlustur.ts) — only with ?kurulum=1 in the app's own root (defterKok).
-// Task 6.K4c: also in the owner's "Kitaplık" (still only with ?kurulum=1).
+// Task 6.K4b: "Oluştur" writes the book (kitapOlustur.ts) — in the app's own root (defterKok), after a user action.
+// Task 6.K4c: also in the owner's "Kitaplık" (with the same root validation).
 
 function yeniKitapAcik(): boolean {
   return durum.tur === 'drive' && !!data;
@@ -184,14 +184,14 @@ function yeniKitapAc(): void {
 
 const OLCUM = new URLSearchParams(location.search).get('olcum') === '1';
 
-// The loaded root: our own (defterKok) or the owner's "Kitaplık" (by name, 6.K4c); both only with ?kurulum=1
+// The loaded root: our own (defterKok) or the owner's "Kitaplık" (by name, 6.K4c); both require a signed-in Drive context
 function kokKaynagi(): 'defterKok' | 'ad' | null {
   const k = sonKok();
   return !k || k.tur === 'yok' ? null : k.tur === 'cokKok' ? 'defterKok' : k.kaynak;
 }
 
 function sihirbazKilidi(): SihirbazKilidi {
-  return KURULUM_KILIT_ACIK && kokKaynagi() !== null ? 'acik' : 'kilitli';
+  return isSignedIn() && durum.tur === 'drive' && kokKaynagi() !== null ? 'acik' : 'kilitli';
 }
 
 // dev (DEV or ?olcum=1): window.defterSihirbazHata = n → a made-up network error at item n (once); -n: after writing it
@@ -211,7 +211,7 @@ async function kitapOlusturDugmesi(islem: KitapIslemi, ilerleme: (i: number, n: 
   const { driveKitapOlusturApi, kitapOlustur, KitapOlusturYazmaYok } = await import('./drive/kitapOlustur');
   if (!loc || durum.tur !== 'drive') throw new KitapOlusturYazmaYok();
   const sonuc = await kitapOlustur(driveKitapOlusturApi, islem, {
-    kilitAcik: KURULUM_KILIT_ACIK, kokKaynagi: kokKaynagi(), kokId: loc.rootId,
+    kilitAcik: sihirbazKilidi() === 'acik', kokKaynagi: kokKaynagi(), kokId: loc.rootId,
     yazabilir: () => isSignedIn() && durum.tur === 'drive', ilerleme, yapayHata
   });
   const baslik = String(islem.plan.kitapJson.baslik);
@@ -303,10 +303,10 @@ async function loadFromDrive(): Promise<void> {
     if (!(e instanceof LibraryNotFound)) { olay({ tur: 'driveHata', mesaj: errorText(e) }); return; }
     // task 6.K2b: no root / half set up → "Kitaplığını kur" (the owner with drive.file: the full access card first)
     if (e.kok.tur !== 'yok' && e.kok.uyari) uyar(e.kok.uyari);
-    const k = kartSec({ sahip: kapsamDurumu().sahip === true, aktif: aktifKapsam(), kok: e.kok, kilitAcik: KURULUM_KILIT_ACIK });
+    const k = kartSec({ sahip: kapsamDurumu().sahip === true, aktif: aktifKapsam(), kok: e.kok, kilitAcik: isSignedIn() });
     if (k.kart === 'tamErisim') { olay({ tur: 'tamErisimGerekli' }); return; }
     kurulum.yeniKart();
-    olay({ tur: 'kurulumGerekli', dugme: k.kart === 'kurulum' ? k.dugme : e.dugme, kilitli: !KURULUM_KILIT_ACIK });
+    olay({ tur: 'kurulumGerekli', dugme: k.kart === 'kurulum' ? k.dugme : e.dugme, kilitli: !isSignedIn() });
   }
 }
 
@@ -321,7 +321,7 @@ async function kitaplikYenile(): Promise<void> {
 }
 
 // ---- task 6.K5a: the contents' edit mode (the reader's panel; drive/icindekilerYaz.ts) ----
-// Only a Drive library; writing only with ?kurulum=1. Before every write the book's other kitap.json writers
+// Only a Drive library; writing requires a signed-in, writable context. Before every write the book's other kitap.json writers
 // (ribbon / status, cover) finish what is waiting, so they don't write over each other.
 
 let icKuyruk: IcindekilerKuyrugu | null = null;
@@ -333,13 +333,15 @@ function icindekilerKur(loc: DriveLocation | null): void {
   const baglanti = icindekilerBaglamiKur({
     drive: driveIcindekilerApi,
     secenek: kitapId => ({
-      kilitAcik: KURULUM_KILIT_ACIK, kokKaynagi: kokKaynagi(), kokId: loc.rootId,
+      kilitAcik: sihirbazKilidi() === 'acik', kokKaynagi: kokKaynagi(), kokId: loc.rootId,
       yazabilir: () => isSignedIn() && durum.tur === 'drive' && driveLoc === loc,
       surum: data?.books.get(kitapId)?.surum ?? 0,
       kitapKlasorId: loc.bookFolderIds.get(kitapId), kitapJsonId: loc.bookFileIds.get(kitapId),
       oncesi: async () => { await reading?.flush(); await saver?.bekleyenleriYaz(); }
     }),
-    kilitAcik: KURULUM_KILIT_ACIK && kokKaynagi() !== null,
+    // useData binds the panel before the loading state changes to 'drive'.
+    // Each operation still checks the current Drive state through secenek().yazabilir.
+    kilitAcik: isSignedIn() && kokKaynagi() !== null,
     hasJson: b => b.hasJson && loc.bookFileIds.has(b.id),
     uniteKlasorleri: async b => {
       const id = loc.bookFolderIds.get(b.id);
@@ -360,9 +362,9 @@ function icindekilerKur(loc: DriveLocation | null): void {
   setIcindekilerBaglami(baglanti.baglam);
 }
 
-// ---- task 6.K5b: a topic / unit / book / half-made book to the trash (ui/copAkisi.ts; ?kurulum=1) ----
+// ---- task 6.K5b: a topic / unit / book / half-made book to the trash (ui/copAkisi.ts; validated Drive context) ----
 const copAkisi = copAkisiKur({
-  kilitAcik: () => KURULUM_KILIT_ACIK && kokKaynagi() !== null,
+  kilitAcik: () => sihirbazKilidi() === 'acik',
   kokKaynagi,
   yazabilir: () => isSignedIn() && durum.tur === 'drive',
   loc: () => driveLoc,
@@ -378,12 +380,12 @@ const copAkisi = copAkisiKur({
   girisYap: () => googleSignIn()
 });
 
-// ---- task 6.K6a: "Dosya ekle" may make a topic's missing Uebungen / Oedevler (only with ?kurulum=1) ----
-setKlasorAcma(() => driveLoc && durum.tur === 'drive' && KURULUM_KILIT_ACIK && kokKaynagi() !== null ? { kokId: driveLoc.rootId } : null);
+// ---- task 6.K6a: "Dosya ekle" may make a topic's missing Uebungen / Oedevler (in a validated Drive context) ----
+setKlasorAcma(() => driveLoc && sihirbazKilidi() === 'acik' ? { kokId: driveLoc.rootId } : null);
 
-// ---- task 6.K6b: the reader's open file to the trash (only with ?kurulum=1; ui/copAkisi.ts) ----
+// ---- task 6.K6b: the reader's open file to the trash (validated Drive context; ui/copAkisi.ts) ----
 setDosyaCop({
-  acik: () => !!driveLoc && durum.tur === 'drive' && KURULUM_KILIT_ACIK && kokKaynagi() !== null,
+  acik: () => !!driveLoc && sihirbazKilidi() === 'acik',
   iste: d => copAkisi.dosyaCopIste(d)
 });
 
@@ -395,18 +397,17 @@ function uyar(metin: string): void {
   toast(metin);
 }
 
-// ---- task 6.K2b: "Kitaplığını kur" (kurulum.ts; ?kurulum=1 unlocks the button) ----
+// ---- task 6.K2b: "Kitaplığını kur" (kurulum.ts; starts only on a user click) ----
 
-const KURULUM_KILIT_ACIK = new URLSearchParams(location.search).get('kurulum') === '1';
 const kurulum = new KurulumAkisi(() => crypto.randomUUID());
 
 function kitaplikKurDugmesi(): void {
-  if (durum.tur !== 'kurulum' || !kurulum.basla(KURULUM_KILIT_ACIK)) return;   // locked or running: no request
+  if (durum.tur !== 'kurulum' || !kurulum.basla(isSignedIn())) return;   // signed out or running: no request
   olay({ tur: 'kurulumBasladi' });
   const yazabilir = () => isSignedIn() && durum.tur !== 'demo';   // as the K2a dev helper
   // task 6.K3: the box checked → the sample book too, with its progress on the button
   const ornek = ornekIstendi() ? { kaynak: webOrnekKaynak(), ilerleme: (i: number, n: number) => olay({ tur: 'kurulumIlerleme', i, n }) } : undefined;
-  kitaplikKur(driveKurulumApi, { islemId: kurulum.islemId, mod: aktifKapsam() === 'tam' ? 'tam' : 'dar', kilitAcik: KURULUM_KILIT_ACIK, yazabilir, ornek })
+  kitaplikKur(driveKurulumApi, { islemId: kurulum.islemId, mod: aktifKapsam() === 'tam' ? 'tam' : 'dar', kilitAcik: yazabilir(), yazabilir, ornek })
     .then(async r => {
       kurulum.bitti();
       if (r.uyari) uyar(r.uyari);

@@ -9,8 +9,8 @@ describe('duzenleKarari', () => {
     expect(duzenleKarari({ ...g, surum: 1 })).toMatchObject({ goster: true, acik: true, yazar: false, kitapCop: true, not: expect.stringMatching(/surum 1/) });
     expect(duzenleKarari({ ...g, hasJson: false })).toMatchObject({ goster: true, acik: true, yazar: false, kitapCop: true, not: expect.stringMatching(/kitap\.json yok/) });
     // 6.K5b: locked → the book's trash button is grey too
-    expect(duzenleKarari({ ...g, surum: 1, kilitAcik: false })).toMatchObject({ kitapCop: false, not: expect.stringMatching(/\?kurulum=1/) });
-    expect(duzenleKarari({ ...g, kilitAcik: false })).toMatchObject({ goster: true, acik: true, yazar: false, kitapCop: false, not: expect.stringMatching(/\?kurulum=1/) });
+    expect(duzenleKarari({ ...g, surum: 1, kilitAcik: false })).toMatchObject({ kitapCop: false, not: expect.stringMatching(/Google ile giriş yap/) });
+    expect(duzenleKarari({ ...g, kilitAcik: false })).toMatchObject({ goster: true, acik: true, yazar: false, kitapCop: false, not: expect.stringMatching(/Google ile giriş yap/) });
     expect(duzenleKarari(g)).toEqual({ goster: true, acik: true, yazar: true, kitapCop: true, not: null });
   });
 });
@@ -19,10 +19,10 @@ describe('6.K5b-3: a book without topics', () => {
   const bos = parseBook('deneme-9', { surum: 2, baslik: 'deneme-9', uniteler: [] });
   const uniteli = parseBook('d', { surum: 2, baslik: 'd', uniteler: [{ baslik: 'Graphen', klasor: 'Unite-01-Graphen', konular: [] }] });
   const konulu = parseBook('d', { surum: 2, baslik: 'd', uniteler: [{ baslik: 'Graphen', konular: [{ baslik: 'Bäume', klasor: 'Unite-01-Graphen/Konu-01-Baeume', durum: 'okunmadi' }] }] });
-  it('the edit mode: the same rules as a book with topics (+ Ünite writes with ?kurulum=1)', () => {
+  it('the edit mode: the same rules as a book with topics (+ Ünite writes in a validated Drive context)', () => {
     const g = { drive: true, hasJson: true, surum: bos.surum, kilitAcik: true };
     expect(duzenleKarari(g)).toEqual({ goster: true, acik: true, yazar: true, kitapCop: true, not: null });
-    expect(duzenleKarari({ ...g, kilitAcik: false })).toMatchObject({ goster: true, yazar: false, kitapCop: false, not: expect.stringMatching(/\?kurulum=1/) });
+    expect(duzenleKarari({ ...g, kilitAcik: false })).toMatchObject({ goster: true, yazar: false, kitapCop: false, not: expect.stringMatching(/Google ile giriş yap/) });
     expect(duzenleKarari({ ...g, hasJson: false })).toMatchObject({ goster: true, yazar: false, kitapCop: true });
     expect(duzenleKarari({ ...g, drive: false }).goster).toBe(false);
   });

@@ -35,7 +35,7 @@ export interface DosyaPanelBaglam {
   acikSekme: MaterialKind | null;
   ornek: boolean;
   klasorler(): Promise<KlasorBilgisi | null>;   // Uebungen / Oedevler there? (one Drive listing; null: not known)
-  klasorAcabilir?: boolean;   // task 6.K6a: a missing Uebungen / Oedevler is made with the first file (?kurulum=1)
+  klasorAcabilir?: boolean;   // task 6.K6a: a missing Uebungen / Oedevler is made with the first file in a validated Drive context
   ekle(hedef: DosyaHedefi, ad: string, islemId: string, bytes: Uint8Array): Promise<DosyaEklendi>;   // rejects on any error
   bitti(r: DosyaEklendi, hedef: DosyaHedefi): void;   // after the panel closed; hedef: what was chosen
   cevir(dosya: File, signal: AbortSignal): Promise<Uint8Array>;   // task 6.1c: Word / PowerPoint → PDF bytes

@@ -59,7 +59,7 @@ export function kitapGeriAlIsi(is: KitapCopIsi): KitapCopIsi {
 export const kitapCopBasladi = (is: KitapCopIsi): boolean => is.rafTamam || is.klasorTamam || is.yerler.length > 0;
 
 export interface KitapCopSecenek {
-  kilitAcik: boolean;                // ?kurulum=1
+  kilitAcik: boolean;                // writable context, independent of URL parameters
   kokKaynagi: KokKaynagi | null;     // null: no root loaded → locked
   kokId: string;
   yazabilir: () => boolean;          // signed in and not the sample library

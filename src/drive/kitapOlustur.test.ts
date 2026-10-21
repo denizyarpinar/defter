@@ -254,7 +254,7 @@ describe('kitapOlustur', () => {
     expect(g.kitaplik().raflar[1].kitaplar).toEqual(['mathe-2']);
   });
 
-  it('locked (no ?kurulum=1 — the owner\'s "Kitaplık" too —, no root, not signed in): no request at all', async () => {
+  it('unavailable context (the owner\'s "Kitaplık" too —, no root, not signed in): no request at all', async () => {
     for (const [o, hata] of [
       [{ kilitAcik: false }, KitapOlusturKilitli],
       [{ kilitAcik: false, kokKaynagi: 'ad' as const }, KitapOlusturKilitli],
@@ -284,7 +284,7 @@ describe('kitapOlustur in the owner\'s "Kitaplık"', () => {
   };
   const sahipSec = (o: Partial<KitapOlusturSecenek> = {}) => sec({ kokKaynagi: 'ad', ...o });
 
-  it('with ?kurulum=1: the same order, everything under its kitaplar/, the shelf entry written', async () => {
+  it('with a writable context: the same order, everything under its kitaplar/, the shelf entry written', async () => {
     const f = fakeDrive({ items: sahip });
     const islem = yeniKitapIslemi('islem-1', plan());
     const r = await kitapOlustur(f.drive, islem, sahipSec());
