@@ -1,6 +1,6 @@
 # Defter – Durum
 
-**Son güncelleyen:** Codex, 21 Ekim 2026 · 6.K7a laptop ve gerçek iPad Safari testleri geçti; 6.K7b README ve kontroller tamamlandı, commit/push yok · dal `faz-6` (K7a: 07f47a7, push edildi) · `main` b564351
+**Son güncelleyen:** Codex, 21 Ekim 2026 · 6.K8a tamamlandı: ikinci hesapta dar/drive.file, sahip=false; kurulum ve örnek PDF laptop + gerçek iPad'de geçti, iPad'de yeniden kurulum gerekmedi (Deniz bildirimi) · faz-6 Preview 2a7a7fc Ready · `main` c0da010, faz-6 birleşmedi · yalnız durum belgesi için yerel commit onaylandı; yeni push/merge yok.
 
 Ayrıntılı tarihçe repo dışında (Cowork'ün devir notu); ortak ve güncel durum bu dosya.
 Kurallar: `CLAUDE.md`. Codex için giriş: `AGENTS.md`.
@@ -37,7 +37,8 @@ Defter, Google Drive'daki notları (PDF, defter fotoğrafı, Claude çıktılar�
 | 6.K6c | Masadaki İçindekiler sayfalara bölünür | Bitti (laptop + iPad geçti; faz-6 f4b98d0) |
 | **6.K7** | Yayına hazırlık: gizlilik sayfası EN/TR, README "Kullanmaya başla", Google Branding + Production | **Şimdi** |
 | 6.K7a | Girişsiz gizlilik ve kısa şartlar sayfaları (EN/TR), giriş/Özelleştir bağlantıları | Bitti; laptop + gerçek iPad Safari geçti (faz-6 07f47a7, push edildi) |
-| 6.K7b | README yeni kullanıcı rehberi | Uygulandı; bağlantı kontrolleri + typecheck/test/build geçti, commit/push yok |
+| 6.K7b | README yeni kullanıcı rehberi | Bitti; 2a7a7fc, origin/faz-6 dalına push edildi |
+| 6.K8a | İkinci hesapla gerçek test hazırlığı | Tamamlandı; dar/drive.file, sahip=false; kurulum ve örnek PDF laptop + gerçek iPad'de geçti, iPad'de yeniden kurulum gerekmedi (Deniz bildirimi) |
 | 6.K8 | Gerçek test, main | Sırada |
 | 6.4 / 6.5 | OCR / iki dil (EN + TR) | Sonra |
 | 7 | Quiz/özet (LLM API) | Sonra |
@@ -76,6 +77,17 @@ Defter, Google Drive'daki notları (PDF, defter fotoğrafı, Claude çıktılar�
 - Yeni rehberle doğrudan çelişen klasör açma/çöpe atma/genel yazma ifadeleri önizleme ve kilit durumu korunarak düzeltildi. Geliştirici kurulumu ayrıldı; yeni kullanıcıya elle klasör/JSON hazırlama adımı verilmedi. Yalnız README ve bu durum dosyası değişti; uygulama/Drive/izin/kilit değişikliği, commit veya push yok.
 - Kontrol: README'deki 13 farklı yerel dosya hedefi mevcut; gizlilik/şartlar dosyaları bu dalda Git tarafından izleniyor, göreli bağlantılar doğru. Önizleme adresi Deniz'in verdiği metinle birebir aynı; "Getting started" bölüm bağlantısı kontrol edildi. Uzak sitelerin HTTP erişimi bu belge adımında yeniden denenmedi.
 - Typecheck ve build geçti; 103 dosyada **1280/1280** test geçti (`--testTimeout=20000 --maxWorkers=2`). `git diff --check` temiz. Sıradaki adım K7b'nin Deniz tarafından gözden geçirilmesi, ardından K7c keşif/planı.
+
+**6.K8a – Gerçek ikinci hesap ve Preview (21 Ekim, Deniz onayıyla):**
+- Başlangıçta main çalışma alanı temizdi. Yerel/uzak main c0da010, yerel faz-6 2a7a7fc, uzak faz-6 07f47a7 idi. Yalnız eksik K7b commit'i (README + durum belgesi) faz-6 dalına push edildi; yeni kod commit'i veya main birleştirmesi yapılmadı.
+- Vercel, GitHub kesintisi nedeniyle otomatik dağıtım gecikmesi bildiriyordu. Mevcut projede yalnız 2a7a7fc için **Preview** dağıtımı başlatıldı: `Ap2NgaaGh1x6sVFU46xR8EihQ5wR`, **Ready**. Kaynak faz-6 ve dal adresinin bu dağıtıma bağlı olduğu doğrulandı. Canlı dağıtıma dokunulmadı.
+- Gerçek test adresi: https://defter-git-faz-6-deniz-b571.vercel.app/?kurulum=1&olcum=1 . Gerçek ikinci hesapta kapsam/sahip zorlaması kullanılmadı. Google girişini ve izin onayını Deniz tamamladı; izin ekranı yalnız uygulamayla kullanılan belirli Drive dosyalarını gösterdi.
+- Girişten önce kitaplık kurulmadı. Giriş sonrası ölçüm kutusunda **kapsam: dar**, **scope: drive.file**, **sahip: hayır (false)**, **kök: yok** doğrulandı. Ardından onaylanan plan kapsamında örnek kitap seçili bırakılarak kurulum başlatıldı.
+- Kurulum tamamlandı: `Defter Library (defterKok)`, yarım kitap 0; aynı dar kapsam korundu. `Programlamaya Giriş` örnek kitabı bulundu (2 ünite, 4 konu). `Değişkenler ve veri tipleri` konusu, Özet materyali açıldı: 24 sayfalık PDF'nin ilk iki sayfası çizildi, okuyucu hata mesajı boştu. Okuyucu kapatıldığında konu Okunuyor ve kaldığın yerden devam s. 1 görünüyordu.
+- Görüntüler: `C:/Users/yarpi/.codex/visualizations/2026/10/21/01a15e14-4f60-7c83-914e-4e1dd6734af5/k8a/`. Hesap e-postası veya token kaydedilmedi.
+- **Laptop + gerçek iPad testi geçti (21 Ekim 2026, Deniz bildirimi):** ikinci hesapta dar/drive.file ve sahip=false; kurulum ve örnek PDF laptop + gerçek iPad'de çalıştı. iPad'de aynı kitaplık açıldı, yeniden kurulum gerekmedi. **6.K8a tamamlandı.** Bu sonuç, K8'in sonraki işleri olan kilit kaldırma, eski test kökü temizliği veya main birleştirmesi için onay değildir.
+- K7c'nin güncel durumu: main c0da010 yasal sayfalarla canlı; OAuth In production, doğrulama başlatılmadı, Console sınırı 1/100. Bu daldaki eski K7 notları tarihçedir. Main'deki ek açıklama/noscript, canlı–önizleme ayrımlı metinler ve küçük stil farkları faz-6'ya alınmadı; ortak legal.css aynı. Otomatik birleştirme yapılmadı.
+- `?kurulum=1` kilidi, eski test kökü, Google ayarları ve main korundu. Bu kayıt dışında repo dosyası değiştirilmedi. Deniz yalnız durum belgesi değişikliğini `Faz 6.K8a: İkinci hesap laptop ve iPad testi` mesajıyla yerel commit etmeyi onayladı; bu commit push edilmez, merge yapılmaz. Kök temizliği ve kilit kaldırma bu adımda yapılmaz.
 
 **6.K8 – Gerçek test ve main**
 - Kabul: ikinci Google hesabıyla (Cowork geçici test kullanıcısı ekler) laptop + iPad'de kurulum ve kullanım çalışır; `?kurulum=1` kilidi kalkar; Drive'daki test kökü bütünüyle çöpe; faz-6 → main (sadece Deniz onayıyla).
