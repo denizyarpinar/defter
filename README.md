@@ -8,11 +8,28 @@
 
 ---
 
+## Getting started (preview)
+
+> Public access is still being prepared: Google Branding / Production setup and the general rollout are not complete. Setup and book-creation controls are still gated by `?kurulum=1`. The preview may require Vercel sign-in, and Google access may be limited to configured test users. The live demo above is a separate, sign-in-free sample.
+
+Open the [Phase 6 preview](https://defter-git-faz-6-deniz-b571.vercel.app/?kurulum=1) to try this flow with an authorised account. The interface is currently in Turkish; button labels below match the app.
+
+1. **Sign in with Google** — choose *Google ile giriş yap* and review the requested permission.
+2. **Set up your library** — on the *Kitaplığını kur* card, Defter offers to create a *Defter Library* folder and its library structure in your Drive. An existing library opens directly.
+3. **Choose a sample book (optional)** — before confirming setup, leave *Örnek bir kitap da koy* checked to include a practice book, or uncheck it for an empty library. Press *Kitaplığı kur*.
+4. **Create your own book** — open *Özelleştir → ＋ Yeni kitap*, choose its name, shelf and colour, then enter units and topics: a line such as `# Basics` starts a unit; following lines such as `Variables` and `Conditions` are its topics. Review the preview and press *Oluştur*.
+5. **Open a topic** — open the book, then choose a topic from its table of contents. An empty topic is ready for its first file.
+6. **Add a file** — choose *Dosya ekle*, select a PDF, image or a single Word/PowerPoint file, choose the material type (*Orijinal*, *Özet*, *Übungen* or *Ödevler*, as available), review the name and press *Ekle*. Word/PowerPoint files are converted to PDF through Google Drive.
+
+Normal accounts use the narrow `drive.file` permission. **Files added manually in Drive are not automatically visible to Defter**, even if placed inside its library folder: add them through *Dosya ekle*. The configured owner account can use broader Drive access for its existing library.
+
+Read the [privacy policy](public/privacy.html) and [terms of use](public/terms.html). These are the policy files in this repository branch; publishing them on the production site is still pending.
+
 ## Why
 
 As a student my notes live in three places at once: handwritten notebooks, lecture PDFs on my laptop, and summaries I create with AI tools. Each course ends up scattered across folders, photos and chat exports, and there is no single place that shows *what I have for a course and how far I am with it*.
 
-Defter turns one Google Drive folder into a personal library. Every course or topic is a **book**; its units and topics point to the PDFs, notebook photos, AI outputs and links that belong together. The files stay in your own Drive — Defter only arranges them.
+Defter turns one Google Drive folder into a personal library. Every course or topic is a **book**; its units and topics point to the PDFs, notebook photos, AI outputs and links that belong together. The files stay in your own Drive; Defter organises them and saves the changes you make through the app.
 
 ## Features
 
@@ -26,7 +43,7 @@ Defter turns one Google Drive folder into a personal library. Every course or to
 | ![Library search](docs/arama.png) | **Search** — find books, topics and files by name, and words inside your PDFs (Drive's full-text search). In the reader, search the open file: matches are highlighted and you jump between them. |
 
 - **Google sign-in, no server** — Google Identity Services in the browser; the access token is kept in memory only.
-- **Saves back to Drive carefully** — shelf layout and room settings are written 1.5 s after the last change, after re-reading the latest file, touching only the fields Defter owns. Unknown fields are preserved; nothing is ever deleted, moved or copied.
+- **Saves back to Drive carefully** — shelf layout and room settings are written 1.5 s after the last change, after re-reading the latest file, touching only the fields Defter owns. Unknown fields are preserved. The Phase 6 preview also supports library creation and confirmed trash / undo actions behind the setup gate; files are not permanently deleted by the app.
 - **Made for iPad** — touch gestures, no accidental page zoom, installable to the home screen.
 - Customise shelves (2–6), shelf names, cover colours, wall and floor.
 
@@ -92,11 +109,11 @@ Phase 5 brought the paper notebook in. A photo of a handwritten page becomes a r
 - **Fix the corners by hand** — tapping a thumbnail opens a corner editor with a magnifier, so the four corners can be dragged exactly onto the page; *Otomatik* goes back to the detected ones.
 - **Device first, then Drive** — the prepared photos are first stored in IndexedDB on the device and only removed after the upload has succeeded, so a lost connection or a closed tab loses nothing. If the topic has a summary, the pages are appended to its end; if it has none, a new `ozet.pdf` is created in the topic folder.
 - **Pages only at the end** — existing pages, their order, Defter's pen notes, ribbons and page numbers stay exactly as they were. Adding pages goes through the same write queue as the pen (pending strokes first), with the same safety: the original version is kept forever (`keepForever`), and if the file changed in between, Defter starts again.
-- **Add a file** — *Dosya ekle* accepts a PDF, or one or more images that become a single PDF (reorder, remove, add more). The target is chosen in the panel: *Übungen*, *Ödevler*, a solution (`X_cozum.pdf` next to `X.pdf`), or *Orijinal* / *Özet* when the topic doesn't have one yet. Missing `Uebungen/` or `Oedevler/` folders are never created (the choice is greyed out), and a file with the same name is never overwritten or renamed — you pick another name. A pre-allocated Drive file id and an operation id make sure a retry never creates a second copy. Files are limited to 50 MB; Keynote and Pages files get the hint *save as PDF, then add*.
+- **Add a file** — *Dosya ekle* accepts a PDF, or one or more images that become a single PDF (reorder, remove, add more). The target is chosen in the panel: *Übungen*, *Ödevler*, a solution (`X_cozum.pdf` next to `X.pdf`), or *Orijinal* / *Özet* when the topic doesn't have one yet. In the Phase 6 preview with `?kurulum=1`, missing `Uebungen/` or `Oedevler/` folders are created when the first file is added; without the gate, missing folders keep the choice greyed out. A file with the same name is never overwritten or renamed — you pick another name. A pre-allocated Drive file id and an operation id make sure a retry never creates a second copy. Files are limited to 50 MB; Keynote and Pages files get the hint *save as PDF, then add*.
 - **The reader follows at once** — new pages and new files appear in the open reader immediately, without closing it; the page you are on and the pen stay where they were.
 - **Made for the iPad** — the photo and file pickers open directly from the tap (as Safari requires), the panels sit at the top on touch screens, and the page no longer stays shifted after the on-screen keyboard closes.
-- **Word / PowerPoint → PDF** — a single Word or PowerPoint file (docx, doc, odt, rtf, pptx, ppt, odp) is converted with Google Drive: it is uploaded as a temporary Google file into the topic folder, exported as PDF, and the temporary file is moved to the trash (the only file Defter ever trashes, and only its own). Works in the Drive library only; Drive's export limit is 10 MB of PDF.
-- **Strict write rules** — new files are only ever PDFs, only inside the book's own folder (`kitaplar/<book>/`), and marked with `appProperties.defter = "1"`. None of your files is deleted, moved or copied.
+- **Word / PowerPoint → PDF** — a single Word or PowerPoint file (docx, doc, odt, rtf, pptx, ppt, odp) is converted with Google Drive: it is uploaded as a temporary Google file into the topic folder, exported as PDF, and the app's temporary file is moved to the trash. The Phase 6 preview separately supports confirmed trashing of selected library items behind the setup gate. Conversion works in the Drive library only; Drive's export limit is 10 MB of PDF.
+- **Strict write rules** — uploaded study materials are stored as PDFs inside the book's own folder (`kitaplar/<book>/`); conversion uses a temporary Google file. The gated Phase 6 preview can also create library folders and JSON settings, and trash selected items after confirmation, with undo. Created items are marked with `appProperties.defter = "1"`; the app does not permanently delete Drive files.
 
 | | |
 |---|---|
@@ -251,7 +268,7 @@ Kitaplık/
 
 ## Run locally
 
-You need **Node.js 20+** and a Google account.
+This section is for developers running their own copy. For the hosted preview, use [Getting started](#getting-started-preview) above. You need **Node.js 20+** and a Google account.
 
 1. **Clone and install**
    ```bash
@@ -271,8 +288,8 @@ You need **Node.js 20+** and a Google account.
    VITE_SAHIP_EPOSTA=you@gmail.com
    ```
    `VITE_SAHIP_EPOSTA` (optional): this account asks for full Drive access; everyone else gets `drive.file`. Without it, everyone gets `drive.file`.
-5. **Prepare your Drive** — create a folder `Kitaplık` in the root of My Drive with a `kitaplar` folder inside. You can start from `referans/Kitaplik_ornek.zip`.
-6. **Run** — `npm run dev`, open <http://localhost:5173> and sign in with Google.
+5. **Choose your library path** — for the new setup flow, no manual folder or JSON preparation is needed. An owner account can continue using its existing `Kitaplık/kitaplar/` library; that legacy layout is described above.
+6. **Run** — `npm run dev`. For setup testing, open [the local narrow-mode test](http://localhost:5173/?kapsam=dar&sahip=0&kurulum=1&olcum=1) or [the local owner-mode test](http://localhost:5173/?kurulum=1&olcum=1), then sign in with an authorised Google account. The setup gate remains in place until Phase 6.K8.
 
 Other scripts: `npm run build` (production build into `dist/`), `npm run typecheck` (`tsc --noEmit`), `npm run preview`, `npm run screenshots` (regenerates the images in `docs/`; needs Chrome and ffmpeg; with `SHOTS=faz5` only the three Phase 5 images, with `SHOTS=arama` only the two search images; neither needs ffmpeg).
 

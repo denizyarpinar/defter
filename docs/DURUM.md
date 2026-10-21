@@ -1,6 +1,6 @@
 # Defter – Durum
 
-**Son güncelleyen:** Codex, 21 Ekim 2026 · 6.K7a laptop testi geçti, gerçek iPad Safari testi bekleniyor · dal `faz-6` · `main` b564351
+**Son güncelleyen:** Codex, 21 Ekim 2026 · 6.K7a laptop ve gerçek iPad Safari testleri geçti; 6.K7b README ve kontroller tamamlandı, commit/push yok · dal `faz-6` (K7a: 07f47a7, push edildi) · `main` b564351
 
 Ayrıntılı tarihçe repo dışında (Cowork'ün devir notu); ortak ve güncel durum bu dosya.
 Kurallar: `CLAUDE.md`. Codex için giriş: `AGENTS.md`.
@@ -36,7 +36,8 @@ Defter, Google Drive'daki notları (PDF, defter fotoğrafı, Claude çıktılar�
 | 6.K0–K6b | Çok kullanıcı + kurulum: izin modu, kök/kurulum, örnek kitap, sihirbaz, içindekiler, çöpe atma, boş konu | Bitti (faz-6, 1265 test) |
 | 6.K6c | Masadaki İçindekiler sayfalara bölünür | Bitti (laptop + iPad geçti; faz-6 f4b98d0) |
 | **6.K7** | Yayına hazırlık: gizlilik sayfası EN/TR, README "Kullanmaya başla", Google Branding + Production | **Şimdi** |
-| 6.K7a | Girişsiz gizlilik ve kısa şartlar sayfaları (EN/TR), giriş/Özelleştir bağlantıları | Laptop testi geçti; gerçek iPad Safari testi önizlemede bekleniyor |
+| 6.K7a | Girişsiz gizlilik ve kısa şartlar sayfaları (EN/TR), giriş/Özelleştir bağlantıları | Bitti; laptop + gerçek iPad Safari geçti (faz-6 07f47a7, push edildi) |
+| 6.K7b | README yeni kullanıcı rehberi | Uygulandı; bağlantı kontrolleri + typecheck/test/build geçti, commit/push yok |
 | 6.K8 | Gerçek test, main | Sırada |
 | 6.4 / 6.5 | OCR / iki dil (EN + TR) | Sonra |
 | 7 | Quiz/özet (LLM API) | Sonra |
@@ -62,11 +63,19 @@ Defter, Google Drive'daki notları (PDF, defter fotoğrafı, Claude çıktılar�
 - Saklama süreleri ve süreye bağlı silinmeyen kayıtlar, Google erişimini kaldırma, cihaz site verilerini temizleme ve Drive'dan kaldırma ayrı anlatıldı. Erişimi kaldırmak dosyaları veya bütün cihaz kayıtlarını silmez; cihaz verisi temizliği yüklenmemiş kayıtları kaybettirebilir.
 - Bağlantılar `index.html` giriş kartında ve `src/ui/panel.ts` Özelleştir panelinin sonunda. Yeni sekmede açılır (mevcut çalışma korunur); stiller `src/styles.css` ve yalnız statik sayfalara ait `public/legal.css` içinde.
 - Kontrol: typecheck ve build geçti; 103 test dosyasında **1280/1280** test geçti (`--testTimeout=20000 --maxWorkers=2`). `node scripts/gizlilik-kontrol.mjs`: 390×844 telefon, 820×1180 iPad dikey ve 1180×820 yatay; **9 senaryo + klavye kontrolü geçti**. Girişsiz/JavaScript kapalı erişim, gerçek HTML yanıtı, dil/gezinme bağlantıları, yeni sekme ve yatay taşma kontrol edildi. App bağlantıları giriş kartı ve örnek kitaplıktaki ortak Özelleştir panelinde denendi; gerçek Google girişi yapılmadı.
-- 19 ekran görüntüsü ve `rapor.json`: `%USERPROFILE%/iCloudDrive/uni_plan_claude_code/Claude outputs/gizlilik-6.K7a/`. Görüntüler incelendi. Bunlar Chromium ekran boyutu benzetimi; gerçek iPad Safari testi henüz yapılmadı.
-- **Deniz'in laptop testi geçti (21 Ekim). Gerçek iPad Safari testi bekleniyor.** Deniz, K7a'nın 8 dosyasının commit edilmesini ve iPad önizlemesi için `git push origin faz-6` yapılmasını onayladı; main birleştirmesi yok.
+- 19 ekran görüntüsü ve `rapor.json`: `%USERPROFILE%/iCloudDrive/uni_plan_claude_code/Claude outputs/gizlilik-6.K7a/`. Chromium ekran boyutu benzetimiyle alınan görüntüler incelendi; ayrıca Deniz gerçek cihaz testlerini tamamladı.
+- **Deniz'in laptop ve gerçek iPad Safari testleri geçti (21 Ekim).** K7a'nın 8 dosyası `07f47a7` ile commit edildi ve `origin/faz-6` dalına push edildi; main birleştirmesi yok.
 - Yerel sunucu: `http://localhost:5173/privacy.html`, `http://localhost:5173/terms.html`. Dar: `http://localhost:5173/?kapsam=dar&sahip=0&kurulum=1&olcum=1`; sahip: `http://localhost:5173/?kurulum=1&olcum=1`.
 - iPad önizlemesi (Vercel dağıtımı hazır olduktan sonra): `https://defter-git-faz-6-deniz-b571.vercel.app/privacy.html`, `https://defter-git-faz-6-deniz-b571.vercel.app/terms.html`. Dar: `https://defter-git-faz-6-deniz-b571.vercel.app/?kapsam=dar&sahip=0&kurulum=1&olcum=1`; sahip: `https://defter-git-faz-6-deniz-b571.vercel.app/?kurulum=1&olcum=1`. Vercel erişim koruması geçerli olabilir.
-- Drive yazma/çöpe atma akışları, izin kapsamları ve `?kurulum=1` kilidi değiştirilmedi. Google Cloud ayarları değiştirilmedi. Sıradaki kontrol gerçek iPad Safari testi; sıradaki uygulama adımı K7b.
+- Drive yazma/çöpe atma akışları, izin kapsamları ve `?kurulum=1` kilidi değiştirilmedi. Google Cloud ayarları değiştirilmedi. K7b sonucu aşağıda.
+
+**6.K7b – Uygulama (21 Ekim, Deniz onayıyla):**
+- README'nin ana dili İngilizce korundu; başa kısa "Getting started (preview)" rehberi eklendi: Google ile giriş → kitaplığı kur → isteğe bağlı örnek kitap → yeni kitap sihirbazı → konu aç → Dosya ekle. Dar izinde Drive'a elle eklenen dosyaların kendiliğinden görünmediği ve uygulamadan eklenmesi gerektiği açıklandı.
+- Deniz'in istediği önizleme adresi aynen kullanıldı: `https://defter-git-faz-6-deniz-b571.vercel.app/?kurulum=1`. Bu, README için özel seçilen kısa deneme adresidir. Genel kullanıma açılışın ve Google Branding/Production hazırlığının bitmediği, kurulum kilidinin durduğu ve önizleme/test hesabı erişim sınırlamaları belirtildi.
+- Gizlilik ve şartlar bağlantıları Deniz'in isteğiyle aynı daldaki `public/privacy.html` ve `public/terms.html` dosyalarına göreli bağlantı olarak eklendi. Canlı üretim sürümünde yayımlanmış sayfa gibi sunulmadı.
+- Yeni rehberle doğrudan çelişen klasör açma/çöpe atma/genel yazma ifadeleri önizleme ve kilit durumu korunarak düzeltildi. Geliştirici kurulumu ayrıldı; yeni kullanıcıya elle klasör/JSON hazırlama adımı verilmedi. Yalnız README ve bu durum dosyası değişti; uygulama/Drive/izin/kilit değişikliği, commit veya push yok.
+- Kontrol: README'deki 13 farklı yerel dosya hedefi mevcut; gizlilik/şartlar dosyaları bu dalda Git tarafından izleniyor, göreli bağlantılar doğru. Önizleme adresi Deniz'in verdiği metinle birebir aynı; "Getting started" bölüm bağlantısı kontrol edildi. Uzak sitelerin HTTP erişimi bu belge adımında yeniden denenmedi.
+- Typecheck ve build geçti; 103 dosyada **1280/1280** test geçti (`--testTimeout=20000 --maxWorkers=2`). `git diff --check` temiz. Sıradaki adım K7b'nin Deniz tarafından gözden geçirilmesi, ardından K7c keşif/planı.
 
 **6.K8 – Gerçek test ve main**
 - Kabul: ikinci Google hesabıyla (Cowork geçici test kullanıcısı ekler) laptop + iPad'de kurulum ve kullanım çalışır; `?kurulum=1` kilidi kalkar; Drive'daki test kökü bütünüyle çöpe; faz-6 → main (sadece Deniz onayıyla).
