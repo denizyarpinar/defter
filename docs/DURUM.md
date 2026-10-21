@@ -1,6 +1,6 @@
 # Defter – Durum
 
-**Son güncelleyen:** Codex, 21 Ekim 2026 · 6.K8b yerelde uygulandı: URL kurulum kilidi kaldırıldı; oturum/kök/ebeveyn, kapsam/sahip, çift oluşturma ve çöpe atma onayları korundu · 1284 test + typecheck + build geçti; parametresiz 6 tarayıcı senaryosu geçti (sahte Drive, iPad boyutu emülasyon) · K8b laptop testi geçti (Deniz bildirimi), gerçek iPad testi bekleniyor · yalnız Preview testi için commit/push onaylandı; main birleştirmesi/canlı yayın yok.
+**Son güncelleyen:** Codex, 21 Ekim 2026 · 6.K8b tamamlandı: parametresiz laptop + gerçek iPad testi geçti (Deniz bildirimi) · kod 858a668 origin/faz-6 dalında, Preview Ready (8aW4nyVBjmsP9bAP81FJqjW9rfYW) · yalnız bu test sonucu docs/DURUM.md için yerel commit; yeni push/merge/canlı yayın yok.
 
 Ayrıntılı tarihçe repo dışında (Cowork'ün devir notu); ortak ve güncel durum bu dosya.
 Kurallar: `CLAUDE.md`. Codex için giriş: `AGENTS.md`.
@@ -39,7 +39,7 @@ Defter, Google Drive'daki notları (PDF, defter fotoğrafı, Claude çıktılar�
 | 6.K7a | Girişsiz gizlilik ve kısa şartlar sayfaları (EN/TR), giriş/Özelleştir bağlantıları | Bitti; laptop + gerçek iPad Safari geçti (faz-6 07f47a7, push edildi) |
 | 6.K7b | README yeni kullanıcı rehberi | Bitti; 2a7a7fc, origin/faz-6 dalına push edildi |
 | 6.K8a | İkinci hesapla gerçek test hazırlığı | Tamamlandı; dar/drive.file, sahip=false; kurulum ve örnek PDF laptop + gerçek iPad'de geçti, iPad'de yeniden kurulum gerekmedi (Deniz bildirimi) |
-| 6.K8b | Kurulum URL kilidini kaldırma | Uygulandı; kontroller ve laptop testi geçti (Deniz bildirimi), gerçek iPad bekliyor; yalnız Preview testi için commit/push onaylandı |
+| 6.K8b | Kurulum URL kilidini kaldırma | Tamamlandı; laptop + gerçek iPad testi geçti (21 Ekim, Deniz bildirimi); kod 858a668 push edildi, Preview Ready; test sonucu yalnız yerel belge commit, yeni push/merge yok |
 | 6.K8 | Gerçek test, main | Sırada |
 | 6.4 / 6.5 | OCR / iki dil (EN + TR) | Sonra |
 | 7 | Quiz/özet (LLM API) | Sonra |
@@ -97,7 +97,7 @@ Defter, Google Drive'daki notları (PDF, defter fotoğrafı, Claude çıktılar�
 - Kontrol: 104 dosyada **1284/1284 test** (önce 103 dosya/1280; hiçbir test kaldırılmadı), `silme-yok.test.ts` dahil. Typecheck ve build geçti. Mevcut fotoğraf ölçüm testi repo dışına tanı çıktısı yazdığı için izinli çalıştırma gerekti; testin kendisi değiştirilmedi.
 - `node scripts/kurulum-parametresiz-kontrol.mjs`: gerçek `main.ts` bağlantılarıyla 6 senaryo geçti (laptop + iPad boyutunda Chromium; kök yok/yarım/hazır). URL tamamen parametresiz; girişsiz/demo/açılış ve kart/sihirbazı doldurmak yazma yapmadı. Kurulum/tamamlama/kitap oluşturma ancak düğmeyle bir yazma isteği başlattı; çift kurulum tıklaması ikinci yazma başlatmadı. Dar scope isteği doğrulandı. Tüm Google/Drive yanıtları sahte, ilk yazma 403 ile kesilir: gerçek hesap/veri değişmedi. Bu kontrol başarılı gerçek kurulum/PDF testi veya fiziksel iPad testi değildir.
 - Yerel deneme: **http://localhost:5173/**. İsteğe bağlı teşhis: **http://localhost:5173/?olcum=1**. Gerçek ikinci hesapta kapsam/sahip zorlaması yok. Giriş sonrası aynı kitaplığı aç; yeni kitap/içindekiler düğmelerini kontrol et. Çöpe atmayı yalnız onay penceresini açıp Vazgeç ile dene; eski test köküne dokunma.
-- Parametresiz K8b laptop testi geçti (21 Ekim, Deniz bildirimi); gerçek iPad testi bekleniyor. Deniz yalnız Preview testi için 28 dosyanın commit edilmesini ve origin/faz-6 dalına push edilmesini onayladı; yeni commit için Preview Ready doğrulanacak. iPad adresi: https://defter-git-faz-6-deniz-b571.vercel.app/ . Google/Vercel ayarları, eski test kökü ve main değiştirilmedi; main birleştirmesi ve canlı yayın yapılmaz.
+- **6.K8b tamamlandı: parametresiz laptop + gerçek iPad testi geçti (21 Ekim 2026, Deniz bildirimi).** K8b kodu 28 dosyayla `858a668` (`Faz 6.K8b: Kurulum parametresi kilidini kaldır`) olarak commit edildi ve origin/faz-6 dalına push edildi. Otomatik Preview `8aW4nyVBjmsP9bAP81FJqjW9rfYW` Ready; kaynak faz-6 / 858a668 ve dal adresi doğrulandı: https://defter-git-faz-6-deniz-b571.vercel.app/ . Bu adımda yalnız docs/DURUM.md test sonucu yerel commit edilir; push/merge/canlı yayın yapılmaz. Google/Vercel ayarları, eski test kökü ve main değiştirilmedi; test kökü temizliği ve main birleştirmesi ayrıca Deniz onayı gerektirir.
 - Değişen dosyalar (28):
   - Giriş ve bağlama: `index.html`, `src/main.ts`, `src/drive/kurulumDene.ts`.
   - İşlem katmanı açıklama/uyarıları: `src/drive/kurulum.ts`, `src/drive/kitapOlustur.ts`, `src/drive/icindekilerYaz.ts`, `src/drive/kitapCop.ts`, `src/drive/dosyaCop.ts`, `src/drive/copeAt.ts`, `src/drive/altKlasorAc.ts`.
@@ -145,7 +145,7 @@ Ardından: 6.4 OCR (önce keşif, kararlar Deniz'e örnekle) → 6.5 iki dil.
 - Masadaki İçindekiler gerçek DOM ölçümüyle sayfalara bölünür; devam sayfasında "İçindekiler (devam)", yetim ünite başlığı yok (6.K6c; kontrol: `node scripts/icindekiler-sayfa-kontrol.mjs`).
 - Uebungen/Oedevler ilk dosyada açılır; Übungen/Ödevler adlı klasör varsa engel.
 - Çöpe atma: konu, ünite, kitap ve açık dosya; sadece trashed=true, Geri al; kök, `kitaplar/`, `kitaplik.json` asla.
-- 6.K8b: yerel kodda kurulum URL kilidi kaldırıldı; işlemler uygun Drive bağlamında yalnız kullanıcı eylemiyle başlar. Laptop testi geçti, gerçek iPad bekleniyor; yalnız Preview testi için commit/push onaylandı.
+- 6.K8b: yerel kodda kurulum URL kilidi kaldırıldı; işlemler uygun Drive bağlamında yalnız kullanıcı eylemiyle başlar. Laptop + gerçek iPad testi geçti (21 Ekim, Deniz bildirimi); K8b tamamlandı. Kod 858a668 Preview sürümünde; test sonucu belge commit yerelde, yeni push/merge yok.
 - Genel kullanım için gizlilik sayfası (EN/TR) + Google Branding + Production (K7).
 
 ## Sonra bakılabilir (kısaltılmış; tam liste CLAUDE.md sonunda)
