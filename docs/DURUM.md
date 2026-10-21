@@ -1,6 +1,6 @@
 # Defter – Durum
 
-**Son güncelleyen:** Claude Code (Opus 5.5), 20 Ekim 2026 · dal `faz-6` (son commit f4b98d0) · `main` b564351
+**Son güncelleyen:** Codex, 21 Ekim 2026 · 6.K7a laptop testi geçti, gerçek iPad Safari testi bekleniyor · dal `faz-6` · `main` b564351
 
 Ayrıntılı tarihçe repo dışında (Cowork'ün devir notu); ortak ve güncel durum bu dosya.
 Kurallar: `CLAUDE.md`. Codex için giriş: `AGENTS.md`.
@@ -36,6 +36,7 @@ Defter, Google Drive'daki notları (PDF, defter fotoğrafı, Claude çıktılar�
 | 6.K0–K6b | Çok kullanıcı + kurulum: izin modu, kök/kurulum, örnek kitap, sihirbaz, içindekiler, çöpe atma, boş konu | Bitti (faz-6, 1265 test) |
 | 6.K6c | Masadaki İçindekiler sayfalara bölünür | Bitti (laptop + iPad geçti; faz-6 f4b98d0) |
 | **6.K7** | Yayına hazırlık: gizlilik sayfası EN/TR, README "Kullanmaya başla", Google Branding + Production | **Şimdi** |
+| 6.K7a | Girişsiz gizlilik ve kısa şartlar sayfaları (EN/TR), giriş/Özelleştir bağlantıları | Laptop testi geçti; gerçek iPad Safari testi önizlemede bekleniyor |
 | 6.K8 | Gerçek test, main | Sırada |
 | 6.4 / 6.5 | OCR / iki dil (EN + TR) | Sonra |
 | 7 | Quiz/özet (LLM API) | Sonra |
@@ -45,6 +46,27 @@ Defter, Google Drive'daki notları (PDF, defter fotoğrafı, Claude çıktılar�
 **6.K7 – Yayına hazırlık (şimdi)**
 - Kabul: gizlilik sayfası İngilizce + Türkçe; README'de "Kullanmaya başla" bölümü; Google Cloud'da Branding sayfası tamam ve uygulama Production'da.
 - Not: `*.vercel.app` alan adı doğrulaması belirsiz, K7'de bakılacak.
+
+**21 Ekim keşfi:**
+- Git temizdi; `git pull --ff-only` sonrası güncel. `public/privacy.html` mevcut dalda yok; giriş ekranında gizlilik bağlantısı da yok. Devir notundaki mevcut sayfa bilgisi doğrulanmadı.
+- Deniz gizlilik için tek sayfada İngilizce + Türkçe düzenini seçti; herkese açık iletişim adresini ayrıca belirtti (buraya yazılmaz).
+- Gizlilik metni kodla eşleşmeli: ad/e-posta ve tercihler localStorage'da; PDF önbelleği, bekleyen kalem kayıtları ve fotoğraflar IndexedDB'de; token yalnız bellekte. Google Drive, Google Fonts ve Vercel kullanıldığı için "üçüncü tarafa hiçbir veri gitmez" denmemeli.
+- Sıra: K7a gizlilik ve kısa şartlar (Deniz onayladı), K7b yeni kullanıcı rehberi ve eski README ifadelerinin düzeltilmesi, K7c Google Branding/Data Access/Production.
+- Google'ın güncel belgelerinde `drive.file` hassas olmayan, `drive` kısıtlı kapsam. Marka (uygulama adı/logo) doğrulaması ayrı; logosuz olmak doğrulamadan kesin muafiyet anlamına gelmiyor. Kullanım şartları konusunda geliştirici belgesi "isteğe bağlı", Branding yardım belgesi bağlantıları topluca gerekli diyor; canlı Console alanı K7c'de kontrol edilecek.
+- K7c önkoşulu: ana sayfa ve gizlilik bağlantısı Google tarafından girişsiz erişilebilir olmalı. Dal önizlemesinin Vercel koruması ve main birleştirmesinin K8'de olması nedeniyle sayfaların yayın yolu ayrıca netleştirilecek. Cloud Console'un bugünkü durumu henüz görülmedi; 18 Ekim notu canlı durum gibi kabul edilmedi.
+- Kaynaklar: [Google marka doğrulaması](https://developers.google.com/identity/protocols/oauth2/production-readiness/brand-verification), [Branding alanları](https://support.google.com/cloud/answer/15549049), [Drive kapsamları](https://developers.google.com/workspace/drive/api/guides/api-specific-auth).
+
+**6.K7a – Uygulama ve kontrol (21 Ekim):**
+- `public/privacy.html` ve `public/terms.html`: tek sayfada EN/TR, üstte sabit dil bağlantıları, iki dilde güncelleme tarihi. Statik HTML/CSS; giriş, JavaScript veya harici font gerektirmez. İletişim adresi Deniz'in açık onayıyla yalnız bu sayfalara eklendi.
+- Gizlilik metni kodla karşılaştırıldı: dar/sahip kapsamı, hesap bilgileri, localStorage, IndexedDB/PDF önbelleği, bekleyen kayıtlar, ilk PDF sürümünün korunması, Google'da dönüşüm ve metin araması, Google Fonts ve Vercel rolleri. Limited Use uyum açıklaması ve resmî politika bağlantısı var.
+- Saklama süreleri ve süreye bağlı silinmeyen kayıtlar, Google erişimini kaldırma, cihaz site verilerini temizleme ve Drive'dan kaldırma ayrı anlatıldı. Erişimi kaldırmak dosyaları veya bütün cihaz kayıtlarını silmez; cihaz verisi temizliği yüklenmemiş kayıtları kaybettirebilir.
+- Bağlantılar `index.html` giriş kartında ve `src/ui/panel.ts` Özelleştir panelinin sonunda. Yeni sekmede açılır (mevcut çalışma korunur); stiller `src/styles.css` ve yalnız statik sayfalara ait `public/legal.css` içinde.
+- Kontrol: typecheck ve build geçti; 103 test dosyasında **1280/1280** test geçti (`--testTimeout=20000 --maxWorkers=2`). `node scripts/gizlilik-kontrol.mjs`: 390×844 telefon, 820×1180 iPad dikey ve 1180×820 yatay; **9 senaryo + klavye kontrolü geçti**. Girişsiz/JavaScript kapalı erişim, gerçek HTML yanıtı, dil/gezinme bağlantıları, yeni sekme ve yatay taşma kontrol edildi. App bağlantıları giriş kartı ve örnek kitaplıktaki ortak Özelleştir panelinde denendi; gerçek Google girişi yapılmadı.
+- 19 ekran görüntüsü ve `rapor.json`: `%USERPROFILE%/iCloudDrive/uni_plan_claude_code/Claude outputs/gizlilik-6.K7a/`. Görüntüler incelendi. Bunlar Chromium ekran boyutu benzetimi; gerçek iPad Safari testi henüz yapılmadı.
+- **Deniz'in laptop testi geçti (21 Ekim). Gerçek iPad Safari testi bekleniyor.** Deniz, K7a'nın 8 dosyasının commit edilmesini ve iPad önizlemesi için `git push origin faz-6` yapılmasını onayladı; main birleştirmesi yok.
+- Yerel sunucu: `http://localhost:5173/privacy.html`, `http://localhost:5173/terms.html`. Dar: `http://localhost:5173/?kapsam=dar&sahip=0&kurulum=1&olcum=1`; sahip: `http://localhost:5173/?kurulum=1&olcum=1`.
+- iPad önizlemesi (Vercel dağıtımı hazır olduktan sonra): `https://defter-git-faz-6-deniz-b571.vercel.app/privacy.html`, `https://defter-git-faz-6-deniz-b571.vercel.app/terms.html`. Dar: `https://defter-git-faz-6-deniz-b571.vercel.app/?kapsam=dar&sahip=0&kurulum=1&olcum=1`; sahip: `https://defter-git-faz-6-deniz-b571.vercel.app/?kurulum=1&olcum=1`. Vercel erişim koruması geçerli olabilir.
+- Drive yazma/çöpe atma akışları, izin kapsamları ve `?kurulum=1` kilidi değiştirilmedi. Google Cloud ayarları değiştirilmedi. Sıradaki kontrol gerçek iPad Safari testi; sıradaki uygulama adımı K7b.
 
 **6.K8 – Gerçek test ve main**
 - Kabul: ikinci Google hesabıyla (Cowork geçici test kullanıcısı ekler) laptop + iPad'de kurulum ve kullanım çalışır; `?kurulum=1` kilidi kalkar; Drive'daki test kökü bütünüyle çöpe; faz-6 → main (sadece Deniz onayıyla).
@@ -103,6 +125,7 @@ Ardından: 6.4 OCR (önce keşif, kararlar Deniz'e örnekle) → 6.5 iki dil.
 - Übungen/Ödevler (umlautlu) klasördeki dosyalar okuyucuda görünmüyor.
 - `scripts/icindekiler-kontrol.mjs` K5b'den beri bozuk.
 - "Kurulumu tamamla"da kitaplik.json varsa örnek kitap "Yeni gelenler"e düşüyor.
+- Özelleştir panelindeki "Drive'a kaydetme yakında geliyor" notu eski; K7a kontrolünde görüldü, bu adımda değiştirilmedi.
 - İzin (kapsam) hatası ve `?kapsam=dar`'da token süresi dolması gerçek Drive'da denenmedi.
 
 ## Fikir listesi (özet)

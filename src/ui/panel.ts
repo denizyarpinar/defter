@@ -53,7 +53,11 @@ export function initPanel(data: { library: Library; books: Map<string, Book> }, 
     <div class="sw" id="pWall">${WALL_SWATCHES.map(([n, c]) => `<button style="background:${c}" data-c="${c}" title="${n}" aria-label="${n}" class="${c === lib.oda.duvar ? 'on' : ''}"></button>`).join('')}</div>
     <div class="note" style="margin:10px 0 6px">Zemin</div>
     <div class="sw" id="pFloor">${FLOOR_SWATCHES.map(([n, k, a, b]) => `<button style="background:linear-gradient(135deg,${a},${b})" data-f="${k}" title="${n}" aria-label="${n}" class="${k === lib.oda.zemin ? 'on' : ''}"></button>`).join('')}</div>
-    <p class="note">Değişiklikler şimdilik sadece bu oturumda kalır; Drive'a kaydetme yakında geliyor.</p>`;
+    <p class="note">Değişiklikler şimdilik sadece bu oturumda kalır; Drive'a kaydetme yakında geliyor.</p>
+    <nav class="legal-links panel-legal" aria-label="Gizlilik ve kullanım şartları">
+      <a href="/privacy.html" target="_blank" rel="noopener noreferrer" aria-label="Gizlilik / Privacy (yeni sekmede)">Gizlilik / Privacy ↗</a>
+      <a href="/terms.html" target="_blank" rel="noopener noreferrer" aria-label="Kullanım şartları / Terms (yeni sekmede)">Şartlar / Terms ↗</a>
+    </nav>`;
 
     const q = <T extends HTMLElement>(s: string) => panel.querySelector<T>(s);
     q('#pClose')!.onclick = () => setOpen(false);

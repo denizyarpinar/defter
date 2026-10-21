@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="description" content="Defter privacy policy in English and Turkish: Google Drive access, local storage, service providers and deleting your data.">
+    <meta name="referrer" content="no-referrer">
+    <title>Privacy / Gizlilik – Defter</title>
+    <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/legal.css">
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="header-inner">
+        <a class="brand" href="/">Defter</a>
+        <nav class="language-nav" aria-label="Language / Dil">
+          <a href="#en" lang="en" hreflang="en">English</a>
+          <a href="#tr" lang="tr" hreflang="tr">Türkçe</a>
+        </nav>
+        <a class="back-link" href="/">Open Defter / <span lang="tr">Defter’i aç</span></a>
+      </div>
+    </header>
+    <main>
+      <h1>Privacy / <span lang="tr">Gizlilik</span></h1>
+      <p class="intro">How Defter handles your data. <span lang="tr">Defter’in verilerini nasıl işlediği.</span></p>
+
+      <section class="language-section" id="en" lang="en" aria-labelledby="en-title" tabindex="-1">
+        <h2 id="en-title">Privacy policy</h2>
+        <p class="updated">Last updated: <time datetime="2026-10-21">21 October 2026</time></p>
+        <p>Defter is a personal study library that displays your documents as books in a 3D room. It is developed by Deniz Yarpınar. For privacy questions, contact <a href="mailto:yarpinardeniz@gmail.com">yarpinardeniz@gmail.com</a>.</p>
+
+        <h3>1. Data accessed and why</h3>
+        <p>When you connect Google Drive, Defter reads your account display name and email address to show and remember the signed-in account and choose its permission mode. It accesses library folders, file names, identifiers, metadata and document contents to organise books, display PDFs, search, remember reading progress and save your changes.</p>
+        <p>Actions you request can create library folders and files, upload documents or photos, save pen annotations and reading settings, and move selected library items to Drive’s trash. Google handles sign-in; Defter does not receive your Google password. You can explore the sample library without connecting Drive.</p>
+
+        <h3>2. Google Drive permissions</h3>
+        <ul>
+          <li><strong>Normal use — <code>drive.file</code>:</strong> access is limited to files created by Defter or explicitly made accessible to it. Add documents through the app; dragging an existing file into a folder in Drive does not by itself grant Defter access to that file.</li>
+          <li><strong>Owner mode — <code>drive</code>:</strong> the developer’s configured owner account can request the broader permission to use its existing library. This permission allows viewing and managing all files in that account’s Drive. Defter’s library operations are limited by its code to the library; the Google permission itself is broader.</li>
+        </ul>
+        <p>The Google consent screen shows the permission requested for your session. These permission modes are not a sharing setting for your documents.</p>
+
+        <h3>3. Processing and service providers</h3>
+        <ul>
+          <li><strong>Your browser:</strong> renders PDFs, prepares photos and images, and edits pen annotations. The app communicates directly with Google APIs. Defter has no developer-operated backend or document database.</li>
+          <li><strong>Google:</strong> provides sign-in and Drive storage. Searching document text across your library sends the search words to Drive. Word/PowerPoint conversion uploads the selected source as a temporary Google document or presentation, then downloads the exported PDF. This conversion is processed by Google, rather than only on your device.</li>
+          <li><strong>Vercel:</strong> hosts the website and serves its code and public assets. Website requests can expose technical information such as your IP address, requested URL and browser information to the hosting provider. The app’s document-reading and upload requests go directly to Google rather than to a Defter backend.</li>
+          <li><strong>Google Fonts:</strong> the main app loads fonts from Google, which receives the associated network requests. These privacy and terms pages use system fonts.</li>
+        </ul>
+        <p>These providers process information under their own policies: <a href="https://policies.google.com/privacy">Google Privacy Policy</a> and <a href="https://vercel.com/legal/privacy-notice">Vercel Privacy Notice</a>. Defter’s app code does not include advertising or analytics tracking, send documents to an AI service, or use Google user data to train AI models.</p>
+
+        <h3>4. Storage and retention</h3>
+        <ul>
+          <li><strong>Access token:</strong> held only in the app’s memory, not in localStorage. It has a Google-defined expiry and is cleared from app memory when you sign out or the page is unloaded.</li>
+          <li><strong>Remembered account and preferences:</strong> your name and email are kept in the browser’s localStorage until you sign out, replace the remembered account or clear site data. Reading-view and pen preferences remain until replaced or site data is cleared; they have no fixed time-based expiry.</li>
+          <li><strong>Downloaded PDFs:</strong> cached on the device in IndexedDB with a target of about 500 MB. Older file versions are replaced and least recently opened files are removed when the size threshold is exceeded, while the currently cached file is kept. There is no fixed time-based expiry.</li>
+          <li><strong>Pending pen changes and photos:</strong> kept in IndexedDB until successfully uploaded or you clear the site’s data. Upload errors do not automatically delete them. Data for a file that can no longer be uploaded may remain on the device. Signing out does not clear these records or the PDF cache. Your browser can also remove site storage under its own storage rules.</li>
+          <li><strong>Drive library:</strong> folders, PDFs, annotations and library settings remain in your Drive until you remove them. Before the app first edits a PDF, it can preserve the original revision using Drive’s “keep forever” mechanism; that revision has no automatic expiry set by Defter. Google’s storage and retention rules also apply.</li>
+          <li><strong>Temporary conversion files:</strong> normally moved to Drive’s trash after conversion, including cancellation after upload. If cleanup fails or the operation is interrupted, a file may remain; later conversions attempt to clean up older temporary files. You can also remove them in Drive.</li>
+        </ul>
+        <p>Defter does not set a single retention period for Google’s or Vercel’s own technical records; their policies and applicable service settings govern those records.</p>
+
+        <h3>5. Disconnecting and deleting data</h3>
+        <ol>
+          <li><strong>Remove access:</strong> use “Çıkış” in Defter, which also requests revocation of the current Google authorisation, or open <a href="https://myaccount.google.com/connections">Google Account connections</a>, select Defter and remove its access. <strong>Revoking access does not automatically delete Drive files or browser storage.</strong></li>
+          <li><strong>Clear device records:</strong> first confirm that any notes or photos you want to keep have reached Drive, then close Defter. In your browser’s site-data settings, find the Defter address you used and remove its website data. In Safari, use Settings → Apps → Safari → Advanced → Website Data (the path can vary by version). Repeat for other devices and site addresses, such as a preview address. This removes local account details, preferences, cached PDFs and pending records; it does not delete the Drive library.</li>
+          <li><strong>Remove Drive documents:</strong> in <a href="https://drive.google.com/">Google Drive</a>, review and move the relevant files or library folder to the trash. New libraries are named “Defter Library”; the owner’s older library may be named “Kitaplık”. Keep anything you still need. Drive normally permanently deletes trashed files after 30 days; you can permanently delete selected items sooner in Drive. Removing Google access alone does not perform this step. See <a href="https://support.google.com/drive/answer/2375102?hl=en">Google’s deletion instructions</a>.</li>
+        </ol>
+        <p class="notice">Clearing site data can permanently lose notes or photos that have not yet uploaded. Removing a file from Drive does not immediately erase a copy already cached on a device; clear that device’s site data as well.</p>
+        <p>The developer does not hold a separate server copy of your library to delete. Contact the email above for questions about this policy or requests concerning personal data you have sent directly to the developer, such as a support email.</p>
+
+        <h3>6. Google API Limited Use</h3>
+        <p>Defter’s use and transfer of information received from Google APIs adheres to the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including its Limited Use requirements. Google user data is used to provide the library features described here, not sold or used for advertising. Processing by Google for the features you request is described above.</p>
+        <p class="section-footer"><a href="/terms.html#en">Terms of use</a> · <a href="#tr" lang="tr">Türkçe gizlilik metnine geç</a></p>
+      </section>
+
+      <section class="language-section" id="tr" lang="tr" aria-labelledby="tr-title" tabindex="-1">
+        <h2 id="tr-title">Gizlilik politikası</h2>
+        <p class="updated">Son güncelleme: <time datetime="2026-10-21">21 Ekim 2026</time></p>
+        <p>Defter, belgelerini 3D bir odada kitap olarak gösteren kişisel bir çalışma kitaplığıdır. Geliştiricisi Deniz Yarpınar’dır. Gizlilik soruları için iletişim: <a href="mailto:yarpinardeniz@gmail.com">yarpinardeniz@gmail.com</a>.</p>
+
+        <h3>1. Hangi verilere, neden erişilir?</h3>
+        <p>Google Drive bağlandığında Defter, giriş yapılan hesabı göstermek, hatırlamak ve izin modunu seçmek için hesabının görünen adını ve e-posta adresini okur. Kitapları düzenlemek, PDF’leri göstermek, aramak, okuma durumunu hatırlamak ve değişikliklerini kaydetmek için kitaplık klasörlerine, dosya adlarına, kimliklerine, üst verilerine ve belge içeriklerine erişir.</p>
+        <p>İstediğin işlemler kitaplık klasörü ve dosyaları oluşturabilir, belge veya fotoğraf yükleyebilir, kalem notlarını ve okuma ayarlarını kaydedebilir, seçtiğin kitaplık öğelerini Drive çöpüne taşıyabilir. Girişi Google yönetir; Defter Google şifreni almaz. Drive’ı bağlamadan örnek kitaplığı deneyebilirsin.</p>
+
+        <h3>2. Google Drive izinleri</h3>
+        <ul>
+          <li><strong>Genel kullanım — <code>drive.file</code>:</strong> erişim, Defter’in oluşturduğu veya açıkça uygulamaya erişim verdiğin dosyalarla sınırlıdır. Belgeleri uygulamadan ekle; mevcut bir dosyayı Drive’da bir klasöre sürüklemek tek başına Defter’e o dosya için erişim vermez.</li>
+          <li><strong>Sahip modu — <code>drive</code>:</strong> geliştiricinin tanımlı sahip hesabı, mevcut kitaplığını kullanmak için geniş izin isteyebilir. Bu izin, o hesabın Drive’ındaki bütün dosyaları görme ve yönetme yetkisi verir. Defter’in kitaplık işlemleri kod içinde kitaplıkla sınırlandırılmıştır; Google’dan alınan iznin kendisi daha geniştir.</li>
+        </ul>
+        <p>Oturumun için istenen izin Google’ın onay ekranında gösterilir. Bu izin modları belgelerini başkalarıyla paylaşma ayarı değildir.</p>
+
+        <h3>3. İşleme ve hizmet sağlayıcılar</h3>
+        <ul>
+          <li><strong>Tarayıcın:</strong> PDF’leri gösterir, fotoğraf ve görselleri hazırlar, kalem notlarını düzenler. Uygulama Google API’leriyle doğrudan iletişim kurar. Defter’in geliştirici tarafından işletilen bir uygulama sunucusu veya belge veritabanı yoktur.</li>
+          <li><strong>Google:</strong> giriş ve Drive depolama hizmetini sağlar. Kitaplığın belge metinlerinde arama yapılırken aranan kelimeler Drive’a gönderilir. Word/PowerPoint dönüşümünde seçtiğin kaynak, geçici bir Google dokümanı veya sunusu olarak yüklenir; dışa aktarılan PDF indirilir. Bu dönüşüm yalnız cihazında değil, Google tarafından işlenir.</li>
+          <li><strong>Vercel:</strong> web sitesini barındırır, kodunu ve herkese açık dosyalarını sunar. Site istekleri IP adresi, istenen adres ve tarayıcı bilgisi gibi teknik bilgileri barındırma sağlayıcısına iletebilir. Uygulamanın belge okuma ve yükleme istekleri bir Defter sunucusu yerine doğrudan Google’a gider.</li>
+          <li><strong>Google Fonts:</strong> ana uygulama yazı tiplerini Google’dan yükler; Google bu ağ isteklerini alır. Bu gizlilik ve şartlar sayfaları cihazın sistem yazı tiplerini kullanır.</li>
+        </ul>
+        <p>Bu sağlayıcılar bilgileri kendi politikalarına göre işler: <a href="https://policies.google.com/privacy?hl=tr">Google Gizlilik Politikası</a> ve <a href="https://vercel.com/legal/privacy-notice">Vercel Gizlilik Bildirimi</a>. Defter’in uygulama kodunda reklam veya analiz takibi bulunmaz; belgeler bir yapay zekâ hizmetine gönderilmez, Google kullanıcı verileri yapay zekâ modeli eğitmek için kullanılmaz.</p>
+
+        <h3>4. Saklama ve saklanma süreleri</h3>
+        <ul>
+          <li><strong>Erişim anahtarı:</strong> localStorage’a değil, yalnız uygulama belleğine konur. Google’ın belirlediği bir geçerlilik süresi vardır; çıkış yaptığında veya sayfa bellekten kaldırıldığında uygulama belleğinden temizlenir.</li>
+          <li><strong>Hatırlanan hesap ve tercihler:</strong> adın ve e-postan çıkış yapana, hatırlanan hesap değişene veya site verileri temizlenene kadar tarayıcının localStorage alanında tutulur. Okuma görünümü ve kalem tercihleri değiştirilene veya site verileri temizlenene kadar kalır; sabit bir süre sonunda silinmez.</li>
+          <li><strong>İndirilen PDF’ler:</strong> yaklaşık 500 MB hedefiyle cihazdaki IndexedDB deposunda önbelleğe alınır. Eski dosya sürümleri yenileriyle değiştirilir; boyut eşiği aşılınca en uzun süredir açılmayan dosyalar çıkarılır, o sırada önbelleğe alınan dosya korunur. Zamana bağlı sabit bir silinme süresi yoktur.</li>
+          <li><strong>Bekleyen kalem değişiklikleri ve fotoğraflar:</strong> başarıyla yüklenene veya site verilerini temizleyene kadar IndexedDB’de tutulur. Yükleme hataları bunları otomatik silmez. Artık yüklenemeyen bir dosyaya ait veri cihazda kalabilir. Çıkış yapmak bu kayıtları veya PDF önbelleğini temizlemez. Tarayıcın da kendi depolama kurallarına göre site verilerini kaldırabilir.</li>
+          <li><strong>Drive kitaplığı:</strong> klasörler, PDF’ler, notlar ve kitaplık ayarları sen kaldırana kadar Drive’ında kalır. Uygulama PDF’i ilk kez düzenlemeden önce ilk sürümü Drive’ın “daima sakla” özelliğiyle koruyabilir; Defter bu sürüme otomatik sona erme süresi koymaz. Google’ın depolama ve saklama kuralları da geçerlidir.</li>
+          <li><strong>Geçici dönüşüm dosyaları:</strong> normalde dönüşümden sonra, yükleme sonrası iptal de dahil, Drive çöpüne taşınır. Temizlik başarısız olur veya işlem yarıda kesilirse dosya kalabilir; sonraki dönüşümlerde eski geçici dosyaların temizlenmesi denenir. Bunları Drive’dan kendin de kaldırabilirsin.</li>
+        </ul>
+        <p>Defter, Google veya Vercel’in kendi teknik kayıtları için tek bir saklama süresi belirlemez; bu kayıtlar sağlayıcıların politikalarına ve geçerli hizmet ayarlarına tabidir.</p>
+
+        <h3>5. Bağlantıyı kesme ve verileri kaldırma</h3>
+        <ol>
+          <li><strong>Erişimi kaldır:</strong> Defter’de “Çıkış” düğmesini kullanabilirsin; bu işlem mevcut Google yetkisinin iptalini de ister. Ayrıca <a href="https://myaccount.google.com/connections">Google hesabının bağlantılar sayfasında</a> Defter’i seçip erişimini kaldırabilirsin. <strong>Erişimi kaldırmak Drive dosyalarını veya tarayıcı kayıtlarını otomatik silmez.</strong></li>
+          <li><strong>Cihaz kayıtlarını temizle:</strong> önce saklamak istediğin not ve fotoğrafların Drive’a ulaştığını doğrula, sonra Defter’i kapat. Tarayıcının site verisi ayarlarında kullandığın Defter adresini bulup o sitenin verilerini kaldır. Safari’de Ayarlar → Uygulamalar → Safari → İleri Düzey → Web Sitesi Verileri yolunu kullanabilirsin; yol sürüme göre değişebilir. Diğer cihazlar ve önizleme gibi farklı site adresleri için işlemi tekrarla. Bu işlem cihazdaki hesap bilgilerini, tercihleri, PDF önbelleğini ve bekleyen kayıtları kaldırır; Drive kitaplığını silmez.</li>
+          <li><strong>Drive belgelerini kaldır:</strong> <a href="https://drive.google.com/">Google Drive’da</a> ilgili dosyaları veya kitaplık klasörünü inceleyip çöpe taşı. Yeni kitaplıklar “Defter Library”, sahibin eski kitaplığı ise “Kitaplık” adını taşıyabilir. Gereken dosyalarını sakla. Drive normalde çöpteki dosyaları 30 gün sonra kalıcı siler; istersen seçtiğin öğeleri Drive’dan daha önce kalıcı silebilirsin. Yalnız Google erişimini kaldırmak bu adımı gerçekleştirmez. <a href="https://support.google.com/drive/answer/2375102?hl=tr">Google’ın silme açıklamaları</a>.</li>
+        </ol>
+        <p class="notice">Site verilerini temizlemek, henüz yüklenmemiş not veya fotoğrafları kalıcı olarak kaybettirebilir. Drive’dan bir dosyayı kaldırmak, cihazdaki önbellek kopyasını hemen silmez; o cihazın site verilerini de temizle.</p>
+        <p>Geliştiricide kitaplığının silinecek ayrı bir sunucu kopyası bulunmaz. Bu politika hakkındaki sorular veya destek e-postası gibi doğrudan geliştiriciye gönderdiğin kişisel verilerle ilgili talepler için yukarıdaki adresi kullanabilirsin.</p>
+
+        <h3>6. Google API Limited Use</h3>
+        <p>Defter’in Google API’lerinden aldığı bilgileri kullanması ve aktarması, Limited Use (sınırlı kullanım) şartları dahil <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a> ile uyumludur. Google kullanıcı verileri burada açıklanan kitaplık özellikleri için kullanılır; satılmaz ve reklam amacıyla kullanılmaz. İstediğin özellikler için Google tarafından yapılan işleme yukarıda açıklanmıştır.</p>
+        <p class="section-footer"><a href="/terms.html#tr">Kullanım şartları</a> · <a href="#en" lang="en">Read the English privacy policy</a></p>
+      </section>
+    </main>
+    <footer></footer>
+  </body>
+</html>
