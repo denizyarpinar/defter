@@ -194,9 +194,9 @@ function sihirbazKilidi(): SihirbazKilidi {
   return isSignedIn() && durum.tur === 'drive' && kokKaynagi() !== null ? 'acik' : 'kilitli';
 }
 
-// dev (DEV or ?olcum=1): window.defterSihirbazHata = n → a made-up network error at item n (once); -n: after writing it
+// dev only: window.defterSihirbazHata = n → a made-up network error at item n (once); -n: after writing it
 function yapayHata(): number | undefined {
-  if (!import.meta.env.DEV && !OLCUM) return undefined;
+  if (!import.meta.env.DEV) return undefined;
   const w = window as { defterSihirbazHata?: unknown };
   const n = w.defterSihirbazHata;
   delete w.defterSihirbazHata;
