@@ -3,12 +3,20 @@ import { gidisPlani } from './arama/aramaPaneliDurumu';
 import { agacAl, agacGecersiz } from './arama/kitaplikAgaci';
 import { kitaplikAra, type KitaplikSonucu } from './arama/kitaplikAra';
 import { ornekAgac, type OrnekAgaci } from './arama/ornekAgac';
-import { AuthError, prepareAuth, rememberUser, rememberedUser, signIn, signOut } from './drive/auth';
+import { AuthError, aktifKapsam, isSignedIn, kapsamDurumu, prepareAuth, rememberUser, rememberedUser, setSahip, signIn, signOut } from './drive/auth';
+import { darZorlaUrl, girisKapsami, includeGranted, sahipMi, sahipZorlaYok, tamErisimDugmesi } from './drive/kapsam';
 import { getUser, setAccountHint, setSessionExpiredHandler } from './drive/drive';
-import { LibraryNotFound, loadDriveLibrary, type DriveLocation } from './drive/driveLibrary';
+import { LibraryNotFound, loadDriveLibrary, sonKok, type DriveLocation } from './drive/driveLibrary';
+import type { KitapIslemi } from './drive/kitapOlustur';
+import { driveKurulumApi, kitaplikKur, KurulumIzinYok, webOrnekKaynak } from './drive/kurulum';
 import { bekleyenFotoDepo } from './defter/bekleyenFoto';
 import { acilisToastMetni } from './defter/fotoEklemeMetin';
 import { ReadingSaver, driveReadingApi } from './drive/okumaKaydi';
+import { driveIcindekilerApi, uniteKlasorDurumu, type IcindekilerKuyrugu } from './drive/icindekilerYaz';
+import { driveKitapCopApi } from './drive/kitapCop';
+import { driveDosyaCopApi } from './drive/dosyaCop';
+import { icindekilerBaglamiKur, type IcindekilerBaglantisi } from './ui/icindekilerBaglami';
+import { copAkisiKur } from './ui/copAkisi';
 import { DriveSaver } from './drive/save';
 import { daysSinceOpened, shelfOf } from './model/library';
 import { loadLocalLibrary, type LoadedLibrary } from './model/localSource';
@@ -17,13 +25,15 @@ import type { Book, ModeKey } from './model/types';
 import { usesUnits } from './model/units';
 import { markOpened, setReadingSink } from './okuma/okumaDurumu';
 import { sampleBookFolder, sampleFolders } from './okuma/ornekKaynak';
-import { closeOkuyucu, forgetBook, fotoYuklemeSuruyor, initOkuyucu, isOkuyucuOpen, okuyucuAra, openOkuyucu, sayfaEklemeOrtami } from './okuma/Okuyucu';
+import { bekleyenKalemIdleri, closeOkuyucu, forgetBook, fotoYuklemeSuruyor, initOkuyucu, isOkuyucuOpen, okuyucuAra, openOkuyucu, openOkuyucuDuzenle, sayfaEklemeOrtami, setDosyaCop, setIcindekilerBaglami, setKlasorAcma } from './okuma/Okuyucu';
 import { createRoomScene, type LibraryData, type RoomScene, type View } from './scene';
 import { canvas, drawWood, noise } from './scene/textures';
 import { updateHint } from './ui/hint';
 import { initPanel } from './ui/panel';
-import { hideSaveState, initLibError, initNotFound, initSaveState, setLibError, setLibraryLoading, setNotFound, showSaveError, showSaved, showSaving } from './ui/driveStatus';
+import { hideSaveState, initFullAccess, initKurulum, initLibError, initSaveState, ornekIstendi, setFullAccess, setKurulum, setLibError, setLibraryLoading, showSaveError, showSaved, showSaving } from './ui/driveStatus';
 import { etkinYazici, gecis, gorunum, ilkDurum, type KitaplikDurumu, type KitaplikOlayi } from './ui/kitaplikDurumu';
+import { kartSec, KurulumAkisi } from './ui/kurulumDurumu';
+import type { SihirbazKilidi } from './ui/kitapSihirbaziDurumu';
 import { closeReader, initReader, isReaderOpen, openReader, readerShell, refreshReader } from './ui/reader';
 import { initAramaPaneli, type AramaKaynagi } from './ui/aramaPaneli';
 import { hideLogin, initLogin, setLoginBusy, setRememberedName, showLogin } from './ui/login';
@@ -32,6 +42,7 @@ import { installErrorBox } from './ui/hataKutusu';
 import { installPageZoomGuard } from './ui/sayfaZoom';
 import { installGorunurAlan } from './ui/gorunurAlan';
 import { toast } from './ui/toast';
+import { installKalemOlcumWindow } from './kalem/kalemOlcum';
 
 const app = document.querySelector<HTMLElement>('#app')!;
 const stageEl = document.querySelector<HTMLElement>('#stage')!;
@@ -47,6 +58,8 @@ installPageZoomGuard(() => scene?.resize());
 // ?olcum=1: the numbers in a small box (also on Vercel, for the iPad test)
 installGorunurAlan();
 if (new URLSearchParams(location.search).get('olcum') === '1') void import('./ui/olcum').then(m => m.installOlcum());
+// task 6.H2: window.defterKalemOlcum() — the last 50 pen strokes as JSON (development, and ?olcum=1)
+installKalemOlcumWindow();
 
 // dev only (task 5.3, 5.8c): ?gorselTest=1 photo → JPEG trial panel; writes nothing, not in the build
 if (import.meta.env.DEV && new URLSearchParams(location.search).get('gorselTest') === '1') {
@@ -76,6 +89,8 @@ let durum: KitaplikDurumu = ilkDurum(startWithSample);
 // Every write to Drive goes through this: null unless the Drive library is on screen.
 const writer = () => etkinYazici(durum, saver);
 
+// dev only (task 6.K2a): window.defterKokDurumu() (reads only), window.defterKurulumDene() (requires a signed-in, writable context)
+if (import.meta.env.DEV) void import('./drive/kurulumDene').then(m => m.installKurulumDene(() => aktifKapsam(), () => isSignedIn() && durum.tur !== 'demo'));
 // dev only (task 5.5): window.defterDosyaDene(kitapAdi) creates a test PDF
 if (import.meta.env.DEV) void import('./drive/dosyaDene').then(m => m.installDosyaDene(() => writer() ? driveLoc : null));
 // dev only (task 5.6): window.defterSayfaDene(kitapAdi, dosyaAdi) adds 2 test pages at the end
@@ -98,6 +113,10 @@ if (import.meta.env.DEV) void import('./defter/bekleyenFotoDene').then(m => m.in
 if (import.meta.env.DEV && new URLSearchParams(location.search).get('kirpTest') === '1') {
   import('./defter/kirp/kirpTest').then(m => m.acKirpTest()).catch(e => toast(`Kırpma testi açılamadı: ${e}`));
 }
+// dev only (task 6.H2b): ?kalemTest=1 draws pen records (or samples) the old and the new way side by side; writes nothing
+if (import.meta.env.DEV && new URLSearchParams(location.search).get('kalemTest') === '1') {
+  import('./kalem/kalemTest').then(m => m.acKalemTest()).catch(e => toast(`Kalem testi açılamadı: ${e}`));
+}
 // dev only (task 6.2a): ?filtreTest=1 shows document filters A–D side by side on real photos; writes nothing
 if (import.meta.env.DEV && new URLSearchParams(location.search).get('filtreTest') === '1') {
   import('./defter/filtre/filtreTest').then(m => m.acFiltreTest()).catch(e => toast(`Filtre testi açılamadı: ${e}`));
@@ -113,10 +132,12 @@ function showState(): void {
   if (v.kart === 'giris') { showLogin(v.girisHata ?? undefined); setLoginBusy(v.girisMesgul); }
   else hideLogin();
   setLibraryLoading(v.yukleniyor);
-  setNotFound(v.kart === 'bulunamadi');
+  setKurulum(v.kurulum);
+  setFullAccess(v.kart === 'tamErisim', v.tamErisimMesgul, v.tamErisimHata);
   setLibError(v.hataMesaji);
   if (v.kilitli) app.dataset.kilit = ''; else delete app.dataset.kilit;
   scene?.setLocked(v.kilitli);
+  bosIpucu();
 }
 
 // 5 empty shelves (as a Drive library without kitaplik.json), no books; nothing is fetched
@@ -138,8 +159,82 @@ function applyMode(instant = false): void {
 function updateChrome(): void {
   app.dataset.view = view;
   updateCrumb(view, openTitle);
-  updateHint(view, openTitle !== null);
+  bosIpucu();
 }
+
+// ---- task 6.K4a: "Yeni kitap" wizard (only in a Drive library, never in the sample one) ----
+// Task 6.K4b: "Oluştur" writes the book (kitapOlustur.ts) — in the app's own root (defterKok), after a user action.
+// Task 6.K4c: also in the owner's "Kitaplık" (with the same root validation).
+
+function yeniKitapAcik(): boolean {
+  return durum.tur === 'drive' && !!data;
+}
+
+function yeniKitapAc(): void {
+  const d = data;
+  if (!yeniKitapAcik() || !d) return;
+  import('./ui/kitapSihirbazi')
+    .then(m => m.kitapSihirbaziAc({
+      raflar: d.library.raflar.map(s => ({ id: s.id, ad: s.ad })), mevcutIdler: [...d.books.keys()], olcum: OLCUM,
+      kilit: sihirbazKilidi(), olustur: kitapOlusturDugmesi, girisYap: () => googleSignIn(),
+      yarimCopeAt: (ad, klasorId) => copAkisi.yarimCopeAt(ad, klasorId)
+    }))
+    .catch(e => toast(`Kitap sihirbazı açılamadı: ${e}`));
+}
+
+const OLCUM = new URLSearchParams(location.search).get('olcum') === '1';
+
+// The loaded root: our own (defterKok) or the owner's "Kitaplık" (by name, 6.K4c); both require a signed-in Drive context
+function kokKaynagi(): 'defterKok' | 'ad' | null {
+  const k = sonKok();
+  return !k || k.tur === 'yok' ? null : k.tur === 'cokKok' ? 'defterKok' : k.kaynak;
+}
+
+function sihirbazKilidi(): SihirbazKilidi {
+  return isSignedIn() && durum.tur === 'drive' && kokKaynagi() !== null ? 'acik' : 'kilitli';
+}
+
+// dev only: window.defterSihirbazHata = n → a made-up network error at item n (once); -n: after writing it
+function yapayHata(): number | undefined {
+  if (!import.meta.env.DEV) return undefined;
+  const w = window as { defterSihirbazHata?: unknown };
+  const n = w.defterSihirbazHata;
+  delete w.defterSihirbazHata;
+  return typeof n === 'number' && n !== 0 ? n : undefined;
+}
+
+// Errors go back to the wizard (it stays open); success: the library again, then the toast
+async function kitapOlusturDugmesi(islem: KitapIslemi, ilerleme: (i: number, n: number) => void): Promise<void> {
+  // a shelf change not written yet would write the old shelves over the new entry
+  if (saver?.hasUnsaved) throw new Error('Raf değişiklikleri kaydediliyor; birkaç saniye sonra tekrar dene.');
+  const loc = driveLoc;
+  const { driveKitapOlusturApi, kitapOlustur, KitapOlusturYazmaYok } = await import('./drive/kitapOlustur');
+  if (!loc || durum.tur !== 'drive') throw new KitapOlusturYazmaYok();
+  const sonuc = await kitapOlustur(driveKitapOlusturApi, islem, {
+    kilitAcik: sihirbazKilidi() === 'acik', kokKaynagi: kokKaynagi(), kokId: loc.rootId,
+    yazabilir: () => isSignedIn() && durum.tur === 'drive', ilerleme, yapayHata
+  });
+  const baslik = String(islem.plan.kitapJson.baslik);
+  try {
+    await kitaplikYenile();
+    toast(sonuc.kitaplikYok ? `Kitap oluşturuldu: ${baslik}. kitaplik.json yok; kitap "Yeni gelenler"de.` : `Kitap oluşturuldu: ${baslik}`);
+  } catch (e) {
+    console.warn('Kitaplık yenilenemedi.', e);
+    toast(`Kitap oluşturuldu: ${baslik}. Kitaplık yenilenemedi; sayfayı yenile.`);
+  }
+}
+
+// The room's hint; an empty Drive library shows "Kitaplığın boş · ＋ Yeni kitap" in its place
+function bosIpucu(): void {
+  updateHint(view, openTitle !== null);
+  const btn = document.querySelector<HTMLElement>('#bosKitaplik');
+  if (!btn) return;
+  const v = gorunum(durum);
+  const goster = yeniKitapAcik() && data!.books.size === 0 && view === 'room' && openTitle === null && !v.kilitli && v.kart === null;
+  btn.hidden = !goster;
+  if (goster) document.querySelector<HTMLElement>('#hint')!.hidden = true;
+}
+document.querySelector('#bosKitaplik')?.addEventListener('click', yeniKitapAc);
 
 initTopBar({
   onSearch: () => aramaPaneli.ac(),
@@ -180,8 +275,10 @@ async function useData(next: LoadedLibrary, newSaver: DriveSaver | null, loc: Dr
   reading = loc ? new ReadingSaver(id => loc.bookFileIds.get(id), driveReadingApi, { saving: () => {}, saved: showSaved, failed: showSaveError }) : null;
   const r = reading;
   setReadingSink(r ? (id, patch) => r.change(id, patch) : null);
+  icindekilerKur(loc);
   hideSaveState();
   scene.reload();
+  bosIpucu();
   if (location.hash !== '#aksam') { mode = MODE_FROM_DATA[data.library.oda.mod]; applyMode(); }
   return true;
 }
@@ -194,17 +291,134 @@ async function loadFromDrive(): Promise<void> {
   const current = () => seq === loadSeq && durum.tur === 'yukleniyor';
   await ready;
   try {
-    const r = await loadDriveLibrary();
+    const r = await loadDriveLibrary(aktifKapsam() === 'tam' ? 'tam' : 'dar');
     if (!current()) return;
     // the saver reads from the shared holder, whose contents useData replaces
-    if (!await useData(r, new DriveSaver(r.loc, data!, { saving: showSaving, saved: showSaved, failed: showSaveError, warn: toast }), r.loc)) return;
+    if (!await useData(r, driveSaver(r.loc), r.loc)) return;
     olay({ tur: 'driveGeldi' });
-    if (r.warnings.length) toast(r.warnings[0]);
+    if (r.warnings.length) uyar(r.warnings[0]);
     remindPendingPhotos();
   } catch (e) {
     if (!current()) return;
-    olay(e instanceof LibraryNotFound ? { tur: 'bulunamadi' } : { tur: 'driveHata', mesaj: errorText(e) });
+    if (!(e instanceof LibraryNotFound)) { olay({ tur: 'driveHata', mesaj: errorText(e) }); return; }
+    // task 6.K2b: no root / half set up → "Kitaplığını kur" (the owner with drive.file: the full access card first)
+    if (e.kok.tur !== 'yok' && e.kok.uyari) uyar(e.kok.uyari);
+    const k = kartSec({ sahip: kapsamDurumu().sahip === true, aktif: aktifKapsam(), kok: e.kok, kilitAcik: isSignedIn() });
+    if (k.kart === 'tamErisim') { olay({ tur: 'tamErisimGerekli' }); return; }
+    kurulum.yeniKart();
+    olay({ tur: 'kurulumGerekli', dugme: k.kart === 'kurulum' ? k.dugme : e.dugme, kilitli: !isSignedIn() });
   }
+}
+
+const driveSaver = (loc: DriveLocation) => new DriveSaver(loc, data!, { saving: showSaving, saved: showSaved, failed: showSaveError, warn: toast });
+
+// Task 6.K4b: the Drive library read again (a new book), the state stays 'drive'
+async function kitaplikYenile(): Promise<void> {
+  const r = await loadDriveLibrary(aktifKapsam() === 'tam' ? 'tam' : 'dar');
+  if (durum.tur !== 'drive') return;
+  await useData(r, driveSaver(r.loc), r.loc);
+  if (r.warnings.length) uyar(r.warnings[0]);
+}
+
+// ---- task 6.K5a: the contents' edit mode (the reader's panel; drive/icindekilerYaz.ts) ----
+// Only a Drive library; writing requires a signed-in, writable context. Before every write the book's other kitap.json writers
+// (ribbon / status, cover) finish what is waiting, so they don't write over each other.
+
+let icKuyruk: IcindekilerKuyrugu | null = null;
+let icBaglanti: IcindekilerBaglantisi | null = null;
+
+// task 6.K5a-2: the queue and the panel's context in ui/icindekilerBaglami.ts (one refresh way for every write)
+function icindekilerKur(loc: DriveLocation | null): void {
+  if (!loc) { icKuyruk = null; icBaglanti = null; setIcindekilerBaglami(null); return; }
+  const baglanti = icindekilerBaglamiKur({
+    drive: driveIcindekilerApi,
+    secenek: kitapId => ({
+      kilitAcik: sihirbazKilidi() === 'acik', kokKaynagi: kokKaynagi(), kokId: loc.rootId,
+      yazabilir: () => isSignedIn() && durum.tur === 'drive' && driveLoc === loc,
+      surum: data?.books.get(kitapId)?.surum ?? 0,
+      kitapKlasorId: loc.bookFolderIds.get(kitapId), kitapJsonId: loc.bookFileIds.get(kitapId),
+      oncesi: async () => { await reading?.flush(); await saver?.bekleyenleriYaz(); }
+    }),
+    // useData binds the panel before the loading state changes to 'drive'.
+    // Each operation still checks the current Drive state through secenek().yazabilir.
+    kilitAcik: isSignedIn() && kokKaynagi() !== null,
+    hasJson: b => b.hasJson && loc.bookFileIds.has(b.id),
+    uniteKlasorleri: async b => {
+      const id = loc.bookFolderIds.get(b.id);
+      return id ? uniteKlasorDurumu(driveIcindekilerApi, id, b.uniteler) : b.uniteler.map(() => null);
+    },
+    kitap: id => data?.books.get(id),
+    yenile: () => { agacGecersiz(); refreshReader(); },   // the search tree knows the new topic / name
+    jsonOku: async id => {
+      const fileId = loc.bookFileIds.get(id);
+      if (!fileId) throw new Error('kitap.json yok');
+      return driveIcindekilerApi.jsonOku(fileId);
+    },
+    girisYap: () => { void googleSignIn(); },
+    copIste: (b, hedef) => copAkisi.copIste(b, hedef)
+  });
+  icBaglanti = baglanti;
+  icKuyruk = baglanti.kuyruk;
+  setIcindekilerBaglami(baglanti.baglam);
+}
+
+// ---- task 6.K5b: a topic / unit / book / half-made book to the trash (ui/copAkisi.ts; validated Drive context) ----
+const copAkisi = copAkisiKur({
+  kilitAcik: () => sihirbazKilidi() === 'acik',
+  kokKaynagi,
+  yazabilir: () => isSignedIn() && durum.tur === 'drive',
+  loc: () => driveLoc,
+  icApi: driveIcindekilerApi,
+  kitapApi: driveKitapCopApi,
+  dosyaApi: driveDosyaCopApi,
+  baglanti: () => icBaglanti,
+  bekleyenKalem: bekleyenKalemIdleri,
+  bekleyenFoto: async () => (await bekleyenFotoDepo.hepsi()).map(k => k.konuKlasorId),
+  oncesi: async () => { await reading?.flush(); await saver?.bekleyenleriYaz(); },
+  mesgul: () => icKuyruk?.hasUnsaved ? 'İçindekiler kaydediliyor; bitince tekrar dene.' : null,
+  kitaplikYenile,
+  girisYap: () => googleSignIn()
+});
+
+// ---- task 6.K6a: "Dosya ekle" may make a topic's missing Uebungen / Oedevler (in a validated Drive context) ----
+setKlasorAcma(() => driveLoc && sihirbazKilidi() === 'acik' ? { kokId: driveLoc.rootId } : null);
+
+// ---- task 6.K6b: the reader's open file to the trash (validated Drive context; ui/copAkisi.ts) ----
+setDosyaCop({
+  acik: () => !!driveLoc && sihirbazKilidi() === 'acik',
+  iste: d => copAkisi.dosyaCopIste(d)
+});
+
+// The same warning (e.g. two "Defter Library" roots) only once per page load
+const uyarilar = new Set<string>();
+function uyar(metin: string): void {
+  if (uyarilar.has(metin)) return;
+  uyarilar.add(metin);
+  toast(metin);
+}
+
+// ---- task 6.K2b: "Kitaplığını kur" (kurulum.ts; starts only on a user click) ----
+
+const kurulum = new KurulumAkisi(() => crypto.randomUUID());
+
+function kitaplikKurDugmesi(): void {
+  if (durum.tur !== 'kurulum' || !kurulum.basla(isSignedIn())) return;   // signed out or running: no request
+  olay({ tur: 'kurulumBasladi' });
+  const yazabilir = () => isSignedIn() && durum.tur !== 'demo';   // as the K2a dev helper
+  // task 6.K3: the box checked → the sample book too, with its progress on the button
+  const ornek = ornekIstendi() ? { kaynak: webOrnekKaynak(), ilerleme: (i: number, n: number) => olay({ tur: 'kurulumIlerleme', i, n }) } : undefined;
+  kitaplikKur(driveKurulumApi, { islemId: kurulum.islemId, mod: aktifKapsam() === 'tam' ? 'tam' : 'dar', kilitAcik: yazabilir(), yazabilir, ornek })
+    .then(async r => {
+      kurulum.bitti();
+      if (r.uyari) uyar(r.uyari);
+      if (r.ornekHata) console.warn('Örnek kitap eklenemedi:', r.ornekHata);
+      olay({ tur: 'kurulumBitti' });
+      await loadFromDrive();
+      if (durum.tur === 'drive') toast(r.ornekHata ? 'Kitaplığın hazır. Örnek kitap eklenemedi.' : 'Kitaplığın hazır.');
+    }, (e: unknown) => {
+      kurulum.bitti();
+      olay({ tur: 'kurulumHata', mesaj: errorText(e), izinYok: e instanceof KurulumIzinYok });
+    });
 }
 
 // Task 5.8f: photos waiting on the device → one short toast per page load, once the Drive library is here
@@ -232,16 +446,23 @@ async function useSample(): Promise<void> {
   try { await useData(await loadLocalLibrary(), null, null); } catch { olay({ tur: 'demoHata', mesaj: 'Örnek kitaplık yüklenemedi. Sayfayı yenile.' }); }
 }
 
-initNotFound({ onRetry: retryDrive, onSample: () => void useSample() });
+initKurulum({ onSetup: kitaplikKurDugmesi, onSignIn: () => void googleSignIn(), onSample: () => void useSample() });
 initLibError({ onRetry: retryDrive, onSample: () => void useSample() });
 initSaveState();
 // task 6.2e-2: photos still uploading too (they stay on the device either way)
-addEventListener('beforeunload', e => { if (saver?.hasUnsaved || fotoYuklemeSuruyor()) e.preventDefault(); });
+addEventListener('beforeunload', e => { if (saver?.hasUnsaved || icKuyruk?.hasUnsaved || fotoYuklemeSuruyor()) e.preventDefault(); });
 // tab hidden / page closed: write the reading state now (keepalive: may finish after the page is gone)
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') void reading?.flush(true); });
 addEventListener('pagehide', () => { void reading?.flush(true); });
 
 // ---- Google sign-in ----
+
+// Task 6.K1: everyone drive.file, the owner (VITE_SAHIP_EPOSTA) full drive. Not security: it only picks the
+// permission to ask for. Test switches: ?kapsam=dar (drive.file only), ?sahip=0 (not the owner).
+const SAHIP_EPOSTA = import.meta.env.VITE_SAHIP_EPOSTA as string | undefined;
+const DAR_ZORLA = darZorlaUrl(location.search);
+const SAHIP_YOK = sahipZorlaYok(location.search);
+let girisEposta: string | undefined;
 
 // chooseAccount: "Başka bir hesapla giriş yap" (ignore the remembered account)
 async function googleSignIn(chooseAccount = false): Promise<void> {
@@ -249,24 +470,47 @@ async function googleSignIn(chooseAccount = false): Promise<void> {
   olay({ tur: 'girisBasladi' });
   try {
     const remembered = chooseAccount ? null : rememberedUser();
-    const signedIn = signIn({ hint: remembered?.email, chooseAccount });   // first: the popup opens on the tap
+    const kapsam = girisKapsami({ sahipEposta: SAHIP_EPOSTA, hatirlananEposta: remembered?.email, darZorla: DAR_ZORLA, sahipYok: SAHIP_YOK });
+    // first: the popup opens on the tap
+    const signedIn = signIn({ hint: remembered?.email, chooseAccount, kapsam, includeGranted: includeGranted(DAR_ZORLA) });
     if (fromSample) { updateUserBox({ kind: 'none' }); void useData(emptyLibrary(), null, null); }   // no sample books while signing in
     await signedIn;
     if (durum.tur !== 'giriliyor' && durum.tur !== 'drive') return;   // the sample library was chosen meanwhile
     const user = await getUser();
     rememberUser(user);              // name + e-mail only; the token stays in memory
     setAccountHint(user.email);
+    girisEposta = user.email;
+    const sahip = sahipMi(user.email, SAHIP_EPOSTA, SAHIP_YOK);
+    setSahip(sahip);
     ownerName = user.name;
     updateUserBox({ kind: 'user', name: user.name });
     olay({ tur: 'girisBasarili' });
     toast(`Hoş geldin, ${user.name}.`);
     // signing in again after the session expired: the Drive library is already here (state 'drive')
-    if (gorunum(durum).yukleniyor) await loadFromDrive();
+    if (!gorunum(durum).yukleniyor) return;
+    // the owner with drive.file only: offer full access (no popup here, only on the card's tap)
+    if (tamErisimDugmesi({ sahip, aktif: aktifKapsam() })) { olay({ tur: 'tamErisimGerekli' }); return; }
+    await loadFromDrive();
   } catch (e) {
     // our errors carry a Turkish message; a failed fetch (TypeError) means no connection
     olay({ tur: 'girisHata', mesaj: errorText(e) });
   }
 }
+
+// "Tam erişimi aç": the popup opens right on the tap; earlier grants included (also with ?kapsam=dar)
+function openFullAccess(): void {
+  olay({ tur: 'tamErisimBasladi' });
+  signIn({ kapsam: 'tam', hint: girisEposta, includeGranted: true }).then(async () => {
+    if (aktifKapsam() !== 'tam') {
+      olay({ tur: 'tamErisimHata', mesaj: 'Drive\'a tam erişim izni verilmedi. Tekrar dokun ve Google penceresinde Drive iznini onayla.' });
+      return;
+    }
+    olay({ tur: 'tamErisimVerildi' });
+    await loadFromDrive();
+  }, (e: unknown) => olay({ tur: 'tamErisimHata', mesaj: errorText(e) }));
+}
+
+initFullAccess({ onOpen: openFullAccess, onSample: () => void useSample() });
 
 initLogin({
   onGoogle: () => googleSignIn(),
@@ -315,6 +559,13 @@ initReader(() => {
   // the room is behind the reader: don't draw it (it stays paused under the contents page too)
   scene?.setPaused(true);
   void openOkuyucu(b, folderId, unit, topic, okuyucuClosed, resume);
+}, () => {
+  // task 6.K5b-3: "İçindekileri düzenle" (also a book without topics: + Ünite, Kitabı çöpe at)
+  const b = deskBook ? data?.books.get(deskBook) : undefined;
+  const folderId = b && bookFolder(b);
+  if (!b || !folderId) return;
+  scene?.setPaused(true);
+  openOkuyucuDuzenle(b, folderId, okuyucuClosed);
 });
 
 // The full-screen reader closed: back to the desk (its contents page) or, opened from the search, the library
@@ -378,7 +629,8 @@ function aramaSonucunaGit(s: KitaplikSonucu, q: string): void {
 
 const aramaPaneli = initAramaPaneli({
   kaynak: aramaKaynagi,
-  acilabilir: () => !isOkuyucuOpen() && !isReaderOpen() && !gorunum(durum).kilitli && gorunum(durum).kart === null && !!scene,
+  acilabilir: () => !isOkuyucuOpen() && !isReaderOpen() && !gorunum(durum).kilitli && gorunum(durum).kart === null && !!scene
+    && !document.getElementById('kitapSihirbazi'),
   git: aramaSonucunaGit,
 });
 initOkuyucu(() => writer() ? driveLoc : null);
@@ -449,7 +701,8 @@ async function boot(): Promise<void> {
   initPanel(d, {
     shelvesChanged: () => { scene?.shelvesChanged(); writer()?.libraryChanged(); },
     bookChanged: id => { scene?.refreshBook(id); writer()?.coverChanged(id); },
-    roomChanged: () => { scene?.applyRoom(d.library.oda); writer()?.libraryChanged(); }
+    roomChanged: () => { scene?.applyRoom(d.library.oda); writer()?.libraryChanged(); },
+    yeniKitap: { acik: yeniKitapAcik, ac: yeniKitapAc }
   });
   readerTextures();
 

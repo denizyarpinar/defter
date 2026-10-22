@@ -110,6 +110,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 .legal-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 0 12px; font-size: 12px; line-height: 1.4; flex-shrink: 0 }
 .legal-links a { display: inline-flex; align-items: center; min-height: 44px; color: inherit; text-underline-offset: 3px }
 .legal-links a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px }
+.panel-legal { justify-content: flex-start; margin-top: 16px; padding-top: 8px; border-top: 1px solid var(--chromeLine) }
 #login .err { font-size: 13px; opacity: 1; color: #9b2c1c; background: rgba(178, 58, 42, .1); border-radius: 10px; padding: 8px 10px; text-align: left }
 #app[data-mode="night"] #login .err { color: #f4b4a6; background: rgba(240, 120, 100, .15) }
 
@@ -154,6 +155,21 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 .overlay .card p { margin: 10px 0 6px }
 .overlay .card ol { margin: 0 0 16px; padding-left: 20px }
 .overlay .row { display: flex; gap: 8px; flex-wrap: wrap }
+/* task 6.K1: "Tam erişim gerekiyor" card, permission not given */
+.overlay .card .err { font-size: 13px; color: #9b2c1c; background: rgba(178, 58, 42, .1); border-radius: 10px; padding: 8px 10px; margin: 0 0 12px }
+#app[data-mode="night"] .overlay .card .err { color: #f4b4a6; background: rgba(240, 120, 100, .15) }
+/* task 6.K2b: "Kitaplığını kur" card: lock note, "Kuruluyor…" with a spinner */
+.overlay .card .not { margin: 10px 0 0; font-size: 12.5px; opacity: .7 }
+#kuKur { display: inline-flex; align-items: center; gap: 8px }
+/* task 6.K3: "Örnek bir kitap da koy" */
+.overlay .card .kutu { display: flex; align-items: center; gap: 8px; margin: 4px 0 14px; cursor: pointer; user-select: none; -webkit-user-select: none }
+.overlay .card .kutu input { width: 18px; height: 18px; margin: 0; flex: none; accent-color: currentColor; cursor: pointer }
+.overlay .card .kutu:has(input:disabled) { opacity: .55; cursor: default }
+#kuKur .spin {
+  width: 13px; height: 13px; flex: none; border-radius: 50%; box-sizing: border-box;
+  border: 2px solid currentColor; border-top-color: transparent; animation: libspin .9s linear infinite
+}
+@media (prefers-reduced-motion: reduce) { #kuKur .spin { animation-duration: 2.4s } }
 
 /* ---------- side panel ---------- */
 #panel {
@@ -233,8 +249,16 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 
 /* table of contents */
 .toc h2 { margin-bottom: 5cqw }
+.toc .tochead.continued h2 { font-size: 4.2cqw }
+.toc-measure { position: absolute; top: 0; left: 0; visibility: hidden; pointer-events: none }
 .toc h3.unit { margin: 3cqw 0 1cqw; font: 600 2.3cqw var(--ui); letter-spacing: .12em; text-transform: uppercase; opacity: .6 }
-.toc h2 + h3.unit { margin-top: 0 }
+.toc h2 + h3.unit, .toc .tochead + h3.unit { margin-top: 0 }
+/* task 6.K5b-3: "İçindekileri düzenle" next to the heading (wraps under it on a narrow page) */
+.toc .tochead { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1.6cqw 3cqw; margin-bottom: 5cqw }
+.toc .tochead h2 { margin: 0 }
+.toc .tocedit { flex: none; min-height: 40px; padding: 0 3cqw; border: 1px solid #c9b590; border-radius: 99px; background: none; color: var(--ink);
+  font: 600 max(11px, 2.6cqw) var(--ui); cursor: pointer }
+.toc .tocedit:hover { background: #f2eadb }
 .toc ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1.2cqw }
 .toc li button { width: 100%; display: grid; grid-template-columns: 5cqw 1fr; gap: 2cqw; align-items: baseline; border: 0; background: none; padding: 1.6cqw 1.2cqw; border-radius: 1.4cqw; text-align: left; color: var(--ink); font: inherit }
 .toc li button:hover { background: #f2eadb }
@@ -271,6 +295,8 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 .leaf { position: absolute; top: 0; height: 100%; transform-style: preserve-3d; z-index: 5; transition: transform .82s cubic-bezier(.45, .05, .2, 1) }
 .leaf.fw { transform-origin: 0 50%; transform: rotateY(0deg) }
 .leaf.fw.go { transform: rotateY(-180deg) }
+.leaf.bw { transform-origin: 100% 50%; transform: rotateY(0deg) }
+.leaf.bw.go { transform: rotateY(180deg) }
 .leaf.slow { transition-duration: 1.05s }
 .lf { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden }
 .lf.back { transform: rotateY(180deg) }
@@ -283,6 +309,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 .r-bottom { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 8px 16px calc(env(safe-area-inset-bottom, 0px) + 12px); color: #f5ecdf; flex-wrap: wrap }
 .r-bottom .arrow { width: 44px; height: 44px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, .25); background: rgba(0, 0, 0, .2); color: #f5ecdf; font-size: 22px; line-height: 1 }
 .r-bottom .arrow:disabled { opacity: .35; cursor: default }
+.r-bottom.no-turn .arrow { visibility: hidden }
 .r-bottom .pno { font-size: 13px; min-width: 110px; text-align: center; font-variant-numeric: tabular-nums; opacity: .85 }
 
 /* ---------- okuyucu: PDF mode (task 3.2), over the open book; desk background from #reader ---------- */
@@ -310,10 +337,16 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 .o-files select option { color: var(--ink); background: var(--paper) }
 .o-sol { flex: none; min-height: 40px; padding: 0 14px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, .22); background: rgba(0, 0, 0, .18); color: #f5ecdf; font: 500 14px var(--ui) }
 .o-sol[aria-pressed="true"] { background: var(--accent); border-color: var(--accent) }
+/* task 6.K6b: the open file to the trash: always only an icon, next to the file chooser; hidden with the pen on */
+.o-cop { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 40px; min-height: 40px; padding: 0; border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, .22); background: rgba(0, 0, 0, .18); color: #f5ecdf }
+.o-cop svg { width: 20px; height: 20px }
+.o-cop[hidden], #okuyucu.kalem .o-cop, #okuyucu.o-materyalsiz .o-cop, #okuyucu.o-konusuz .o-cop { display: none }
 /* task 5.8a: "Fotoğraf ekle" button in the tab bar + its panel over the reader (draft, writes nothing) */
 .o-foto { flex: none; display: inline-flex; align-items: center; gap: 7px; min-height: 40px; padding: 0 14px; margin-left: auto; border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, .22); background: rgba(0, 0, 0, .18); color: #f5ecdf; font: 500 14px var(--ui) }
 .o-foto svg { width: 20px; height: 20px }
+.o-foto:disabled { opacity: .45; cursor: not-allowed }   /* task 6.K6a: a topic without a folder */
 .fp { position: fixed; inset: 0; z-index: 55; display: flex; align-items: center; justify-content: center; padding: 16px;
   padding-top: calc(env(safe-area-inset-top, 0px) + 16px); padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 16px); background: rgba(10, 7, 4, .55) }
 .fp-kart { box-sizing: border-box; width: min(640px, 100%); max-height: 100%; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 12px;
@@ -511,6 +544,38 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 .o-toclist button:hover { background: rgba(0, 0, 0, .05) }
 .o-toclist button[aria-current="true"] { background: rgba(181, 82, 59, .14); font-weight: 600; box-shadow: inset 3px 0 0 var(--accent, #b5523b) }
 .o-toclist button.empty { opacity: .5 }
+/* task 6.K5a: the contents' edit mode. "Düzenle" in the head; the status line stays above the list (seen without scrolling) */
+.o-tochead b { flex: 1 }
+.o-tocedit { min-height: 40px; margin-right: 6px; padding: 0 14px; border-radius: 10px; border: 1px solid rgba(0, 0, 0, .18); background: none; color: inherit; font: 600 14px var(--ui) }
+.o-tocedit[aria-pressed="true"] { background: var(--accent, #b5523b); border-color: transparent; color: #fff }
+.o-tocedit.gri { opacity: .45 }
+.o-tocedit[hidden], .o-tocdurum[hidden] { display: none }
+.o-tocdurum { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 0 12px 8px; padding: 8px 12px; border-radius: 10px; background: rgba(0, 0, 0, .06); font: 500 13px/1.3 var(--ui) }
+.o-tocdurum .ie-metin { flex: 1 1 180px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden }
+.o-tocdurum.hata { background: rgba(181, 82, 59, .14); color: #7a2e1d }
+.o-tocdurum .ie-dugmeler { display: flex; gap: 6px }
+.o-tocdurum button { min-height: 40px; padding: 0 12px; border-radius: 8px; border: 1px solid rgba(0, 0, 0, .2); background: var(--paper, #f4ecdd); color: inherit; font: 600 13px var(--ui) }
+.o-toclist .ie-unite { margin-bottom: 10px }
+.o-toclist .ie-satir { display: flex; align-items: center; gap: 2px; min-height: 44px; padding: 0 2px 0 8px; border-radius: 10px }
+.o-toclist .ie-ubas { margin-top: 8px; font: 600 12px var(--ui); letter-spacing: .1em; text-transform: uppercase }
+.o-toclist .ie-ubas .ie-ad { opacity: .7 }
+.o-toclist .ie-ad { flex: 1; min-width: 0; overflow-wrap: anywhere; font: inherit; user-select: none; -webkit-user-select: none }
+.o-toclist li.ie-satir .ie-ad { font: 500 15px/1.25 var(--ui) }
+.o-toclist .ie-satir button.ie-ik { flex: none; width: 40px; min-height: 40px; padding: 0; justify-content: center; font: 600 16px var(--ui); color: inherit }
+.o-toclist .ie-ik svg { width: 16px; height: 16px }
+.o-toclist button.ie-ik:disabled, .o-toclist button.ie-ekle:disabled { opacity: .3 }
+.o-toclist button.ie-ekle { width: auto; min-height: 40px; margin: 2px 0 0 4px; padding: 0 12px; border: 1px dashed rgba(0, 0, 0, .25); font: 600 14px var(--ui); color: var(--accent, #b5523b) }
+.o-toclist button.ie-uekle { margin-top: 12px }
+.o-toclist .ie-not { margin: 4px 8px 0; font: 500 12px/1.3 var(--ui); opacity: .7 }
+.o-toclist .ie-bekliyor { opacity: .6 }
+.o-toclist .ie-ekleniyor { flex: none; padding: 0 8px; font: italic 500 13px var(--ui); text-transform: none; letter-spacing: 0 }
+.o-toclist .ie-girdi { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 0 }
+.o-toclist .ie-girdi input { flex: 1 1 140px; min-width: 0; min-height: 40px; box-sizing: border-box; padding: 0 10px; border-radius: 8px; border: 1px solid rgba(0, 0, 0, .3); background: #fff; color: #2a231d; font: 500 16px var(--ui); text-transform: none; letter-spacing: 0 }
+.o-toclist .ie-girdi button { width: auto; min-height: 40px; padding: 0 12px; border: 1px solid rgba(0, 0, 0, .2); font: 600 14px var(--ui); text-transform: none; letter-spacing: 0 }
+.o-toclist .ie-girdi button.ie-ok { background: var(--accent, #b5523b); border-color: transparent; color: #fff }
+.o-toclist .ie-hata { flex-basis: 100%; margin: 2px 8px 4px; font: 500 13px var(--ui); color: #9b2f1c; text-transform: none; letter-spacing: 0 }
+.o-toclist .ie-satir:has(.ie-hata) { flex-wrap: wrap }
+.o-toclist .ie-satir:has(.ie-hata) input { border-color: #b5523b; box-shadow: 0 0 0 1px #b5523b; outline-color: #b5523b }
 /* task 4.6: pen button, pen tool bar (prototype .r-tools; 44 px to tap on the iPad), pen mode */
 /* task 6.3c: search in the top bar. The button looks like "Fotoğraf ekle" (icon + label; up to 1024 px only the icon).
    Open: the title makes room for one row [box] 3/12 ‹ › ×; the button itself is hidden (× closes) */
@@ -542,26 +607,53 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 .o-penbtn.on { background: #f5ecdf; color: #2a231d }
 /* task 4.8a: unsaved strokes (kept on the device): a dot on the pen button */
 .o-penbtn { position: relative }
+/* task 6.K5b-3: the reader with no topic open (the desk's "İçindekileri düzenle"): nothing to draw on, search or turn */
+#okuyucu.o-konusuz #oPenBtn, #okuyucu.o-konusuz #oAraBtn, #okuyucu.o-konusuz #oMode { display: none }
+/* task 6.K6a: a topic without materials: only Fotoğraf / Dosya ekle in the bar */
+#okuyucu.o-materyalsiz #oPenBtn, #okuyucu.o-materyalsiz #oAraBtn, #okuyucu.o-materyalsiz #oMode { display: none }
 .o-penbtn.bekleyen::after { content: ''; position: absolute; top: 4px; right: 4px; width: 8px; height: 8px; border-radius: 50%; background: #e0a040; box-shadow: 0 0 0 1.5px rgba(0, 0, 0, .35) }
-.o-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px 8px; padding: 6px 12px 8px; color: #f5ecdf;
+.o-tools { flex: none; box-sizing: border-box; height: 58px; display: flex; flex-wrap: nowrap; align-items: stretch; gap: 8px; padding: 0 12px; overflow: hidden; color: #f5ecdf;
   background: rgba(0, 0, 0, .24); border-bottom: 1px solid rgba(255, 255, 255, .08); touch-action: manipulation }
 .o-tools[hidden] { display: none }
+/* task 6.H1: one row of fixed height at every width (never a second row). Book mode: the bar's room is kept
+   while the pen is off too, so the book never moves or shrinks when the pen opens (Okuyucu.ts showView).
+   Task 6.H1b: two parts. The left one (tools, colours, Geri al / Yinele) scrolls sideways when it doesn't fit
+   (only on a phone); the right one [Kaydet][status][Kalemi kapat] never moves, on the bar's own background. */
+.o-kaydir { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 8px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scrollbar-width: none }
+.o-kaydir::-webkit-scrollbar { display: none }
+.o-sag { flex: none; display: flex; align-items: center; gap: 6px }
+.o-kaydir > *, .o-sag > * { flex: none }
+.o-tools .o-tkapat { margin-left: 2px }
+#okuyucu.mod-kitap .o-tools[hidden] { display: flex !important; visibility: hidden }   /* beats the global [hidden] rule */
 .o-tgrp { display: flex; align-items: center; gap: 4px }
-.o-tools button { min-width: 44px; min-height: 44px; padding: 0 12px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, .2); background: rgba(0, 0, 0, .22); color: #f5ecdf; font: 500 13.5px var(--ui) }
-.o-tools button.on { background: #f5ecdf; color: #2a231d }
-.o-tools .dot { position: relative; padding: 0; border: 0; background: none }
-.o-tools .dot::before { content: ''; position: absolute; left: 50%; top: 50%; width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%; background: var(--c); border: 2px solid rgba(255, 255, 255, .35); box-sizing: border-box }
-.o-tools .dot.on { background: none }
-.o-tools .dot.on::before { border-color: #fff; box-shadow: 0 0 0 2px rgba(0, 0, 0, .35) }
-.o-tools .sz { padding: 0; display: inline-flex; align-items: center; justify-content: center }
-.o-tools .sz i { display: block; border-radius: 99px; background: currentColor }
+:is(.o-tools, .o-balon) button { min-width: 44px; min-height: 44px; padding: 0 12px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, .2); background: rgba(0, 0, 0, .22); color: #f5ecdf; font: 500 13.5px var(--ui);
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap }
+.o-tools button > svg { display: none; width: 22px; height: 22px; flex: none }
+/* the colour / width choices and the eraser's hint share one slot: the eraser hides the choices, they keep their room.
+   The colour strip is always 6 colours wide (the highlighter has 5) */
+.o-secenek { display: grid; align-items: center }
+.o-secenek > * { grid-area: 1 / 1 }
+.o-secenek .o-tipucu { justify-self: center; white-space: nowrap }
+.o-secenek:not(.silgide) .o-tipucu, .o-secenek.silgide .o-ayar { visibility: hidden }
+.o-tools { --dot-w: 44px }
+.o-tools .o-renkler { width: calc(6 * var(--dot-w) + 5 * 4px) }
+:is(.o-tools, .o-balon) .dot { min-width: var(--dot-w); width: var(--dot-w) }
+/* the save status: a slot of fixed width, empty or not (a tap shows the full text, kalemCubugu.ts) */
+.o-tools .o-durum-yuva { width: 172px; min-width: 0; padding: 0; border: 0; background: none; justify-content: flex-start; gap: 4px; overflow: hidden }
+.o-tools .o-durum-yuva:disabled { opacity: 1 }
+.o-durum-yuva > span { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+:is(.o-tools, .o-balon) button.on { background: #f5ecdf; color: #2a231d }
+:is(.o-tools, .o-balon) .dot { position: relative; padding: 0; border: 0; background: none }
+:is(.o-tools, .o-balon) .dot::before { content: ''; position: absolute; left: 50%; top: 50%; width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%; background: var(--c); border: 2px solid rgba(255, 255, 255, .35); box-sizing: border-box }
+:is(.o-tools, .o-balon) .dot.on { background: none }
+:is(.o-tools, .o-balon) .dot.on::before { border-color: #fff; box-shadow: 0 0 0 2px rgba(0, 0, 0, .35) }
+:is(.o-tools, .o-balon) .sz { padding: 0; display: inline-flex; align-items: center; justify-content: center }
+:is(.o-tools, .o-balon) .sz i { display: block; border-radius: 99px; background: currentColor }
 .o-tools .sep { width: 1px; height: 26px; background: rgba(255, 255, 255, .2); margin: 0 2px }
 .o-tdurum { font-size: 12.5px; padding: 3px 9px; border-radius: 99px; background: rgba(255, 255, 255, .12); white-space: nowrap }
 .o-tdurum.kaydedilmedi { background: rgba(214, 150, 60, .35) }
 .o-tdurum small { font-size: 10.5px; opacity: .75; margin-left: 2px }
-.o-tools .o-tkapat { margin-left: 4px }
 /* task 4.8b: saving to Drive */
-.o-kayit { gap: 6px }
 .o-tools .o-kaydet { font-weight: 600 }
 .o-tools .o-kaydet:not(:disabled) { background: #f5ecdf; color: #2a231d }
 .o-tdurum.kaydedildi { background: rgba(90, 160, 90, .35) }
@@ -580,13 +672,55 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 #okuyucu.kalem.arac-fosforlu .o-page { cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M2 22l1.5-6.5L15 4l5 5L8.5 20.5z' fill='%23fff' stroke='%23222' stroke-width='1.3' stroke-linejoin='round'/%3E%3Cpath d='M2 22l1.5-6.5 5 5z' fill='%23f5d33a' stroke='%23222' stroke-width='1.1' stroke-linejoin='round'/%3E%3C/svg%3E") 2 22, crosshair }
 #okuyucu.kalem.arac-silgi .o-page { cursor: crosshair }
 #okuyucu.kalem.arac-silgi .o-page.silgi-imlecli { cursor: none }   /* the grey circle is the cursor */
-/* many colours on a narrow screen: the colours scroll sideways instead of pushing the bar wider */
-.o-tools .o-renkler { min-width: 0; max-width: 100%; overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain }
-.o-tools .o-renkler::-webkit-scrollbar { display: none }
 .o-tools .o-renkler > .dot { flex: none }
 .o-tipucu { font-size: 12.5px; opacity: .75; padding: 0 4px }
-/* task 4.9b: short status texts, shown only on a phone (below) */
+/* task 4.9b: short status texts, shown only on narrow screens (below) */
 .o-tools .o-kisa { display: none }
+/* task 6.H1: up to 1280 px (iPad landscape): Geri al / Yinele only icons; the status only a coloured dot
+   (orange unsaved, blue turning saving, green saved, grey preparing / sample library; an error: "Hata") */
+@media (max-width: 1280px) {
+  .o-tools [data-geri], .o-tools [data-ileri] { padding: 0 }
+  .o-tools [data-geri] > svg, .o-tools [data-ileri] > svg { display: block }
+  .o-tools [data-geri] > span, .o-tools [data-ileri] > span { display: none }
+  .o-tools .o-durum-yuva { width: 44px; justify-content: center }
+  .o-tools .o-uzun { display: none }
+  .o-tools .o-kisa { display: inline-flex; align-items: center }
+  .o-durum-yuva .o-tdurum, .o-durum-yuva .o-tipucu { padding: 0; background: none; font-size: 0; opacity: 1; border-radius: 0 }
+  .o-durum-yuva .o-kisa::before { content: ''; width: 12px; height: 12px; border-radius: 50%; background: #a8a097; box-sizing: border-box }
+  .o-durum-yuva .kaydedilmedi .o-kisa::before { background: #f0a840 }
+  .o-durum-yuva .kaydedildi .o-kisa::before { background: #7fd07f }
+  .o-durum-yuva .kaydediliyor .o-kisa::before { background: none; border: 2.5px solid #6db3f2; border-top-color: transparent; animation: o-donen .9s linear infinite }
+  .o-durum-yuva .hata { font: 600 12.5px var(--ui); color: #ff8a7a }
+  .o-durum-yuva .hata .o-kisa::before { display: none }
+}
+@keyframes o-donen { to { transform: rotate(360deg) } }
+/* the colour and width as one button each (≤ 1024 px, below): hidden on wider screens */
+.o-tools .o-kisasec { display: none }
+/* task 6.H1b: the colour / width popover under the bar, over the pages, and the see-through cover under it
+   (the first tap outside only closes it). Buttons as in the bar. */
+.o-perde { position: absolute; inset: 0; z-index: 40; touch-action: none }
+.o-balon { position: absolute; z-index: 41; --dot-w: 44px; display: flex; align-items: center; gap: 4px; padding: 6px; border-radius: 14px; color: #f5ecdf;
+  background: #2a231d; border: 1px solid rgba(255, 255, 255, .14); box-shadow: 0 12px 30px rgba(0, 0, 0, .45) }
+/* up to 1024 px (iPad portrait, small iPad landscape): everything fits one row without scrolling (744 px and up):
+   the tools, Kaydet and "Kalemi kapat" only icons; the 6 colours and 3 widths one button each (popover) */
+@media (max-width: 1024px) {
+  .o-tools, .o-kaydir { gap: 6px }
+  .o-tools [data-arac], .o-tools .o-tkapat, .o-tools .o-kaydet { padding: 0 }
+  .o-tools [data-arac] > svg, .o-tools .o-tkapat > svg, .o-tools .o-kaydet > svg { display: block }
+  .o-tools [data-arac] > span, .o-tools .o-tkapat > span, .o-tools .o-kaydet > span { display: none }
+  .o-tools .o-tkapat > svg, .o-tools .o-kaydet > svg { width: 24px; height: 24px }
+  .o-tools .o-renkler, .o-tools .o-boylar, .o-tools .o-genis { display: none }
+  .o-tools .o-kisasec { display: inline-flex; width: 44px; min-width: 44px }
+  .o-tools .dot.o-kisasec { border: 1px solid rgba(255, 255, 255, .2); background: rgba(0, 0, 0, .22) }
+  /* the eraser's hint in the narrow slot: two or three small lines, it doesn't widen the slot */
+  .o-secenek .o-tipucu { width: 0; min-width: 100%; padding: 0; white-space: normal; text-align: center; font-size: 11px; line-height: 1.15 }
+}
+/* phone: the left part scrolls; it fades out softly before the right part (no hard edge), and its last
+   button can scroll clear of the fade */
+@media (max-width: 599px) {
+  .o-kaydir { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent) }
+  .o-kaydir::after { content: ''; flex: none; width: 20px }
+}
 /* no Apple Pencil seen: one finger draws, so the list must not scroll under it (two fingers scroll, kalemModu.ts) */
 #okuyucu.kalem-parmak .o-scroll { touch-action: none }
 .o-tst { position: relative; flex: none; width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; font: 700 12px/1 var(--ui) }
@@ -611,8 +745,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
   .o-foto span, .o-sol .o-uzun { display: none }
   .o-bar { gap: 8px 10px }
 }
-/* task 4.9b: phone: the pen tool bar is one row that scrolls sideways (buttons stay 44 px);
-   "Kalemi kapat" sticks to the right edge, the save status is a dot + a short word (full text in title) */
+/* (task 4.9b's phone rules for the pen bar: now for every width, task 6.H1 above) */
 @media (max-width: 599px) {
   .fp { padding: 0; align-items: stretch }
   .fp-kart { width: 100%; border-radius: 0; padding: calc(env(safe-area-inset-top, 0px) + 14px) 16px calc(env(safe-area-inset-bottom, 0px) + 14px) }
@@ -637,25 +770,10 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
   .o-files select { min-width: 56px }
   .kd-alt { gap: 8px }
   .kd-alt button { flex: 1; min-width: 0; padding: 0 8px }
-  .o-tools { flex-wrap: nowrap; justify-content: flex-start; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; padding: 6px 0 8px 12px }
-  .o-tools::-webkit-scrollbar { display: none }
-  .o-tools > * { flex: none }
-  .o-tools .o-renkler { max-width: none; overflow: visible }
-  .o-tools .o-tipucu { white-space: nowrap }
-  .o-tools .o-tkapat { position: sticky; right: 0; order: 1; width: 108px; padding: 0 8px; margin-left: auto; border-radius: 10px 0 0 10px; background: #2a231d; box-shadow: -8px 0 10px -2px rgba(0, 0, 0, .35) }
-  /* the save status sticks just left of "Kalemi kapat" (its group is unwrapped so it can stick to the bar) */
-  .o-tools .o-kayit { display: contents }
-  .o-tools .o-tdurum { position: sticky; right: 108px; order: 1; align-self: stretch; display: inline-flex; align-items: center; margin-right: -8px; padding: 0 10px;
-    border-radius: 0; background: #2a231d; box-shadow: -8px 0 10px -2px rgba(0, 0, 0, .35) }
-  .o-tools .o-uzun { display: none }
-  .o-tools .o-kisa { display: inline }
-  .o-tools .o-tdurum .o-kisa::before { content: ''; display: inline-block; width: 7px; height: 7px; margin: 0 5px 1px 0; border-radius: 50%; background: currentColor; vertical-align: middle }
-  .o-tools .o-tdurum.kaydedilmedi .o-kisa::before { background: #f0b050 }
-  .o-tools .o-tdurum.kaydedildi .o-kisa::before { background: #8fd18f }
-  .o-tools .o-tdurum.hata .o-kisa::before { background: #ff8a7a }
 }
 @media (prefers-reduced-motion: reduce) {
   .leaf, #spread, .single-turn, .o-leaf, .o-turn { transition-duration: .01s !important }
+  .o-durum-yuva .kaydediliyor .o-kisa::before { animation: none }
 }
 
 /* Faz 2.5: FPS counter, only with ?fps=1 */
@@ -692,6 +810,83 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
   #dosyaPanel { align-items: flex-start }
   #dosyaPanel .fp-baslik, #dosyaPanel .dp-bilgi { order: -2 }
   #dosyaPanel .dp-ad, #dosyaPanel .dp-uyari { order: -1 }
+}
+
+/* task 6.K4a: "Yeni kitap" wizard. The file panel's dark card, wider; list and tree side by side from 820 px,
+   one under the other below. Round 40 px buttons (as the pen bar, 6.H1b); touch screens: the card at the top. */
+.bosipucu { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 16px); transform: translateX(-50%); z-index: 15; white-space: nowrap; max-width: calc(100vw - 32px) }
+.bosipucu[hidden], #app[data-kilit] .bosipucu { display: none }
+/* 6.K4b-3: panelKlavyeTakibi gives .fp the visible height; with content-box its padding came on top of it and the
+   card's sticky bottom row ended 16–32 px below the screen */
+#kitapSihirbazi { box-sizing: border-box }
+.ks-kart { width: min(1040px, 100%) }
+.ks-ust { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: flex-end }
+.ks-adalan { flex: 2 1 260px; min-width: 0 }
+.ks-rafalan { flex: 1 1 160px; min-width: 0 }
+.ks-rafalan .fp-sec { width: 100%; font-weight: 400 }
+.ks-ust .dp-uyari { flex: 1 0 100%; order: 1; margin: -4px 0 0 }
+.ks-ust .dp-uyari[hidden] { display: none }
+.ks-renkalan { flex: 1 0 100%; order: 2; display: flex; flex-direction: column; gap: 6px }
+.ks-etiket { font-weight: 600 }
+.ks-renkler { display: flex; flex-wrap: wrap; gap: 4px }
+.ks-renk { width: 40px; height: 40px; padding: 0; border-radius: 50%; border: 3px solid transparent; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .25) }
+.ks-renk.on { border-color: #f5ecdf }
+.ks-govde { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px }
+.ks-sol, .ks-sag { display: flex; flex-direction: column; gap: 8px; min-width: 0 }
+.ks-metin { box-sizing: border-box; width: 100%; min-height: 220px; resize: vertical; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, .22);
+  background: rgba(0, 0, 0, .25); color: #f5ecdf; font: 400 16px/1.45 var(--ui) }
+.ks-metin::placeholder { color: rgba(245, 236, 223, .45) }
+.ks-uyarilar { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; font-size: 13px; color: #f0d27a }
+.ks-uyarilar[hidden] { display: none }
+.ks-uyarilar .ks-engel { color: #ffb4a2 }
+.ks-agac { list-style: none; margin: 0; padding: 4px; border-radius: 10px; background: rgba(255, 255, 255, .05); display: flex; flex-direction: column; gap: 2px }
+.ks-satir { display: flex; align-items: center; gap: 6px; padding: 2px 4px; border-radius: 8px }
+.ks-satir.ks-konu { margin-left: 22px }
+.ks-satir.ks-yeni { animation: ksYeni 1.2s ease-out }
+@keyframes ksYeni { from { background: rgba(214, 160, 70, .45) } to { background: transparent } }
+.ks-yazi { flex: 1; min-width: 0; min-height: 40px; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; padding: 4px 6px; border: 0; border-radius: 8px;
+  background: none; color: inherit; font: inherit; text-align: left; cursor: text }
+.ks-unite .ks-ad { font-weight: 600 }
+.ks-ad { overflow-wrap: anywhere }
+.ks-klasor { font: 11.5px var(--mono); opacity: .55; overflow-wrap: anywhere }
+.ks-rozet { flex-basis: 100%; font-size: 12px; color: #f0d27a }
+.ks-rozet.ks-engel { color: #ffb4a2 }
+.ks-dugmeler { flex: none; display: flex; gap: 4px }
+.ks-yuvarlak { width: 40px; height: 40px; padding: 0; border-radius: 50%; border: 1px solid rgba(255, 255, 255, .22); background: rgba(0, 0, 0, .18); color: #f5ecdf; font: 600 18px/1 var(--ui) }
+.ks-yuvarlak:disabled { opacity: .3 }
+.ks-bos { padding: 10px; opacity: .6; font-size: 13px }
+.ks-uniteekle { align-self: flex-start; min-height: 40px; padding: 0 16px; border-radius: 99px; border: 1px solid rgba(255, 255, 255, .22); background: rgba(0, 0, 0, .18); color: #f5ecdf; font: 500 14px var(--ui) }
+/* 6.K4b: an operation started: the fields can't change */
+.ks-kilitli .ks-ust, .ks-kilitli .ks-govde { opacity: .55 }
+.ks-kart .fp-vazgec:disabled { opacity: .4 }
+.ks-kart .fp-ekle { white-space: nowrap }
+.ks-kart .fp-alt { position: sticky; bottom: -16px; margin: 0 -18px -16px; padding: 10px 18px 16px; background: #2a231d; border-top: 1px solid rgba(255, 255, 255, .08); align-items: center }
+/* 6.K4b-3: the message in the bottom row, left of the buttons: at most 3 lines, then it scrolls by itself
+   (it never pushes the buttons off the screen); phone (≤ 600 px): full width above the buttons, no room when empty */
+.ks-kart .ks-neden { flex: 1 1 0; min-width: 0; margin: 0 auto 0 0; line-height: 1.35; max-height: calc(3 * 1.35em); overflow-y: auto; overscroll-behavior: contain; overflow-wrap: anywhere }
+.dp-ad input.ks-ad-hata { border-color: #ff8a73; box-shadow: 0 0 0 1px #ff8a73 }
+.ks-olcum[hidden] { display: none }
+.ks-olcum { position: relative; border-radius: 8px; background: rgba(0, 0, 0, .35) }
+.ks-olcum pre { margin: 0; padding: 8px 10px; max-height: 160px; overflow: auto; font: 11px/1.4 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; -webkit-user-select: text }
+.ks-kopyala { position: absolute; right: 6px; top: 6px; min-height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, .22); background: rgba(0, 0, 0, .4); color: #f5ecdf; font: 12px var(--ui) }
+@media (max-width: 600px) {
+  .ks-kart .fp-alt { flex-wrap: wrap; row-gap: 0 }
+  .ks-kart .ks-neden { flex-basis: 100% }
+  .ks-kart .ks-neden:not(:empty) { margin-bottom: 8px }
+}
+/* the phone card's own padding (16 px sides, 14 px + safe area bottom): the bottom row matches it exactly
+   (it stuck out 2 px to the side and below) */
+@media (max-width: 599px) {
+  .ks-kart .fp-alt { bottom: calc(-14px - env(safe-area-inset-bottom, 0px)); margin: 0 -16px calc(-14px - env(safe-area-inset-bottom, 0px));
+    padding: 10px 16px calc(14px + env(safe-area-inset-bottom, 0px)) }
+}
+@media (min-width: 820px) {
+  .ks-govde { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) }
+  .ks-metin { min-height: 0; height: min(52vh, 460px); resize: none }
+  .ks-sag .ks-agac { max-height: min(52vh, 460px); overflow-y: auto; overscroll-behavior: contain }
+}
+@media (pointer: coarse) {
+  #kitapSihirbazi { align-items: flex-start }
 }
 
 /* task 6.3e: library search. The button in the top bar (a pill with the magnifier; phone: only the icon);
@@ -742,4 +937,33 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 @media (max-width: 600px) {
   .ap { padding: 0 }
   .ap-kart { width: 100%; border-radius: 0 0 16px 16px; padding-top: env(safe-area-inset-top, 0px) }
+}
+
+/* ---------- task 6.K5b: to the trash ---------- */
+#copOnay { z-index: 58 }
+.co-kart { width: min(480px, 100%) }
+.co-ad { margin: 0; font: 600 15px var(--ui); overflow-wrap: anywhere }
+.co-ad[hidden] { display: none }
+.co-metin { font-size: 14px; line-height: 1.45; opacity: .9; overflow-wrap: anywhere }
+.co-adalan { display: flex; flex-direction: column; gap: 6px; font-size: 13px; overflow-wrap: anywhere }
+.co-adalan[hidden] { display: none }
+.co-adalan input { min-height: 44px; box-sizing: border-box; padding: 0 10px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, .22); background: rgba(0, 0, 0, .25); color: #f5ecdf; font: 16px var(--ui) }
+.fp-ekle.co-kirmizi { background: #b3261e; border-color: #b3261e }
+/* task 6.K6b: "Çözümü de çöpe at" */
+.co-cozum { display: flex; align-items: center; gap: 8px; min-height: 44px; font-size: 14px; overflow-wrap: anywhere }
+.co-cozum[hidden] { display: none }
+.co-cozum input { width: 20px; height: 20px; flex: none; accent-color: #b3261e }
+.co-kart .fp-alt { flex-wrap: wrap }
+.o-toclist button.ie-cop { color: #9b2f1c }
+.o-toclist button.ie-kitapcop { width: auto; margin: 24px 0 8px 4px; padding: 0 14px; gap: 8px; border: 1px solid #b3261e; color: #9b2f1c; font: 600 14px var(--ui) }
+.o-toclist .ie-kitapcop svg { width: 16px; height: 16px; flex: none }
+.o-toclist button.ie-kitapcop:disabled { opacity: .35 }
+.o-toclist p.ie-not:first-child { margin-top: 12px }
+.ks-kart .ks-yarimcop { border-color: #b3261e; color: #ffb4a2 }
+.ks-kart .ks-yarimcop[hidden] { display: none }
+/* a small card also on a phone (the photo / file panel's phone rule makes .fp full screen) */
+@media (max-width: 599px) {
+  #copOnay.fp { padding: calc(env(safe-area-inset-top, 0px) + 16px) 16px calc(env(safe-area-inset-bottom, 0px) + 16px); align-items: center }
+  #copOnay .fp-kart { border-radius: 16px; padding: 18px 16px 16px }
+  .co-kart .fp-alt button { flex: 1 1 auto }
 }

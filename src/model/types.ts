@@ -83,6 +83,7 @@ export interface Topic {
 
 export interface Unit {
   baslik: string;
+  klasor?: string;      // task 6.K5a: the unit's folder, e.g. "Unite-03-Graphen" (older books: from its topics' paths)
   konular: Topic[];
   extra: Extra;
 }

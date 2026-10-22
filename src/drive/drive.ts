@@ -114,6 +114,7 @@ export interface DriveFile {
   name: string;
   mimeType: string;
   modifiedTime: string;   // ISO date; changes when the file content changes
+  appProperties?: Record<string, string>;   // task 6.K3: the sample book's folder is marked defterOrnek
 }
 
 // Value inside a Drive query string: escape \ and ' (file names like "Deniz'in notları.pdf").
@@ -123,7 +124,7 @@ async function list(q: string, what: string): Promise<DriveFile[]> {
   const out: DriveFile[] = [];
   let pageToken = '';
   do {
-    const params = new URLSearchParams({ q, fields: 'nextPageToken,files(id,name,mimeType,modifiedTime)', pageSize: '1000', orderBy: 'name' });
+    const params = new URLSearchParams({ q, fields: 'nextPageToken,files(id,name,mimeType,modifiedTime,appProperties)', pageSize: '1000', orderBy: 'name' });
     if (pageToken) params.set('pageToken', pageToken);
     const res = await ok(await driveFetch('files?' + params), what);
     const j = await res.json() as { files?: DriveFile[]; nextPageToken?: string };

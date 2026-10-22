@@ -1,12 +1,15 @@
 import type { Book, ChapterStatus, SourceType } from '../model/types';
 import { bookUnits, topicCount, usesUnits } from '../model/units';
 import { cycleStatus, resumeOf, type Resume } from '../okuma/okumaDurumu';
-import { isOkuyucuOpen } from '../okuma/Okuyucu';
+import { icindekilerDugmesi, isOkuyucuOpen } from '../okuma/Okuyucu';
 import { isDark } from '../scene/units';
 import { esc } from './dom';
 import { viewSize } from './ekran';
+import { measureContents } from './icindekilerOlcum';
+import type { ContentsPage } from './icindekilerSayfalama';
 
-// Open book on the desk (2D overlay). Phase 1: title page + table of contents only.
+// Open book on the desk (2D overlay): title + measured contents pages.
+// PDF pages belong to the separate full-screen reader, never to this page list.
 
 const PAGE_AR = 1.4142;   // A4, same as a PDF page
 
@@ -45,7 +48,15 @@ let ctx: ReaderContext = { shelfName: null, daysSinceOpened: null, owner: null }
 let idx = 0, pw = 0, single = false, busy = false;
 let onClose: () => void = () => {};
 let onChapter: (unit: number, topic: number, resume?: Resume) => void = () => {};
-const PAGES = ['title', 'toc'] as const;
+let onEdit: () => void = () => {};
+let contents: ContentsPage[] = [[]];
+let anchor: string | null = null;
+let layoutTicket = 0, layoutFrame = 0, turnTimer = 0;
+let opening = false, measuredSize = '';
+const motionTimers = new Set<number>();
+const pageCount = () => 1 + contents.length;
+const pageStep = () => single ? 1 : 2;
+const spreadStart = (i: number) => single ? i : i - i % 2;
 
 function el(tag: string, cls: string, parent?: HTMLElement, html?: string): HTMLElement {
   const e = document.createElement(tag);
@@ -57,27 +68,37 @@ function el(tag: string, cls: string, parent?: HTMLElement, html?: string): HTML
 
 // chapter(unit, topic): indices as in bookUnits (surum 1: unit 0 "Genel", topic = chapter)
 // resume: "Kaldığın yerden devam" (task 3.5)
-export function initReader(close: () => void, chapter: (unit: number, topic: number, resume?: Resume) => void): void {
+// edit (6.K5b-3): "İçindekileri düzenle" → the full-screen reader with no topic, its contents panel in edit mode
+export function initReader(close: () => void, chapter: (unit: number, topic: number, resume?: Resume) => void, edit: () => void): void {
   onClose = close;
   onChapter = chapter;
+  onEdit = edit;
   $('#rClose').addEventListener('click', closeReader);
-  $('#prev').addEventListener('click', () => flipTo(idx - 1));
-  $('#next').addEventListener('click', () => flipTo(idx + 1));
+  $('#prev').addEventListener('click', () => flipTo(idx - pageStep()));
+  $('#next').addEventListener('click', () => flipTo(idx + pageStep()));
   addEventListener('keydown', e => {
     if (!book || isOkuyucuOpen()) return;   // the full-screen reader is on top
     if (e.key === 'Escape') closeReader();
-    if (e.key === 'ArrowRight') flipTo(idx + 1);
-    if (e.key === 'ArrowLeft') flipTo(idx - 1);
+    if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+      e.preventDefault();
+      flipTo(idx + (e.key === 'ArrowRight' ? 1 : -1) * pageStep());
+    }
   });
-  addEventListener('resize', () => { if (book) renderAll(); });
+  addEventListener('resize', requestLayout);
+  addEventListener('orientationchange', requestLayout);
+  document.fonts.addEventListener('loadingdone', requestLayout);
+  const resize = new ResizeObserver(() => {
+    if (book && layoutSize() !== measuredSize) requestLayout();
+  });
+  for (const selector of ['#reader', '.r-top', '.r-bottom']) resize.observe($(selector));
   // swipe left/right to turn the page (as in the prototype)
   let swipe: { x: number; y: number } | null = null;
   $('#spreadWrap').addEventListener('pointerdown', e => { swipe = { x: e.clientX, y: e.clientY }; });
   addEventListener('pointerup', e => {
-    if (!swipe || !book) { swipe = null; return; }
+    if (!swipe || !book || isOkuyucuOpen()) { swipe = null; return; }
     const dx = e.clientX - swipe.x, dy = e.clientY - swipe.y;
     swipe = null;
-    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.3) flipTo(idx + (dx < 0 ? 1 : -1));
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.3) flipTo(idx + (dx < 0 ? 1 : -1) * pageStep());
   });
 }
 
@@ -85,10 +106,48 @@ export const isReaderOpen = () => book !== null;
 
 // The reading state changed (the full-screen reader closed): draw the pages again.
 export function refreshReader(): void {
-  if (book) renderAll();
+  requestLayout();
 }
 
 // ---- layout ----
+
+function layoutSize(): string {
+  const { w, h } = viewSize();
+  return `${w}:${h}:${$('.r-top').offsetHeight}:${$('.r-bottom').offsetHeight}`;
+}
+
+function requestLayout(): void {
+  if (!book) return;
+  const ticket = ++layoutTicket;
+  cancelAnimationFrame(layoutFrame);
+  void document.fonts.ready.then(() => {
+    if (!book || ticket !== layoutTicket) return;
+    layoutFrame = requestAnimationFrame(() => {
+      if (!book || ticket !== layoutTicket) return;
+      renderAll();
+      if (opening) { opening = false; animateCover(book); }
+    });
+  });
+}
+
+function later(fn: () => void, ms: number): void {
+  const timer = window.setTimeout(() => { motionTimers.delete(timer); fn(); }, ms);
+  motionTimers.add(timer);
+}
+
+function stopMotion(): void {
+  clearTimeout(turnTimer);
+  motionTimers.forEach(clearTimeout);
+  motionTimers.clear();
+  busy = false;
+  const spread = $('#spread');
+  spread.querySelectorAll('.leaf, .single-turn').forEach(e => e.remove());
+  spread.classList.remove('closed');
+  spread.style.transition = 'none';
+  spread.style.transform = '';
+  void spread.offsetWidth; // cancel an interrupted cover translation without another animation
+  spread.style.transition = '';
+}
 
 function measure(): void {
   const r = $('#reader');
@@ -104,6 +163,7 @@ function measure(): void {
   spread.style.height = Math.round(pw * PAGE_AR) + 'px';
   spread.classList.toggle('single', single);
   spread.style.setProperty('--bookc', book!.kapak.renk);
+  measuredSize = layoutSize();
 }
 
 function slot(side: 'l' | 'r'): HTMLElement {
@@ -121,21 +181,58 @@ function fill(side: 'l' | 'r', i: number): void {
 }
 
 function renderAll(): void {
+  stopMotion();
+  $('#reader').classList.add('show');
   measure();
+  const units = bookUnits(book!);
+  const all: ContentsPage = units.map((u, unit) => ({ unit, start: 0, end: u.konular.length, continued: false }));
+  // The probes share the real page's containing width (cqw fonts and padding included).
+  const probe = el('div', 'toc-measure', $('#reader'));
+  probe.setAttribute('aria-hidden', 'true');
+  probe.inert = true;
+  probe.style.width = pw + 'px';
+  probe.style.height = Math.round(pw * PAGE_AR) + 'px';
+  try {
+    const first = renderPage(1, 'r', all);
+    const next = renderPage(2, 'l', all.map(p => ({ ...p, continued: true })));
+    probe.append(first, next);
+    contents = measureContents(first, next);
+  } finally {
+    probe.remove();
+  }
+  if (anchor) {
+    const page = contents.findIndex(parts => parts.some(p =>
+      units[p.unit].konular.slice(p.start, p.end).some((_, t) => topicAnchor(p.unit, p.start + t) === anchor)));
+    if (page >= 0) idx = page + 1;
+  }
+  idx = spreadStart(Math.max(0, Math.min(idx, pageCount() - 1)));
+  drawSlots();
+}
+
+function topicAnchor(unit: number, topic: number): string {
+  const t = bookUnits(book!)[unit]?.konular[topic];
+  return t?.klasor || `${unit}:${topic}:${t?.baslik ?? ''}`;
+}
+
+function drawSlots(): void {
   $('#spread').querySelectorAll('.slot').forEach(s => s.remove());
   if (single) fill('l', idx);
-  else { idx = 0; fill('l', 0); fill('r', 1); }
+  else { fill('l', idx); fill('r', idx + 1); }
   updateChrome();
 }
 
 function updateChrome(): void {
-  const n = PAGES.length, b = book!;
+  const n = pageCount(), b = book!;
   const a = idx + 1, z = Math.min(n, idx + (single ? 1 : 2));
   $('#pno').textContent = single || a === z ? `s. ${a} / ${n}` : `s. ${a}–${z} / ${n}`;
   const size = usesUnits(b) ? `${b.uniteler.length} ünite · ${topicCount(b)} konu` : `${b.bolumler.length} bölüm`;
   $('#rChap').textContent = [b.ders, size].filter(Boolean).join(' · ');
   ($('#prev') as HTMLButtonElement).disabled = idx === 0;
   ($('#next') as HTMLButtonElement).disabled = idx + (single ? 1 : 2) >= n;
+  // Keep the existing footer height/book size when a single spread needs no controls.
+  $('.r-bottom').classList.toggle('no-turn', !single && n <= 2);
+  const first = idx > 0 ? contents[idx - 1]?.find(p => p.end > p.start) : undefined;
+  anchor = first ? topicAnchor(first.unit, first.start) : null;
 }
 
 // ---- pages ----
@@ -145,11 +242,45 @@ function lastOpenedText(d: number | null): string {
   return d === 0 ? 'bugün' : `${d} gün önce`;
 }
 
-function renderPage(i: number, side: 'l' | 'r'): HTMLElement {
+function contentsHtml(parts: ContentsPage, continuation: boolean): string {
   const b = book!;
-  const kind = PAGES[i];
+  const resume = resumeOf(b);
+  const duzenle = icindekilerDugmesi(b).goster
+    ? '<button type="button" class="tocedit" data-duzenle><span aria-hidden="true">✎</span> İçindekileri düzenle</button>' : '';
+  let html = continuation
+    ? '<div class="tochead continued"><h2>İçindekiler (devam)</h2></div>'
+    : `<div class="src">Kitap · içindekiler</div><div class="tochead"><h2>İçindekiler</h2>${duzenle}</div>`;
+  if (!continuation && resume) html += `<button class="resume" data-ribbon><span class="rib" aria-hidden="true"></span><span>Kaldığın yerden devam: <b>${esc(resume.label)}</b></span></button>`;
+  const units = bookUnits(b);
+  if (!units.some(u => u.konular.length)) {
+    return html + `<p class="empty">${b.hasJson ? 'Bu kitapta henüz konu yok.' : 'Bu klasörde kitap.json yok. Drive\'da klasöre bir kitap.json ekleyince bölümler burada görünür.'}</p>`;
+  }
+  for (const part of parts) {
+    const u = units[part.unit];
+    html += `<h3 class="unit">${esc(u.baslik)}${part.continued ? ' (devam)' : ''}</h3><ol>`;
+    for (let ti = part.start; ti < part.end; ti++) {
+      const t = u.konular[ti];
+      const kinds = [...new Set((t.kaynaklar ?? []).map(s => s.tur))];
+      const [cls, label] = ST[t.durum];
+      html += `<li><button data-u="${part.unit}" data-t="${ti}"><span class="num">${ti + 1}</span><span><span class="tt">${esc(t.baslik)}</span>
+        <span class="icons">${kinds.map(k => `<span class="ic">${ICON[k]}${SRC_LABEL[k]}</span>`).join('')}<span class="st ${cls}" data-st title="Durumu değiştirmek için dokun">${label}</span></span></span></button></li>`;
+    }
+    html += '</ol>';
+  }
+  return html + '<div class="legend">Konuya dokun: oraya git · Duruma dokun: değiştir</div>';
+}
+
+function renderPage(i: number, side: 'l' | 'r', measuredParts?: ContentsPage): HTMLElement {
+  const b = book!;
+  const kind = i === 0 ? 'title' : 'toc';
   const resume = resumeOf(b);
   const p = el('div', `page ${kind === 'title' ? 'tp' : 'toc'} ${side === 'r' ? 'rightp' : 'leftp'}`);
+  if (!measuredParts && i >= pageCount()) {
+    p.classList.add('blank');
+    p.setAttribute('aria-hidden', 'true');
+    return p; // the unnumbered back of an odd final page
+  }
+  p.dataset.page = String(i + 1);
   const inn = el('div', 'in', p);
   el('div', 'folio', p, String(i + 1));
   if (kind === 'title') {
@@ -164,34 +295,16 @@ function renderPage(i: number, side: 'l' | 'r'): HTMLElement {
       ${resume ? `<button class="go" data-ribbon>Kaldığın yer: ${esc(resume.label)} →</button>` : ''}
       <div class="exl">${ctx.owner ? esc(genitive(ctx.owner)) + ' kitaplığından' : 'Örnek kitaplıktan'}</div>`;
   } else {
-    let html = '<div class="src">Kitap · içindekiler</div><h2>İçindekiler</h2>';
-    if (resume) html += `<button class="resume" data-ribbon><span class="rib" aria-hidden="true"></span><span>Kaldığın yerden devam: <b>${esc(resume.label)}</b></span></button>`;
-    const units = bookUnits(b);
-    if (!units.some(u => u.konular.length)) {
-      html += `<p class="empty">${b.hasJson ? 'Bu kitapta henüz konu yok.' : 'Bu klasörde kitap.json yok. Drive\'da klasöre bir kitap.json ekleyince bölümler burada görünür.'}</p>`;
-    } else {
-      units.forEach((u, ui) => {
-        html += `<h3 class="unit">${esc(u.baslik)}</h3><ol>`;
-        u.konular.forEach((t, ti) => {
-          // surum 1: the chapter's source types; surum 2: materials are known only when the topic opens
-          const kinds = [...new Set((t.kaynaklar ?? []).map(s => s.tur))];
-          const [cls, label] = ST[t.durum];
-          html += `<li><button data-u="${ui}" data-t="${ti}"><span class="num">${ti + 1}</span><span><span class="tt">${esc(t.baslik)}</span>
-            <span class="icons">${kinds.map(k => `<span class="ic">${ICON[k]}${SRC_LABEL[k]}</span>`).join('')}<span class="st ${cls}" data-st title="Durumu değiştirmek için dokun">${label}</span></span></span></button></li>`;
-        });
-        html += '</ol>';
-      });
-      html += '<div class="legend">Konuya dokun: oraya git · Duruma dokun: değiştir</div>';
-    }
-    inn.innerHTML = html;
+    inn.innerHTML = contentsHtml(measuredParts ?? contents[i - 1], i > 1);
   }
+  if (measuredParts) return p; // invisible measurement copies have no behaviour
   p.addEventListener('click', e => {
     const t = e.target as HTMLElement;
     const ch = t.closest<HTMLElement>('[data-t]');
-    if (ch && t.closest('[data-st]')) {
-      // the status label: next status (only this page is drawn again)
+    if (t.closest('[data-duzenle]')) onEdit();
+    else if (ch && t.closest('[data-st]')) {
       cycleStatus(b, Number(ch.dataset.u), Number(ch.dataset.t));
-      p.replaceWith(renderPage(i, side));
+      requestLayout(); // the new label may wrap and change its row height
     } else if (ch) onChapter(Number(ch.dataset.u), Number(ch.dataset.t));
     else if (t.closest('[data-ribbon]') && resume) onChapter(resume.unit, resume.topic, resume);
   });
@@ -210,57 +323,76 @@ function coverFace(b: Book): HTMLElement {
 // ---- open / close ----
 
 export function openReader(b: Book, c: ReaderContext): void {
-  book = b; ctx = c; idx = 0; busy = false;
+  stopMotion();
+  book = b; ctx = c; idx = 0; anchor = null; opening = true; busy = true;
+  contents = [[]];
   const reader = $('#reader');
   reader.classList.remove('kabuk');
   $('#rBook').textContent = b.baslik;
+  updateChrome(); // the subtitle must have its final height before measuring the page
   reader.hidden = false;
-  requestAnimationFrame(() => {
-    reader.classList.add('show');
-    measure();
-    const spread = $('#spread');
-    spread.replaceChildren();
-    updateChrome();
-    if (single) { fill('l', 0); coverOpenSingle(b); return; }
-    // closed cover on the right half, then it swings open
-    fill('l', 0); fill('r', 1);
-    const L = spread.querySelector<HTMLElement>('.slot.l')!;
-    L.style.opacity = '0';
-    spread.classList.add('closed'); spread.style.transition = 'none';
-    spread.style.transform = `translateX(${-pw / 2}px)`;
-    const leaf = el('div', 'leaf fw slow', spread); leaf.style.left = pw + 'px'; leaf.style.width = pw + 'px';
-    el('div', 'lf front', leaf).appendChild(coverFace(b));
-    el('div', 'lf back', leaf).appendChild(renderPage(0, 'l'));
-    void spread.offsetWidth; spread.style.transition = '';
-    setTimeout(() => {
-      spread.classList.remove('closed');
-      spread.style.transform = 'translateX(0)';
-      leaf.classList.add('go');
-      setTimeout(() => { L.style.opacity = '1'; }, 520);
-      setTimeout(() => leaf.remove(), 1120);
-    }, 260);
-  });
+  requestLayout();
+}
+
+function animateCover(b: Book): void {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  busy = true;
+  const spread = $('#spread');
+  if (single) { coverOpenSingle(b); return; }
+  // closed cover on the right half, then it swings open
+  const L = spread.querySelector<HTMLElement>('.slot.l')!;
+  L.style.opacity = '0';
+  spread.classList.add('closed'); spread.style.transition = 'none';
+  spread.style.transform = `translateX(${-pw / 2}px)`;
+  const leaf = el('div', 'leaf fw slow', spread); leaf.style.left = pw + 'px'; leaf.style.width = pw + 'px';
+  el('div', 'lf front', leaf).appendChild(coverFace(b));
+  el('div', 'lf back', leaf).appendChild(renderPage(0, 'l'));
+  void spread.offsetWidth; spread.style.transition = '';
+  later(() => {
+    spread.classList.remove('closed');
+    spread.style.transform = 'translateX(0)';
+    leaf.classList.add('go');
+    later(() => { L.style.opacity = '1'; }, 520);
+    later(() => { leaf.remove(); busy = false; }, 1120);
+  }, 260);
 }
 
 function coverOpenSingle(b: Book): void {
   const c = el('div', 'slot single-turn', $('#spread'));
   c.style.width = pw + 'px'; c.style.left = '0'; c.style.zIndex = '6';
   c.appendChild(coverFace(b));
-  setTimeout(() => { c.classList.add('out-l'); setTimeout(() => c.remove(), 520); }, 450);
+  later(() => { c.classList.add('out-l'); later(() => { c.remove(); busy = false; }, 520); }, 450);
 }
 
-// Single-page mode (narrow screens): turn between title page and contents.
+// One page on a narrow screen; one spread (two pages) on a wide screen.
 function flipTo(target: number): void {
-  if (!book || !single || busy) return;
-  target = Math.max(0, Math.min(target, PAGES.length - 1));
+  if (!book || busy || isOkuyucuOpen()) return;
+  target = spreadStart(Math.max(0, Math.min(target, pageCount() - 1)));
   if (target === idx) return;
   busy = true;
   const dir = target > idx ? 1 : -1;
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    idx = target; drawSlots(); busy = false; return;
+  }
+  if (!single) {
+    const cur = idx;
+    const leaf = el('div', `leaf ${dir > 0 ? 'fw' : 'bw'}`, $('#spread'));
+    leaf.style.left = (dir > 0 ? pw : 0) + 'px';
+    leaf.style.width = pw + 'px';
+    el('div', 'lf front', leaf).append(renderPage(dir > 0 ? cur + 1 : cur, dir > 0 ? 'r' : 'l'));
+    el('div', 'lf back', leaf).append(renderPage(dir > 0 ? target : target + 1, dir > 0 ? 'l' : 'r'));
+    if (dir > 0) fill('r', target + 1);
+    else fill('l', target);
+    idx = target; updateChrome();
+    requestAnimationFrame(() => { if (leaf.isConnected) leaf.classList.add('go'); });
+    turnTimer = window.setTimeout(() => { leaf.remove(); drawSlots(); busy = false; }, 840);
+    return;
+  }
   const old = $('#spread').querySelector<HTMLElement>('.slot.l')!;
   old.classList.add('single-turn'); old.classList.remove('l'); old.style.zIndex = '6';
   fill('l', target); idx = target; updateChrome();
   requestAnimationFrame(() => old.classList.add(dir > 0 ? 'out-l' : 'out-r'));
-  setTimeout(() => { old.remove(); busy = false; }, 520);
+  turnTimer = window.setTimeout(() => { old.remove(); busy = false; }, 520);
 }
 
 // Task 6.3e: the library search opens the full-screen reader with no book on the desk. #reader (where the
@@ -284,10 +416,15 @@ export function readerShell(on: boolean): void {
 
 export function closeReader(): void {
   if (!book) return;
+  ++layoutTicket;
+  cancelAnimationFrame(layoutFrame);
+  stopMotion();
+  opening = false;
   book = null;
   const reader = $('#reader');
   reader.classList.remove('show');
   setTimeout(() => {
+    if (book) return;
     reader.hidden = true;
     $('#spread').replaceChildren();
     onClose();

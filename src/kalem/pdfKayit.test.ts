@@ -26,7 +26,7 @@ async function samplePdf(): Promise<Uint8Array> {
 // uploadPdf compares it (another device writing), that many times. uploadPdf's check is durum
 // (canEdit + modifiedTime + head); the first durum after a modifiedTime read is the check of the round.
 function fakeDrive(start: Uint8Array) {
-  const file = { bytes: start, mt: 't1', n: 1, canEdit: true, changeBeforeCheck: 0, offline: 0 };
+  const file = { bytes: start, mt: 't1', n: 1, canEdit: true, trashed: false, changeBeforeCheck: 0, offline: 0 };
   const log: string[] = [];
   const hooks = { duringUpload: null as null | (() => void) };
   let afterRead = false;
@@ -37,7 +37,7 @@ function fakeDrive(start: Uint8Array) {
       log.push('durum');
       if (afterRead && file.changeBeforeCheck > 0) { file.changeBeforeCheck--; file.mt = `t${++file.n}`; }
       afterRead = false;
-      return { canEdit: file.canEdit, modifiedTime: file.mt, headRevisionId: `r${file.n}` };
+      return { canEdit: file.canEdit, modifiedTime: file.mt, headRevisionId: `r${file.n}`, trashed: file.trashed };
     },
     async listRevisions() { return { revisions: [{ id: 'r1', keepForever: true }] }; },
     async headRevisionId() { return `r${file.n}`; },
@@ -190,6 +190,36 @@ describe('DriveUploader', () => {
     await s.up.request(['f']);
     expect(s.statuses.at(-1)).toEqual({ tur: 'hata', mesaj: 'Bu PDF\'e yazma iznin yok; çizimler cihazda kaldı.', tekrar: false });
     expect(s.done).toEqual([]);
+  });
+
+  it('task 6.K6b: the file in Drive trash: nothing uploaded, no error, no retry, the record stays; after Geri al it goes', async () => {
+    vi.useFakeTimers();
+    const s = setup(await samplePdf());
+    s.file.trashed = true;
+    await s.up.request(['f']);
+    expect(s.log.filter(l => l === 'upload')).toEqual([]);
+    expect(s.done).toEqual([]);
+    expect(s.statuses.map(x => x.tur)).toEqual(['kaydediliyor']);   // no error, no "kaydedildi"
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(s.log.filter(l => l === 'upload')).toEqual([]);           // not tried again by itself
+    s.file.trashed = false;   // Geri al
+    await s.up.request(['f']);
+    expect(s.done).toHaveLength(1);
+    expect(s.statuses.at(-1)).toEqual({ tur: 'kaydedildi' });
+    s.up.dispose();
+  });
+
+  it('task 6.K6b: bekliyorMu – waiting, going, or in the 30 s wait', async () => {
+    vi.useFakeTimers();
+    const s = setup(await samplePdf());
+    expect(s.up.bekliyorMu('f')).toBe(false);
+    s.up.soon('f');
+    expect(s.up.bekliyorMu('f')).toBe(true);
+    const p = s.up.request(['f']);
+    expect(s.up.bekliyorMu('f')).toBe(true);
+    await p;
+    expect(s.up.bekliyorMu('f')).toBe(false);
+    s.up.dispose();
   });
 
   it('offline: cevrimdisi, tried again after 60 s', async () => {

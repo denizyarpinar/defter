@@ -6,6 +6,7 @@ import type { HazirKaynak } from './dosyaHazirla';
 import type { DosyaTuruSonucu } from './dosyaTuru';
 import { boyutYazi } from './fotoPanelDurumu';
 import { kisaNeden } from './fotoEklemeMetin';
+import { AltKlasorAcilamadi, AltKlasorAdiFarkli, AltKlasorAgHatasi, AltKlasorIzinYok } from '../drive/altKlasorAc';
 import {
   AdCozumGibi, AdGecersiz, cozumAdi, dosyaAdiHazirla, EklemeSuruyor, HedefBulunamadi, KlasorYok, OzetZatenVar, PdfHazirlanamadi,
   type DosyaHedefi
@@ -34,23 +35,29 @@ export function cozumAdaylari(m: TopicMaterials): CozumAdayi[] {
     m[k].filter(x => !x.cozum).map(x => ({ file: x.file, etiket: `${MATERIAL_LABEL[k]} · ${x.file.name.replace(/\.pdf$/i, '')}` })));
 }
 
-export function hedefSecenekleri(m: TopicMaterials, klasor: KlasorBilgisi | null): Secenek[] {
-  const s = (hedef: PanelHedef, neden: string | null): Secenek => ({ hedef, etiket: HEDEF_ETIKETI[hedef], secilebilir: !neden, neden });
+export const KLASOR_ACILIR_METIN = '(klasör ilk dosyada açılır)';
+
+// Task 6.K6a: klasorAcabilir (validated Drive context): a missing Uebungen / Oedevler can be chosen, the folder is made with the
+// first file (a note says so); locked: grey as before
+export function hedefSecenekleri(m: TopicMaterials, klasor: KlasorBilgisi | null, klasorAcabilir = false): Secenek[] {
+  const s = (hedef: PanelHedef, neden: string | null, not: string | null = null): Secenek =>
+    ({ hedef, etiket: HEDEF_ETIKETI[hedef], secilebilir: !neden, neden: neden ?? not });
   // a folder with files in it exists; an empty list may mean "no folder" or "empty folder"
-  const klasorYok = (k: 'uebungen' | 'oedevler') =>
-    !m[k].length && klasor !== null && !klasor[k === 'uebungen' ? 'Uebungen' : 'Oedevler'] ? '(klasör yok)' : null;
+  const yok = (k: 'uebungen' | 'oedevler') => !m[k].length && klasor !== null && !klasor[k === 'uebungen' ? 'Uebungen' : 'Oedevler'];
+  const alt = (k: 'uebungen' | 'oedevler') => !yok(k) ? s(k, null) : klasorAcabilir ? s(k, null, KLASOR_ACILIR_METIN) : s(k, '(klasör yok)');
   return [
-    s('uebungen', klasorYok('uebungen')),
-    s('oedevler', klasorYok('oedevler')),
+    alt('uebungen'),
+    alt('oedevler'),
     s('cozum', cozumAdaylari(m).length ? null : 'Çözümü olmayan dosya yok'),
     s('orijinal', m.orijinal.length ? 'Bu konuda orijinal var' : null),
     s('ozet', m.ozet.length ? 'Bu konuda özet var' : null),
   ];
 }
 
-// The open tab if it can be chosen, else the first one that can; none: null
+// The open tab if it can be chosen, else the first one that can; none: null.
+// Task 6.K6a: no tab open (a topic without materials) → Orijinal first.
 export function varsayilanHedef(secenekler: readonly Secenek[], acikSekme: MaterialKind | null): PanelHedef | null {
-  const ac = secenekler.find(x => x.hedef === acikSekme && x.secilebilir);
+  const ac = secenekler.find(x => x.hedef === (acikSekme ?? 'orijinal') && x.secilebilir);
   return (ac ?? secenekler.find(x => x.secilebilir))?.hedef ?? null;
 }
 
@@ -113,7 +120,8 @@ export function eklendiMetni(ad: string, uyari?: 'kalemYazamaz'): string {
 
 // konuyaDosyaEkle's own errors already say what to do; the others get the photo flow's short reason
 export function hataMetni(e: unknown): string {
-  const kendi = [AdGecersiz, AdCozumGibi, KlasorYok, OzetZatenVar, HedefBulunamadi, EklemeSuruyor, PdfHazirlanamadi, AyniIsimVar, PdfDegil];
+  const kendi = [AdGecersiz, AdCozumGibi, KlasorYok, OzetZatenVar, HedefBulunamadi, EklemeSuruyor, PdfHazirlanamadi, AyniIsimVar, PdfDegil,
+    AltKlasorAdiFarkli, AltKlasorAcilamadi, AltKlasorAgHatasi, AltKlasorIzinYok];
   if (kendi.some(c => e instanceof c)) return (e as Error).message;
   return `Dosya eklenemedi: ${kisaNeden(e)}.`;
 }

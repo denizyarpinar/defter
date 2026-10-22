@@ -53,7 +53,7 @@ function shape(line: ArrayLike<number>, vp: ViewportLike, ink: DefterInk, check:
   if (line.length < 2) return '';
   const isPen = ink.opacity >= 1;
   const curve = isPen
-    ? penOutline({ noktalar: line, basinc: ink.pressure, kalinlik: ink.width }, true)
+    ? penOutline({ noktalar: line, basinc: ink.pressure, kalinlik: ink.width })
     : smoothCenterline(line);
   const d = curveToSvg(curve, (x, y) => vp.convertToViewportPoint(x, y));
   if (check) {

@@ -1,11 +1,22 @@
 import { ekranMetni, olcumDinle, type Olcum } from '../defter/sureOlcum';
+import { kapsamDurumu } from '../drive/auth';
+import { sonKok, sonYarimlar } from '../drive/driveLibrary';
+import { darZorlaUrl, kisaScope, sahipZorlaYok } from '../drive/kapsam';
+import { kalemOlcer, kalemOlcumJson, ozet, toplam } from '../kalem/kalemOlcum';
 import { alanDurumu } from './gorunurAlan';
+import { copIzi } from './copAkisi';
+import { icindekilerIzi } from './icindekilerBaglami';
 
 // Task 5.10g-ek: ?olcum=1 — a small box in the corner with the numbers of the page's position
 // (iPad Safari: the screen stayed moved up after the keyboard / photo picker). Only for diagnosis.
 // Task 5.10g-ek2: bottom left (at the top it was cut by Safari's bar); the key numbers in the first line.
 // Task 6.2e-1: a second box, bottom right: the last time measurement (sureOlcum.ts), "Kopyala" and ×
 // (the iPad has no console). It appears only when a measurement ends.
+// Task 6.K1: the first lines: active permission (tam/dar), owner, test switches and the token's scope list.
+// Task 6.K2b: the library's root (name, source; several roots: how many and the id in use).
+// Task 6.H2: the last pen stroke in one line; a third box (bottom right) with the last stroke, the last 50
+// together, Kopyala (all 50 as JSON, raw events included) and Sıfırla.
+// Task 6.K5a-2: the contents' write queue: listeners, waiting changes, the last events.
 
 const n = (x: number | undefined | null) => x == null ? '–' : String(Math.round(x * 10) / 10);
 
@@ -32,7 +43,16 @@ export function installOlcum(): void {
     const app = document.querySelector('#app');
     const cs = app ? getComputedStyle(app) : null;
     const ae = document.activeElement as HTMLElement | null;
+    const k = kapsamDurumu();
+    const evet = (b: boolean | null) => b === null ? '–' : b ? 'evet' : 'hayır';
     kutu.textContent = [
+      `kapsam: ${k.aktif ?? '–'} · sahip: ${evet(k.sahip)} · eski izinler: ${evet(k.dahilEt)}`
+        + (darZorlaUrl(location.search) ? ' · ?kapsam=dar' : '') + (sahipZorlaYok(location.search) ? ' · ?sahip=0' : ''),
+      `scope: ${k.scopes.map(kisaScope).join(', ') || '–'}`,
+      `kök: ${kokSatiri()}`,
+      `yarım kitap: ${yarimSatiri()}`,
+      `içindekiler: ${icindekilerIzi()}`,
+      `çöp: ${copIzi()}`,
       vv ? `vv offsetTop ${n(vv.offsetTop)} · pageTop ${n(vv.pageTop)} · scrollY ${n(scrollY)}` : `vv yok · scrollY ${n(scrollY)}`,
       `olay: ${olay} (#${sayac})`,
       `html.scrollTop ${n(de.scrollTop)} · body.scrollTop ${n(document.body.scrollTop)}`,
@@ -46,6 +66,7 @@ export function installOlcum(): void {
       `ad kutusu: ${adKutusu()}`,
       `düzeltme ${alanDurumu.duzeltme} · sıfırlama ${alanDurumu.sifirlama} · son: ${alanDurumu.sonOlay}`,
       `odak: ${ae ? ae.tagName.toLowerCase() + (ae.id ? '#' + ae.id : '') : '–'}`,
+      `kalem: ${ozet(kalemOlcer?.son())}`,
     ].join('\n');
   };
   const olaydan = (ad: string) => () => { olay = ad; sayac++; yaz(); setTimeout(yaz, 450); setTimeout(yaz, 900); };
@@ -61,6 +82,60 @@ export function installOlcum(): void {
   setInterval(yaz, 1000);   // also what changes without an event
   yaz();
   olcumDinle(sonOlcumGoster);
+  kalemOlcer?.dinle(() => { kalemKutusuGoster(); yaz(); });
+}
+
+let kalemKutu: { kok: HTMLDivElement; metin: HTMLPreElement; not: HTMLSpanElement; kucuk: boolean } | null = null;
+
+// Bottom right, above the page slider (at the top it covered "Kalemi kapat"); "–" folds it to its bar
+function kalemKutusuGoster(): void {
+  const o = kalemOlcer;
+  if (!o) return;
+  if (!kalemKutu) {
+    const kok = document.createElement('div');
+    kok.id = 'olcumKalem';
+    Object.assign(kok.style, {
+      position: 'fixed', right: '4px', bottom: 'calc(env(safe-area-inset-bottom, 0px) + 60px)', zIndex: '10001',
+      width: 'min(420px, calc(100vw - 8px))', boxSizing: 'border-box',
+      font: '11px/1.35 ui-monospace, Menlo, monospace', color: '#fff', background: 'rgba(0, 0, 0, .82)', borderRadius: '6px', padding: '6px'
+    } satisfies Partial<CSSStyleDeclaration>);
+    const bar = document.createElement('div');
+    Object.assign(bar.style, { display: 'flex', alignItems: 'center', gap: '6px' } satisfies Partial<CSSStyleDeclaration>);
+    const baslik = document.createElement('strong');
+    baslik.textContent = 'Kalem ölçümü';
+    baslik.style.flex = '1';
+    const not = document.createElement('span');
+    not.style.opacity = '.85';
+    const kopyala = olcumDugmesi('Kopyala', 'Kalem ölçümünü kopyala');
+    const sifirla = olcumDugmesi('Sıfırla', 'Kalem ölçümünü sıfırla');
+    const katla = olcumDugmesi('–', 'Kalem ölçümünü küçült');
+    const metin = document.createElement('pre');
+    Object.assign(metin.style, { margin: '4px 0 0', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', maxHeight: '30vh', overflow: 'auto', userSelect: 'text', webkitUserSelect: 'text' } satisfies Partial<CSSStyleDeclaration>);
+    bar.append(baslik, not, kopyala, sifirla, katla);
+    kok.append(bar, metin);
+    // the reader under it never sees these taps (no stroke, no page turn)
+    for (const t of ['pointerdown', 'pointerup', 'click', 'touchstart', 'touchend', 'mousedown', 'mouseup', 'wheel']) {
+      kok.addEventListener(t, e => e.stopPropagation());
+    }
+    const k = { kok, metin, not, kucuk: false as boolean };
+    kalemKutu = k;
+    kopyala.onclick = () => void kopyalaMetin(metin, not, kalemOlcumJson(o.kayitlar()));
+    sifirla.onclick = () => { o.sifirla(); not.textContent = 'Sıfırlandı'; kalemKutusuGoster(); };
+    katla.onclick = () => { k.kucuk = !k.kucuk; katla.textContent = k.kucuk ? '+' : '–'; metin.hidden = k.kucuk; };
+    document.body.append(kok);
+  }
+  const ks = o.kayitlar();
+  if (ks.length) kalemKutu.not.textContent = '';
+  kalemKutu.metin.textContent = `son: ${ozet(ks[ks.length - 1])}\n${toplam(ks)}`;
+}
+
+function olcumDugmesi(yazi: string, etiket: string): HTMLButtonElement {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.textContent = yazi;
+  b.setAttribute('aria-label', etiket);
+  Object.assign(b.style, { font: 'inherit', color: '#000', background: '#fff', border: '0', borderRadius: '4px', padding: '4px 10px', minHeight: '32px' } satisfies Partial<CSSStyleDeclaration>);
+  return b;
 }
 
 let sonKutu: { kok: HTMLDivElement; metin: HTMLPreElement; not: HTMLSpanElement } | null = null;
@@ -81,16 +156,8 @@ function sonOlcumKutusu(): NonNullable<typeof sonKutu> {
   baslik.style.flex = '1';
   const not = document.createElement('span');
   not.style.opacity = '.85';
-  const dugme = (yazi: string, etiket: string) => {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.textContent = yazi;
-    b.setAttribute('aria-label', etiket);
-    Object.assign(b.style, { font: 'inherit', color: '#000', background: '#fff', border: '0', borderRadius: '4px', padding: '4px 10px', minHeight: '32px' } satisfies Partial<CSSStyleDeclaration>);
-    return b;
-  };
-  const kopyala = dugme('Kopyala', 'Ölçümü kopyala');
-  const kapat = dugme('×', 'Ölçüm kutusunu kapat');
+  const kopyala = olcumDugmesi('Kopyala', 'Ölçümü kopyala');
+  const kapat = olcumDugmesi('×', 'Ölçüm kutusunu kapat');
   const metin = document.createElement('pre');
   Object.assign(metin.style, { margin: '0', overflow: 'auto', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', userSelect: 'text', webkitUserSelect: 'text' } satisfies Partial<CSSStyleDeclaration>);
   bar.append(baslik, not, kopyala, kapat);
@@ -119,13 +186,16 @@ function sonOlcumGoster(o: Olcum): void {
   k.kok.style.maxHeight = `min(60vh, calc(100% - ${ust + 16}px))`;
 }
 
-// navigator.clipboard; no clipboard or it refuses → the text is selected, to copy by hand
-async function kopyalaMetin(metin: HTMLPreElement, not: HTMLSpanElement): Promise<void> {
+// navigator.clipboard; no clipboard or it refuses → the text is selected, to copy by hand.
+// yazi: what to copy when it isn't the box's text (then it is put into the box to be selected).
+async function kopyalaMetin(metin: HTMLPreElement, not: HTMLSpanElement, yazi = metin.textContent ?? ''): Promise<void> {
   try {
     if (!navigator.clipboard?.writeText) throw new Error('pano yok');
-    await navigator.clipboard.writeText(metin.textContent ?? '');
+    await navigator.clipboard.writeText(yazi);
     not.textContent = 'Kopyalandı';
   } catch {
+    metin.hidden = false;
+    if (metin.textContent !== yazi) metin.textContent = yazi;
     const r = document.createRange();
     r.selectNodeContents(metin);
     const s = getSelection();
@@ -133,6 +203,22 @@ async function kopyalaMetin(metin: HTMLPreElement, not: HTMLSpanElement): Promis
     s?.addRange(r);
     not.textContent = 'Metni seçtim, kopyala';
   }
+}
+
+function kokSatiri(): string {
+  const k = sonKok();
+  if (!k) return '–';
+  if (k.tur === 'yok') return 'yok';
+  if (k.tur === 'cokKok') return `${k.kok.name} (defterKok) · ${k.kokler.length} kök · id ${k.kok.id}`
+    + (k.eksik.length ? ` · eksik: ${k.eksik.join(', ')}` : '');
+  return `${k.kok.name} (${k.kaynak})` + (k.tur === 'yarim' ? ` · yarım, eksik: ${k.eksik.join(', ')}` : '');
+}
+
+// the half made book folders the library skipped (6.K4b-2)
+function yarimSatiri(): string {
+  const y = sonYarimlar();
+  if (!y) return '–';
+  return [String(y.length), ...y.map(k => `${k.ad} (${k.neden}, id ${k.id})`)].join(' · ');
 }
 
 // the file panel's name box: its real font size (iOS zooms into fields under 16px) and where it is

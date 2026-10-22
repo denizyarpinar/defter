@@ -49,8 +49,22 @@ export class DriveSaver {
     this.schedule('cover:' + id, () => this.saveCover(id));
   }
 
+  // Task 6.K5a: changes still waiting for their timer go now; resolves when the queue is empty
+  // (a failed one stays waiting, as before).
+  bekleyenleriYaz(): Promise<void> {
+    for (const [key, t] of [...this.timers]) {
+      clearTimeout(t);
+      const job = this.jobs.get(key);
+      if (job) this.run(key, job);
+    }
+    return this.queue;
+  }
+
+  private jobs = new Map<string, () => Promise<void>>();
+
   private schedule(key: string, job: () => Promise<void>): void {
     this.waiting.add(key);
+    this.jobs.set(key, job);
     clearTimeout(this.timers.get(key));
     this.timers.set(key, window.setTimeout(() => this.run(key, job), DELAY));
   }

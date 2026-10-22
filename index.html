@@ -86,6 +86,7 @@
       </div>
 
       <div class="hint" id="hint">Kitaplığa dokun, yakından bak</div>
+      <button class="pill bosipucu" id="bosKitaplik" type="button" hidden>Kitaplığın boş · ＋ Yeni kitap</button>
 
       <div class="libload" id="libLoading" role="status" hidden><span class="spin" aria-hidden="true"></span>Kitaplığın yükleniyor…</div>
 
@@ -94,19 +95,28 @@
         <button class="ibtn" id="saveRetry" hidden>Tekrar dene</button>
       </div>
 
-      <div class="overlay" id="notFound" hidden>
-        <div class="card" role="dialog" aria-labelledby="nfTitle">
-          <b id="nfTitle">Kitaplık klasörü bulunamadı</b>
-          <p>Drive'ında çöpte olmayan bir <strong>Kitaplık</strong> klasörü arıyorum. Şunu yap:</p>
-          <ol>
-            <li>drive.google.com'da <strong>Drive'ım</strong>'ı aç (ana dizin).</li>
-            <li><strong>Yeni → Klasör</strong> ile adı tam olarak <strong>Kitaplık</strong> olan bir klasör oluştur.</li>
-            <li>İçine <strong>kitaplar</strong> adlı bir klasör aç; her kitap onun içinde bir klasör olacak.</li>
-            <li>Buraya dönüp <strong>Tekrar dene</strong>'ye bas.</li>
-          </ol>
+      <div class="overlay" id="kurulum" hidden>
+        <div class="card" role="dialog" aria-labelledby="kuTitle" aria-describedby="kuText">
+          <b id="kuTitle">Kitaplığını kur</b>
+          <p id="kuText"></p>
+          <p class="err" id="kuError" role="alert" hidden></p>
+          <label class="kutu" for="kuOrnek"><input type="checkbox" id="kuOrnek" checked> Örnek bir kitap da koy</label>
           <div class="row">
-            <button class="ibtn solid" id="nfRetry">Tekrar dene</button>
-            <button class="ibtn" id="nfSample">Örnek kitaplıkla devam et</button>
+            <button class="ibtn solid" id="kuKur">Kitaplığı kur</button>
+            <button class="ibtn" id="kuSample">Önce örnek kitaplıkla dene</button>
+          </div>
+          <p class="not" id="kuKilit" hidden>Kurulum için Google ile giriş yap.</p>
+        </div>
+      </div>
+
+      <div class="overlay" id="fullAccess" hidden>
+        <div class="card" role="dialog" aria-labelledby="faTitle">
+          <b id="faTitle">Tam erişim gerekiyor</b>
+          <p>Kitaplık klasörünü görebilmem için Drive'ına tam erişim izni gerekiyor. Düğmeye dokun, açılan Google penceresinde Drive iznini onayla.</p>
+          <p class="err" id="faError" role="alert" hidden></p>
+          <div class="row">
+            <button class="ibtn solid" id="faOpen">Tam erişimi aç</button>
+            <button class="ibtn" id="faSample">Örnek kitaplıkla devam et</button>
           </div>
         </div>
       </div>
@@ -172,6 +182,9 @@
               <select id="oFile" aria-label="Dosya seç"></select>
               <button class="o-sol" id="oSol" type="button" aria-pressed="false">Çözümü göster</button>
             </div>
+            <button class="o-cop" id="oCop" type="button" title="Dosyayı çöpe at" aria-label="Dosyayı çöpe at" hidden>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9.5 7V4.6h5V7M6.4 7l.9 12.4A1.6 1.6 0 0 0 8.9 21h6.2a1.6 1.6 0 0 0 1.6-1.6L17.6 7M10 11v6M14 11v6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
             <button class="o-foto" id="oFoto" type="button" title="Fotoğraf ekle" aria-label="Fotoğraf ekle">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4h6l1.6 2.4H20a1.6 1.6 0 0 1 1.6 1.6v10.4A1.6 1.6 0 0 1 20 20H4a1.6 1.6 0 0 1-1.6-1.6V8A1.6 1.6 0 0 1 4 6.4h3.4z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><circle cx="12" cy="13" r="3.8" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>
               <span>Fotoğraf ekle</span>
@@ -197,7 +210,8 @@
           </div>
           <div class="o-scrim" id="oScrim" hidden></div>
           <aside class="o-toc" id="oToc" hidden aria-label="İçindekiler">
-            <div class="o-tochead"><b>İçindekiler</b><button class="o-close" id="oTocClose" type="button" aria-label="İçindekileri kapat">×</button></div>
+            <div class="o-tochead"><b>İçindekiler</b><button class="o-tocedit" id="oTocEdit" type="button" aria-pressed="false" hidden>Düzenle</button><button class="o-close" id="oTocClose" type="button" aria-label="İçindekileri kapat">×</button></div>
+            <div class="o-tocdurum" id="oTocDurum" role="status" aria-live="polite" hidden></div>
             <nav class="o-toclist" id="oTocList"></nav>
           </aside>
         </div>

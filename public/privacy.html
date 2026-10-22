@@ -30,14 +30,13 @@
         <p>Defter is a personal study library that displays your documents as books in a 3D room. It is developed by Deniz Yarpınar. For privacy questions, contact <a href="mailto:yarpinardeniz@gmail.com">yarpinardeniz@gmail.com</a>.</p>
 
         <h3>1. Data accessed and why</h3>
-        <p>When you connect Google Drive, Defter reads your account display name and email address to show and remember the signed-in account. It accesses library folders, file names, identifiers, metadata and document contents to organise books, display PDFs, search, remember reading progress and save your changes.</p>
-        <p>In the current live version, actions you request can upload documents or photos, save pen annotations and library or reading settings, and move the app’s temporary conversion files to Drive’s trash. The separate preview also supports creating library folders and files, and moving selected library items to Drive’s trash; its new library features remain subject to a setup lock. Google handles sign-in; Defter does not receive your Google password. You can explore the sample library without connecting Drive.</p>
+        <p>When you connect Google Drive, Defter reads your account display name and email address to show and remember the signed-in account and choose its permission mode. It accesses library folders, file names, identifiers, metadata and document contents to organise books, display PDFs, search, remember reading progress and save your changes.</p>
+        <p>Actions you request can create library folders and files, upload documents or photos, save pen annotations and reading settings, and move selected library items to Drive’s trash. Google handles sign-in; Defter does not receive your Google password. You can explore the sample library without connecting Drive.</p>
 
         <h3>2. Google Drive permissions</h3>
         <ul>
-          <li><strong>Current live version — <code>drive</code>:</strong> the app requests this broad permission from anyone connecting Drive to read the existing “Kitaplık” library. It allows viewing and managing all files in that account’s Drive. Defter’s library operations are limited by its code to the library; the Google permission itself is broader.</li>
-          <li><strong>Separate preview, normal use — <code>drive.file</code>:</strong> access is limited to files created by Defter or explicitly made accessible to it. Add documents through the app; dragging an existing file into a folder in Drive does not by itself grant Defter access to that file. This narrower mode is not yet in the live version.</li>
-          <li><strong>Separate preview, owner mode — <code>drive</code>:</strong> the developer’s configured owner account can request the broader permission to use its existing library. The preview uses account information to choose the permission mode.</li>
+          <li><strong>Normal use — <code>drive.file</code>:</strong> access is limited to files created by Defter or explicitly made accessible to it. Add documents through the app; dragging an existing file into a folder in Drive does not by itself grant Defter access to that file.</li>
+          <li><strong>Owner mode — <code>drive</code>:</strong> the developer’s configured owner account can request the broader permission to use its existing library. This permission allows viewing and managing all files in that account’s Drive. Defter’s library operations are limited by its code to the library; the Google permission itself is broader.</li>
         </ul>
         <p>The Google consent screen shows the permission requested for your session. These permission modes are not a sharing setting for your documents.</p>
 
@@ -81,14 +80,13 @@
         <p>Defter, belgelerini 3D bir odada kitap olarak gösteren kişisel bir çalışma kitaplığıdır. Geliştiricisi Deniz Yarpınar’dır. Gizlilik soruları için iletişim: <a href="mailto:yarpinardeniz@gmail.com">yarpinardeniz@gmail.com</a>.</p>
 
         <h3>1. Hangi verilere, neden erişilir?</h3>
-        <p>Google Drive bağlandığında Defter, giriş yapılan hesabı göstermek ve hatırlamak için hesabının görünen adını ve e-posta adresini okur. Kitapları düzenlemek, PDF’leri göstermek, aramak, okuma durumunu hatırlamak ve değişikliklerini kaydetmek için kitaplık klasörlerine, dosya adlarına, kimliklerine, üst verilerine ve belge içeriklerine erişir.</p>
-        <p>Mevcut canlı sürümde istediğin işlemler belge veya fotoğraf yükleyebilir, kalem notlarını, kitaplık ve okuma ayarlarını kaydedebilir; uygulamanın geçici dönüşüm dosyalarını Drive çöpüne taşıyabilir. Ayrı önizleme sürümü ayrıca kitaplık klasörü ve dosyaları oluşturmayı ve seçilen kitaplık öğelerini Drive çöpüne taşımayı destekler; yeni kitaplık özelliklerinin kurulum kilidi devam eder. Girişi Google yönetir; Defter Google şifreni almaz. Drive’ı bağlamadan örnek kitaplığı deneyebilirsin.</p>
+        <p>Google Drive bağlandığında Defter, giriş yapılan hesabı göstermek, hatırlamak ve izin modunu seçmek için hesabının görünen adını ve e-posta adresini okur. Kitapları düzenlemek, PDF’leri göstermek, aramak, okuma durumunu hatırlamak ve değişikliklerini kaydetmek için kitaplık klasörlerine, dosya adlarına, kimliklerine, üst verilerine ve belge içeriklerine erişir.</p>
+        <p>İstediğin işlemler kitaplık klasörü ve dosyaları oluşturabilir, belge veya fotoğraf yükleyebilir, kalem notlarını ve okuma ayarlarını kaydedebilir, seçtiğin kitaplık öğelerini Drive çöpüne taşıyabilir. Girişi Google yönetir; Defter Google şifreni almaz. Drive’ı bağlamadan örnek kitaplığı deneyebilirsin.</p>
 
         <h3>2. Google Drive izinleri</h3>
         <ul>
-          <li><strong>Mevcut canlı sürüm — <code>drive</code>:</strong> uygulama, mevcut “Kitaplık” kitaplığını okuyabilmek için Drive’a bağlanan herkesten bu geniş izni ister. Bu izin o hesabın Drive’ındaki tüm dosyaları görmeye ve yönetmeye izin verir. Defter’in kitaplık işlemleri kodla kitaplıkla sınırlıdır; Google izninin kendisi daha geniştir.</li>
-          <li><strong>Ayrı önizleme, genel kullanım — <code>drive.file</code>:</strong> erişim, Defter’in oluşturduğu veya açıkça uygulamaya erişim verdiğin dosyalarla sınırlıdır. Belgeleri uygulamadan ekle; mevcut bir dosyayı Drive’da bir klasöre sürüklemek tek başına Defter’e o dosya için erişim vermez. Bu dar izin modu henüz canlı sürümde yoktur.</li>
-          <li><strong>Ayrı önizleme, sahip modu — <code>drive</code>:</strong> geliştiricinin tanımlı sahip hesabı, mevcut kitaplığını kullanmak için daha geniş izni isteyebilir. Önizleme, izin modunu seçerken hesap bilgisini kullanır.</li>
+          <li><strong>Genel kullanım — <code>drive.file</code>:</strong> erişim, Defter’in oluşturduğu veya açıkça uygulamaya erişim verdiğin dosyalarla sınırlıdır. Belgeleri uygulamadan ekle; mevcut bir dosyayı Drive’da bir klasöre sürüklemek tek başına Defter’e o dosya için erişim vermez.</li>
+          <li><strong>Sahip modu — <code>drive</code>:</strong> geliştiricinin tanımlı sahip hesabı, mevcut kitaplığını kullanmak için geniş izin isteyebilir. Bu izin, o hesabın Drive’ındaki bütün dosyaları görme ve yönetme yetkisi verir. Defter’in kitaplık işlemleri kod içinde kitaplıkla sınırlandırılmıştır; Google’dan alınan iznin kendisi daha geniştir.</li>
         </ul>
         <p>Oturumun için istenen izin Google’ın onay ekranında gösterilir. Bu izin modları belgelerini başkalarıyla paylaşma ayarı değildir.</p>
 

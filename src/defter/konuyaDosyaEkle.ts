@@ -11,7 +11,9 @@ import { mb, olc, zamanliDrive, type Olcum } from './sureOlcum';
 // Task 5.10c: "Dosya ekle" without UI: a ready PDF into the right place of one topic (CLAUDE.md → Faz 5 → Yeni dosya).
 // - orijinal → orijinal.pdf in the topic folder; ozet → ozet.pdf there (only if the topic has no summary at all)
 // - uebungen / oedevler → Uebungen/<ad>, Oedevler/<ad>; { cozumOf: X } → <X>_cozum.pdf next to X
-// - Same name → AyniIsimVar (createPdf checks it): nothing written over, nothing renamed. No folder is created.
+// - Same name → AyniIsimVar (createPdf checks it): nothing written over, nothing renamed.
+// - Task 6.K6a: a missing Uebungen / Oedevler is made by o.altKlasorAc (drive/altKlasorAc.ts, in a validated Drive context)
+//   before the file; without it (locked) → KlasorYok, no folder created.
 // - The bytes go as they are. Only a PDF with bytes before %PDF- is saved again with pdf-lib (a clean file).
 //   Encrypted / signed / unreadable PDFs are added, but the pen can't write them later: uyari 'kalemYazamaz'.
 // - islemId goes into appProperties.defterIslem: a later try with the same id that finds "its" file counts as done.
@@ -70,9 +72,7 @@ export function dosyaAdiHazirla(ad: string): string {
 
 // ---- pure: where it goes ----
 
-// The one place that decides what happens when Uebungen / Oedevler is missing (5.10e may change it).
-// For now: an error; no folder is created (only PDFs are created, CLAUDE.md → Faz 5).
-export const ALT_KLASOR_YOKSA = 'hata' as const;
+// Uebungen / Oedevler missing and no folder may be made (locked, task 6.K6a): an error, nothing written
 export function altKlasorYok(klasor: AltKlasor): never {
   throw new KlasorYok(klasor);
 }
@@ -128,6 +128,8 @@ export interface DosyaEklemeOrtami {
   liste?(parentId: string): Promise<DriveFile[]>;   // default: listChildren
   yeniDosya?(f: { id: string; modifiedTime: string; bytes: Uint8Array }): void | Promise<void>;
   konuDegisti?(): void;
+  // task 6.K6a: makes the missing subfolder (or finds it) and gives its id; missing → KlasorYok
+  altKlasorAc?(konuId: string, klasor: AltKlasor, islemId: string): Promise<string>;
 }
 
 export interface DosyaEkleIstek {
@@ -209,7 +211,15 @@ async function ekle(
     const y = hedefYeri(hedef, altAd, kok);
     ad = y.ad;
     if (y.klasor === 'kok') parentId = konu;
-    else parentId = (altKlasorBul(kok, y.klasor) ?? altKlasorYok(y.klasor)).id;
+    else {
+      const k = y.klasor, ac = o.altKlasorAc, mevcut = altKlasorBul(kok, k);
+      if (mevcut) parentId = mevcut.id;
+      else if (ac) {
+        // the folder first, then the file; a retry (same islemId) finds the folder, never a second one
+        parentId = await olc(om, 'alt klasör aç', () => ac(konu, k, islemId), { grup: 'istek' });
+        o.konuDegisti?.();
+      } else altKlasorYok(y.klasor);
+    }
   }
 
   let yeni;

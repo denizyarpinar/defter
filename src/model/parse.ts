@@ -111,8 +111,9 @@ function parseUnit(v: unknown, i: number): Unit {
   const o = isObj(v) ? v : {};
   return {
     baslik: str(o.baslik, `Ünite ${i + 1}`),
+    ...(typeof o.klasor === 'string' && o.klasor.trim() ? { klasor: o.klasor.trim() } : {}),
     konular: Array.isArray(o.konular) ? o.konular.map(parseTopic) : [],
-    extra: rest(o, ['baslik', 'konular'])
+    extra: rest(o, ['baslik', 'klasor', 'konular'])
   };
 }
 

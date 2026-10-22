@@ -1,5 +1,5 @@
 import { DriveError, SessionExpired } from '../drive/drive';
-import { PdfConflict, PdfReadOnly, PdfSampleNoWrite, PdfUploadSession, uploadPdf, type PdfDrive } from '../drive/pdfYazici';
+import { PdfConflict, PdfCopte, PdfReadOnly, PdfSampleNoWrite, PdfUploadSession, uploadPdf, type PdfDrive } from '../drive/pdfYazici';
 import { isSampleId } from '../okuma/ornekKaynak';
 import { applyDiff, isEmptyDiff, touchedPages, type PenDiff, type PendingRecord, type RemovedStroke } from './bekleyenFark';
 import type { PageStrokes } from './cizgi';
@@ -106,6 +106,7 @@ export class DriveUploader {
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
   private idleFiles = new Set<string>();
   private jobs = new Map<string, (() => Promise<void>)[]>();   // task 5.6: other writes per file (pages at the end)
+  private current: string | null = null;   // the file going now
   private readonly onOnline = () => { if (this.retry.size) void this.request([...this.retry]); };
 
   constructor(private deps: UploadDeps, private hooks: UploaderHooks,
@@ -119,6 +120,11 @@ export class DriveUploader {
   }
 
   get busy(): boolean { return this.running !== null; }
+
+  // Task 6.K6b: this file is waiting or going now (the trash dialog warns)
+  bekliyorMu(fileId: string): boolean {
+    return this.current === fileId || this.wanted.includes(fileId) || this.idleFiles.has(fileId) || this.jobs.has(fileId);
+  }
 
   // A change: the file is uploaded 30 s after the last one
   soon(fileId: string): void {
@@ -176,6 +182,7 @@ export class DriveUploader {
     let stopped = false;   // signed out: no more stroke uploads; jobs still run (they fail by themselves)
     while (this.wanted.length) {
       const fileId = this.wanted.shift()!;
+      this.current = fileId;
       const rec = stopped ? null : await this.hooks.record(fileId).catch(() => null);
       if (!rec || isEmptyDiff(rec)) {
         if (!stopped) this.retry.delete(fileId);
@@ -187,8 +194,12 @@ export class DriveUploader {
           await this.hooks.done(u);
           if (!last || last.tur === 'kaydedildi') { last = { tur: 'kaydedildi' }; lastId = fileId; }
         } catch (e) {
-          const d = describeError(e);
-          if (!d) {   // signed out: stop (only the files with a job stay in the queue)
+          const d = e instanceof PdfCopte ? undefined : describeError(e);
+          if (d === undefined) {
+            // task 6.K6b: the file is in Drive's trash: quietly skipped (no error, no retry); the record stays on the
+            // device and goes after "Geri al" (the file opened again)
+            this.retry.delete(fileId);
+          } else if (!d) {   // signed out: stop (only the files with a job stay in the queue)
             stopped = true;
             this.wanted = this.wanted.filter(id => this.jobs.has(id));
             last = { tur: 'bos' }; lastId = fileId;
@@ -204,6 +215,7 @@ export class DriveUploader {
       const jobs = this.jobs.get(fileId);
       this.jobs.delete(fileId);
       for (const job of jobs ?? []) await job();
+      this.current = null;
     }
     this.running = null;
     if (last) this.hooks.status(last, lastId);

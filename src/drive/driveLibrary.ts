@@ -1,11 +1,18 @@
 import type { LoadedLibrary } from '../model/localSource';
 import { parseBook, parseLibrary } from '../model/parse';
 import type { Book } from '../model/types';
-import { findRootFolders, listChildren, readJson, type DriveFile } from './drive';
+import { yarimKitapNedeni, type YarimNeden } from '../model/yarimKitap';
+import { listChildren, readJson, type DriveFile } from './drive';
+import { kurulumGerekli, type KurulumDugmesi } from '../ui/kurulumDurumu';
+import { driveKokApi, kokBul, ROOT_NAME, type KokDrive, type KokModu, type KokSonucu } from './kok';
 
-// Reads the "Kitaplık" folder from My Drive (see CLAUDE.md → Veri modeli). Reads only; never moves/deletes.
+// Reads the library's root folder (see CLAUDE.md → Veri modeli). Reads only; never moves/deletes.
+// Task 6.K2a: the root is found by kok.ts (narrow: the app's defterKok root; full: "Kitaplık" first).
+// Task 6.K2b: no root, or the app's own root half set up → LibraryNotFound (main.ts shows "Kitaplığını kur").
+// Task 6.K3: a sample book folder (defterOrnek) without its kitap.json is a half made sample: not shown.
+// Task 6.K4b-2: the same for a wizard book folder (defterIslem) without kitap.json (model/yarimKitap.ts).
 
-export const ROOT_NAME = 'Kitaplık';
+export { ROOT_NAME };
 const MAX_PARALLEL = 4;
 
 // Where things are in Drive, so changes can be written back.
@@ -17,12 +24,24 @@ export interface DriveLocation {
 }
 
 export class LibraryNotFound extends Error {
-  constructor() { super(`Drive'da "${ROOT_NAME}" klasörü bulunamadı.`); }
+  constructor(readonly kok: KokSonucu, readonly dugme: KurulumDugmesi) { super(`Drive'da "${ROOT_NAME}" klasörü bulunamadı.`); }
 }
+
+// The last root kokBul found (the ?olcum=1 box); null: not looked up yet
+let sonBulunan: KokSonucu | null = null;
+export const sonKok = (): KokSonucu | null => sonBulunan;
+
+// A half made book folder that was skipped
+export interface YarimKitap { ad: string; id: string; neden: YarimNeden }
+
+// The half made books the last load skipped (the ?olcum=1 box); null: not loaded yet
+let sonAtlanan: YarimKitap[] | null = null;
+export const sonYarimlar = (): YarimKitap[] | null => sonAtlanan;
 
 export interface DriveLoad extends LoadedLibrary {
   loc: DriveLocation;
   warnings: string[];
+  yarimlar: YarimKitap[];
 }
 
 // Run tasks with at most `n` at the same time.
@@ -32,12 +51,14 @@ async function pool<T>(items: T[], n: number, fn: (item: T) => Promise<void>): P
   await Promise.all(Array.from({ length: Math.min(n, items.length) }, worker));
 }
 
-export async function loadDriveLibrary(): Promise<DriveLoad> {
+export async function loadDriveLibrary(mod: KokModu, kokDrive: KokDrive = driveKokApi): Promise<DriveLoad> {
   const warnings: string[] = [];
-  const roots = await findRootFolders(ROOT_NAME);
-  if (!roots.length) throw new LibraryNotFound();
-  if (roots.length > 1) warnings.push(`Drive'ın ana dizininde ${roots.length} tane "${ROOT_NAME}" klasörü var; ilki kullanılıyor. Karışmaması için birini yeniden adlandır.`);
-  const rootId = roots[0].id;
+  const kok = sonBulunan = await kokBul(kokDrive, mod);
+  const dugme = kurulumGerekli(kok);
+  if (dugme || kok.tur === 'yok') throw new LibraryNotFound(kok, dugme ?? 'kur');
+  if (kok.uyari) warnings.push(kok.uyari);
+  const rootId = kok.kok.id;
+  const rootName = kok.kok.name;
 
   const children = await listChildren(rootId);
   const libFile = children.find(f => f.name === 'kitaplik.json' && !f.mimeType.endsWith('.folder'));
@@ -48,9 +69,10 @@ export async function loadDriveLibrary(): Promise<DriveLoad> {
 
   const loc: DriveLocation = { rootId, libraryFileId: libFile?.id ?? null, bookFolderIds: new Map(), bookFileIds: new Map() };
   const books = new Map<string, Book>();
+  const yarimlar: YarimKitap[] = sonAtlanan = [];
   if (!kitaplar) {
-    warnings.push(`"${ROOT_NAME}" klasöründe "kitaplar" klasörü yok. Kitapları göstermek için içine "kitaplar" adlı bir klasör aç.`);
-    return { library, books, loc, warnings };
+    warnings.push(`"${rootName}" klasöründe "kitaplar" klasörü yok. Kitapları göstermek için içine "kitaplar" adlı bir klasör aç.`);
+    return { library, books, loc, warnings, yarimlar };
   }
 
   const folders: DriveFile[] = [];
@@ -61,8 +83,11 @@ export async function loadDriveLibrary(): Promise<DriveLoad> {
   }
   await pool(folders, MAX_PARALLEL, async f => {
     const [file] = await listChildren(f.id, { name: 'kitap.json' });
+    const neden = yarimKitapNedeni(f.appProperties, !!file);
+    if (neden) { loc.bookFolderIds.delete(f.name); yarimlar.push({ ad: f.name, id: f.id, neden }); return; }
     if (file) loc.bookFileIds.set(f.name, file.id);
     books.set(f.name, parseBook(f.name, file ? await readJson(file.id, `${f.name}/kitap.json okunurken`) : null));
   });
-  return { library, books, loc, warnings };
+  yarimlar.sort((a, b) => a.ad.localeCompare(b.ad));
+  return { library, books, loc, warnings, yarimlar };
 }

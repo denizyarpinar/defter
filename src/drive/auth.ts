@@ -1,6 +1,9 @@
 // Google sign-in with the GIS token client. The access token lives only in memory (never localStorage).
+// Task 6.K1: the permission (drive.file or full drive) is chosen per request (kapsam.ts); the token's own
+// scope list decides the active mode, kept here in one place.
 
-const SCOPE = 'https://www.googleapis.com/auth/drive';
+import { KAPSAM_DAR, KAPSAM_TAM, kapsamOku, type AktifKapsam } from './kapsam';
+
 const GIS_SRC = 'https://accounts.google.com/gsi/client';
 
 export type AuthErrorCode = 'no-client-id' | 'load-failed' | 'popup-blocked' | 'popup-closed' | 'denied' | 'unknown';
@@ -36,6 +39,13 @@ let token: { value: string; expiresAt: number } | null = null;
 let pending: { resolve: (t: string) => void; reject: (e: AuthError) => void } | null = null;
 let gisLoading: Promise<void> | null = null;
 
+// what the current token allows; what was asked last; whether earlier grants are included (?kapsam=dar: no)
+let aktif: AktifKapsam | null = null;
+let scopes: string[] = [];
+let istenen: AktifKapsam = 'dar';
+let dahilEt = true;
+let sahip: boolean | null = null;
+
 function loadGis(): Promise<void> {
   if (window.google?.accounts?.oauth2) return Promise.resolve();
   gisLoading ??= new Promise<void>((resolve, reject) => {
@@ -55,11 +65,14 @@ export async function prepareAuth(): Promise<void> {
   await loadGis();
   client ??= google.accounts.oauth2.initTokenClient({
     client_id: clientId,
-    scope: SCOPE,
+    scope: KAPSAM_DAR,   // each request overrides it
     callback: r => {
       const p = pending; pending = null;
-      if (r.error || !r.access_token) { p?.reject(new AuthError('denied')); return; }
+      const k = r.access_token ? (google.accounts.oauth2.hasGrantedAllScopes(r, KAPSAM_TAM) ? 'tam' : kapsamOku(r.scope)) : null;
+      if (r.error || !r.access_token || !k) { p?.reject(new AuthError('denied')); return; }
       token = { value: r.access_token, expiresAt: Date.now() + r.expires_in * 1000 };
+      aktif = k;
+      scopes = (r.scope ?? '').split(/\s+/).filter(Boolean);
       p?.resolve(r.access_token);
     },
     error_callback: e => {
@@ -71,14 +84,34 @@ export async function prepareAuth(): Promise<void> {
 
 // Opens the Google popup (first time: account + permission; later usually closes by itself).
 // hint: e-mail of the remembered account; chooseAccount: show Google's account list.
-export async function signIn(opts: { hint?: string; chooseAccount?: boolean } = {}): Promise<string> {
+// kapsam: the permission to ask for; without it the active one (a new token never silently drops to drive.file).
+// includeGranted: false only with ?kapsam=dar; kept for the later requests (token renewal) too.
+export async function signIn(opts: { hint?: string; chooseAccount?: boolean; kapsam?: AktifKapsam; includeGranted?: boolean } = {}): Promise<string> {
   await prepareAuth();
   pending?.reject(new AuthError('unknown'));
+  istenen = opts.kapsam ?? aktif ?? istenen;
+  if (opts.includeGranted !== undefined) dahilEt = opts.includeGranted;
   return new Promise<string>((resolve, reject) => {
     pending = { resolve, reject };
-    client!.requestAccessToken({ prompt: opts.chooseAccount ? 'select_account' : '', ...(opts.hint ? { login_hint: opts.hint } : {}) });
+    client!.requestAccessToken({
+      prompt: opts.chooseAccount ? 'select_account' : '',
+      ...(opts.hint ? { login_hint: opts.hint } : {}),
+      scope: istenen === 'tam' ? KAPSAM_TAM : KAPSAM_DAR,
+      include_granted_scopes: dahilEt
+    });
   });
 }
+
+export const aktifKapsam = (): AktifKapsam | null => aktif;
+
+// set after about.get: the signed-in account is the owner (VITE_SAHIP_EPOSTA, ?sahip=0 → false)
+export function setSahip(s: boolean | null): void {
+  sahip = s;
+}
+
+// For the ?olcum=1 box
+export const kapsamDurumu = (): { aktif: AktifKapsam | null; scopes: string[]; sahip: boolean | null; dahilEt: boolean } =>
+  ({ aktif, scopes: [...scopes], sahip, dahilEt });
 
 // "Signed in before" (name + e-mail only, never the token) so a reload can offer one-tap "continue".
 export interface RememberedUser { name: string; email: string }
@@ -108,6 +141,7 @@ export const isSignedIn = () => token !== null;
 export function signOut(): void {
   const t = token?.value;
   token = null;
+  aktif = null; scopes = []; istenen = 'dar'; sahip = null;
   if (t && window.google?.accounts?.oauth2) google.accounts.oauth2.revoke(t);
 }
 

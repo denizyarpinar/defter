@@ -1,6 +1,7 @@
 # Defter – sanal kitaplık uygulaması
 
 Bu dosya Claude Code'un her oturumda okuduğu proje kurallarıdır. Değiştirmeden önce Deniz'e sor.
+Durum ve sıradaki adım: docs/DURUM.md (Codex de aynı dosyayı kullanır).
 
 ## Kim için, ne yapıyoruz
 - Sahibi: Deniz (Uni Bremen Informatik, 1. dönem). İlk gerçek Claude Code projesi; programlamaya yeni başlıyor.
@@ -63,7 +64,7 @@ Kitaplık/
 
 ## Değişmez kurallar
 - Uygulama Drive'daki dosyaları **kopyalamaz, taşımaz, silmez**. Faz 1'de sadece `kitaplik.json` ve `kitap.json` içindeki `kapak` alanı yazılabilir. Faz 5'ten itibaren: `kitaplar/<kitap>/` altında yeni PDF oluşturma ve PDF'in sonuna sayfa ekleme izinli (bkz. Faz 5).
-- Tek istisna: Kitaplık/ klasöründe kitaplik.json yoksa ilk raf/oda değişikliğinde bir kez oluşturulur. Başka hiçbir dosya oluşturulmaz; tek ek istisna Faz 5'teki PDF oluşturma kuralıdır.
+- Tek istisna: Kitaplık/ klasöründe kitaplik.json yoksa ilk raf/oda değişikliğinde bir kez oluşturulur. Başka hiçbir dosya oluşturulmaz; tek ek istisna Faz 5'teki PDF oluşturma kuralıdır. Uygulamanın kendi kökü (kurulum) için bkz. Faz 6.K.
 - Yazmadan önce dosyanın son halini oku (başka cihazda değişmiş olabilir).
 - Erişim token'ını localStorage'a yazma; bellekte tut. `.env.local` git'e girmez.
 - Hata mesajları Türkçe, kullanıcıya ne yapacağını söyler ("Drive'da Kitaplık klasörü bulunamadı. Klasörü ana dizine yükle ve yenile.").
@@ -128,7 +129,7 @@ Kitaplık/
 
 ### Yazılan alanlar (Faz 3)
 - kitaplik.json: raflar ve oda (Faz 1'deki gibi).
-- kitap.json: kapak, sonAcilis, kurdele, uniteler[].konular[].durum ve .kurdeleler (surum 1: kurdele ({ bolum, sayfa }), bolumler[].durum). Başka alana dokunma; bilinmeyen alanları koru. Yazmadan önce dosyanın son halini oku, sadece bu alanları güncelle.
+- kitap.json: kapak, sonAcilis, kurdele, uniteler[].konular[].durum ve .kurdeleler (surum 1: kurdele ({ bolum, sayfa }), bolumler[].durum). 6.K5a: ayrıca uniteler[].baslik/.klasor, konuların başlığı ve sırası, yeni ünite/konu (bkz. İçindekiler düzenleme). Başka alana dokunma; bilinmeyen alanları koru. Yazmadan önce dosyanın son halini oku, sadece bu alanları güncelle.
 
 ### Okuma durumu ve kurdele (Görev 3.5)
 - Durum değerleri: `okunmadi` (Okunmadı), `okunuyor` (Okunuyor), `okundu` (Okundu), `calisildi` (Çalışıldı), `tekrar` (Tekrar). Duruma dokununca bu sırayla döner.
@@ -151,7 +152,8 @@ Kitaplık/
 - Kalem ve çizimler: Faz 4 kurallarına bak (aşağıda).
 
 ### Veri modeli (kitap.json surum 2)
-- `kitap.json`: `{ surum: 2, baslik, sirt, kod, ders, kapak, sonAcilis, kurdele, uniteler: [ { baslik, konular: [ { baslik, klasor, durum, kurdeleler? } ] } ] }`.
+- `kitap.json`: `{ surum: 2, baslik, sirt, kod, ders, kapak, sonAcilis, kurdele, uniteler: [ { baslik, klasor?, konular: [ { baslik, klasor, durum, kurdeleler? } ] } ] }`.
+- `uniteler[].klasor` (6.K5a, isteğe bağlı): ünitenin klasörü (ör. `Unite-03-Graphen`). Sihirbaz ve içindekiler düzenleme yazar; yoksa konuların yolundan çıkarılır.
 - `klasor` kitabın klasörüne göre yoldur (ör. `Unite-01-Logik/Konu-01-Aussagenlogik`). Dosyalar kitap.json'da tek tek yazılmaz; konu klasörüne bakılarak bulunur.
 - Konu klasörü (dosya adları büyük/küçük harf duyarsız, ASCII):
   - Orijinal: `orijinal.pdf`
@@ -170,6 +172,10 @@ Kitaplık/
 - Uygulamanın notları özel `/DefterId` anahtarıyla (ve /T "Defter") işaretlenir. Sadece /DefterId işaretli Ink annotation'lar eklenir/değişir/silinir. Sayfa içeriği, başka notlar, form alanları, metadata ve sayfa sırası korunur (Faz 5: sadece sona yeni sayfa eklenebilir). İmzalı PDF'e yazılmaz.
 - Çizgi şekli tek kaynak: `src/kalem/cizgiSekli.ts`. Kalem = perfect-freehand dış hattı, dolgu; fosforlu = orta noktalardan yumuşatılmış eğri, sabit kalınlık. Canlı çizim, okuma katmanı ve /AP aynı fonksiyonu kullanır. /AP kalemde dış hat dolgu (f), fosforluda yumuşak eğri (S). /InkList merkez çizgi olarak kalır.
 - Apple Pencil basıncı `basinc` (nokta başına 0–1, 2 ondalık) PDF'te `/DefterBasinc` dizisinde; basınç yoksa (fare, parmak) hızdan tahmin edilir.
+- 6.H2b (Deniz kararı): düz basınç (en çok − en az < 0.02, ör. ESR kalem hep 0.12) = basınç yok → kalemde sabit kalınlık (seçilen kalınlık, hız tahmini yok). Düz basınç `/DefterBasinc`'e yine yazılır (basınçsız kalem işareti); eski 0.12'li çizgiler de sabit çizilir. Fare/parmak (basınç hiç yok) hızdan tahminle kalır. Karar: `hasRealPressure` (`cizgiSekli.ts`).
+- 6.H2b: perfect-freehand 1/16 pt biriminde çalışır (sabit uzunlukları pt'de çok büyüktü: uçlarda 2–3.6 pt düz parça); uçta yuvarlak başın kapladığı kanca noktaları çizimde atlanır. Canlı çizim bitmiş hâliyle çizilir (kalkınca şekil değişmez).
+- 6.H2b nokta kuralları (`koordinat.ts`): adım ≤ 1 ekran px, en çok 0.5 pt (`minStep`); noktalar 0.01 pt'ye yuvarlanır; pointerup noktası son nokta olarak eklenir (basıncı son basınç); son alınan noktadan eski (ya da aynı zaman + aynı yer) coalesced/move atılır (`EventOrder`; iPad'de aynı move iki kez geldi).
+- 6.H2b fosforlu: merkez eğri 0.5 pt'lik kısa düz parçalarla stroke edilir (SVG `L`, /AP `l`, round cap/join); sıkı kıvrımda katlanma deliği olmasın diye. Dev: `?kalemTest=1` eski/yeni karşılaştırma, `node scripts/kalem-test-kontrol.mjs` ekran görüntüleri.
 - Kalemin opaklığı her zaman 1, fosforlununki 0–1 arası (1 hariç).
 
 ### Okuma modu
@@ -222,7 +228,7 @@ Kitaplık/
 ### Dosya ekle (5.10)
 - Okuyucudaki "Dosya ekle": dosya sadece açık konunun klasörüne (`kitaplar/<kitap>/` altında) ve sadece PDF olarak eklenir. Görsel → tek sayfalı PDF; birden çok görsel → tek PDF (sırala/sil/+, kırpma yok). Kod: `src/defter/dosyaTuru.ts`, `dosyaHazirla.ts`, `konuyaDosyaEkle.ts`, `src/ui/dosyaPanel.ts`.
 - Hedefler: Übungen (`Uebungen/`), Ödevler (`Oedevler/`), Çözüm (`X_cozum.pdf`, `X.pdf`'in klasörüne), Orijinal (sadece `orijinal.pdf` yoksa), Özet (sadece hiç özet yoksa; tek `brifing.pdf` de özet sayılır).
-- Klasör oluşturulmaz: `Uebungen/` ya da `Oedevler/` yoksa o hedef gri (seçilemez); yine de istenirse hata (KlasorYok).
+- `Uebungen/` ya da `Oedevler/` yoksa 6.K6a'dan beri ilk dosyada açılır (bkz. Faz 6.K6a). 6.K8b ile URL kilidi kaldırıldı; kök/ebeveyn doğrulaması korunur. Geçerli Drive bağlamı yoksa hedef gri; doğrudan istenirse KlasorYok, yazma yok.
 - Aynı ad (büyük/küçük harf duyarsız) = uyarı; üzerine yazılmaz, otomatik yeniden adlandırma yok; kullanıcı adı değiştirir. `_cozum` ile biten ad Übungen/Ödevler'e normal dosya olarak eklenmez (AdCozumGibi).
 - Kilit: aynı sekmede aynı konu + hedef + ad için aynı anda tek ekleme (kilitAnahtari → EklemeSuruyor).
 - islemId: hedef + ad (+ görsel listesi) için bir kez üretilir, bunlar değişmedikçe aynı kalır; `appProperties.defterIslem`'e yazılır. Tekrar denemede aynı ad + aynı islemId + aynı boyut → "zaten eklenmiş" (çift dosya yok). generateIds ile önceden alınan id kuralı (5.5) aynen geçerli.
@@ -313,6 +319,113 @@ Kitaplık/
 - `window.defterDizinOlc(kelime)` (`src/arama/dizinOlc.ts`): her 30 sn fullText (her turda yeni ağaç), en fazla 30 dk; ilk bulunduğu an + geçen süre (başlangıçtan ve dosyanın modifiedTime'ından). `.dur()` durdurur. Deneme dosyası: `node scripts/dizin-deneme-uret.mjs` → `dizin-deneme.pdf` ("Zebrafink4711").
 - `window.defterAramaDene(q)`, `defterAramaHepsi()` (6.3a keşif).
 
+## İzin modu (6.K1)
+- Not: varsayılan kapsam `drive.file`; sahip hesabı (`VITE_SAHIP_EPOSTA`, .env.local + Vercel Production/Preview) tam `drive` ister. Değişken yoksa herkes `drive.file`. Bu güvenlik değil, sadece hangi iznin isteneceğini seçer.
+- Karar ve aktif kapsam: `src/drive/kapsam.ts` (saf, testli) ve `src/drive/auth.ts` (token'daki scope → `aktifKapsam()`; token yenilenirken aktif kapsam korunur).
+- Sahip + `drive.file` → "Tam erişim gerekiyor" kartı; popup sadece "Tam erişimi aç" dokunuşunda açılır.
+- Deneme anahtarları: `?kapsam=dar` (sadece drive.file, eski izinler dahil değil), `?sahip=0` (sahip değil gibi). `?olcum=1` kutusu kapsam, sahip ve scope listesini gösterir.
+- Kök bulma, yazma ve kurulum bu adımda değişmedi (K2 ve sonrası).
+
+## Faz 6.K — Kendi kökü ve kurulum
+
+### Kural istisnası (6.K2a, Deniz kararı)
+- Uygulama klasör ve yeni JSON dosyası (kitaplik.json, ileride kitap.json) oluşturabilir – SADECE kendi kökü (appProperties `defterKok=1`) altında ve SADECE kullanıcı düğmeye basınca.
+- Oluşturulan her şeyde appProperties `{ defter: '1', defterIslem: <islemId> }` (kökte ayrıca `defterKok: '1'`).
+- Önce "var mı" kontrolü, çift oluşturma yok. `files.delete` asla. Mevcut dosya/klasörlere (ör. eski "Kitaplık") yazılmaz, işaret de eklenmez.
+
+### Kökü bulma (`src/drive/kok.ts`, saf seçim testli)
+- Dar mod (`drive.file`): sadece `appProperties has { key='defterKok' and value='1' }` klasörü. Ad araması yapılmaz.
+- Sahip modu (`aktifKapsam() === 'tam'`): önce eski adla "Kitaplık" (davranış aynen: ilki + çoklu uyarısı); yoksa defterKok araması. Dar testte açılan "Defter Library" gerçek Kitaplık'ı gölgelemez.
+- Sonuç: `bulundu` (kaynak `defterKok` | `ad`) · `yok` · `cokKok` (en eski createdTime + uyarı) · `yarim` (kök var, `kitaplar/` ya da `kitaplik.json` eksik). Kökü bulma sadece GET (`saltOkunurFetch`).
+
+### Kurulum (`src/drive/kurulum.ts`, testli)
+- `kitaplikKur`: "Defter Library" (Drive kökünde) → `kitaplar/` → `kitaplik.json` (en son = kurulum tamam). `yarim` durumda sadece eksikler.
+- Yazma sadece `yok` ya da defterKok kaynaklı `yarim` durumda. Sahibin eski "Kitaplık"ı bulunursa (tam ya da yarım) hiçbir şey yazılmaz: `{ zatenVardi: true, kaynak: 'ad' }`. Sahip tam izindeyken ikinci kök oluşmaz.
+- kitaplik.json içeriği: bugünkü varsayılan (5 boş raf "Raf 1…5", varsayılan oda), `parseLibrary` ile okunur.
+- Çift koruması: önce ebeveynde `defterIslem` araması; `files.generateIds` ile önceden alınan id, tekrar denemede aynı id (409 = var; ad + defterIslem doğrulanır). generateIds çalışmazsa her tekrardan önce defterIslem araması.
+- Korumalar: 6.K8b itibarıyla URL şartı yok; işlem bağlamı uygun değilse `KurulumKilitli`, hiç istek yok; girişli ve örnek kitaplık değil (yoksa `KurulumYazmaYok`). Hatalar: `KurulumIzinYok`, `KurulumAgHatasi`, `KurulumBeklenmedik`.
+- Dev (sadece `npm run dev`): `window.defterKokDurumu()` (salt okunur), `window.defterKurulumDene(islemId?)` (URL şartı yok; girişli ve yazılabilir bağlam şart). Örnek kitap K3'te.
+
+### "Kitaplığını kur" kartı (6.K2b)
+- Eski "Kitaplık bulunamadı" kartının yerine. Kök yok → "Kitaplığı kur"; defterKok kökü yarım (ya da cokKok'ta en eskisi yarım) → "Kurulumu tamamla". Sahibin eski "Kitaplık"ı (yarım da olsa) eskisi gibi yüklenir.
+- Öncelik: sahip `drive.file` ile girdiyse "Tam erişim gerekiyor" kartı. Karar saf: `kartSec` (`src/ui/kurulumDurumu.ts`, testli).
+- 6.K8b: URL parametresi gerekmez; kurulum sadece kullanıcı düğmeye basınca başlar. Girişsiz/örnek kitaplıkta ve işlem sürerken istek başlamaz.
+- islemId kart açılınca bir kez üretilir (`KurulumAkisi`); Tekrar dene aynı islemId. Kurulum sürerken düğmeler kapalı.
+- Başarı → kitaplık yüklenir + "Kitaplığın hazır." Hata → kartta kurulum.ts mesajı + Tekrar dene; `KurulumIzinYok` → "Tekrar giriş yap". cokKok uyarısı sayfa başına bir toast; `?olcum=1` kutusunda `kök:` satırı.
+- Ekran görüntüleri: `node scripts/kurulum-karti-kontrol.mjs` (giriş ve Drive yok).
+
+### Örnek kitap (6.K3)
+- Kartta "Örnek bir kitap da koy" kutusu (varsayılan işaretli, kurulum sürerken kapalı). İşaretliyse kurulum örnek kitaplıktaki `programlamaya-giris` kitabını (telifsiz demo PDF'ler, `npm run demo-pdf`) `kitaplar/programlamaya-giris/` altına koyar. Telifli PDF asla kullanılmaz.
+- Kaynak: build'deki `ornek/index.json` (`klasorler`) + `ornek/kitaplar/programlamaya-giris/kitap.json` + `demo/*.pdf` (aynı origin, `fetch`). kitap.json'da durumlar `okunmadi`, `kurdele` ve `sonAcilis` null; diğer alanlar aynen.
+- Sıra: kök → `kitaplar/` → örnek (kitap klasörü → alt klasörler → PDF'ler → en son kitap.json) → `kitaplik.json` (örnek başarılıysa Raf 1'de). Düğmede ilerleme: "Kuruluyor… (örnek kitap 7/18)".
+- Her örnek öğesinde appProperties `{ defter: '1', defterIslem, defterOrnek: '1' }`. Örnek öğeleri islemId'ye değil `defterOrnek`'e göre aranır; "Kurulumu tamamla" eksikleri tamamlar, çift oluşturmaz. Aynı adda işaretsiz öğe varsa dokunulmaz (`OrnekAdDolu`).
+- Örnek hatası kurulumu durdurmaz: `kitaplik.json` örneksiz yazılır, sonuç `ornekHata`, toast "Örnek kitap eklenemedi".
+- Yarım örnek (defterOrnek klasörü, kitap.json yok) kitaplıkta sessizce atlanır (`driveLibrary.ts`); kullanıcının kitap.json'suz klasörleri eskisi gibi gri kapakla görünür. 6.K4b-2: yarım sihirbaz kitabı (defterIslem klasörü, kitap.json yok) da aynı yerde atlanır; kural tek yerde: `yarimKitapNedeni` (`src/model/yarimKitap.ts`).
+- Kod: `src/drive/kurulum.ts` (`ornekKitapKur`, `ornekPlani`, `webOrnekKaynak`; testli). Dev: `window.defterKurulumDene(islemId?, ornek = true)`.
+
+### Kitap sihirbazı (6.K4a)
+- Özelleştir → "＋ Yeni kitap" (sadece Drive kitaplığında; örnek kitaplıkta yok). Boş Drive kitaplığında oda ipucunun yerinde "Kitaplığın boş · ＋ Yeni kitap".
+- Alanlar: kitap adı, raf (mevcut raflar), renk (`COVER_SWATCHES`), satır satır liste + canlı önizleme ağacı (+ / ↑ / ↓ metni `listeYaz` ile yeniden yazar).
+- Liste: `# Ünite` satırı + altındaki konular; boş satır sayılmaz; konuda baştaki `- `, `* `, `• `, `1.`, `1)` silinir; ilk `#`'ten önceki konular "Genel" + uyarı. Sınırlar 30 ünite / 50 konu / 80 karakter (aşılırsa Oluştur kapalı); aynı konu adı ve konusuz ünite sadece uyarı.
+- Klasör adları: `Unite-NN-<ad>`, `Konu-NN-<ad>`; konu numarası kitap boyunca artar (programlamaya-giris gibi). ASCII (ä→ae, ö→oe, ü→ue, ß→ss, ğ→g, ı→i, ş→s, ç→c, İ→I), işaretler → `-`, en fazla 40 karakter. Kitap id = küçük harf (`mathe-1`); var olan id ile çakışma = Oluştur kapalı, otomatik `-2` yok.
+- Plan (`kitapPlani`): kitap klasörü → ünite klasörleri → konu klasörleri → kitap.json → raf kaydı (kitaplik.json). Uebungen/Oedevler açılmaz (K6). Renk kitap.json `kapak.renk`'te, raf kitaplik.json'da.
+- K4a'da Drive'a hiçbir şey yazılmadı; Oluştur K4b'de açıldı (aşağıda). `?olcum=1`: planın listesi kartta + Kopyala.
+- Kod: `src/kitap/kitapListesi.ts`, `klasorAdi.ts`, `kitapPlani.ts` (saf, testli), `src/ui/kitapSihirbaziDurumu.ts` (saf, testli), `src/ui/kitapSihirbazi.ts`. Ekran görüntüleri: `node scripts/kitap-sihirbazi-kontrol.mjs`.
+
+### Kitap oluşturma (6.K4b)
+- 6.K8b: Oluştur URL parametresi gerektirmez; girişli Drive bağlamı ve doğrulanmış kök gerekir (6.K4c'den beri sahibin "Kitaplık"ında da; aşağıya bak). Örnek kitaplıkta sihirbaz yok.
+- Sıra: kitap klasörü (`kitaplar/` altında) → ünite → konu klasörleri → kitap.json (surum 2) → kitaplik.json raf kaydı. Her öğede appProperties `{ defter: '1', defterIslem }`; id'ler işlem başında generateIds ile bir kez alınır, islemId ile bellekte (`KitapIslemi`; cihazda saklanmaz).
+- Tekrar dene: aynı islemId + aynı id'ler; başta defterIslem araması, daha önce denenen öğede id ile get, 409 = var → kaldığı yerden, çift yok.
+- Güvenlik: `kitaplar/` altında aynı adlı (bu işlemin olmayan) klasör → hiçbir şey yazılmaz: `AyniKitapVar`, defter=1 ve kitap.json yoksa `YarimKitapVar` ("Yarım kalmış bir kitap var"). Var olan klasörün içine yazılmaz.
+- Raf kaydı: modifiedTime → son kitaplik.json → id hiçbir rafta yoksa seçilen rafa (yoksa ilk rafa) eklenir → modifiedTime tekrar; değiştiyse bir kez baştan, yine değiştiyse `RafKaydiCakisma`. Bilinmeyen alanlar korunur. Bekleyen raf değişikliği varsa Oluştur başlamaz.
+- Hata: sihirbaz açık, metin + Tekrar dene (izin hatasında "Tekrar giriş yap"); alanlar kilitli kalır. Oluşturma sürerken Vazgeç/Esc/dışa dokunma kapalı. Başarı: sihirbaz kapanır, kitaplık yeniden yüklenir, toast "Kitap oluşturuldu: <ad>".
+- Yarım kitap (6.K4b-2): defterIslem'li, kitap.json'suz kitap klasörü kitaplıkta ve arama ağacında görünmez (ağaç sadece kitaplıktaki kitapların klasörlerini tarar: `agacKitapKlasorleri`). Sihirbazda aynı ad plan engeline takılmaz; Drive kontrolü `YarimKitapVar` der ("…Başka bir ad seç; yarım klasör daha sonra çöpe atılabilir."), hiçbir şey yazılmaz. `?olcum=1` kutusunda `yarım kitap:` satırı (sayı, ad, neden, id).
+- 6.K4b-3: mesaj alanı (`.ks-neden`) yapışkan alt satırda (geniş: Vazgeç/Oluştur'un solunda; ≤ 600 px: üstünde), en çok 3 satır, `aria-live`; ad hatasında (plan engeli, `AyniKitapVar`, `YarimKitapVar`) Kitap adı kutusu kırmızı çerçeve. `#kitapSihirbazi` `box-sizing: border-box` (klavye takibinin yüksekliğine dolgu eklenmesin).
+- Sahip kitaplığı (6.K4c): 6.K8b itibarıyla URL şartı olmadan adla bulunan "Kitaplık"a da yazılır, sadece kökün `kitaplar/` klasörü altına. `kitaplar/` ve `kitaplik.json` kökün çocukları arasında adla bulunur (sahibinkiler işaretsiz). `kitaplar/` yoksa hiçbir şey yazılmaz (`KitaplikYapisiBeklenmedik`, klasör oluşturulmaz). Sahipte `kitaplik.json` yoksa oluşturulmaz: raf adımı atlanır, kitap "Yeni gelenler"de (toast + olcum `raf: yok`); kendi kökümüzde bu yine hata. Her oluşturmadan önce ebeveyn = kökün `kitaplar/`'ı ya da bu işlemin klasörü (`ebeveynGecerliMi`). İşaretsiz aynı adlı klasör = `AyniKitapVar`; yarım kitap kuralı ve hasUnsaved koruması aynen. kitaplik.json'da olup klasörü olmayan (çöpteki) kitap id'si sessizce atlanır, dosyadan silinmez; sihirbaz aynı id'yi seçilen raftan başka bir rafta bulursa eski kaydı oradan alır (6.K5b).
+- Kod: `src/drive/kitapOlustur.ts` (testli), `OlusturAkisi`/`olusturHatasi` (`kitapSihirbaziDurumu.ts`, testli). Dev (DEV ya da `?olcum=1`): `window.defterSihirbazHata = n` → n'inci öğede yazmadan önce yapay ağ hatası (−n: yazdıktan sonra, cevap kayıp), bir kez; `?olcum=1` kutusunda işlem özeti (islemId, n/N, vardı).
+
+### İçindekiler düzenleme (6.K5a)
+- Okuyucudaki İçindekiler panelinde "Düzenle" (sadece Drive kitaplığı, sadece surum 2 + kitap.json; surum 1 / kitap.json yok → gri + not; örnek kitaplıkta düğme yok). 6.K8b: yazma URL şartı olmadan (dar ve sahip modu aynı), yalnız geçerli Drive/kök bağlamında kullanıcı işlemiyle yapılır; bağlam yoksa istek gitmez.
+- İşlemler: + Ünite, + Konu (ünite altında), ad değiştir (✎ / çift dokunuş; kural `adTemizle`, `kitapListesi.ts`), ↑↓ (konu kendi ünitesinde, üniteler). Taşıma, silme, çöpe atma yok (K5b).
+- Ad ve sıra SADECE kitap.json'da; Drive klasör adı ve yeri değişmez. Bellek hemen değişir (iyimser); ↑↓ 800 ms içinde tek yazma. Ekleme iyimser değil: klasör + kitap.json yazılınca görünür, o sırada "Ekleniyor…".
+- Yeni ünite/konu = yeni klasör (kitapOlustur desenleri: generateIds, `defter=1` + `defterIslem`, islemId ile "var mı", 409 = var, Tekrar dene kaldığı yerden). Ünite → kitap klasörüne, konu → o kitabın ünite klasörüne; kitap klasörü kökün `kitaplar/`'ında olmalı (`ebeveynGecerliMi`, `ebeveyn.ts`).
+- Numara: kitap.json'daki ve Drive'daki (yarım dahil) klasörlerin en büyüğü + 1; Konu-NN kitap boyunca; aynı ad → sonraki numara (`klasorNumarasi.ts`). Uebungen/Oedevler açılmaz.
+- Klasörü bilinmeyen eski boş ünite: kitap klasöründe, `defter=1`, başka ünitenin kullanmadığı, adı tam `klasorAdi('unite', sıra, başlık)` olan TEK klasör kullanılır ve kitap.json'a `klasor` olarak yazılır; yoksa "+ Konu" gri + not (`uniteKlasoruBul`).
+- kitap.json: önce okuma kaydı ve kapak kaydı bekleyenleri yazılır (`reading.flush`, `DriveSaver.bekleyenleriYaz`) → modifiedTime → son hal → değişiklik (`icindekilerUygula`; bilinmeyen alanlar, kurdeleler, kapak, durum korunur) → modifiedTime; değiştiyse bir kez baştan, sonra `IcindekilerCakisma`. Klasör önce, kitap.json en son. Ünite/konu anahtarla eşleşir (konu: `topicKey` = klasor; ünite: klasor ya da başlık).
+- Hata: panelin üstünde durum satırı (Kaydediliyor…/Kaydedildi/hata + Tekrar dene / izinde Tekrar giriş yap / Vazgeç); kuyruk sırayla, hatada bekler. Başarıda arama ağacı geçersiz, masadaki sayfa yeniden çizilir.
+- 6.K5a-2: Tekrar dene ilk denemeyle aynı yoldan geçer (`src/ui/icindekilerBaglami.ts`, testli): bellek → arama ağacı + masadaki sayfa → panel. Okuyucu kuyruğu her zaman dinler (düzenleme modu kapalıyken de). Yenileme hatası yazılmış işi "hata" yapmaz. Vazgeç (ad/sıra) → kitap.json son hali (`kitabiEsitle`: sadece ad ve sıra; bekleyen değişiklikler üstüne), okunamazsa işlem öncesi (`geri`). `?olcum=1` → `içindekiler:` satırı (son olaylar).
+- 6.K5b-3: masadaki İçindekiler sayfasında "İçindekileri düzenle" (Düzenle ile aynı kural, `duzenleKarari`; örnek kitaplıkta yok; konulu kitapta da). Okuyucu konusuz modda açılır (`openOkuyucuDuzenle`): içerik alanında `bosDurumMetni`, panel düzenleme modunda; kalem, arama, Kitap/PDF gizli, Fotoğraf/Dosya ekle yok. Konuya dokununca normal okuma. Ekran görüntüleri: `node scripts/konusuz-kontrol.mjs`.
+- Kod: `src/kitap/icindekiler.ts`, `klasorNumarasi.ts`, `src/drive/icindekilerYaz.ts` (kuyruk dahil), `src/ui/icindekilerBaglami.ts`, `src/ui/icindekilerDurumu.ts` (testli), `src/ui/icindekilerDuzenle.ts`. Ekran görüntüleri: `node scripts/icindekiler-kontrol.mjs` (Drive yok).
+
+### Çöpe atma (6.K5b, Deniz kararı)
+- "Hiçbir dosya silinmez" kuralının istisnası: konu, ünite, kitap ve yarım kitap KLASÖRÜ çöpe atılabilir; sadece `files.update` `trashed=true` (Geri al = `trashed=false`; Drive çöpünde 30 gün). `files.delete` ve `emptyTrash` asla (`scripts/silme-yok.test.ts`). Tek dosya: sadece okuyucuda açık dosya (6.K6b).
+- Kök, `kitaplar/` ve `kitaplik.json` asla. Ebeveyn zinciri her denemede, yazmadan önce: konu → bu kitabın ünite klasörü → kitap klasörü → kökün `kitaplar/`'ı; kitap / yarım kitap → kökün `kitaplar/`'ı (yarım: `defter=1` + kitap.json yok). Sahip modunda da sadece kitaplık kökünün içi. Uymazsa istek yok.
+- 6.K8b: URL şartı yok (dar ve sahip modu aynı); geçerli Drive/kök bağlamı ve çöpe atma onayı gerekir. Örnek kitaplıkta yok. surum 1 / kitap.json'suz kitapta sadece "Kitabı çöpe at".
+- Sıra: konu/ünite → önce kitap.json'dan çıkar (K5a kuyruğu, `jsonDegistir`: modifiedTime, bilinmeyen alanlar/kurdeleler/kapak korunur; kitap `kurdele`'si çöpe giden konuya bakıyorsa `null`), sonra klasör. Kitap → önce `kitaplik.json` raf kaydı, sonra klasör. Zaten çöpte = başarı; Tekrar dene kaldığı yerden; Vazgeç = yapılanın geri alınması (kitap "Yeni gelenler"e düşmez).
+- Onay penceresi gidecekleri sayar; bekleyen kalem/foto kaydı varsa önce uyarı (kayıtlar cihazdan silinmez). Kitapta ad yazılır (büyük/küçük harf ve İ/I/ı/i farkı yok).
+- Geri al: 8 sn korumalı toast (diğer toast'lar sırada bekler; kitapta yeniden yüklemeden sonra en az 4 sn daha). Klasör önce, sonra kitap.json / raf eski yerine. Geri al hata verirse aynı pencere hata adımında açılır, toast gitse de tamamlanabilir. Toast kaybolunca öğe sadece Drive çöpünde kalır.
+- Açık okuyucu: açık konu gidince komşu konuya geçer, konu kalmazsa kapanır; kitap gidince kitaplık yeniden yüklenir.
+- Kod: `src/kitap/copeAt.ts` (saf), `src/drive/copeAt.ts`, `icindekilerCop.ts`, `kitapCop.ts`, `jsonDegistir.ts`, `src/ui/copOnay.ts`, `copOnayDurumu.ts`, `copAkisi.ts` (testli). Ekran görüntüleri: `node scripts/cop-kontrol.mjs` (Drive yok).
+
+### Boş konu ve ilk dosyada klasör (6.K6a)
+- Materyali olmayan konuda (`topic.kind = null`) çubukta Fotoğraf ekle ve Dosya ekle görünür; kalem, arama, Kitap/PDF gizli (`o-materyalsiz`). Metin "Henüz materyal yok. Dosya ekle ile başla." Konu klasörü yoksa (klasor boş ya da Drive'da yok) iki düğme gri + not. Karar: `bosKonuDurumu` (`src/okuma/bosKonu.ts`, testli).
+- Boş konuda okuma durumu, kurdele ve kitap.json yazılmaz (`girildi` ancak materyal açılınca). İlk dosya eklenince materyal hemen açılır (toast var, "Göster" yok); dolu konuda 5.10f aynen.
+- Dosya ekle: konu boşken varsayılan hedef Orijinal. Adlar 5.10'daki gibi (orijinal.pdf, ozet.pdf, Uebungen/<ad>, Oedevler/<ad>; aynı ad = uyarı, "(2)" yok).
+- Uebungen/Oedevler yoksa URL şartı olmadan (6.K8b; dar ve sahip modu aynı, örnek kitaplıkta yok) ilk dosya eklenirken açılır; panelde not "(klasör ilk dosyada açılır)". Geçerli yazma bağlamı yoksa gri, `KlasorYok`, istek yok. Önce klasör, sonra dosya. Ofis çevirisinin geçici dosyası yine konu klasörüne; klasör sadece Ekle'de açılır.
+- Klasör açma (`src/drive/altKlasorAc.ts`, testli): ebeveyn zinciri (konu → yolundaki klasörler → kitap klasörü → kökün `kitaplar/`'ı) yazmadan önce; "var mı" okuyucunun eşleştiricisiyle (`altKlasorBul`, trashed=false) → varsa o; `Übungen`/`Ödevler` adlı klasör varsa açılmaz (`AltKlasorAdiFarkli`, Deniz kararı: konuKesfi değişmez); generateIds id'si islemId başına bellekte, `defter=1` + `defterIslem`, islemAra / 409 = var; açılan klasör oturum belleğinde. Tekrar dene ikinci klasör ya da dosya açmaz.
+- Ekran görüntüleri: `node scripts/bos-konu-kontrol.mjs` (Drive yok).
+
+### Açık dosyayı çöpe at (6.K6b, Deniz kararı)
+- Okuyucuda açık PDF (ve isterse çözümü) çöpe atılabilir; sadece `files.update` `trashed=true` (Geri al = `false`). Klasör hiç gitmez (boş kalan Uebungen dahil). 6.K8b: URL şartı yok; Drive kitaplığı, doğrulanmış kök, surum 2 + kitap.json gerekir; örnek kitaplıkta yok; kalem açıkken düğme gizli. Düğme `#oCop` (her genişlikte simge), dosya seçicinin yanında.
+- Hedef: Übungen/Ödevler'de seçili dosya; çözüm sayfası odaktaysa sadece çözüm; Orijinal/Özet'te odaktaki sayfanın dosyası (brifing ya da sorular). X'in `X_cozum.pdf`'i varsa pencerede "Çözümü de çöpe at" (varsayılan işaretli).
+- Ebeveyn (her denemede, yazmadan önce): konu → ünite → kitap → kökün `kitaplar/`'ı (`zincirKontrol`) ve dosya: beklenen adlı PDF, doğrudan konu klasöründe ya da konunun `Uebungen`/`Oedevler`'inde (`dosyaEbeveyniGecerliMi`, `ebeveyn.ts`). Uymazsa istek yok.
+- Sıra: bekleyen okuma/kapak kaydı → kitap.json'dan o dosyalara bakan kurdeleler (konu `kurdeleler[materyal]`, kitap `kurdele` → null) → dosya → çözüm. Geri al tersi; kurdele sadece yeri boşsa geri konur. Bellekteki kitap da aynı.
+- Geri al'da aynı klasörde aynı adlı (büyük/küçük harf duyarsız) çöpte olmayan dosya varsa hiçbir şey geri gelmez, kurdeleler konmaz: "Aynı adlı yeni bir dosya var; eski dosya Drive çöpünde kaldı." (sadece Kapat).
+- Bekleyen kalem kaydı ya da yükleme → önce uyarı (kayıtlar cihazda kalır). Konuda bekleyen fotoğraf varken özet dosyası çöpe atılamaz (pencere sadece not + Kapat).
+- Yükleyici: `durum` `trashed` okur; çöpteki dosyaya `uploadPdf` yazmaz (`PdfCopte`); kalem yükleyicisi bunu sessiz geçer (hata yok, tekrar yok, kayıt silinmez); Geri al'dan sonra `uploader.request`.
+- Okuyucu: aynı türde komşu dosya, yoksa başka tür, hiç yoksa K6a boş konu. Dosya ekle hedefleri yeni listeden (ör. orijinal.pdf gidince Orijinal yeniden seçilebilir). Pencere açıkken Esc sadece pencereyi kapatır.
+- Kod: `src/kitap/dosyaCop.ts` (saf), `src/drive/dosyaCop.ts`, `copAkisi.ts` (`dosyaCopIste`), `copOnay.ts` (`cozumKutusu`, `engel`) (testli). Ekran görüntüleri: `node scripts/dosya-cop-kontrol.mjs` (Drive yok; düğme ölçüm için zorla gösterilir).
+
 ## Sonra bakılabilir
 - Oda zaman aşımı: şu an glb yüklemesine toplam 15 sn veriliyor; yavaş bağlantıda (masaüstü lightmap'leri ~3.3 MB) eski odaya düşüyor. Öneri: "15 sn hiç ilerleme yok" kuralı + yükleme göstergesi. Faz 2 kural metni değişeceği için Deniz'in onayı gerekir.
 - Masaüstü lightmap PNG'lerinin küçültülmesi (boyut/sıkıştırma).
@@ -329,3 +442,6 @@ Kitaplık/
 - Her fotoğraf eklemede ve kalem kaydında ozet.pdf'in tamamı yeniden yükleniyor (22 MB'ta ~26 sn). Mimari çözüm adayı: defter fotoğraflarını ayrı/küçük PDF'lere eklemek (Faz 5 kararını değiştirir, Deniz onayı gerekir).
 - Fotoğraf küçültme (1600 px / JPEG 0.80) ile bugünkü (2000 px / 0.85) karşılaştırması yapılmadı.
 - Sayfa yenilenince yarım kalan yükleme kaldığı yerden devam etmiyor (baştan yükleniyor).
+- Masadaki açık kitabın İçindekiler sayfası uzun listede taşıyor (kesiliyor, kaydırma yok; 6.K5a'dan önce de böyleydi).
+- Okuyucudaki × (kapat) düğmeleri 36 px (iPad için 40–44 px önerilir).
+- 'Kurulumu tamamla'da `kitaplik.json` zaten varsa (sadece `kitaplar/` eksikse) örnek kitap rafa değil "Yeni gelenler"e düşüyor (kitaplik.json güncellenmez).
