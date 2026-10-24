@@ -10,9 +10,12 @@
 - `scripts/ocr-production-kontrol.mjs`: dist'te ocrKayit / ocrDizinOlc / defterOcrKayitDene / ocrAi / ocr-ai / Tesseract / DEV `defter-auth-change` gönderimi yok; okuyucu paneli parçası artık beklenen. İsteğe bağlı adres: GET 200 `{acik:false}`, tokensız POST 401 (404 değil). Sahip olmayana 403 birim testte (production ortamı) + elle denemede.
 - Kontroller: typecheck, build, 121 dosyada 1449/1449 test, production kontrolü geçti.
 - Anahtar: Deniz `vercel env add ANTHROPIC_API_KEY production` (değer gizli). Production'da etkisi main birleşip yayınlanınca.
-- Laptop denemesi Deniz'de (`vercel dev --listen 5173`, `?ocrKayit=1` olmadan).
+- Commit 45048f8 (main, push yok). `git fetch . main:faz-6` + `git push -u origin faz-6` (ileri sarma, force yok). Önizleme `defter-b1v9s3c1k-deniz-b571.vercel.app` (dpl_CZAZRRNndspWQYNYVRpm6QFU4ccj), build kaydında `faz-6, 45048f8`, Ready.
+- `defter-git-faz-6-…` adresi yine kendiliğinden geçmedi (hâlâ i6utvo5yu, f76c101). `vercel alias set defter-b1v9s3c1k-deniz-b571.vercel.app defter-git-faz-6-deniz-b571.vercel.app` ile elle bağlandı, `vercel inspect` ile doğrulandı.
+- Önizleme Vercel Authentication ile korumalı: betiğin isteği 302 ile Vercel girişine gidiyor, `api/oku`'ya ulaşmıyor. Betik artık bunu söyleyip atlıyor (`redirect: 'manual'`; JSON olmayan cevapta anlaşılır mesaj). `vercel curl` (otomatik koruma atlama) ayar değişikliği olabileceği için kullanılmadı.
+- Laptop + iPad denemesi geçti (Deniz, `?ocrKayit=1` olmadan).
 
-**Son güncelleyen (6.4c-4):** Claude Code, 25 Ekim 2026 · kod + testler hazır, commit/push yok; laptop denemesi bekliyor.
+**Son güncelleyen (6.4c-4):** Claude Code, 25 Ekim 2026 · 45048f8 faz-6'da; kontrol betiği + DURUM notu ayrı commit. main push ve merge Deniz onayı bekliyor.
 
 ---
 
