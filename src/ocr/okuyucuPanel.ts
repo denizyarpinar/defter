@@ -9,12 +9,12 @@ import { okuApi } from './claudeMotor';
 import { eslestir } from './kayit/eslestir';
 import { driveOcrApi, kayitOkuDrive, sayfaYaz, type OcrKaynakDosya } from './kayit/kayitDrive';
 import type { OcrSayfa } from './kayit/sema';
-import { ocrKayitAcik } from './kilit';
 import { okunanMetinCiz } from './okunanMetin';
 import { ReaderOcrSearch, type SearchPage } from './okuyucuArama';
 import { MAX_BAYT, MAX_KENAR, PdfSayfaGorselleri } from './sayfaGorseli';
 
-// Task 6.4c-0 (Codex) → 6.4c-2: the reader's "Temiz yazı" trial panel, only behind ?ocrKayit=1.
+// Task 6.4c-0 (Codex) → 6.4c-2: the reader's handwriting panel. 6.4c-4: opened by the reader's "El yazısını oku"
+// button (shown only when api/oku says acik: okumaIzni.ts), closed with × or when no readable PDF is open.
 // 1–5 pages of the open PDF: a page with PDF text is skipped, a page in the record shows "okundu",
 // "Tekrar oku" reads it again. Each page is read by Claude (api/oku) and written to <pdf>.ocr.json the moment
 // it is read. The page image: the embedded JPEG of a photo page, otherwise pdf.js (sayfaGorseli.ts).
@@ -44,11 +44,16 @@ async function cizJpeg(content: PageContent, page: BookPage): Promise<Uint8Array
   } finally { canvas.width = canvas.height = 0; }
 }
 
-export function installReaderOcr(snapshot: () => ReaderSnapshot | null): void {
-  if (!ocrKayitAcik() || document.getElementById('reader-ocr-search')) return;
-  const host = document.createElement('details'); host.id = 'reader-ocr-search';
+export interface OkumaPaneli { ac(): void; kapat(): void }
+let kurulu: OkumaPaneli | null = null;
+
+export function installReaderOcr(snapshot: () => ReaderSnapshot | null): OkumaPaneli {
+  if (kurulu) return kurulu;
+  const host = document.createElement('div'); host.id = 'reader-ocr-search'; host.hidden = true;
+  host.setAttribute('role', 'dialog'); host.setAttribute('aria-label', 'El yazısını oku');
   host.style.cssText = 'position:fixed;bottom:12px;left:12px;right:12px;max-height:55vh;overflow:auto;z-index:10000;background:white;color:#17202a;padding:12px;border:2px solid #567;border-radius:10px;font:15px/1.5 system-ui';
-  host.innerHTML = `<summary>Temiz yazı · deneme (ocrKayit)</summary>
+  host.innerHTML = `<div style="display:flex;align-items:center;gap:8px"><b style="flex:1">El yazısını oku</b>
+    <button data-close type="button" aria-label="Kapat" style="min-width:40px;min-height:40px">×</button></div>
     <p>Açık dosyada en fazla 5 sayfa. Sayfa görseli Claude'a (Anthropic) gönderilir; okunan metin dosyanın yanındaki .ocr.json'a kaydedilir.
     Basılı metni olan sayfalar gönderilmez.</p>
     <p data-file></p><label>PDF sayfa numaraları (ör. 1,3,5) <input data-pages inputmode="numeric" style="max-width:150px"></label>
@@ -83,8 +88,12 @@ export function installReaderOcr(snapshot: () => ReaderSnapshot | null): void {
   window.addEventListener('defter-auth-change', () => { epoch++; invalidate(); });
   window.addEventListener('pagehide', () => { epoch++; invalidate(); });
   // reader/version changes are noticed even when no button is pressed
+  let acik = false;
+  const kapat = () => { acik = false; host.hidden = true; };
+  el('close').onclick = kapat;
   setInterval(() => {
-    const now = snapshot(); host.hidden = !now && !working;
+    const now = snapshot();
+    if (!now && !working && acik) kapat();
     el('file').textContent = now ? `Açık dosya: ${now.pages[0]?.page.ad ?? now.file}; PDF sayfaları 1–${now.pages.length}` : 'Okunabilir Drive PDF\'i açık değil.';
     // a new file: the page in view as the default
     if (now && now.file !== lastFile && !working) {
@@ -185,8 +194,10 @@ export function installReaderOcr(snapshot: () => ReaderSnapshot | null): void {
     for (const match of matches) {
       const button = document.createElement('button'); button.textContent = `PDF s.${match.page.number} · ${match.ocr ? 'okunan metin' : 'basılı metin'}: ${match.excerpt}`;
       button.style.cssText = 'display:block;text-align:left;margin:8px 0;white-space:normal';
-      button.onclick = () => void action(async () => { await verify(); bound!.go(match.page.index); host.open = false; });
+      button.onclick = () => void action(async () => { await verify(); bound!.go(match.page.index); kapat(); });
       el('results').append(button);
     }
   });
+  kurulu = { ac: () => { acik = true; host.hidden = false; }, kapat };
+  return kurulu;
 }

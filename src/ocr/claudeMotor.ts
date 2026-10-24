@@ -23,7 +23,7 @@ function base64(u: Uint8Array): string {
 const DURUM_METNI: Record<number, string> = {
   401: 'Google girişi doğrulanamadı. Tekrar giriş yap.',
   403: 'Okuma sadece sahip hesabıyla kullanılabilir.',
-  404: 'Okuma servisi bu adreste yok (sadece "vercel dev" ve Preview\'da çalışır).',
+  404: 'Okuma servisi bu adreste yok (yerelde "vercel dev" ile aç).',
   413: 'Sayfa görseli çok büyük.',
   415: 'Sayfa görseli JPEG değil.',
   429: 'Dakikada en fazla 10 okuma. Bir dakika bekle.'

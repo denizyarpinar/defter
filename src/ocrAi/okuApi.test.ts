@@ -53,10 +53,18 @@ async function sonuc(r: Response) {
 }
 
 describe('api/oku', () => {
-  it('production: 404, hiç istek yok', async () => {
-    const { deps, fetchSahte } = kur([], { ...ENV, VERCEL_ENV: 'production' });
-    expect((await sonuc(await okuIstegi(istek(), deps))).status).toBe(404);
-    expect(fetchSahte).not.toHaveBeenCalled();
+  // 6.4c-4: production is open too; the owner check stays
+  it('production: sahip olmayan hesap 403, Anthropic çağrılmaz', async () => {
+    const { deps, fetchSahte } = kur([tokenBilgi({ email: 'baska@example.com' })], { ...ENV, VERCEL_ENV: 'production' });
+    const r = await sonuc(await okuIstegi(istek(), deps));
+    expect(r.status).toBe(403);
+    expect(r.govde.neden).toBe('sahip-degil');
+    expect(fetchSahte).toHaveBeenCalledTimes(1);
+  });
+
+  it('production: sahip → 200', async () => {
+    const { deps } = kur([tokenBilgi(), modelCevap(iyiSonuc)], { ...ENV, VERCEL_ENV: 'production' });
+    expect((await sonuc(await okuIstegi(istek(), deps))).status).toBe(200);
   });
 
   it('anahtar yoksa 500 + değişkenin adı, değeri yok', async () => {
@@ -67,9 +75,9 @@ describe('api/oku', () => {
     expect(fetchSahte).not.toHaveBeenCalled();
   });
 
-  it('GET: 405', async () => {
+  it('PUT: 405', async () => {
     const { deps } = kur([]);
-    expect((await sonuc(await okuIstegi(istek(undefined, null, 'GET'), deps))).status).toBe(405);
+    expect((await sonuc(await okuIstegi(istek(undefined, null, 'PUT'), deps))).status).toBe(405);
   });
 
   it('token yok: 401, Google ve Anthropic çağrılmaz', async () => {
@@ -261,6 +269,52 @@ describe('api/oku', () => {
     for (let i = 0; i < 10; i++) expect((await okuIstegi(istek(), deps)).status).toBe(200);
     expect((await sonuc(await okuIstegi(istek(), deps))).status).toBe(429);
     expect(fetchSahte).toHaveBeenCalledTimes(21);
+  });
+
+  // 6.4c-4: the free status query (GET)
+  describe('durum (GET)', () => {
+    const durum = async (yanitlar: Array<Response | Error>, env: Record<string, string | undefined> = ENV, yetki: string | null = `Bearer ${TOKEN}`) => {
+      const { deps, fetchSahte } = kur(yanitlar, env);
+      const r = await sonuc(await okuIstegi(istek(undefined, yetki, 'GET'), deps));
+      return { ...r, fetchSahte };
+    };
+
+    it('sahip + anahtar: { acik: true }, Anthropic çağrılmaz', async () => {
+      const r = await durum([tokenBilgi()], { ...ENV, VERCEL_ENV: 'production' });
+      expect(r).toMatchObject({ status: 200, govde: { acik: true } });
+      expect(r.fetchSahte).toHaveBeenCalledTimes(1);
+      expect(String(r.fetchSahte.mock.calls[0])).toContain('tokeninfo');
+    });
+
+    it('sahip olmayan hesap: { acik: false }, e-posta yanıtta yok', async () => {
+      const r = await durum([tokenBilgi({ email: 'baska@example.com' })]);
+      expect(r.status).toBe(200);
+      expect(r.govde).toEqual({ acik: false });
+    });
+
+    it('anahtar yok: { acik: false }, hiç istek yok', async () => {
+      const r = await durum([], { ...ENV, ANTHROPIC_API_KEY: undefined });
+      expect(r).toMatchObject({ status: 200, govde: { acik: false } });
+      expect(r.fetchSahte).not.toHaveBeenCalled();
+    });
+
+    it('token yok ya da başka uygulamanın token’ı: { acik: false }', async () => {
+      expect((await durum([], ENV, null)).govde).toEqual({ acik: false });
+      expect((await durum([tokenBilgi({ aud: 'baska' })])).govde).toEqual({ acik: false });
+    });
+
+    it('Google’a ulaşılamazsa 502 (sayfa önbelleğe almaz)', async () => {
+      expect((await durum([new Error('ağ')])).status).toBe(502);
+    });
+
+    it('10/dk sayacına girmez', async () => {
+      const yanitlar: Response[] = [];
+      for (let i = 0; i < 12; i++) yanitlar.push(tokenBilgi());
+      for (let i = 0; i < 10; i++) yanitlar.push(tokenBilgi(), modelCevap(iyiSonuc));
+      const { deps } = kur(yanitlar);
+      for (let i = 0; i < 12; i++) expect((await okuIstegi(istek(undefined, `Bearer ${TOKEN}`, 'GET'), deps)).status).toBe(200);
+      for (let i = 0; i < 10; i++) expect((await okuIstegi(istek(), deps)).status).toBe(200);
+    });
   });
 
   it('jpegBoyutu SOF başlığını okur', () => {

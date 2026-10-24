@@ -27,7 +27,7 @@ describe('okuApi', () => {
 
   it('errors: the server text, 404 explained, 429 keeps its status, bad shape', async () => {
     await expect(okuApi(jpeg, { token: 'T', fetch: cevap(403, { hata: 'Bu deneme sadece sahip hesabıyla kullanılabilir.' }) as never })).rejects.toThrow('sadece sahip');
-    await expect(okuApi(jpeg, { token: 'T', fetch: cevap(404, { hata: 'Bulunamadı.' }) as never })).rejects.toThrow('Preview');
+    await expect(okuApi(jpeg, { token: 'T', fetch: cevap(404, { hata: 'Bulunamadı.' }) as never })).rejects.toThrow('vercel dev');
     const e = await okuApi(jpeg, { token: 'T', fetch: cevap(429, {}) as never }).catch(x => x);
     expect(e).toBeInstanceOf(OkumaHatasi);
     expect(e.durum).toBe(429);

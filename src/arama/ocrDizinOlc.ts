@@ -104,7 +104,7 @@ export function installOcrDizinOlc(ortam: () => AgacOrtami | null): void {
         { pageSize: 100, enFazlaSayfa: 10, ne: 'Okuma kayıtları aranırken' })));
       const ocrler = r.flatMap(x => x.dosyalar);
       yaz(`.ocr.json: ${ocrler.length} dosya`);
-      if (!ocrler.length) { yaz('Okuma kaydı bulunamadı. Önce okuyucudan bir sayfa oku (?ocrKayit=1).'); return; }
+      if (!ocrler.length) { yaz('Okuma kaydı bulunamadı. Önce okuyucudan bir sayfa oku (El yazısını oku).'); return; }
 
       const tablo: string[] = [];
       let bulunan = 0, denenen = 0;

@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
+import type { DriveLocation } from '../drive/driveLibrary';
+import type { Getirici } from '../drive/saltOkunur';
+import { parseBook, parseLibrary } from '../model/parse';
 import type { MaterialKind } from '../okuma/konuKesfi';
 import { adAnahtari, dosyaAnahtari } from './adEsle';
 import type { AgacDosyasi, AgacKitabi, AgacKonusu } from './kitaplikAgaci';
-import { birlestir } from './kitaplikAra';
+import { birlestir, kitaplikAra } from './kitaplikAra';
 
 const kitap = (id: string, baslik: string, sira: number): AgacKitabi => ({ id, baslik, sira, anahtar: adAnahtari(baslik) });
 const konu = (k: AgacKitabi, baslik: string, sira: number, klasor?: string): AgacKonusu =>
@@ -84,10 +87,34 @@ describe('6.4c-3: handwriting records (.ocr.json) in the library search', () => 
     expect(birlestir(agac, 'wort', null, [{ kaynak: 'm-ozet' }])).toEqual([]);
   });
 
-  it('no records (no ?ocrKayit=1): the same results as before, no elYazisi field', () => {
+  it('no records: the same results as before, no elYazisi field', () => {
     const ids = new Set(['m-ozet', 'm-ueb', 'p-ders']);
     const r = birlestir(agac, 'beweis', ids);
     expect(r).toEqual(birlestir(agac, 'beweis', ids, []));
     expect(r.some(x => 'elYazisi' in x)).toBe(false);
+  });
+});
+
+// 6.4c-4: no lock and no option any more: both spellings and the handwriting records for everyone
+describe('kitaplikAra (Drive, kilitsiz)', () => {
+  it('fullText iki yazımla, appProperties ile; .ocr.json bulgusu PDF satırına el yazısı rozeti', async () => {
+    const sorgular: { q: string; fields: string | null }[] = [];
+    const getir: Getirici = async path => {
+      const u = new URLSearchParams(path.slice('files?'.length));
+      const q = u.get('q')!;
+      if (!q.includes('fullText')) {
+        // the tree: one PDF straight in the book folder
+        return new Response(JSON.stringify({ files: q.includes("'kb' in parents") ? [{ id: 'p1', name: 'ozet.pdf', mimeType: 'application/pdf', modifiedTime: '', parents: ['kb'] }] : [] }));
+      }
+      sorgular.push({ q, fields: u.get('fields') });
+      return new Response(JSON.stringify({ files: [{ id: 'j1', parents: ['kb'], appProperties: { defterOcr: '1', defterOcrKaynak: 'p1' } }] }));
+    };
+    const books = new Map([['b', parseBook('b', null)]]);
+    const loc: DriveLocation = { rootId: 'kok', libraryFileId: null, bookFolderIds: new Map([['b', 'kb']]), bookFileIds: new Map() };
+    const r = await kitaplikAra('Einrückung', { loc, books, library: parseLibrary({ raflar: [{ kitaplar: ['b'] }] }) }, { getir });
+    expect(sorgular).toHaveLength(1);
+    expect(sorgular[0].q).toContain("(fullText contains 'Einrückung' or fullText contains 'Einrueckung')");
+    expect(sorgular[0].fields).toContain('appProperties');
+    expect(r.sonuclar.find(x => x.dosyaId === 'p1')).toMatchObject({ elYazisi: true });
   });
 });

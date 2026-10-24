@@ -61,7 +61,8 @@ import { autoTopicStatus, cycleStatus, markChapterPage, markTopicPage, type Resu
 import { MetinOnbellek } from './metinOnbellek';
 import type { Dikdortgen } from './metinAra';
 import { OkuyucuArama } from './okuyucuArama';
-import { ocrKayitAcik } from '../ocr/kilit';
+import { OkumaIzni, okumaGorunur } from '../ocr/okumaIzni';
+import { currentToken } from '../drive/auth';
 import { PageContent, pageKind } from './sayfaIcerik';
 import { PAD_TOP, canvasSize, currentPage, layoutPages, visibleRange, type Layout } from './sanalListe';
 import { anchorPoint, covers, detailRect, pdfLeft, tapZone, visiblePart, type Rect } from './yakinlastirma';
@@ -137,8 +138,11 @@ let ratios: number[] = [];
 let content: PageContent | null = null;
 let metin: MetinOnbellek | null = null;   // task 6.3b: the pages' text, read on the first search
 let arama: OkuyucuArama;                  // task 6.3c: the search bar
-// task 6.4c-3: the read handwriting for the search (only behind ?ocrKayit=1; the module is loaded lazily)
+// task 6.4c-3: the read handwriting for the search (6.4c-4: for everyone in a Drive library; loaded on the first search)
 let ocrKaynak: Promise<ReturnType<typeof import('../ocr/okuyucuOcrKaynak').driveOcrKaynak>> | null = null;
+// task 6.4c-4: may this account read handwriting (api/oku status, per token)? The reading buttons only then.
+const okumaIzni = new OkumaIzni({ token: currentToken });
+let okumaPaneli: Promise<import('../ocr/okuyucuPanel').OkumaPaneli> | null = null;
 let layout: Layout = layoutPages([], 0);
 let baseWidth = 0;             // PDF mode: page width at 100 %
 let width = 0;                 // … at the current zoom
@@ -283,19 +287,17 @@ export function initOkuyucu(yer: () => DriveLocation | null): void {
     // task 6.3b: window.defterMetinAra(q) searches the pages of the open reader
     void import('./metinAraDene').then(m => m.installMetinAra(() => open && metin && pages.length ? { pages, metin } : null));
   }
-  // task 6.4c-2: the "Temiz yazı" trial panel, only behind ?ocrKayit=1 (never on the live site; lazy)
-  if (ocrKayitAcik()) {
-    void import('../ocr/okuyucuPanel').then(m => m.installReaderOcr(() => {
+  // task 6.4c-4: "El yazısını oku" opens the handwriting panel (lazy; the button only with okumaIzni)
+  $('#oOku').addEventListener('click', () => {
+    okumaPaneli ??= import('../ocr/okuyucuPanel').then(m => m.installReaderOcr(() => {
       const p = pages[focusPage()], loc = driveLocation();
       if (!open || !content || !loc || !p?.dosyaId || !p.modifiedTime || pageKind(p) !== 'pdf' || isSampleId(p.dosyaId) || pen.isDrawing()) return null;
       return { file: p.dosyaId, version: p.modifiedTime, content, yer: loc, focus: focusPage(),
         pages: pages.map((page, index) => ({ page: { ...page }, index })).filter(x => x.page.dosyaId === p.dosyaId),
         go: (index: number) => goToMatch(index, null) };
-    })).catch(e => console.warn('Temiz yazı paneli yüklenemedi.', e));
-    // task 6.4c-3: the search finds the read handwriting too
-    ocrKaynak = import('../ocr/okuyucuOcrKaynak').then(m => m.driveOcrKaynak(driveLocation));
-    ocrKaynak.catch(e => console.warn('El yazısı araması yüklenemedi.', e));
-  }
+    }));
+    okumaPaneli.then(p => p.ac(), e => { okumaPaneli = null; console.warn('El yazısı paneli yüklenemedi.', e); toast('El yazısı paneli açılamadı. Bağlantını kontrol edip tekrar dene.'); });
+  });
   $('#oClose').addEventListener('click', closeOkuyucu);
   installOkuyucuKaydirma($('#okuyucu'));   // task 6.K5b-4: the page itself never moves under the reader
   arama = new OkuyucuArama({
@@ -304,7 +306,16 @@ export function initOkuyucu(yer: () => DriveLocation | null): void {
     focusPage,
     git: goToMatch,
     katmanlariYenile: () => { for (const m of mounted.values()) m.ara?.(); },
-    ...(ocrKaynak ? { elYazisi: (p: BookPage[], metinsiz: number[]) => ocrKaynak!.then(k => k.ara(p, metinsiz)) } : {}),
+    // task 6.4c-3/4: the read handwriting too (Drive library only; the module on the first search)
+    elYazisi: (p: BookPage[], metinsiz: number[]) => {
+      if (isSampleId(folder) || !driveLocation()) return Promise.resolve(null);
+      if (!ocrKaynak) {
+        ocrKaynak = import('../ocr/okuyucuOcrKaynak').then(m => m.driveOcrKaynak(driveLocation));
+        ocrKaynak.catch(e => { ocrKaynak = null; console.warn('El yazısı araması yüklenemedi.', e); });
+      }
+      return ocrKaynak.then(k => k.ara(p, metinsiz), () => null);
+    },
+    okumaVar: () => okumaIzni.simdi(),
   });
   const scroller = $('#oScroll');
   let raf = 0;
@@ -992,6 +1003,17 @@ function showSelectedTab(): void {
   else if (r.right > t.right) tabs.scrollLeft += r.right - t.right;
 }
 
+// Task 6.4c-4: "El yazısını oku" with acik: true only (asked once per token; never in the sample library)
+function okuDugmesi(): void {
+  const t = topic, drive = !isSampleId(folder) && !!driveLocation();
+  const goster = () => {
+    $('#oOku').hidden = !okumaGorunur({ ornek: !drive, acik: okumaIzni.simdi(), pdfVar: !!topic && topic.kind !== null, kalemAcik: penOn });
+    if ($('#oOku').hidden) void okumaPaneli?.then(p => p.kapat(), () => {});
+  };
+  goster();
+  if (t && drive && !okumaIzni.simdi()) void okumaIzni.acik().then(a => { if (a && open && topic === t) goster(); });
+}
+
 function renderBar(): void {
   const bar = $('#oBar');
   bar.hidden = !topic;
@@ -1014,6 +1036,7 @@ function renderBar(): void {
     return b;
   }));
   showSelectedTab();
+  okuDugmesi();
   $('#oCop').hidden = !copDugmesiGorunur({
     kilitAcik: !!dosyaCop?.acik(), drive: !isSampleId(folder) && !!driveLocation(),
     surum2: !!book && usesUnits(book) && book.hasJson && book.surum >= 2, materyal: t.kind !== null, kalem: penOn
@@ -1048,7 +1071,7 @@ function openPhotoPanel(files: File[]): void {
     acikDosyaId: onScreen,
     sayfaSayisi: knownPageCount,
     ornek: isSampleId(folder),
-    temizYazi: ocrKayitAcik() && !isSampleId(folder),   // task 6.4c-2
+    temizYazi: !isSampleId(folder) && okumaIzni.simdi(),   // task 6.4c-2 (6.4c-4: only with api/oku acik)
     // task 5.8f: saved on the device first (a failure rejects: the panel stays open), then to Drive
     ekle: async (jpegler: BekleyenJpeg[], hedef: DriveFile | null) => {
       const basildi = olcumAcik() ? performance.now() : undefined;   // task 6.2e-1: "Ekle" pressed
@@ -1203,10 +1226,11 @@ const photoAdder = new FotoEkleyici({
       else toast(m);
     },
   },
-  // task 6.4c-2: "Temiz yazıya çevir" photos are read once they are on Drive (lazy, never undoes the adding)
+  // task 6.4c-2: "Temiz yazıya çevir" photos are read once they are on Drive (lazy, never undoes the adding;
+  // 6.4c-4: only while api/oku says acik)
   bitti: (k, r) => {
-    if (!ocrKayitAcik() || !k.jpegler.some(j => j.temizYazi)) return;
-    return import('../ocr/fotoOkumaBagla').then(m => m.fotoOku(k, r, driveLocation()));
+    if (!k.jpegler.some(j => j.temizYazi)) return;
+    return okumaIzni.acik().then(a => a ? import('../ocr/fotoOkumaBagla').then(m => m.fotoOku(k, r, driveLocation())) : undefined);
   },
 });
 
@@ -1567,6 +1591,8 @@ export function closeOkuyucu(): void {
   metin?.kapat();
   metin = null;
   void ocrKaynak?.then(k => k.temizle(), () => {});   // task 6.4c-3
+  void okumaPaneli?.then(p => p.kapat(), () => {});   // task 6.4c-4
+  $('#oOku').hidden = true;
   topic = null;
   konusuzMod(false);
   materyalsizMod(null);

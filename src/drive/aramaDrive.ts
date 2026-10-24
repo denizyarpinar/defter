@@ -32,7 +32,7 @@ export function yazimlar(w: string): string[] {
   return alt === w ? [w] : [w, alt];
 }
 
-export interface SorguSecenek { yazimlar?: boolean }   // 6.4c-3 (?ocrKayit=1): both spellings, with or
+export interface SorguSecenek { yazimlar?: boolean }   // 6.4c-3: both spellings, with or
 
 // Every word must be in the file (and); only the given folders; not in the trash; not a temporary
 // conversion file (6.1b). null: no word.
@@ -81,7 +81,7 @@ export interface MetinSonucu {
   ocr?: OcrBulgusu[];   // only with elYazisi
 }
 
-// 6.4c-3 (?ocrKayit=1): both spellings, and the records Drive found
+// 6.4c-3: both spellings, and the records Drive found (6.4c-4: always in the library search)
 export interface MetinSecenek { elYazisi?: boolean }
 
 export interface MetinDosyasi { id: string; parents?: string[]; appProperties?: Record<string, string> }

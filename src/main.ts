@@ -23,7 +23,6 @@ import { loadLocalLibrary, type LoadedLibrary } from './model/localSource';
 import { parseLibrary } from './model/parse';
 import type { Book, ModeKey } from './model/types';
 import { usesUnits } from './model/units';
-import { ocrKayitAcik } from './ocr/kilit';
 import { markOpened, setReadingSink } from './okuma/okumaDurumu';
 import { sampleBookFolder, sampleFolders } from './okuma/ornekKaynak';
 import { bekleyenKalemIdleri, closeOkuyucu, forgetBook, fotoYuklemeSuruyor, initOkuyucu, isOkuyucuOpen, okuyucuAra, openOkuyucu, openOkuyucuDuzenle, sayfaEklemeOrtami, setDosyaCop, setIcindekilerBaglami, setKlasorAcma } from './okuma/Okuyucu';
@@ -591,7 +590,7 @@ function aramaKaynagi(): AramaKaynagi | null {
   const d = data;
   if (driveLoc) {
     const o = { loc: driveLoc, books: d.books, library: d.library };
-    return { anahtar: d.books, ornek: false, agac: () => agacAl(o), metin: (q, signal) => kitaplikAra(q, o, { signal, elYazisi: ocrKayitAcik() }) };
+    return { anahtar: d.books, ornek: false, agac: () => agacAl(o), metin: (q, signal) => kitaplikAra(q, o, { signal }) };
   }
   if (durum.tur !== 'demo') return null;
   return {

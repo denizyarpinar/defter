@@ -10,7 +10,7 @@ import { driveOcrApi, kayitOkuDrive, type OcrKaynakDosya } from './kayit/kayitDr
 import { sayfaParmakIzleri } from './kayit/parmakIzi';
 import { duzeltilmisMetin, hamMetin, type OcrKayit, type OcrSayfa } from './kayit/sema';
 
-// Task 6.4c-3: the reader's search in the read handwriting (only behind ?ocrKayit=1, loaded lazily).
+// Task 6.4c-3: the reader's search in the read handwriting (6.4c-4: for everyone in a Drive library, loaded on the first search).
 // For the photo pages of the open list: per file its fingerprints (the PDF's bytes from the cache), its
 // folder, its record (<pdf>.ocr.json) → eslestir → the page's texts (as written and corrected). "eski"
 // entries (their fingerprint is on no page) are never searched. Reads only.

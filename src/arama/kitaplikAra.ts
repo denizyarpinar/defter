@@ -109,7 +109,6 @@ export interface AramaSecenek {
   adGeldi?: (sonuclar: KitaplikSonucu[]) => void;   // the name results, before Drive answers
   signal?: AbortSignal;
   getir?: Getirici;
-  elYazisi?: boolean;   // 6.4c-3 (?ocrKayit=1): the handwriting records too, both spellings (ä/ae)
 }
 
 export async function kitaplikAra(q: string, o: AgacOrtami, sec: AramaSecenek = {}): Promise<KitaplikAramaSonucu> {
@@ -127,7 +126,8 @@ export async function kitaplikAra(q: string, o: AgacOrtami, sec: AramaSecenek = 
   sec.adGeldi?.(adlar);
 
   try {
-    const m = await driveMetinAra(q, agac.klasorIdleri, getir, sec.signal, { elYazisi: sec.elYazisi });
+    // 6.4c-3/4: always the handwriting records too, and both spellings (ä/ae)
+    const m = await driveMetinAra(q, agac.klasorIdleri, getir, sec.signal, { elYazisi: true });
     sureler.drive = m.ms;
     return { q, sonuclar: birlestir(agac, q, m.idler, m.ocr), sureler, driveIstek: m.istek, eksik: m.eksik };
   } catch (e) {

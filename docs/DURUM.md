@@ -1,5 +1,21 @@
 # Defter – Durum
 
+## 6.4c-4 — Kilit kalktı, el yazısı okuma canlıya hazır (25 Ekim 2026, Claude Code)
+
+- `?ocrKayit=1` kilidi kalktı (`src/ocr/kilit.ts` + testi silindi; `__VERCEL_ENV__` define'ı da). Deniz kararı aynen: okuma sadece kullanıcı isteyince.
+- `api/oku`: production 404 kalktı; sahip kontrolü, 10 istek/dk, boyut/tür sınırları aynen (ortak `sahipDogrula`). Yeni **GET = durum** → `{ acik }`: 3 ayar + geçerli token + sahip ise true; Anthropic'e istek yok, sayaca girmez; Google'a ulaşılamazsa 502.
+- İstemci `src/ocr/okumaIzni.ts`: durum token başına bellekte (hata tutulmaz); HTML (vite dev) / 404 → false. Okuma düğmeleri sadece `acik: true`'da, örnek kitaplıkta hiç sorgu yok.
+- Okuyucu: alttaki hep açık "Temiz yazı · deneme" kutusu yerine araç çubuğunda `#oOku` "El yazısını oku" (dar ekranda simge; kalem açıkken, boş konuda gizli). Panel ilk dokunuşta tembel yüklenir, × ile kapanır; içerik aynı. Fotoğraf panelinde "Temiz yazıya çevir" de sadece `acik`'ta.
+- Arama herkes için: kitaplıkta `.ocr.json` bulguları + iki yazım (`kitaplikAra` seçeneği kalktı, hep açık); okuyucuda el yazısı kaynağı ilk aramada yüklenir. "N sayfa henüz okunmadı" notu sadece okuyabilen hesapta (`okunmamisSayisi`), diğerlerinde eski not.
+- `scripts/ocr-production-kontrol.mjs`: dist'te ocrKayit / ocrDizinOlc / defterOcrKayitDene / ocrAi / ocr-ai / Tesseract / DEV `defter-auth-change` gönderimi yok; okuyucu paneli parçası artık beklenen. İsteğe bağlı adres: GET 200 `{acik:false}`, tokensız POST 401 (404 değil). Sahip olmayana 403 birim testte (production ortamı) + elle denemede.
+- Kontroller: typecheck, build, 121 dosyada 1449/1449 test, production kontrolü geçti.
+- Anahtar: Deniz `vercel env add ANTHROPIC_API_KEY production` (değer gizli). Production'da etkisi main birleşip yayınlanınca.
+- Laptop denemesi Deniz'de (`vercel dev --listen 5173`, `?ocrKayit=1` olmadan).
+
+**Son güncelleyen (6.4c-4):** Claude Code, 25 Ekim 2026 · kod + testler hazır, commit/push yok; laptop denemesi bekliyor.
+
+---
+
 ## 6.4c-3 — Okunan el yazısı aramada, kilitli (24 Ekim 2026, Claude Code)
 
 - Ölçüm (A, Deniz laptopta, `window.defterOcrDizinOlc()`, sadece GET): Drive `fullText` `application/json` `.ocr.json`'u dizinliyor (10 denemenin 7'si). Bulunamayan 3 deneme sadece "ae" yazımıydı (Drive ä = ae saymıyor). Tür değişmedi, `indexableText` yok, `src/ocr/kayit/` değişmedi, Drive'a yazılmadı. Dev aracı `src/arama/ocrDizinOlc.ts` kalıyor (defterDizinOlc gibi; build'de yok).
@@ -8,8 +24,20 @@
 - Kilitsizken: sorgu, alanlar, sonuçlar ve not eskisi gibi (testli).
 - Kontroller: typecheck, build, 121 dosyada 1435/1435 test. `dist/`'te `defterOcrDizinOlc` izi 0.
 - Laptop denemesi Deniz'de.
+- Commit f76c101 (main, push yok). 25 Ekim: Deniz `ANTHROPIC_API_KEY`'i Preview'a ekledi (tüm Preview dalları, değer gizli). `git fetch . main:faz-6` + `git push origin faz-6` yapıldı; ikisi de sadece ileri sarma, force yok, main'e push yok. Önizleme `defter-i6utvo5yu-deniz-b571.vercel.app` (dpl_DT1j2so5bthSUQKcu6qWRiD8JgCi), f76c101, Ready.
+- `defter-git-faz-6-deniz-b571.vercel.app` push'tan sonra yeni dağıtıma geçmedi; hâlâ 22 Ekim'deki `defter-pb5em6oz2` (a909b6f) dağıtımına bağlıydı. Deniz onayıyla `vercel alias set defter-i6utvo5yu-deniz-b571.vercel.app defter-git-faz-6-deniz-b571.vercel.app` çalıştırıldı ve doğrulandı: adres → f76c101, READY.
 
-**Son güncelleyen (6.4c-3):** Claude Code, 24 Ekim 2026 · kod + testler hazır, commit/push yok; laptop denemesi bekliyor.
+**Sonra bakılabilir (faz-6 Preview adresi):** `defter-git-faz-6-…` adresi kendiliğinden yeni push'u izlemiyor. Bulgular:
+- Alias'ın son güncellemesi 22 Ekim 15:01. O gün 6.4b-1'de (Codex) faz-5 adresi `vercel alias set` ile birkaç kez elle taşınmıştı.
+- Sonraki `faz-6` dağıtımları (a13fce6, 06ae11f, 24 Ekim) adresi değiştirmedi.
+
+Neden doğrulanmadı. Tahmin: elle atanan alias Vercel'in Git dal adresini otomatik güncellemesini durduruyor olabilir. Bugün de elle atandı, bu yüzden sonraki her `faz-6` push'undan sonra adres kontrol edilmeli:
+- Hedefi göster: `vercel inspect https://defter-git-faz-6-deniz-b571.vercel.app` ya da `vercel alias ls`.
+- Eskiyse yeniden bağla: `vercel alias set <yeni-dağıtım>.vercel.app defter-git-faz-6-deniz-b571.vercel.app`.
+
+Kalıcı çözüm (Vercel panelinde dal adresinin ayarı ya da destek) ayrıca incelenecek.
+
+**Son güncelleyen (6.4c-3):** Claude Code, 25 Ekim 2026 · f76c101 commit edildi; faz-6'ya ileri sarma + push yapıldı; faz-6 adresi elle yeni önizlemeye bağlandı. Laptop/iPad denemesi bekliyor.
 
 ---
 

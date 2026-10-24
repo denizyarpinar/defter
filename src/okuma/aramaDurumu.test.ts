@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { aranamayanNotu, baslangicEslesmesi, bosDurum, listeDegisti, onceki, sayacMetni, sonraki, type AramaDurumu } from './aramaDurumu';
+import { aranamayanNotu, okunmamisSayisi, baslangicEslesmesi, bosDurum, listeDegisti, onceki, sayacMetni, sonraki, type AramaDurumu } from './aramaDurumu';
 
 const es = (...sayfalar: number[]) => sayfalar.map(sayfa => ({ sayfa }));
 const durum = (o: Partial<AramaDurumu>): AramaDurumu => ({ ...bosDurum(), ...o });
@@ -69,12 +69,24 @@ describe('6.4c-3: the note with the handwriting searched', () => {
   it('every page read: no note', () => {
     expect(aranamayanNotu(durum({ aranamayan: 5, okunmamis: 0 }), true)).toBeNull();
   });
-  it('not searched (okunmamis null, no ?ocrKayit=1): the old note', () => {
+  it('not searched (okunmamis null): the old note', () => {
     expect(bosDurum().okunmamis).toBeNull();
     expect(aranamayanNotu(durum({ aranamayan: 3 }), true)).toEqual({ uzun: '3 sayfa fotoğraf, aranamadı', kisa: '3 foto' });
   });
   it('while reading / no query: nothing', () => {
     expect(aranamayanNotu(durum({ aranamayan: 3, okunmamis: 3, hazirlaniyor: true }), true)).toBeNull();
     expect(aranamayanNotu(durum({ aranamayan: 3, okunmamis: 3 }), false)).toBeNull();
+  });
+});
+
+// 6.4c-4: "henüz okunmadı" only for an account that can read
+describe('okunmamisSayisi', () => {
+  it('okuma izni var: okunmamış sayfa sayısı', () => {
+    expect(okunmamisSayisi(5, 2, true)).toBe(3);
+    expect(okunmamisSayisi(2, 3, true)).toBe(0);
+  });
+  it('izin yok ya da el yazısı aranmadı: null (eski not)', () => {
+    expect(okunmamisSayisi(5, 0, false)).toBeNull();
+    expect(okunmamisSayisi(5, null, true)).toBeNull();
   });
 });

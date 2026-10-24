@@ -81,7 +81,7 @@ Kitaplık/
 - Faz 3 Okuma: pdf.js, kitap/PDF modu, yakınlaştırma
 - Faz 4 Kalem: çizimleri PDF'e kaydetme (MVP)
 - Faz 5 Defter ve ekleme: defter fotoğrafı (otomatik kırpma), Dosya ekle (PDF, görsel → PDF)  ← bitti (5.12), main'e birleştirme Deniz onayıyla
-- Faz 6 Akıllı özellikler: Word/PPT otomatik çeviri (Drive) ← bitti (6.1), arama ← bitti (6.3), OCR, quiz/özet
+- Faz 6 Akıllı özellikler: Word/PPT otomatik çeviri (Drive) ← bitti (6.1), arama ← bitti (6.3), el yazısı okuma + aramada el yazısı ← 6.4c-4 (kilitsiz), Temiz yazı görünümü (6.4e), quiz/özet
 
 ## Faz 2 — Görsel kalite kuralları
 
@@ -425,6 +425,13 @@ Kitaplık/
 - Yükleyici: `durum` `trashed` okur; çöpteki dosyaya `uploadPdf` yazmaz (`PdfCopte`); kalem yükleyicisi bunu sessiz geçer (hata yok, tekrar yok, kayıt silinmez); Geri al'dan sonra `uploader.request`.
 - Okuyucu: aynı türde komşu dosya, yoksa başka tür, hiç yoksa K6a boş konu. Dosya ekle hedefleri yeni listeden (ör. orijinal.pdf gidince Orijinal yeniden seçilebilir). Pencere açıkken Esc sadece pencereyi kapatır.
 - Kod: `src/kitap/dosyaCop.ts` (saf), `src/drive/dosyaCop.ts`, `copAkisi.ts` (`dosyaCopIste`), `copOnay.ts` (`cozumKutusu`, `engel`) (testli). Ekran görüntüleri: `node scripts/dosya-cop-kontrol.mjs` (Drive yok; düğme ölçüm için zorla gösterilir).
+
+## Faz 6.4c — El yazısı okuma (6.4c-4)
+- Okuma (Claude, `api/oku`, varsayılan Haiku 5.5) SADECE kullanıcı isteyince: okuyucuda "El yazısını oku", fotoğraf eklerken "Temiz yazıya çevir" (varsayılan kapalı). Otomatik okuma yok (Deniz kararı: para boşa gitmesin).
+- `api/oku` production'da da açık; sadece sahip hesabı (tokeninfo + Drive about, `VITE_SAHIP_EPOSTA`), 10 istek/dk, gövde ≤ 4 MB, JPEG ≤ 3 MB, uzun kenar ≤ 2000. Anahtar `ANTHROPIC_API_KEY` sadece Vercel env'de; yanıta/loga girmez.
+- Durum sorgusu: GET `/api/oku` → `{ acik }` (sahip + anahtar; Anthropic'e istek yok, sayaca girmez). İstemci token başına bellekte tutar (`src/ocr/okumaIzni.ts`). `acik: false` ya da örnek kitaplık → okuma düğmeleri hiç görünmez.
+- Arama herkes için: kitaplıkta `.ocr.json` bulguları + iki yazım (ä↔ae, ö↔oe, ü↔ue, ß↔ss), okuyucuda okunmuş sayfalar. "N sayfa henüz okunmadı" notu sadece okuyabilen hesapta.
+- `?ocrKayit=1` kilidi kaldırıldı. Kontrol: `node scripts/ocr-production-kontrol.mjs [adres]`.
 
 ## Sonra bakılabilir
 - Oda zaman aşımı: şu an glb yüklemesine toplam 15 sn veriliyor; yavaş bağlantıda (masaüstü lightmap'leri ~3.3 MB) eski odaya düşüyor. Öneri: "15 sn hiç ilerleme yok" kuralı + yükleme göstergesi. Faz 2 kural metni değişeceği için Deniz'in onayı gerekir.

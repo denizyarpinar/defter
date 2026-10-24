@@ -1,6 +1,6 @@
-// 6.4b-AI: one notebook page (JPEG) → Claude transcription as JSON (6.4c-1: parts inside a line). Development and
-// Preview only (6.4c-2: the iPad trial on a Preview deployment): production answers 404, only the owner's Google
-// account may call it. No npm SDK (raw fetch),
+// 6.4b-AI: one notebook page (JPEG) → Claude transcription as JSON (6.4c-1: parts inside a line). 6.4c-4: also in
+// production; only the owner's Google account may call it. GET is the free status query ({ acik }: may this
+// account read? no Anthropic request, not counted in the limit). No npm SDK (raw fetch),
 // no relative imports (the function is bundled on its own). The Anthropic key and the Google token
 // never reach a log, an error text or the response.
 
@@ -149,32 +149,30 @@ export function satirlariNormallestir(satirlar: ModelSatir[]): Satir[] {
   });
 }
 
-export async function okuIstegi(request: Request, deps: OkuDeps): Promise<Response> {
+const AYARLAR = ['ANTHROPIC_API_KEY', 'VITE_GOOGLE_CLIENT_ID', 'VITE_SAHIP_EPOSTA'] as const;
+
+// 6.4c-4: the Google sign-in must belong to this app and to the owner. The owner's (normalised) e-mail, or the
+// error answer. POST and the GET status query share it.
+async function sahipDogrula(request: Request, deps: OkuDeps): Promise<{ eposta: string } | { cevap: Response }> {
   const { env } = deps;
-  if (env.VERCEL_ENV === 'production') return hata(404, 'Bulunamadı.');
-  if (request.method !== 'POST') return hata(405, 'Sadece POST.');
-
-  const eksik = ['ANTHROPIC_API_KEY', 'VITE_GOOGLE_CLIENT_ID', 'VITE_SAHIP_EPOSTA'].filter(k => !env[k]);
-  if (eksik.length) return hata(500, `Sunucu ayarı eksik: ${eksik.join(', ')}. Vercel'de development (vercel dev) ya da preview ortamına ekle, sonra vercel dev'i yeniden başlat ya da yeniden yayınla.`);
-
-  // 1. Google sign-in: the token must belong to this app and to the owner
   const yetki = request.headers.get('authorization') ?? '';
   const token = /^Bearer (\S+)$/.exec(yetki)?.[1];
-  if (!token) return hata(401, 'Google girişi yok. Tekrar giriş yap.');
+  if (!token) return { cevap: hata(401, 'Google girişi yok. Tekrar giriş yap.') };
   let bilgi: { aud?: string; email?: string; email_verified?: string | boolean; expires_in?: string | number };
   try {
     const r = await deps.fetch(`https://oauth2.googleapis.com/tokeninfo?access_token=${encodeURIComponent(token)}`);
-    if (!r.ok) return hata(401, 'Google girişi doğrulanamadı. Tekrar giriş yap.');
+    if (!r.ok) return { cevap: hata(401, 'Google girişi doğrulanamadı. Tekrar giriş yap.') };
     bilgi = await r.json() as typeof bilgi;
   } catch {
-    return hata(502, 'Google doğrulamasına ulaşılamadı. Bağlantını kontrol et ve tekrar dene.');
+    return { cevap: hata(502, 'Google doğrulamasına ulaşılamadı. Bağlantını kontrol et ve tekrar dene.') };
   }
   if (bilgi.aud !== env.VITE_GOOGLE_CLIENT_ID || !(Number(bilgi.expires_in) > 0)) {
-    return hata(401, 'Google girişi bu uygulamaya ait değil ya da süresi dolmuş. Tekrar giriş yap.');
+    return { cevap: hata(401, 'Google girişi bu uygulamaya ait değil ya da süresi dolmuş. Tekrar giriş yap.') };
   }
   // field names only (no values), so the page can show what tokeninfo returned
   const alanlar = Object.keys(bilgi).sort();
-  const red = (neden: RedNedeni, ek: Record<string, unknown> = {}) => hata(403, 'Bu deneme sadece sahip hesabıyla kullanılabilir.', { neden, alanlar, ...ek });
+  const red = (neden: RedNedeni, ek: Record<string, unknown> = {}) =>
+    ({ cevap: hata(403, 'El yazısı okuma sadece sahip hesabıyla kullanılabilir.', { neden, alanlar, ...ek }) });
   let eposta = typeof bilgi.email === 'string' ? epostaNormal(bilgi.email) : '';
   let kaynak: 'tokeninfo' | 'drive' = 'tokeninfo';
   if (eposta) {
@@ -189,13 +187,37 @@ export async function okuIstegi(request: Request, deps: OkuDeps): Promise<Respon
         if (typeof about.user?.emailAddress === 'string') { eposta = epostaNormal(about.user.emailAddress); kaynak = 'drive'; }
       }
     } catch {
-      return hata(502, 'Drive’dan hesap bilgisi alınamadı. Bağlantını kontrol et ve tekrar dene.');
+      return { cevap: hata(502, 'Drive’dan hesap bilgisi alınamadı. Bağlantını kontrol et ve tekrar dene.') };
     }
     if (!eposta) return red('email-yok');
   }
   const sahip = epostaNormal(env.VITE_SAHIP_EPOSTA!);
   // lengths and source only: enough to tell a wrong account from a broken setting, no value
   if (eposta !== sahip) return red('sahip-degil', { ipucu: `${kaynak}-eposta-uzunluk=${eposta.length}, sahip-uzunluk=${sahip.length}` });
+  return { eposta };
+}
+
+// 6.4c-4: GET → { acik }: true only with all settings, a valid token and the owner. Free: no Anthropic request,
+// not counted in the limit. 502 (Google unreachable) is the only non-200 answer; the page does not keep it.
+export async function durumIstegi(request: Request, deps: OkuDeps): Promise<Response> {
+  if (AYARLAR.some(k => !deps.env[k])) return json(200, { acik: false });
+  const d = await sahipDogrula(request, deps);
+  if ('eposta' in d) return json(200, { acik: true });
+  return d.cevap.status === 502 ? d.cevap : json(200, { acik: false });
+}
+
+export async function okuIstegi(request: Request, deps: OkuDeps): Promise<Response> {
+  const { env } = deps;
+  if (request.method === 'GET') return durumIstegi(request, deps);
+  if (request.method !== 'POST') return hata(405, 'Sadece POST.');
+
+  const eksik = AYARLAR.filter(k => !env[k]);
+  if (eksik.length) return hata(500, `Sunucu ayarı eksik: ${eksik.join(', ')}. Vercel'de development (vercel dev), preview ya da production ortamına ekle, sonra vercel dev'i yeniden başlat ya da yeniden yayınla.`);
+
+  // 1. Google sign-in: the token must belong to this app and to the owner
+  const d = await sahipDogrula(request, deps);
+  if ('cevap' in d) return d.cevap;
+  const eposta = d.eposta;
 
   // 2. simple rate limit
   const simdi = deps.simdi();

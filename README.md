@@ -40,11 +40,12 @@ Defter turns one Google Drive folder into a personal library. Every course or to
 | ![Bookcase](docs/raf.png) | **Your shelves** — books are generated from Drive folders (cloth or leather covers, ribbons, dust on books you haven't opened in weeks). Drag books between shelves; new folders appear in the *new arrivals* pile. |
 | ![Open book](docs/kitap.png) | **Open a book** — it flies to the desk and opens on a title page and a table of contents with its units and topics, each with a status (unread → reading → read → studied → review). |
 | ![Adding notebook photos](docs/foto-ekle.png) | **Add your notebook** — photograph handwritten pages; Defter finds the page, straightens it and appends it to the topic's summary PDF. PDFs and images can be added to a topic as well. |
-| ![Library search](docs/arama.png) | **Search** — find books, topics and files by name, and words inside your PDFs (Drive's full-text search). In the reader, search the open file: matches are highlighted and you jump between them. |
+| ![Library search](docs/arama.png) | **Search** — find books, topics and files by name, and words inside your PDFs (Drive's full-text search), and in handwriting that has been read. In the reader, search the open file: matches are highlighted and you jump between them. |
 
 - **Google sign-in, no server** — Google Identity Services in the browser; the access token is kept in memory only.
 - **Saves back to Drive carefully** — shelf layout and room settings are written 1.5 s after the last change, after re-reading the latest file, touching only the fields Defter owns. Unknown fields are preserved. The Phase 6 code also supports library creation and confirmed trash / undo actions; files are not permanently deleted by the app.
 - **Made for iPad** — touch gestures, no accidental page zoom, installable to the home screen.
+- **Reading handwriting (owner, on request)** — *El yazısını oku* in the reader (and *Temiz yazıya çevir* when adding photos) sends up to five notebook pages to Claude and saves the transcript next to the PDF as `<name>.ocr.json`. Nothing is read automatically, so no money is spent unasked; the buttons appear only for the owner's account when the server has its Anthropic key.
 - Customise shelves (2–6), shelf names, cover colours, wall and floor.
 
 > The interface is in Turkish for now; an English option is planned.
@@ -148,6 +149,7 @@ Search arrived in Phase 6. *Ara* (or `/`, `Ctrl+F`) opens one panel for the whol
 - **Text through Drive** — words inside PDFs are found with Drive's `fullText` search. Drive matches **whole words** only (no prefixes), and needs some time to index a newly added file. The query is limited to the folders of the library, results are kept only if they belong to a known book, and Defter's temporary conversion files are left out. Search only ever *reads* from Drive (GET requests).
 - **Search in the reader** — the first search in a file extracts its text with pdf.js; after that every query is instant. Matches are highlighted in yellow (the current one in orange), with widths measured from the real letters, in both book and PDF mode.
 - **Jump to the result** — a file result opens the reader at the right topic, tab and file; a book result flies the book to the desk. While a book lies open on the desk, the library search is off.
+- **Handwriting too** — pages read with *El yazısını oku* are found as well, in the library (a "handwriting" badge on the file) and in the reader ("El yazısında bulundu" above the page). German spellings are searched both ways (ä ↔ ae, ö ↔ oe, ü ↔ ue, ß ↔ ss). This works for every account; only reading new pages is limited to the owner.
 - The sample library has no Drive, so it searches names only.
 
 ## Tech stack
@@ -302,7 +304,7 @@ To deploy on Vercel, import the repository, set `VITE_GOOGLE_CLIENT_ID` as an en
 - [x] **Phase 3 — Reading:** PDF rendering with pdf.js, book and PDF modes, zoom, ribbons and reading status
 - [x] **Phase 4 — Pen:** Apple Pencil drawings saved into the PDF as standard annotations (pdf-lib)
 - [x] **Phase 5 — Notebook and adding:** notebook photos into the summary PDF (automatic page crop), adding PDFs and images to a topic
-- [ ] **Phase 6 — Smart features:** automatic Word/PowerPoint conversion (via Drive) ✓, search ✓, OCR, quizzes and summaries
+- [ ] **Phase 6 — Smart features:** automatic Word/PowerPoint conversion (via Drive) ✓, search ✓, handwriting reading with Claude (owner, on request) and search in it ✓, quizzes and summaries
 
 ## Built with Claude Code
 

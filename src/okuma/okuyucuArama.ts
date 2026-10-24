@@ -1,5 +1,5 @@
 import { gorunurAlaniDuzelt } from '../ui/gorunurAlan';
-import { aranamayanNotu, baslangicEslesmesi, bosDurum, listeDegisti, onceki, sayacMetni, sonraki, type AramaDurumu } from './aramaDurumu';
+import { aranamayanNotu, okunmamisSayisi, baslangicEslesmesi, bosDurum, listeDegisti, onceki, sayacMetni, sonraki, type AramaDurumu } from './aramaDurumu';
 import { elYazisiAra, type ElYazisiSonucu } from './elYazisiAra';
 import type { BookPage } from './kitapSayfalari';
 import { metinAra, metinsiz, sayfaKutusuna, sorguHazirla, type Dikdortgen } from './metinAra';
@@ -17,9 +17,10 @@ export interface AramaHost {
   focusPage(): number;
   git(sayfa: number, kutu: Dikdortgen | null): void;   // show this match (PDF: centred; book: its spread)
   katmanlariYenile(): void;                            // the highlight of every mounted page drawn again
-  // 6.4c-3 (only behind ?ocrKayit=1): the read handwriting of these pages without text (indexes in the list);
+  // 6.4c-3: the read handwriting of these pages without text (indexes in the list);
   // null: none could be read (the old note stays). Missing: the search is as before.
   elYazisi?(pages: BookPage[], metinsiz: number[]): Promise<ElYazisiSonucu | null>;
+  okumaVar?(): boolean;   // 6.4c-4: this account can read (the "henüz okunmadı" note)
 }
 
 export interface AramaKatmani { ciz(): void; kaldir(): void }
@@ -231,7 +232,7 @@ export class OkuyucuArama {
       list.push({ es, kutular: b.kutular });
     });
     const aranamayan = tum.sayfalar.filter(s => s.hazir ? metinsiz(s.hazir.sayfa) : pageKind(s.sayfa) === 'image').length;
-    const okunmamis = el ? Math.max(0, aranamayan - el.sayfalar.length) : null;
+    const okunmamis = okunmamisSayisi(aranamayan, el ? el.sayfalar.length : null, this.host.okumaVar?.() ?? false);
     // PDF pages there, but not one of them could be read (6.3c: iPad Safari's stream): say so, not "bulunamadı"
     const okunamadi = tum.sayfalar.some(s => s.hata) && !tum.sayfalar.some(s => s.hazir);
     const odak = this.host.focusPage();

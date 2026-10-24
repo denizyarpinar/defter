@@ -1,6 +1,6 @@
 import { sayfaHazirla, sorguHazirla, type MetinParcasi } from './metinAra';
 
-// Task 6.4c-3: searching the handwriting read into <pdf>.ocr.json (only behind ?ocrKayit=1). Pure.
+// Task 6.4c-3: searching the handwriting read into <pdf>.ocr.json Pure.
 // A read photo page's text goes through the same search form as a PDF page's (ä = ae, ß = ss, ı/İ = i,
 // no case, "Fehler-" + "anfällig" at a line end = one word). There are no positions: a match is a page.
 

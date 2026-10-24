@@ -86,7 +86,7 @@ describe('6.4c-3: fullTextSorgusu with yazimlar', () => {
     expect(fullTextSorgusu('Einrückung Logik', ['a'], { yazimlar: true })).toBe(
       `(fullText contains 'Einrückung' or fullText contains 'Einrueckung') and fullText contains 'Logik' and ('a' in parents) and ${SON}`);
   });
-  it('without the option (no ?ocrKayit=1): exactly as before', () => {
+  it('without the option: exactly as before', () => {
     expect(fullTextSorgusu('Einrückung', ['a'])).toBe(`fullText contains 'Einrückung' and ('a' in parents) and ${SON}`);
     expect(fullTextSorgusu('Einrueckung', ['a'], {})).toBe(`fullText contains 'Einrueckung' and ('a' in parents) and ${SON}`);
   });

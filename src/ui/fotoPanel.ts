@@ -25,7 +25,7 @@ export interface FotoPanelBaglam {
   acikDosyaId: string | null;
   sayfaSayisi: (fileId: string) => number | undefined;
   ornek: boolean;
-  temizYazi?: boolean;   // task 6.4c-2: the "Temiz yazıya çevir" toggle is shown (?ocrKayit=1)
+  temizYazi?: boolean;   // task 6.4c-2: the "Temiz yazıya çevir" toggle is shown (6.4c-4: api/oku acik)
   // task 5.8f: saves the photos on the device and starts the adding; rejects (Turkish message) when
   // nothing was saved. hedef null: a new ozet.pdf.
   ekle(jpegler: BekleyenJpeg[], hedef: DriveFile | null): Promise<void>;

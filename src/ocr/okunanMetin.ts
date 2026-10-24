@@ -1,6 +1,6 @@
 import { yaziSatiriMi, type OcrSayfa } from './kayit/sema';
 
-// Task 6.4c-2: the read text of one page, plain and only behind ?ocrKayit=1 (the real "Temiz yazı" view is 6.4e).
+// Task 6.4c-2: the read text of one page, plain, in the "El yazısını oku" panel (the real "Temiz yazı" view is 6.4e).
 // Parts in their ink colour, indent per level, struck-through parts, formulas in mono, drawings as a note.
 // The model's text goes in through textContent only (never as HTML).
 

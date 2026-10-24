@@ -7,7 +7,7 @@ export interface AramaDurumu {
   hazirlaniyor: boolean;             // the pages' text is still being read (the first search)
   aranamayan: number;                // pages without text (notebook photos, images)
   okunamadi: boolean;                // the PDF pages' text couldn't be read at all (not "not found")
-  okunmamis: number | null;          // 6.4c-3: pages without text whose handwriting isn't read yet; null: not searched (no ?ocrKayit=1)
+  okunmamis: number | null;          // 6.4c-3: pages without text whose handwriting isn't read yet; null: not searched / this account cannot read (6.4c-4)
 }
 
 export const bosDurum = (): AramaDurumu => ({ eslesmeler: [], gecerli: -1, hazirlaniyor: false, aranamayan: 0, okunamadi: false, okunmamis: null });
@@ -51,6 +51,12 @@ export function sayacMetni(d: AramaDurumu, sorguVar: boolean): string {
   if (d.hazirlaniyor) return '…';
   if (!d.eslesmeler.length) return d.okunamadi ? 'metin okunamadı' : 'bulunamadı';
   return `${Math.max(0, d.gecerli) + 1}/${d.eslesmeler.length}`;
+}
+
+// 6.4c-4: the pages without text still to read (okunan: pages with a read record, null: handwriting not searched).
+// Only for an account that can read (okumaVar): for the others "henüz okunmadı" would promise a button they lack.
+export function okunmamisSayisi(aranamayan: number, okunan: number | null, okumaVar: boolean): number | null {
+  return okunan === null || !okumaVar ? null : Math.max(0, aranamayan - okunan);
 }
 
 // The small note about pages without text: the full text and the short one (phone); null: nothing to say.

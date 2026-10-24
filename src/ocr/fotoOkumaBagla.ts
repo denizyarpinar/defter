@@ -8,7 +8,7 @@ import { FotoOkumaKuyrugu, OKUNAMADI, type FotoOkumaSonucu } from './fotoOkuma';
 import { driveOcrApi, kayitOkuDrive, sayfaYaz } from './kayit/kayitDrive';
 
 // Task 6.4c-2: "Temiz yazıya çevir" with the real engine (api/oku) and the real record (Drive).
-// Loaded only behind ?ocrKayit=1 (Okuyucu.ts → FotoEkleyici.bitti).
+// Loaded only when api/oku says acik (6.4c-4; Okuyucu.ts → FotoEkleyici.bitti).
 
 let yer: DriveLocation | null = null;
 const kuyruk = new FotoOkumaKuyrugu(() => {
