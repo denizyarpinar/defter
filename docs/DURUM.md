@@ -1,5 +1,31 @@
 # Defter – Durum
 
+## 6.4b-AI — Claude ile el yazısı okuma denemesi, yalnız geliştirme (24 Ekim 2026, Claude Code)
+
+- Amaç: görsel-dil modelinin (Claude) kötü el yazısını okuma ölçümü. Kalıcı kayıt, arama bağlantısı, font görünümü yok. Deniz kararları: api/oku **sadece sahip**; env `.env.development.local`'a çekilir (.env.local'a dokunulmaz); Vercel CLI global; `ANTHROPIC_API_KEY` **sadece development** (Preview'a eklenmedi, iPad denemesinde ayrıca karar).
+- `api/oku.ts` (Vercel fonksiyonu, ham `fetch`, yeni paket yok): production → 404; Google token tokeninfo ile doğrulanır (aud = `VITE_GOOGLE_CLIENT_ID` değilse 401); e-posta tokeninfo'da yoksa aynı token'la Drive `about` (salt okuma) → `VITE_SAHIP_EPOSTA` ile karşılaştırma (iki taraf trim + tırnaksız + küçük harf); 403'te değer içermeyen neden kodu (`email-yok` | `email-dogrulanmamis` | `sahip-degil`) ve uzunluk ipucu. E-posta başına 10 istek/dk (fonksiyon örneği başına); gövde ≤ 4 MB, JPEG ≤ 3 MB, uzun kenar ≤ 2000 (413), JPEG değil 415; model sadece `claude-haiku-5-5` | `claude-sonnet-5-5`. Yapılandırılmış çıktı (json_schema): `{ satirlar: [{ metin, renk, girinti, tur, ustuCizili }], hamMetin }`. Thinking/effort gönderilmez (model varsayılanı), fallback yok. Anahtar ve token yanıta/loga girmez.
+- Deneme sayfası `ocr-ai.html` + `src/ocrAi/` (deneme, gorsel, maliyet). Giriş her seferinde hesap seçtirir (`select_account`); girilen hesabın e-postası Drive about'tan yalnız sayfanın DOM'unda gösterilir. Build girişi değil: `dist/`'te ocr-ai/ocrAi/anthropic/tokeninfo izi 0. Fiyatlar tek yerde (`maliyet.ts`). Hedef puanı Codex'in `scoreKnownTargets`'ı (değiştirilmedi). `tsconfig.json` include'a `api` eklendi; testler `src/ocrAi/` altında (api/ altındaki her dosya fonksiyon olur).
+- Kontroller: typecheck ve build geçti; `src/ocrAi` 26 test; `node scripts/ocr-ai-kontrol.mjs` (sahte GIS/Drive/api, uydurma satırlar) laptop 1365×900 ve iPad boyutu 820×1180 geçti; görüntüler iCloud'daki `Claude outputs/ocr-ai-6.4b/` klasöründe (ham metin yok).
+
+**Gerçek deneme (laptop, Deniz, 24 Ekim 2026)** — hedef kelime puanı, tüm sayfa doğruluğu değil:
+
+| Örnek | Haiku 5.5 | Sonnet 5.5 | Drive (6.4a) |
+|---|---|---|---|
+| img-1384 | 18/20 | 19/20 | 17/20 |
+| img-1383 | 20/20 | 19/20 | 17/20 |
+| PDF s.1 | 17/20 | 18/20 | 10/20 |
+| IMG_1572 (formül, hedef yok) | LaTeX: evet | LaTeX: evet; iki sütunda satır sırası karıştı | — |
+
+- Not: 6.4a'daki Drive hedef listeleri bu denemedekilerle aynı değil; karşılaştırma yaklaşık.
+- **Karar: varsayılan model Haiku 5.5.**
+- Deneme sırasında çözülenler: (1) 403 — uygulama `email` izni istemediği için tokeninfo e-posta döndürmüyordu → e-posta Drive about'tan; ayrıca giriş hatırlanan hesabı öneriyordu → `select_account`. (2) 401 — Anthropic anahtarı geçersizdi; Deniz anahtarı yeniledi, `vercel env pull` + `vercel dev` yeniden başlatıldı.
+- **Açık işler:** satır içi renk parçaları (aynı satırda DE kırmızı / TR mavi; şemada renk satır başına tek); fiyat doğrulaması (`maliyet.ts`'teki değerler claude-api rehberinin 6 Ekim 2026 önbelleğinden, canlı fiyat sayfasıyla karşılaştırılmadı; kesin tutar Claude Console > Usage).
+- Push, dağıtım, Google/Vercel ayarı (development env ekleme dışında), Drive yazması yok. Codex'in 6.4 OCR değişikliklerine dokunulmadı.
+
+---
+
+**Son güncelleyen (6.4b-AI):** Claude Code, 24 Ekim 2026 · gerçek deneme sonuçları ve karar (varsayılan Haiku 5.5); 6.4b-AI dosyaları commit edildi (push yok).
+
 ## 6.K8c-3 — main canlı kontrol (24 Ekim 2026, Claude Code)
 
 - main = **a13fce6** (Faz 6 → main merge), origin/main ile aynı; `git push origin main` → zaten güncel.
