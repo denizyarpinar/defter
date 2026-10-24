@@ -64,7 +64,7 @@ Kitaplık/
 
 ## Değişmez kurallar
 - Uygulama Drive'daki dosyaları **kopyalamaz, taşımaz, silmez**. Faz 1'de sadece `kitaplik.json` ve `kitap.json` içindeki `kapak` alanı yazılabilir. Faz 5'ten itibaren: `kitaplar/<kitap>/` altında yeni PDF oluşturma ve PDF'in sonuna sayfa ekleme izinli (bkz. Faz 5).
-- Tek istisna: Kitaplık/ klasöründe kitaplik.json yoksa ilk raf/oda değişikliğinde bir kez oluşturulur. Başka hiçbir dosya oluşturulmaz; tek ek istisna Faz 5'teki PDF oluşturma kuralıdır. Uygulamanın kendi kökü (kurulum) için bkz. Faz 6.K.
+- Tek istisna: Kitaplık/ klasöründe kitaplik.json yoksa ilk raf/oda değişikliğinde bir kez oluşturulur. Başka hiçbir dosya oluşturulmaz; tek ek istisna Faz 5'teki PDF oluşturma kuralıdır. Uygulamanın kendi kökü (kurulum) için bkz. Faz 6.K. 6.4c'den beri (kitaplik.json gibi) bir PDF'in klasöründe okunan el yazısı için `<pdf adı>.ocr.json` (appProperties `defter=1`, `defterOcr=1`, `defterOcrKaynak=<pdf id>`) oluşturulabilir ve güncellenebilir; başka JSON oluşturulmaz.
 - Yazmadan önce dosyanın son halini oku (başka cihazda değişmiş olabilir).
 - Erişim token'ını localStorage'a yazma; bellekte tut. `.env.local` git'e girmez.
 - Hata mesajları Türkçe, kullanıcıya ne yapacağını söyler ("Drive'da Kitaplık klasörü bulunamadı. Klasörü ana dizine yükle ve yenile.").

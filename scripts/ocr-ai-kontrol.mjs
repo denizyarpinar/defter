@@ -18,24 +18,25 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="2600" height="1800">
   <text x="200" y="520" font-size="96" fill="#1b1b1b" font-family="Segoe Script, cursive">a · b = |a| |b| cos θ</text></svg>`;
 const ornek = await sharp(Buffer.from(svg)).png().toBuffer();
 
+// 6.4c-1: the record's shape (parts inside a line); line 1 = red German + blue Turkish in one line
 const sahteSonuc = {
   'claude-haiku-5-5': {
     satirlar: [
-      { metin: 'Örnek sayfa (uydurma)', renk: 'mavi', girinti: 0, tur: 'yazi', ustuCizili: false },
-      { metin: 'Skalarprodukt [?] tanımı', renk: 'siyah', girinti: 1, tur: 'yazi', ustuCizili: false },
-      { metin: '\\vec{a} \\cdot \\vec{b} = \\lVert\\vec{a}\\rVert \\, \\lVert\\vec{b}\\rVert \\cos\\theta', renk: 'siyah', girinti: 1, tur: 'formul', ustuCizili: false },
-      { metin: 'yanlış satır', renk: 'kirmizi', girinti: 2, tur: 'yazi', ustuCizili: true }
+      { girinti: 0, parcalar: [{ metin: 'der Knoten (uydurma)', renk: 'kirmizi' }, { metin: 'düğüm', renk: 'mavi' }] },
+      { girinti: 1, parcalar: [{ metin: 'Skalarprodukt [?] tanımı', renk: 'siyah' }] },
+      { girinti: 1, parcalar: [{ metin: '\\vec{a} \\cdot \\vec{b} = \\lVert\\vec{a}\\rVert \\, \\lVert\\vec{b}\\rVert \\cos\\theta', renk: 'siyah', tur: 'formul' }] },
+      { girinti: 2, parcalar: [{ metin: 'yanlış satır', renk: 'kirmizi', ustuCizili: true }] }
     ],
-    hamMetin: 'Örnek sayfa (uydurma)\nSkalarprodukt [?] tanımı\n…', sureMs: 3100, kullanim: { input_tokens: 1580, output_tokens: 420 }
+    sureMs: 3100, kullanim: { input_tokens: 1580, output_tokens: 420 }
   },
   'claude-sonnet-5-5': {
     satirlar: [
-      { metin: 'Örnek sayfa (uydurma)', renk: 'mavi', girinti: 0, tur: 'yazi', ustuCizili: false },
-      { metin: 'Skalarprodukt ve tanımı', renk: 'siyah', girinti: 1, tur: 'yazi', ustuCizili: false },
-      { metin: '\\vec{a} \\cdot \\vec{b} = |\\vec{a}| \\, |\\vec{b}| \\cos\\theta', renk: 'siyah', girinti: 1, tur: 'formul', ustuCizili: false },
-      { metin: 'iki vektör ve aradaki açı θ', renk: 'kursun', girinti: 1, tur: 'cizim', ustuCizili: false }
+      { girinti: 0, parcalar: [{ metin: 'der Knoten (uydurma)', renk: 'kirmizi' }, { metin: 'düğüm', renk: 'mavi' }] },
+      { girinti: 1, parcalar: [{ metin: 'Skalarprodukt ve tanımı', renk: 'siyah' }, { metin: 'Kantn', renk: 'kursun', duzeltme: 'Kante' }] },
+      { girinti: 1, parcalar: [{ metin: '\\vec{a} \\cdot \\vec{b} = |\\vec{a}| \\, |\\vec{b}| \\cos\\theta', renk: 'siyah', tur: 'formul' }] },
+      { girinti: 1, cizim: 'iki vektör ve aradaki açı θ' }
     ],
-    hamMetin: 'Örnek sayfa (uydurma)\nSkalarprodukt ve tanımı\n…', sureMs: 7400, kullanim: { input_tokens: 1580, output_tokens: 1250 }
+    sureMs: 7400, kullanim: { input_tokens: 1580, output_tokens: 1250 }
   }
 };
 
@@ -79,7 +80,7 @@ try {
     await page.locator('#gorselBilgi', { hasText: '1385×2000' }).waitFor();
     await page.locator('[data-donus="0"]').click();
     await page.locator('#gorselBilgi', { hasText: '2000×1385' }).waitFor();
-    await page.locator('#hedef').fill('Örnek sayfa uydurma Skalarprodukt ve tanımı');
+    await page.locator('#hedef').fill('der Knoten düğüm Skalarprodukt ve tanımı');
 
     await page.locator('#okuIkisi').click();
     await page.locator('#durum', { hasText: 'Bitti.' }).waitFor();
@@ -90,6 +91,14 @@ try {
     assert.match(await page.locator('[data-kart="claude-haiku-5-5"]').textContent(), /tahmini; kesin tutar Claude Console > Usage/);
     assert.equal(await page.locator('.kart mark').count(), 1, '[?] vurgulu');
     assert.equal(await page.locator('.ustu-cizili').count(), 1);
+    // 6.4c-1: one line, two colours (red German + blue Turkish), in both cards
+    for (const m of ['claude-haiku-5-5', 'claude-sonnet-5-5']) {
+      const renkler = await page.locator(`[data-kart="${m}"] .sayfa .satir`).first().locator('.parca').evaluateAll(e => e.map(x => [x.dataset.renk, getComputedStyle(x).color]));
+      assert.deepEqual(renkler.map(r => r[0]), ['kirmizi', 'mavi'], `${m}: ilk satırda iki parça`);
+      assert.notEqual(renkler[0][1], renkler[1][1], `${m}: iki parça farklı renkte`);
+    }
+    assert.equal(await page.locator('.duzeltme').count(), 1, 'düzeltme gösterildi');
+    assert.equal(await page.evaluate(() => typeof window.defterOcrKayitDene), 'function', 'dev yardımcısı kuruldu');
     await page.screenshot({ path: join(out, `${cihaz}-2-sonuc.png`), fullPage: true });
 
     hataModu = true;

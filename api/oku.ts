@@ -1,4 +1,4 @@
-// 6.4b-AI: one notebook page (JPEG) → Claude transcription as JSON. Development/measurement only:
+// 6.4b-AI: one notebook page (JPEG) → Claude transcription as JSON (6.4c-1: parts inside a line). Development/measurement only:
 // production answers 404, only the owner's Google account may call it. No npm SDK (raw fetch),
 // no relative imports (the function is bundled on its own). The Anthropic key and the Google token
 // never reach a log, an error text or the response.
@@ -18,18 +18,34 @@ export const MAX_KENAR = 2000;
 export const SINIR = { pencereMs: 60_000, istek: 10 };
 
 const RENKLER = ['siyah', 'mavi', 'kirmizi', 'yesil', 'kursun', 'diger'] as const;
-const TURLER = ['yazi', 'formul', 'cizim'] as const;
+const PARCA_TURLERI = ['yazi', 'formul'] as const;
 
+// 6.4c-1: parts inside a line (red German + blue Turkish in one line = two parts); spelling as written,
+// a correction only in its own field. The answer is turned into the record's shape (src/ocr/kayit/sema.ts).
 const SISTEM = `You transcribe one photographed or scanned page of handwritten study notes.
-- Transcribe exactly as written. Do not correct spelling, grammar or punctuation; do not complete or guess words.
+- Transcribe exactly as written. Do not correct spelling, grammar or punctuation in metin; do not complete or guess words.
+- If a word is clearly misspelled and you are sure what was meant, put the corrected text of that part in duzeltme; otherwise duzeltme is "".
 - Mark every illegible word or fragment with [?].
 - Keep Turkish and German letters exactly (ä ö ü ß ç ğ ı İ ş). Notes often mix Turkish and German.
-- Write formulas as LaTeX (e.g. \\vec{a} \\cdot \\vec{b}) with tur "formul".
-- For drawings or diagrams give a short description with tur "cizim".
 - One entry per written line, in reading order. girinti is the visual indent level (0 = left margin, 1, 2, ...).
-- renk is the ink colour; use "kursun" for pencil, "diger" for anything else.
-- Struck-through lines are still transcribed, with ustuCizili true.
-- hamMetin is the whole page as plain text, lines separated by newlines, in the same order.`;
+- A line is split into parts wherever the ink colour, struck-through state or kind changes (e.g. a red German word followed by its blue Turkish meaning = two parts). Parts are joined with one space when shown; do not add leading or trailing spaces.
+- renk is the ink colour of the part; use "kursun" for pencil, "diger" for anything else.
+- Write formulas as LaTeX (e.g. \\vec{a} \\cdot \\vec{b}) in a part with tur "formul"; other parts have tur "yazi".
+- Struck-through parts are still transcribed, with ustuCizili true.
+- For drawings or diagrams use a line with cizim: a short description (no parcalar).`;
+
+const PARCA = {
+  type: 'object',
+  properties: {
+    metin: { type: 'string' },
+    renk: { type: 'string', enum: [...RENKLER] },
+    tur: { type: 'string', enum: [...PARCA_TURLERI] },
+    ustuCizili: { type: 'boolean' },
+    duzeltme: { type: 'string' }
+  },
+  required: ['metin', 'renk', 'tur', 'ustuCizili', 'duzeltme'],
+  additionalProperties: false
+};
 
 const SEMA = {
   type: 'object',
@@ -37,26 +53,23 @@ const SEMA = {
     satirlar: {
       type: 'array',
       items: {
-        type: 'object',
-        properties: {
-          metin: { type: 'string' },
-          renk: { type: 'string', enum: [...RENKLER] },
-          girinti: { type: 'integer' },
-          tur: { type: 'string', enum: [...TURLER] },
-          ustuCizili: { type: 'boolean' }
-        },
-        required: ['metin', 'renk', 'girinti', 'tur', 'ustuCizili'],
-        additionalProperties: false
+        anyOf: [
+          { type: 'object', properties: { girinti: { type: 'integer' }, parcalar: { type: 'array', items: PARCA } }, required: ['girinti', 'parcalar'], additionalProperties: false },
+          { type: 'object', properties: { girinti: { type: 'integer' }, cizim: { type: 'string' } }, required: ['girinti', 'cizim'], additionalProperties: false }
+        ]
       }
-    },
-    hamMetin: { type: 'string' }
+    }
   },
-  required: ['satirlar', 'hamMetin'],
+  required: ['satirlar'],
   additionalProperties: false
 };
 
-export interface Satir { metin: string; renk: typeof RENKLER[number]; girinti: number; tur: typeof TURLER[number]; ustuCizili: boolean }
-export interface OkuSonuc { satirlar: Satir[]; hamMetin: string; model: string; sureMs: number; kullanim: { input_tokens: number; output_tokens: number } }
+// The model's answer (every field present) and the record's shape (defaults left out)
+interface ModelParca { metin: string; renk: typeof RENKLER[number]; tur: typeof PARCA_TURLERI[number]; ustuCizili: boolean; duzeltme: string }
+type ModelSatir = { girinti: number; parcalar: ModelParca[] } | { girinti: number; cizim: string };
+export interface Parca { metin: string; renk: typeof RENKLER[number]; tur?: 'formul'; ustuCizili?: true; duzeltme?: string }
+export type Satir = { girinti: number; parcalar: Parca[] } | { girinti: number; cizim: string };
+export interface OkuSonuc { satirlar: Satir[]; model: string; sureMs: number; kullanim: { input_tokens: number; output_tokens: number } }
 
 // requests per e-mail in this function instance (simple limit: instances do not share it)
 const istekler = new Map<string, number[]>();
@@ -99,13 +112,39 @@ function base64Coz(s: string): Uint8Array | null {
   } catch { return null; }
 }
 
-export function sonucGecerli(x: unknown): x is { satirlar: Satir[]; hamMetin: string } {
+const girintiMi = (x: unknown) => Number.isInteger(x) && (x as number) >= 0;
+
+function parcaGecerli(p: unknown): p is ModelParca {
+  const r = p as Partial<ModelParca> | null;
+  return !!r && typeof r.metin === 'string' && RENKLER.includes(r.renk as never) && PARCA_TURLERI.includes(r.tur as never)
+    && typeof r.ustuCizili === 'boolean' && typeof r.duzeltme === 'string';
+}
+
+export function sonucGecerli(x: unknown): x is { satirlar: ModelSatir[] } {
   if (!x || typeof x !== 'object') return false;
-  const o = x as { satirlar?: unknown; hamMetin?: unknown };
-  return typeof o.hamMetin === 'string' && Array.isArray(o.satirlar) && o.satirlar.every(s => {
-    const r = s as Partial<Satir> | null;
-    return !!r && typeof r.metin === 'string' && RENKLER.includes(r.renk as never) && Number.isInteger(r.girinti)
-      && (r.girinti as number) >= 0 && TURLER.includes(r.tur as never) && typeof r.ustuCizili === 'boolean';
+  const o = x as { satirlar?: unknown };
+  return Array.isArray(o.satirlar) && o.satirlar.every(s => {
+    const r = s as { girinti?: unknown; parcalar?: unknown; cizim?: unknown } | null;
+    if (!r || !girintiMi(r.girinti)) return false;
+    if (Array.isArray(r.parcalar)) return r.cizim === undefined && r.parcalar.every(parcaGecerli);
+    return typeof r.cizim === 'string';
+  });
+}
+
+// Model answer → the record's shape: tur "yazi", ustuCizili false and an empty / same duzeltme are left out
+export function satirlariNormallestir(satirlar: ModelSatir[]): Satir[] {
+  return satirlar.map(s => {
+    if (!('parcalar' in s)) return { girinti: s.girinti, cizim: s.cizim };
+    return {
+      girinti: s.girinti,
+      parcalar: s.parcalar.map(p => {
+        const o: Parca = { metin: p.metin, renk: p.renk };
+        if (p.tur === 'formul') o.tur = 'formul';
+        if (p.ustuCizili) o.ustuCizili = true;
+        if (p.duzeltme && p.duzeltme !== p.metin) o.duzeltme = p.duzeltme;
+        return o;
+      })
+    };
   });
 }
 
@@ -218,8 +257,7 @@ export async function okuIstegi(request: Request, deps: OkuDeps): Promise<Respon
   if (!sonucGecerli(sonuc)) return hata(502, 'Model yanıtı beklenen biçimde değil. Tekrar dene.');
 
   const govdeSonuc: OkuSonuc = {
-    satirlar: sonuc.satirlar,
-    hamMetin: sonuc.hamMetin,
+    satirlar: satirlariNormallestir(sonuc.satirlar),
     model,
     sureMs: deps.simdi() - basla,
     kullanim: { input_tokens: mesaj.usage?.input_tokens ?? 0, output_tokens: mesaj.usage?.output_tokens ?? 0 }

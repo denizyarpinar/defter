@@ -1,5 +1,18 @@
 # Defter – Durum
 
+## 6.4c-1 — El yazısı okuma kaydı: şema + Drive kayıt modülü, arayüz yok (24 Ekim 2026, Claude Code)
+
+- Deniz kararları: okunan metin materyalin klasöründe `<pdf adı>.ocr.json` yan dosyasında (ör. `ozet.ocr.json`); okuma sadece kullanıcı isteyince; fotoğraf PDF'te kalır. Renklerde `kursun` kalır. Birleştirme anahtarı sadece parmak izi (aynı sayfa numarasında farklı parmak izli eski kayıt silinmez, `eslestir` "eski" der). Dev yardımcısı ocr-ai.html'den kurulur (main.ts değişmedi).
+- `src/ocr/kayit/`: `sema.ts` (surum 1 tipleri, `kayitOku` doğrulama, bilinmeyen alanlar korunur, `OcrKayitBozuk`/`OcrKayitYeniSurum`, `hamMetin`/`duzeltilmisMetin` parçalardan), `birlestir.ts`, `eslestir.ts`, `parmakIzi.ts` (tek görsel → `g:` + görselin ham baytlarının SHA-256'sı; yoksa `i:` + içerik akışları ve XObject'ler; /Annots okunmaz), `kayitDrive.ts` (`sayfaYaz`, `kayitOkuDrive`; navigator.locks, yerKontrol, oluştur + tekrar ara, en eski createdTime asıl, kopyalar silinmez/yazılmaz ama birleştirilir, durum (modifiedTime + headRevisionId) ile 3 deneme), `kayitDene.ts` (DEV).
+- `api/oku.ts`: model çıktısı satır içi parçalar (`anyOf`: parçalı satır | çizim satırı), `duzeltme` ayrı alan, `hamMetin` kalktı; yanıt kayıt şemasına normalleştirilir. Production 404, tokeninfo, sahip kontrolü, sınırlar aynı. ocr-ai.html parçaları kendi renginde gösterir.
+- Kontroller: typecheck, build, 114 dosyada 1374/1374 test; `dist/`'te defterOcrKayitDene / ocrAi / ocr-ai / defterOcr izi 0; `node scripts/ocr-ai-kontrol.mjs http://localhost:5173` (sahte GIS/api) laptop 1365×900 + iPad 820×1180 geçti (ilk satırda iki renk, düzeltme, dev yardımcısı kurulu).
+- Gerçek Drive denemesi Deniz'de: `vercel dev --listen 5173` → `/ocr-ai.html` → giriş → konsolda `await defterOcrKayitDene()` (6.4c-1b: varsayılan = ozet.pdf'li ilk gerçek, örnek olmayan konu; adında "test" geçen önce; gerçek kitapta onay sorar). Bulunamazsa adım yazılır (`[adım 1/4 kitaplık]` … `[adım 4/4 ozet.pdf]`) ve kitap id'leri + ozet.pdf'li konu yolları listelenir; konsolda e-posta ve Drive id yok. İkinci çağrıda aynı dosya güncellenmeli, yeni dosya oluşmamalı.
+- Açık: `application/json` dosyanın Drive `fullText` ile dizinlenmesi 6.4c-3'te ölçülecek. Panel/arama/görünüm sonraki adımlar.
+
+**Son güncelleyen (6.4c-1):** Claude Code, 24 Ekim 2026 · kod + testler hazır, commit/push yok; gerçek Drive denemesi bekliyor.
+
+---
+
 ## 6.4c-0 — Codex'in OCR işini toparlama (24 Ekim 2026, Claude Code)
 
 - Arşiv: Codex'in commit edilmemiş 6.4 işi **67794de**'de olduğu gibi (sadece DURUM.md'de Drive id'leri `<drive-id>`, `C:/Users/yarpi` → `%USERPROFILE%`). Eski hâl gerekirse oradan alınır.

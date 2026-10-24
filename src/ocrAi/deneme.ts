@@ -1,13 +1,15 @@
 import { currentToken, prepareAuth, signIn, AuthError, authErrorMessage } from '../drive/auth';
 import { getUser } from '../drive/drive';
+import { hamMetin, yaziSatiriMi, type OcrParca, type OcrSatir } from '../ocr/kayit/sema';
 import { scoreKnownTargets } from '../ocr/score';
 import { FIYATLAR, MALIYET_NOTU, MODELLER, dolarYaz, maliyet, type OkuModel } from './maliyet';
 import { jpegHazirla, kaynakAc, pdfMi, type Donus, type Hazir, type Kaynak } from './gorsel';
 
 // 6.4b-AI measurement page (ocr-ai.html, dev only; not a build input). The image goes to
 // /api/oku → Anthropic. Transcripts stay in this tab's DOM: no storage, no Drive request.
-interface Satir { metin: string; renk: string; girinti: number; tur: 'yazi' | 'formul' | 'cizim'; ustuCizili: boolean }
-interface Sonuc { satirlar: Satir[]; hamMetin: string; sureMs: number; kullanim: { input_tokens: number; output_tokens: number } }
+// 6.4c-1: lines are parts, each in its own colour (the record's shape, src/ocr/kayit/sema.ts); the plain
+// text is built from the parts. The console helper window.defterOcrKayitDene is installed here (dev only).
+interface Sonuc { satirlar: OcrSatir[]; sureMs: number; kullanim: { input_tokens: number; output_tokens: number } }
 
 const RENK: Record<string, string> = { siyah: '#1b1b1b', mavi: '#1f4fbf', kirmizi: '#c0392b', yesil: '#1e8449', kursun: '#6b6b6b', diger: '#8e44ad' };
 
@@ -16,6 +18,7 @@ if (!import.meta.env.DEV) {
   app.textContent = 'Bu sayfa yalnız geliştirmede çalışır.';
 } else {
   kur();
+  void import('../ocr/kayit/kayitDene').then(m => m.installOcrKayitDene());
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<string, string> = {}, ...cocuk: (Node | string)[]): HTMLElementTagNameMap[K] {
@@ -142,21 +145,41 @@ function kur(): void {
   }
 }
 
-function satirCiz(s: Satir): HTMLElement {
-  const d = el('div', { class: `satir tur-${s.tur}` });
+// model text only through text nodes, never as HTML
+function metinEkle(e: HTMLElement, metin: string): void {
+  metin.split('[?]').forEach((p, i) => { if (i) e.append(el('mark', {}, '[?]')); e.append(p); });
+}
+
+function parcaCiz(p: OcrParca): HTMLElement {
+  const d = el('span', { class: `parca tur-${p.tur ?? 'yazi'}`, 'data-renk': p.renk });
+  d.style.color = RENK[p.renk] ?? RENK.diger;
+  if (p.ustuCizili) d.classList.add('ustu-cizili');
+  metinEkle(d, p.metin);
+  if (p.duzeltme !== undefined) d.append(el('small', { class: 'duzeltme' }, `→ ${p.duzeltme}`));
+  return d;
+}
+
+function satirCiz(s: OcrSatir): HTMLElement {
+  const d = el('div', { class: 'satir' });
   d.style.paddingLeft = `${s.girinti * 1.5}em`;
-  d.style.color = RENK[s.renk] ?? RENK.diger;
-  if (s.ustuCizili) d.classList.add('ustu-cizili');
-  const metin = s.tur === 'cizim' ? `[çizim: ${s.metin}]` : s.metin;
-  // model text only through text nodes, never as HTML
-  metin.split('[?]').forEach((p, i) => { if (i) d.append(el('mark', {}, '[?]')); d.append(p); });
+  if (!yaziSatiriMi(s)) {
+    d.classList.add('tur-cizim');
+    d.style.color = RENK.kursun;
+    metinEkle(d, `[çizim: ${s.cizim}]`);
+    return d;
+  }
+  s.parcalar.forEach((p, i) => { if (i) d.append(' '); d.append(parcaCiz(p)); });
   return d;
 }
 
 function kartDoldur(kart: HTMLElement, m: OkuModel, r: Sonuc, istemciMs: number, hedef: string): void {
-  const say = (t: Satir['tur']) => r.satirlar.filter(s => s.tur === t).length;
-  const belirsiz = (r.hamMetin.match(/\[\?\]/g) ?? []).length;
-  const puan = hedef ? scoreKnownTargets(hedef, r.hamMetin) : null;
+  const ham = hamMetin(r);
+  const parcalar = r.satirlar.flatMap(s => (yaziSatiriMi(s) ? s.parcalar : []));
+  const formul = parcalar.filter(p => p.tur === 'formul').length;
+  const cizim = r.satirlar.filter(s => !yaziSatiriMi(s)).length;
+  const cokRenkli = r.satirlar.filter(s => yaziSatiriMi(s) && new Set(s.parcalar.map(p => p.renk)).size > 1).length;
+  const belirsiz = (ham.match(/\[\?\]/g) ?? []).length;
+  const puan = hedef ? scoreKnownTargets(hedef, ham) : null;
   const tutar = maliyet(m, r.kullanim);
   kart.replaceChildren(
     el('h3', {}, FIYATLAR[m].ad),
@@ -164,10 +187,10 @@ function kartDoldur(kart: HTMLElement, m: OkuModel, r: Sonuc, istemciMs: number,
       el('dt', {}, 'Süre'), el('dd', {}, `${(istemciMs / 1000).toFixed(1)} sn (model ${(r.sureMs / 1000).toFixed(1)} sn)`),
       el('dt', {}, 'Token'), el('dd', {}, `${r.kullanim.input_tokens} giriş / ${r.kullanim.output_tokens} çıkış`),
       el('dt', {}, 'Maliyet'), el('dd', {}, `${dolarYaz(tutar)} (${MALIYET_NOTU})`),
-      el('dt', {}, 'Satır'), el('dd', { 'data-satir-sayisi': '' }, `${r.satirlar.length} · formül ${say('formul')} · çizim ${say('cizim')} · [?] ${belirsiz}`),
+      el('dt', {}, 'Satır'), el('dd', { 'data-satir-sayisi': '' }, `${r.satirlar.length} · parça ${parcalar.length} · çok renkli satır ${cokRenkli} · formül ${formul} · çizim ${cizim} · [?] ${belirsiz}`),
       el('dt', {}, 'Hedef'), el('dd', { 'data-puan': '' }, puan ? `${puan.found}/${puan.total} · ${puan.metric}` : 'Hedef kelime yok')
     ),
     el('div', { class: 'sayfa' }, ...r.satirlar.map(satirCiz)),
-    el('details', {}, el('summary', {}, 'Ham metin'), el('pre', {}, r.hamMetin))
+    el('details', {}, el('summary', {}, 'Ham metin'), el('pre', {}, ham))
   );
 }

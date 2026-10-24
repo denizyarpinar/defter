@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { MAX_GOVDE, epostaNormal, okuIstegi, sinirSifirla, jpegBoyutu, type OkuDeps } from '../../api/oku';
+import { MAX_GOVDE, epostaNormal, okuIstegi, sinirSifirla, jpegBoyutu, sonucGecerli, satirlariNormallestir, type OkuDeps } from '../../api/oku';
 
 // Lives under src/ (not api/): every file in api/ becomes a Vercel function.
 const ANAHTAR = 'sk-ant-SAHTE-anahtar-123';
@@ -15,7 +15,8 @@ const tokenBilgi = (o: Record<string, unknown> = {}) =>
   new Response(JSON.stringify({ aud: ENV.VITE_GOOGLE_CLIENT_ID, email: 'sahip@example.com', email_verified: 'true', expires_in: '3000', ...o }));
 const modelCevap = (metin: string, o: Record<string, unknown> = {}) =>
   new Response(JSON.stringify({ stop_reason: 'end_turn', content: [{ type: 'thinking', thinking: '' }, { type: 'text', text: metin }], usage: { input_tokens: 1500, output_tokens: 400 }, ...o }));
-const iyiSonuc = JSON.stringify({ satirlar: [{ metin: 'Graphen [?]', renk: 'mavi', girinti: 1, tur: 'yazi', ustuCizili: false }], hamMetin: 'Graphen [?]' });
+const parca = (metin: string, renk: string, o: Record<string, unknown> = {}) => ({ metin, renk, tur: 'yazi', ustuCizili: false, duzeltme: '', ...o });
+const iyiSonuc = JSON.stringify({ satirlar: [{ girinti: 1, parcalar: [parca('Graphen [?]', 'mavi')] }] });
 
 function kur(yanitlar: Array<Response | Error>, env: Record<string, string | undefined> = ENV) {
   const fetchSahte = vi.fn(async () => {
@@ -185,14 +186,17 @@ describe('api/oku', () => {
     const { deps, fetchSahte } = kur([tokenBilgi(), modelCevap(iyiSonuc)]);
     const r = await sonuc(await okuIstegi(istek(), deps));
     expect(r.status).toBe(200);
-    expect(r.govde).toMatchObject({ hamMetin: 'Graphen [?]', model: 'claude-haiku-5-5', kullanim: { input_tokens: 1500, output_tokens: 400 } });
-    expect((r.govde.satirlar as unknown[]).length).toBe(1);
+    expect(r.govde).toMatchObject({ model: 'claude-haiku-5-5', kullanim: { input_tokens: 1500, output_tokens: 400 } });
+    expect(r.govde.satirlar).toEqual([{ girinti: 1, parcalar: [{ metin: 'Graphen [?]', renk: 'mavi' }] }]);
+    expect(r.govde.hamMetin).toBeUndefined();
     const [url, init] = fetchSahte.mock.calls[1] as unknown as [string, RequestInit];
     expect(url).toBe('https://api.anthropic.com/v1/messages');
     expect((init.headers as Record<string, string>)['x-api-key']).toBe(ANAHTAR);
     const body = JSON.parse(String(init.body));
     expect(body.model).toBe('claude-haiku-5-5');
     expect(body.output_config.format.type).toBe('json_schema');
+    expect(body.output_config.format.schema.properties.satirlar.items.anyOf).toHaveLength(2);
+    expect(body.system).toContain('duzeltme');
     expect(body.fallbacks).toBeUndefined();
   });
 
@@ -204,8 +208,37 @@ describe('api/oku', () => {
   });
 
   it('şemaya uymayan yanıt: 502', async () => {
-    const { deps } = kur([tokenBilgi(), modelCevap(JSON.stringify({ satirlar: [{ metin: 'x', renk: 'mor', girinti: 0, tur: 'yazi', ustuCizili: false }], hamMetin: 'x' }))]);
+    const { deps } = kur([tokenBilgi(), modelCevap(JSON.stringify({ satirlar: [{ girinti: 0, parcalar: [parca('x', 'mor')] }] }))]);
     expect((await sonuc(await okuIstegi(istek(), deps))).status).toBe(502);
+  });
+
+  it('6.4b biçimi (satır başına tek renk) artık 502', async () => {
+    const { deps } = kur([tokenBilgi(), modelCevap(JSON.stringify({ satirlar: [{ metin: 'x', renk: 'mavi', girinti: 0, tur: 'yazi', ustuCizili: false }], hamMetin: 'x' }))]);
+    expect((await sonuc(await okuIstegi(istek(), deps))).status).toBe(502);
+  });
+
+  it('aynı satırda kırmızı DE + mavi TR: iki parça, kendi renginde; çizim satırı; normalleştirme', async () => {
+    const model = { satirlar: [
+      { girinti: 0, parcalar: [parca('der Knoten', 'kirmizi'), parca('düğüm', 'mavi')] },
+      { girinti: 1, parcalar: [parca('\\deg(v)', 'siyah', { tur: 'formul' }), parca('Kantn', 'kursun', { ustuCizili: true, duzeltme: 'Kante' }), parca('aynı', 'siyah', { duzeltme: 'aynı' })] },
+      { girinti: 1, cizim: 'üç düğümlü graf' }
+    ] };
+    expect(sonucGecerli(model)).toBe(true);
+    const { deps } = kur([tokenBilgi(), modelCevap(JSON.stringify(model))]);
+    const r = await sonuc(await okuIstegi(istek(), deps));
+    expect(r.status).toBe(200);
+    expect(r.govde.satirlar).toEqual([
+      { girinti: 0, parcalar: [{ metin: 'der Knoten', renk: 'kirmizi' }, { metin: 'düğüm', renk: 'mavi' }] },
+      { girinti: 1, parcalar: [{ metin: '\\deg(v)', renk: 'siyah', tur: 'formul' }, { metin: 'Kantn', renk: 'kursun', ustuCizili: true, duzeltme: 'Kante' }, { metin: 'aynı', renk: 'siyah' }] },
+      { girinti: 1, cizim: 'üç düğümlü graf' }
+    ]);
+  });
+
+  it('sonucGecerli: hem parcalar hem cizim, eksik duzeltme, negatif girinti → geçersiz', () => {
+    expect(sonucGecerli({ satirlar: [{ girinti: 0, parcalar: [], cizim: 'x' }] })).toBe(false);
+    expect(sonucGecerli({ satirlar: [{ girinti: 0, parcalar: [{ metin: 'x', renk: 'mavi', tur: 'yazi', ustuCizili: false }] }] })).toBe(false);
+    expect(sonucGecerli({ satirlar: [{ girinti: -1, cizim: 'x' }] })).toBe(false);
+    expect(satirlariNormallestir([])).toEqual([]);
   });
 
   it('Anthropic hata gövdesi istemciye aktarılmaz', async () => {
