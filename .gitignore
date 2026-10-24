@@ -14,3 +14,11 @@ blender/out/
 
 # Faz 5: örnek çıktılar (npm run sayfa-ornek)
 ornek-cikti/
+
+# 6.4d: harf atlası araçları – veri (foto, maske, kesit) asla repoya girmez
+tools/atlas/.venv/
+tools/atlas/**/*.png
+tools/atlas/**/*.jpg
+tools/atlas/**/*.jpeg
+tools/atlas/**/*.npy
+tools/atlas/**/__pycache__/

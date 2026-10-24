@@ -1,5 +1,31 @@
 # Defter – Durum
 
+## 6.4c canlıda (25 Ekim 2026)
+
+- 45048f8 (kilit kalktı) + 7b617b8 (kontrol betiği + DURUM notu) main'de; origin/main = 7b617b8.
+- El yazısı okuma sadece sahip hesabında (GET `/api/oku` → `{ acik }`); el yazısında arama herkese.
+- `ANTHROPIC_API_KEY` dev + preview + production'da (değer gizli).
+
+---
+
+## 6.4d – Harf atlası (25 Ekim 2026, Claude Code)
+
+Amaç: okunan metni (6.4c) arkadaşımızın gerçek el yazısıyla göstermek. Font değil, fotoğraftaki gerçek mürekkep harf görüntüleri.
+
+- Araç: `tools/atlas/` (Python 3.13 sanal ortamı `tools/atlas/.venv`; numpy, scipy, pillow). Uygulamaya (package.json, src/) hiçbir şey eklenmedi. Ayrıntı: `tools/atlas/README.md`.
+- Veri repo dışında: girdi `iCloudDrive\uni_plan_claude_code\el-yazisi-orijinal\` (salt okunur), çıktı `defter-test-dosyalari\atlas\`. Çıktı yolu repo içindeyse betik durur. Foto/maske/kesit asla git'e girmez (.gitignore).
+- Alt adımlar: **6.4d-1** mürekkep maskesi, bileşenler, satır kesitleri · **6.4d-2** etiketleme · **6.4d-3** paket + Drive · **6.4e** okuyucuda çizim.
+
+### 6.4d-1 — Mürekkep, bileşenler, satır kesitleri
+- `murekkep.py`: EXIF yönü; kanal başına arka plan (median 9 → maximum 61 → uniform 61); oran = görüntü / arka plan; maske = yeşil oran < 0.68 ya da kırmızı kuralı; 3×3 açma; ince kare artığı (kalınlık < 2.5 px) silinir. Eşikler parametre.
+- `satirlar.py`: 8-komşu bileşenler, kalıcı numara `IMG_1570#123` (üst, sol sırası); renk (mavi/kırmızı/yeşil/siyah; kurşun kalem sayılmaz); atılanlar `neden` ile (kenar, leke, kagit-kenari, kalem, yalniz, yassi); satırlar örtüşme + yakınlıkla, noktalar gövdenin satırına.
+- `kesit.py` + `uret.py kesit` → `atlas\1-kesit\` (maske önizlemesi, satır kesitleri, bilesenler.json, ozet.json).
+- Test: `tools/atlas/test_murekkep.py` (düz assert, yapay kareli kâğıt).
+
+**Son güncelleyen (6.4d-1):** Claude Code, 25 Ekim 2026 · commit yok, Deniz'in bakması bekleniyor.
+
+---
+
 ## 6.4c-4 — Kilit kalktı, el yazısı okuma canlıya hazır (25 Ekim 2026, Claude Code)
 
 - `?ocrKayit=1` kilidi kalktı (`src/ocr/kilit.ts` + testi silindi; `__VERCEL_ENV__` define'ı da). Deniz kararı aynen: okuma sadece kullanıcı isteyince.
