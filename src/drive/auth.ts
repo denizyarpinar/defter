@@ -87,6 +87,7 @@ export async function prepareAuth(): Promise<void> {
 // kapsam: the permission to ask for; without it the active one (a new token never silently drops to drive.file).
 // includeGranted: false only with ?kapsam=dar; kept for the later requests (token renewal) too.
 export async function signIn(opts: { hint?: string; chooseAccount?: boolean; kapsam?: AktifKapsam; includeGranted?: boolean } = {}): Promise<string> {
+  if (import.meta.env.DEV) window.dispatchEvent(new Event('defter-auth-change'));
   await prepareAuth();
   pending?.reject(new AuthError('unknown'));
   istenen = opts.kapsam ?? aktif ?? istenen;
@@ -139,6 +140,7 @@ export function currentToken(): string | null {
 export const isSignedIn = () => token !== null;
 
 export function signOut(): void {
+  if (import.meta.env.DEV) window.dispatchEvent(new Event('defter-auth-change'));
   const t = token?.value;
   token = null;
   aktif = null; scopes = []; istenen = 'dar'; sahip = null;
@@ -147,5 +149,6 @@ export function signOut(): void {
 
 // The token was rejected by Drive (expired early): forget it.
 export function dropToken(): void {
+  if (import.meta.env.DEV) window.dispatchEvent(new Event('defter-auth-change'));
   token = null;
 }

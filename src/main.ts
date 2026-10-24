@@ -89,6 +89,11 @@ let durum: KitaplikDurumu = ilkDurum(startWithSample);
 // Every write to Drive goes through this: null unless the Drive library is on screen.
 const writer = () => etkinYazici(durum, saver);
 
+// 6.4a: isolated trial panel; never included in production or existing reader flows.
+if (import.meta.env.DEV && new URLSearchParams(location.search).get('ocrDeneme') === '1') {
+  void import('./ocr/deneme').then(m => m.installOcrTrial(() => writer() ? driveLoc : null, () => data?.books ?? null));
+}
+
 // dev only (task 6.K2a): window.defterKokDurumu() (reads only), window.defterKurulumDene() (requires a signed-in, writable context)
 if (import.meta.env.DEV) void import('./drive/kurulumDene').then(m => m.installKurulumDene(() => aktifKapsam(), () => isSignedIn() && durum.tur !== 'demo'));
 // dev only (task 5.5): window.defterDosyaDene(kitapAdi) creates a test PDF

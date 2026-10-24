@@ -272,6 +272,17 @@ export function initOkuyucu(yer: () => DriveLocation | null): void {
   photoBox = new FotoDurumKutusu($('#oBar'));
   // task 4.8c, development only (not in the build): window.defterSurumler() lists the open PDF's revisions
   if (import.meta.env.DEV) {
+    if (new URLSearchParams(location.search).get('ocrArama') === '1') {
+      void import('../ocr/okuyucuPanel').then(m => m.installReaderOcr(() => {
+        const p = pages[focusPage()], loc = driveLocation();
+        if (!open || !content || !loc || !p?.dosyaId || !p.modifiedTime || !book || pen.isDrawing()) return null;
+        const folder = loc.bookFolderIds.get(book.id);
+        if (!folder) return null;
+        return { file: p.dosyaId, version: p.modifiedTime, folder, content,
+          pages: pages.map((page, index) => ({ page: { ...page }, index })).filter(x => x.page.dosyaId === p.dosyaId),
+          go: (index: number) => goToMatch(index, null) };
+      }));
+    }
     void import('../drive/surumler').then(m => m.installRevisionHelper(() => {
       if (!open || !pages.length) return null;
       const p = pages[focusPage()];
