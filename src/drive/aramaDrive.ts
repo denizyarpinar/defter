@@ -21,13 +21,30 @@ export const parentsKosulu = (ids: readonly string[]) => `(${ids.map(id => `'${q
 // The query's words for fullText: split at spaces; " is dropped (Drive would read it as a phrase)
 export const fullTextKelimeleri = (q: string) => q.replace(/"/g, ' ').split(/\s+/u).filter(Boolean);
 
+// Task 6.4c-3: a word's two spellings for fullText (Drive does not fold ä = ae; measured): "Einrückung" ↔
+// "Einrueckung", "Fuß" ↔ "Fuss". A word with ä/ö/ü/ß → the ae/oe/ue/ss form; one with ae/oe/ue/ss → the
+// umlaut form (every one of them: "Quelle" → "Qülle" just finds nothing). Otherwise the word alone.
+const AE: Record<string, string> = { 'ä': 'ae', 'ö': 'oe', 'ü': 'ue', 'ß': 'ss', 'Ä': 'Ae', 'Ö': 'Oe', 'Ü': 'Ue' };
+const UMLAUT: Record<string, string> = { ae: 'ä', oe: 'ö', ue: 'ü', ss: 'ß', a: 'Ä', o: 'Ö', u: 'Ü' };
+export function yazimlar(w: string): string[] {
+  const alt = /[äöüßÄÖÜ]/u.test(w) ? w.replace(/[äöüßÄÖÜ]/gu, c => AE[c])
+    : w.replace(/[aou]e|ss/giu, c => /^[AOU]/u.test(c) ? UMLAUT[c[0].toLowerCase()] : UMLAUT[c.toLowerCase()]);
+  return alt === w ? [w] : [w, alt];
+}
+
+export interface SorguSecenek { yazimlar?: boolean }   // 6.4c-3 (?ocrKayit=1): both spellings, with or
+
 // Every word must be in the file (and); only the given folders; not in the trash; not a temporary
 // conversion file (6.1b). null: no word.
-export function fullTextSorgusu(q: string, parentIds: readonly string[]): string | null {
+export function fullTextSorgusu(q: string, parentIds: readonly string[], o: SorguSecenek = {}): string | null {
   const k = fullTextKelimeleri(q);
   if (!k.length || !parentIds.length) return null;
+  const kosul = (w: string) => {
+    const y = o.yazimlar ? yazimlar(w) : [w];
+    return y.length === 1 ? `fullText contains '${qv(w)}'` : `(${y.map(x => `fullText contains '${qv(x)}'`).join(' or ')})`;
+  };
   return [
-    ...k.map(w => `fullText contains '${qv(w)}'`),
+    ...k.map(kosul),
     parentsKosulu(parentIds),
     'trashed = false',
     "not appProperties has { key='defterGecici' and value='1' }",
@@ -56,19 +73,39 @@ export async function listele<T>(
   return { dosyalar, istek, eksik: !!pageToken };
 }
 
-export interface MetinSonucu { idler: Set<string>; istek: number; eksik: boolean; ms: number }
+// Task 6.4c-3: a handwriting record (<pdf>.ocr.json) Drive found: the PDF it belongs to and its folder
+export interface OcrBulgusu { kaynak: string; klasor?: string }
+
+export interface MetinSonucu {
+  idler: Set<string>; istek: number; eksik: boolean; ms: number;
+  ocr?: OcrBulgusu[];   // only with elYazisi
+}
+
+// 6.4c-3 (?ocrKayit=1): both spellings, and the records Drive found
+export interface MetinSecenek { elYazisi?: boolean }
+
+export interface MetinDosyasi { id: string; parents?: string[]; appProperties?: Record<string, string> }
 
 // fullText in the given folders: groups of 40 in parallel, 100 per page, at most 2 pages per group
-export async function driveMetinAra(q: string, klasorIdleri: readonly string[], getir: Getirici = saltOkunurFetch, signal?: AbortSignal): Promise<MetinSonucu> {
+export async function driveMetinAra(q: string, klasorIdleri: readonly string[], getir: Getirici = saltOkunurFetch, signal?: AbortSignal, o: MetinSecenek = {}): Promise<MetinSonucu> {
   const t0 = performance.now();
-  const sorgular = parcala(klasorIdleri).map(g => fullTextSorgusu(q, g)).filter((s): s is string => !!s);
-  const r = await Promise.all(sorgular.map(s => listele<{ id: string }>(getir, s, 'id', {
+  const sorgular = parcala(klasorIdleri).map(g => fullTextSorgusu(q, g, { yazimlar: o.elYazisi })).filter((s): s is string => !!s);
+  const r = await Promise.all(sorgular.map(s => listele<MetinDosyasi>(getir, s, o.elYazisi ? 'id,parents,appProperties' : 'id', {
     pageSize: METIN_SAYFA, enFazlaSayfa: METIN_EN_FAZLA_SAYFA, ne: 'Kitaplıkta aranırken', signal,
   })));
-  return {
-    idler: new Set(r.flatMap(x => x.dosyalar.map(f => f.id))),
+  const dosyalar = r.flatMap(x => x.dosyalar);
+  const sonuc: MetinSonucu = {
+    idler: new Set(dosyalar.map(f => f.id)),
     istek: r.reduce((t, x) => t + x.istek, 0),
     eksik: r.some(x => x.eksik),
     ms: performance.now() - t0,
   };
+  if (o.elYazisi) sonuc.ocr = ocrBulgulari(dosyalar);
+  return sonuc;
+}
+
+// The records among Drive's answers (appProperties defterOcr=1 with defterOcrKaynak)
+export function ocrBulgulari(dosyalar: readonly MetinDosyasi[]): OcrBulgusu[] {
+  return dosyalar.filter(f => f.appProperties?.defterOcr === '1' && f.appProperties.defterOcrKaynak)
+    .map(f => ({ kaynak: f.appProperties!.defterOcrKaynak, klasor: f.parents?.[0] }));
 }

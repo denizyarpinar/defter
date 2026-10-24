@@ -30,6 +30,7 @@ export interface AgacDosyasi {
   id: string;
   ad: string;
   modifiedTime: string;
+  klasorId?: string;              // the folder it is in (6.4c-3: a record next to it must be in the same one)
   kitap: AgacKitabi;
   konu: AgacKonusu | null;        // null: in no topic (konu dışı)
   materyal: MaterialKind | null;  // null: in a topic folder, but not one of its materials
@@ -200,7 +201,7 @@ export function agacCikar(
       }
     }
     sonuc.push({
-      id: f.id, ad: f.name, modifiedTime: f.modifiedTime, kitap,
+      id: f.id, ad: f.name, modifiedTime: f.modifiedTime, klasorId: p, kitap,
       konu: b?.konu ?? null, materyal: b?.materyal ?? null, cozumMu: b?.cozumMu ?? cozumAdi(f.name),
       anahtar: dosyaAnahtari(f.name),
     });

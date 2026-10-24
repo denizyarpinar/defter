@@ -130,6 +130,7 @@ describe('a row', () => {
   it('path, name without .pdf, badges', () => {
     expect(satirBilgisi(cozum)).toEqual({ yol: 'Mathe 1 › Aussagenlogik', ad: 'Uebung_Beweis_cozum', rozetler: ['Ad', 'Übungen', 'Çözüm'] });
     expect(satirBilgisi(metin).rozetler).toEqual(['Metin', 'Özet']);
+    expect(satirBilgisi({ ...metin, elYazisi: true }).rozetler).toEqual(['Metin', 'Özet', 'el yazısı']);   // 6.4c-3
     expect(satirBilgisi(ikisi).rozetler).toEqual(['Ad + Metin', 'Özet']);
     expect(satirBilgisi(disi)).toMatchObject({ yol: 'Mathe 1', rozetler: ['Ad', 'konu dışı'] });
     expect(satirBilgisi(konu)).toEqual({ yol: 'Mathe 1 › Logik', ad: 'Beweisen', rozetler: ['Konu'] });

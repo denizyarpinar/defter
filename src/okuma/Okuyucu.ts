@@ -137,6 +137,8 @@ let ratios: number[] = [];
 let content: PageContent | null = null;
 let metin: MetinOnbellek | null = null;   // task 6.3b: the pages' text, read on the first search
 let arama: OkuyucuArama;                  // task 6.3c: the search bar
+// task 6.4c-3: the read handwriting for the search (only behind ?ocrKayit=1; the module is loaded lazily)
+let ocrKaynak: Promise<ReturnType<typeof import('../ocr/okuyucuOcrKaynak').driveOcrKaynak>> | null = null;
 let layout: Layout = layoutPages([], 0);
 let baseWidth = 0;             // PDF mode: page width at 100 %
 let width = 0;                 // … at the current zoom
@@ -290,6 +292,9 @@ export function initOkuyucu(yer: () => DriveLocation | null): void {
         pages: pages.map((page, index) => ({ page: { ...page }, index })).filter(x => x.page.dosyaId === p.dosyaId),
         go: (index: number) => goToMatch(index, null) };
     })).catch(e => console.warn('Temiz yazı paneli yüklenemedi.', e));
+    // task 6.4c-3: the search finds the read handwriting too
+    ocrKaynak = import('../ocr/okuyucuOcrKaynak').then(m => m.driveOcrKaynak(driveLocation));
+    ocrKaynak.catch(e => console.warn('El yazısı araması yüklenemedi.', e));
   }
   $('#oClose').addEventListener('click', closeOkuyucu);
   installOkuyucuKaydirma($('#okuyucu'));   // task 6.K5b-4: the page itself never moves under the reader
@@ -299,6 +304,7 @@ export function initOkuyucu(yer: () => DriveLocation | null): void {
     focusPage,
     git: goToMatch,
     katmanlariYenile: () => { for (const m of mounted.values()) m.ara?.(); },
+    ...(ocrKaynak ? { elYazisi: (p: BookPage[], metinsiz: number[]) => ocrKaynak!.then(k => k.ara(p, metinsiz)) } : {}),
   });
   const scroller = $('#oScroll');
   let raf = 0;
@@ -1560,6 +1566,7 @@ export function closeOkuyucu(): void {
   content = null;
   metin?.kapat();
   metin = null;
+  void ocrKaynak?.then(k => k.temizle(), () => {});   // task 6.4c-3
   topic = null;
   konusuzMod(false);
   materyalsizMod(null);
@@ -2076,6 +2083,7 @@ async function fileUploaded(u: Uploaded): Promise<void> {
 function moveVersion(id: string, oldMt: string, newMt: string): void {
   if (oldMt === newMt) return;
   metin?.unut(id);   // task 6.3b: read again on the next search
+  void ocrKaynak?.then(k => k.unut(id), () => {});   // task 6.4c-3
   const move = (f: { modifiedTime?: string } | null) => { if (f?.modifiedTime === oldMt) f.modifiedTime = newMt; };
   const movePage = (p: BookPage) => { if (p.dosyaId === id) move(p); };
   pages.forEach(movePage);
@@ -2117,6 +2125,7 @@ async function pagesAdded(s: EklenenSayfalar): Promise<void> {
   // task 5.8g: an open reader draws this file from the new version (the old pages are the same in it)
   content?.newVersion(s.fileId, s.modifiedTime);
   metin?.unut(s.fileId);   // task 6.3b
+  void ocrKaynak?.then(k => k.unut(s.fileId), () => {});   // task 6.4c-3
   const has = (p: BookPage) => p.dosyaId === s.fileId;
   for (const [k, v] of [...pageCache]) if (v.pages.some(has)) pageCache.delete(k);
   if (prepared?.pages.some(has)) prepared = null;

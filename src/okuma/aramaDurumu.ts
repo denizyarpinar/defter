@@ -2,14 +2,15 @@
 // between matches, keeping the current one when the list changes, the counter text.
 
 export interface AramaDurumu {
-  eslesmeler: { sayfa: number }[];   // in page order (metinAra gives them so)
+  eslesmeler: { sayfa: number; elYazisi?: boolean }[];   // in page order; elYazisi: in the page's read handwriting (6.4c-3)
   gecerli: number;                   // index in eslesmeler; -1: none
   hazirlaniyor: boolean;             // the pages' text is still being read (the first search)
   aranamayan: number;                // pages without text (notebook photos, images)
   okunamadi: boolean;                // the PDF pages' text couldn't be read at all (not "not found")
+  okunmamis: number | null;          // 6.4c-3: pages without text whose handwriting isn't read yet; null: not searched (no ?ocrKayit=1)
 }
 
-export const bosDurum = (): AramaDurumu => ({ eslesmeler: [], gecerli: -1, hazirlaniyor: false, aranamayan: 0, okunamadi: false });
+export const bosDurum = (): AramaDurumu => ({ eslesmeler: [], gecerli: -1, hazirlaniyor: false, aranamayan: 0, okunamadi: false, okunmamis: null });
 
 // The next match; after the last one the first again
 export function sonraki(d: AramaDurumu): number {
@@ -52,8 +53,11 @@ export function sayacMetni(d: AramaDurumu, sorguVar: boolean): string {
   return `${Math.max(0, d.gecerli) + 1}/${d.eslesmeler.length}`;
 }
 
-// The small note about pages without text: the full text and the short one (phone); null: nothing to say
+// The small note about pages without text: the full text and the short one (phone); null: nothing to say.
+// 6.4c-3: the handwriting searched too → only the pages not read yet (all read: no note).
 export function aranamayanNotu(d: AramaDurumu, sorguVar: boolean): { uzun: string; kisa: string } | null {
-  if (!sorguVar || d.hazirlaniyor || !d.aranamayan) return null;
+  if (!sorguVar || d.hazirlaniyor) return null;
+  if (d.okunmamis !== null) return d.okunmamis > 0 ? { uzun: `${d.okunmamis} sayfa henüz okunmadı`, kisa: `${d.okunmamis} okunmadı` } : null;
+  if (!d.aranamayan) return null;
   return { uzun: `${d.aranamayan} sayfa fotoğraf, aranamadı`, kisa: `${d.aranamayan} foto` };
 }

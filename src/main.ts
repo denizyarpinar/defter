@@ -23,6 +23,7 @@ import { loadLocalLibrary, type LoadedLibrary } from './model/localSource';
 import { parseLibrary } from './model/parse';
 import type { Book, ModeKey } from './model/types';
 import { usesUnits } from './model/units';
+import { ocrKayitAcik } from './ocr/kilit';
 import { markOpened, setReadingSink } from './okuma/okumaDurumu';
 import { sampleBookFolder, sampleFolders } from './okuma/ornekKaynak';
 import { bekleyenKalemIdleri, closeOkuyucu, forgetBook, fotoYuklemeSuruyor, initOkuyucu, isOkuyucuOpen, okuyucuAra, openOkuyucu, openOkuyucuDuzenle, sayfaEklemeOrtami, setDosyaCop, setIcindekilerBaglami, setKlasorAcma } from './okuma/Okuyucu';
@@ -107,6 +108,8 @@ if (import.meta.env.DEV) void import('./drive/aramaDene').then(m => m.installAra
 if (import.meta.env.DEV) void import('./arama/kitaplikAraDene').then(m => m.installKitaplikAra(() => driveLoc && data ? { loc: driveLoc, books: data.books, library: data.library } : null));
 // dev only (task 6.3f): window.defterDizinOlc(kelime) — how long until Drive's fullText finds a new file; GET requests only
 if (import.meta.env.DEV) void import('./arama/dizinOlc').then(m => m.installDizinOlc(() => driveLoc && data ? { loc: driveLoc, books: data.books, library: data.library } : null));
+// dev only (task 6.4c-3 A): window.defterOcrDizinOlc(kelime?) — does fullText find the words in the .ocr.json files; GET requests only
+if (import.meta.env.DEV) void import('./arama/ocrDizinOlc').then(m => m.installOcrDizinOlc(() => driveLoc && data ? { loc: driveLoc, books: data.books, library: data.library } : null));
 // dev only (task 5.8e): window.defterBekleyenFoto() lists the pending photo records; .dene() / .hata(id) / .sil(id); no Drive
 if (import.meta.env.DEV) void import('./defter/bekleyenFotoDene').then(m => m.installBekleyenFoto());
 // dev only (task 5.8b): ?kirpTest=1 compares two page-cropping methods on real photos; writes nothing
@@ -588,7 +591,7 @@ function aramaKaynagi(): AramaKaynagi | null {
   const d = data;
   if (driveLoc) {
     const o = { loc: driveLoc, books: d.books, library: d.library };
-    return { anahtar: d.books, ornek: false, agac: () => agacAl(o), metin: (q, signal) => kitaplikAra(q, o, { signal }) };
+    return { anahtar: d.books, ornek: false, agac: () => agacAl(o), metin: (q, signal) => kitaplikAra(q, o, { signal, elYazisi: ocrKayitAcik() }) };
   }
   if (durum.tur !== 'demo') return null;
   return {

@@ -1,5 +1,6 @@
 import { gorunurAlaniDuzelt } from '../ui/gorunurAlan';
 import { aranamayanNotu, baslangicEslesmesi, bosDurum, listeDegisti, onceki, sayacMetni, sonraki, type AramaDurumu } from './aramaDurumu';
+import { elYazisiAra, type ElYazisiSonucu } from './elYazisiAra';
 import type { BookPage } from './kitapSayfalari';
 import { metinAra, metinsiz, sayfaKutusuna, sorguHazirla, type Dikdortgen } from './metinAra';
 import { canvasOlcucu } from './metinOlcu';
@@ -16,6 +17,9 @@ export interface AramaHost {
   focusPage(): number;
   git(sayfa: number, kutu: Dikdortgen | null): void;   // show this match (PDF: centred; book: its spread)
   katmanlariYenile(): void;                            // the highlight of every mounted page drawn again
+  // 6.4c-3 (only behind ?ocrKayit=1): the read handwriting of these pages without text (indexes in the list);
+  // null: none could be read (the old note stays). Missing: the search is as before.
+  elYazisi?(pages: BookPage[], metinsiz: number[]): Promise<ElYazisiSonucu | null>;
 }
 
 export interface AramaKatmani { ciz(): void; kaldir(): void }
@@ -33,6 +37,7 @@ export class OkuyucuArama {
   acik = false;
   private d: AramaDurumu = bosDurum();
   private kutular = new Map<number, SayfaEslesmesi[]>();
+  private elSayfalar = new Map<number, number>();   // 6.4c-3: page → its handwriting match's index
   private sorguVar = false;
   private gen = 0;
   private timer: number | undefined;
@@ -139,12 +144,24 @@ export class OkuyucuArama {
   // The highlight layer of a mounted PDF page (drawn again when the matches or the current one change)
   katman(i: number, box: HTMLElement): AramaKatmani {
     let svg: SVGSVGElement | null = null;
-    const kaldir = () => { svg?.remove(); svg = null; };
+    let etiket: HTMLElement | null = null;   // 6.4c-3: "El yazısında bulundu" (no positions, no box)
+    const kaldir = () => { svg?.remove(); svg = null; etiket?.remove(); etiket = null; };
     return {
       kaldir,
       ciz: () => {
+        const el = this.elSayfalar.get(i);
+        if (el === undefined) { etiket?.remove(); etiket = null; }
+        else {
+          if (!etiket) {
+            etiket = document.createElement('div');
+            etiket.className = 'o-ara-el';
+            etiket.textContent = 'El yazısında bulundu';
+          }
+          etiket.classList.toggle('gecerli', el === this.d.gecerli);
+          if (etiket.parentNode !== box) box.append(etiket);
+        }
         const list = this.kutular.get(i);
-        if (!list?.length) { kaldir(); return; }
+        if (!list?.length) { svg?.remove(); svg = null; return; }
         if (!svg) {
           svg = document.createElementNS(SVG, 'svg');
           svg.setAttribute('class', 'o-ara');
@@ -170,6 +187,7 @@ export class OkuyucuArama {
   private sifirla(): void {
     this.d = bosDurum();
     this.kutular.clear();
+    this.elSayfalar.clear();
     this.sorguVar = false;
     this.goster();
     this.host.katmanlariYenile();
@@ -185,26 +203,42 @@ export class OkuyucuArama {
     // the text is in memory after the first search: no "…" blinking on every key
     const bekle = window.setTimeout(() => { if (my === this.gen) { this.d.hazirlaniyor = true; this.goster(); } }, BEKLE_MS);
     const tum = await m.hepsi(pages);
+    if (my !== this.gen || this.host.pages() !== pages) { clearTimeout(bekle); return 0; }
+    // 6.4c-3: the read handwriting of the pages without text (a failure: searched as before)
+    const metinsizler = tum.sayfalar.filter(s => s.hazir && metinsiz(s.hazir.sayfa)).map(s => s.indeks);
+    let el: ElYazisiSonucu | null = null;
+    if (this.host.elYazisi) {
+      try { el = await this.host.elYazisi(pages, metinsizler); }
+      catch (e) { console.warn('El yazısı kaydı okunamadı; arama sadece PDF metninde.', e); }
+    }
     clearTimeout(bekle);
     if (my !== this.gen || this.host.pages() !== pages) return 0;
 
-    const sonuc = metinAra(tum.sayfalar.filter(s => s.hazir).map(s => ({ sayfa: s.indeks, hazir: s.hazir! })), q, canvasOlcucu);
+    const pdfSonuc = metinAra(tum.sayfalar.filter(s => s.hazir).map(s => ({ sayfa: s.indeks, hazir: s.hazir! })), q, canvasOlcucu);
     const gorunum = new Map(tum.sayfalar.map(s => [s.indeks, s.hazir?.sayfa.gorunum]));
+    // the PDF's matches with their boxes and the handwriting's (none), in page order (sort is stable)
+    const bulgular = [
+      ...pdfSonuc.map(e => ({ sayfa: e.sayfa, kutular: e.dikdortgenler.map(r => sayfaKutusuna(r, gorunum.get(e.sayfa)!)) })),
+      ...(el ? elYazisiAra(el.sayfalar, q) : []).map(e => ({ sayfa: e.sayfa, kutular: null })),
+    ].sort((a, b) => a.sayfa - b.sayfa);
+    const sonuc = bulgular.map(b => b.kutular ? { sayfa: b.sayfa } : { sayfa: b.sayfa, elYazisi: true });
     this.kutular.clear();
-    sonuc.forEach((e, es) => {
-      const g = gorunum.get(e.sayfa)!;
-      let list = this.kutular.get(e.sayfa);
-      if (!list) this.kutular.set(e.sayfa, list = []);
-      list.push({ es, kutular: e.dikdortgenler.map(r => sayfaKutusuna(r, g)) });
+    this.elSayfalar.clear();
+    bulgular.forEach((b, es) => {
+      if (!b.kutular) { if (!this.elSayfalar.has(b.sayfa)) this.elSayfalar.set(b.sayfa, es); return; }
+      let list = this.kutular.get(b.sayfa);
+      if (!list) this.kutular.set(b.sayfa, list = []);
+      list.push({ es, kutular: b.kutular });
     });
     const aranamayan = tum.sayfalar.filter(s => s.hazir ? metinsiz(s.hazir.sayfa) : pageKind(s.sayfa) === 'image').length;
+    const okunmamis = el ? Math.max(0, aranamayan - el.sayfalar.length) : null;
     // PDF pages there, but not one of them could be read (6.3c: iPad Safari's stream): say so, not "bulunamadı"
     const okunamadi = tum.sayfalar.some(s => s.hata) && !tum.sayfalar.some(s => s.hazir);
     const odak = this.host.focusPage();
     const gecerli = tur === 'ilk' ? (sonuc.length ? 0 : -1)
       : tur === 'liste' ? listeDegisti(eski ?? odak, sonuc, odak)
       : baslangicEslesmesi(sonuc, odak);
-    this.d = { eslesmeler: sonuc, gecerli, hazirlaniyor: false, aranamayan, okunamadi };
+    this.d = { eslesmeler: sonuc, gecerli, hazirlaniyor: false, aranamayan, okunamadi, okunmamis };
     this.goster();
     this.host.katmanlariYenile();
     if (tur !== 'liste') this.gitGecerli();

@@ -161,6 +161,7 @@ export function satirBilgisi(s: KitaplikSonucu): SatirBilgisi {
   if (s.materyal) rozetler.push(MATERIAL_LABEL[s.materyal as MaterialKind]);
   if (s.cozumMu) rozetler.push('Çözüm');
   if (s.konuDisi) rozetler.push('konu dışı');
+  if (s.elYazisi) rozetler.push('el yazısı');   // 6.4c-3
   if (s.eslesme === 'kitap') return { yol: '', ad: s.ad, rozetler };
   if (s.eslesme === 'konu') return { yol: [s.kitapBaslik, s.uniteBaslik].filter(Boolean).join(' › '), ad: s.ad, rozetler };
   return { yol: [s.kitapBaslik, s.konuBaslik].filter(Boolean).join(' › '), ad: dosyaAdi(s.ad), rozetler };

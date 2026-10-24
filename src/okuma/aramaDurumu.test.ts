@@ -61,3 +61,20 @@ describe('sayaç ve not', () => {
     expect(aranamayanNotu(durum({ aranamayan: 3 }), false)).toBeNull();
   });
 });
+
+describe('6.4c-3: the note with the handwriting searched', () => {
+  it('only the pages not read yet', () => {
+    expect(aranamayanNotu(durum({ aranamayan: 5, okunmamis: 2 }), true)).toEqual({ uzun: '2 sayfa henüz okunmadı', kisa: '2 okunmadı' });
+  });
+  it('every page read: no note', () => {
+    expect(aranamayanNotu(durum({ aranamayan: 5, okunmamis: 0 }), true)).toBeNull();
+  });
+  it('not searched (okunmamis null, no ?ocrKayit=1): the old note', () => {
+    expect(bosDurum().okunmamis).toBeNull();
+    expect(aranamayanNotu(durum({ aranamayan: 3 }), true)).toEqual({ uzun: '3 sayfa fotoğraf, aranamadı', kisa: '3 foto' });
+  });
+  it('while reading / no query: nothing', () => {
+    expect(aranamayanNotu(durum({ aranamayan: 3, okunmamis: 3, hazirlaniyor: true }), true)).toBeNull();
+    expect(aranamayanNotu(durum({ aranamayan: 3, okunmamis: 3 }), false)).toBeNull();
+  });
+});

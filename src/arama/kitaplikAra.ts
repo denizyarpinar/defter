@@ -1,4 +1,4 @@
-import { driveMetinAra } from '../drive/aramaDrive';
+import { driveMetinAra, type OcrBulgusu } from '../drive/aramaDrive';
 import { saltOkunurFetch, type Getirici } from '../drive/saltOkunur';
 import { MATERIAL_KINDS, type MaterialKind } from '../okuma/konuKesfi';
 import { sorguHazirla } from '../okuma/metinAra';
@@ -26,6 +26,7 @@ export interface KitaplikSonucu {
   cozumMu: boolean;
   eslesme: EslesmeTuru;
   konuDisi: boolean;        // a file in no topic
+  elYazisi?: boolean;       // 6.4c-3: found in the file's handwriting record (<pdf>.ocr.json)
 }
 
 export interface KitaplikAramaSonucu {
@@ -55,11 +56,12 @@ const konuSatiri = (t: AgacKonusu): Sirali => ({
   kitapSira: t.kitap.sira, konuSira: t.sira,
 });
 
-const dosyaSatiri = (f: AgacDosyasi, eslesme: EslesmeTuru): Sirali => ({
+const dosyaSatiri = (f: AgacDosyasi, eslesme: EslesmeTuru, elYazisi = false): Sirali => ({
   s: {
     dosyaId: f.id, ad: f.ad, kitapId: f.kitap.id, kitapBaslik: f.kitap.baslik,
     uniteBaslik: f.konu?.uniteBaslik, konuBaslik: f.konu?.baslik, konuKlasor: f.konu?.klasor, konuSira: f.konu?.sira,
     materyal: f.materyal, cozumMu: f.cozumMu, eslesme, konuDisi: !f.konu,
+    ...(elYazisi ? { elYazisi } : {}),
   },
   kitapSira: f.kitap.sira, konuSira: f.konu ? f.konu.sira : Infinity,
 });
@@ -76,26 +78,38 @@ function sirala(l: Sirali[]): KitaplikSonucu[] {
 }
 
 // The results from the tree and the ids Drive found by text (null: not there yet). Ids the tree doesn't
-// know (outside Kitaplık, in the trash, temporary files) are dropped. A matching book: only its row,
-// not its topics' rows.
-export function birlestir(agac: Pick<KitaplikAgaci, 'kitaplar' | 'konular' | 'dosyalar'>, q: string, metinIdleri: ReadonlySet<string> | null): KitaplikSonucu[] {
+// know (outside Kitaplık, in the trash, temporary files, the .ocr.json records themselves) are dropped.
+// A matching book: only its row, not its topics' rows.
+// 6.4c-3: ocr = the handwriting records Drive found; each counts for its PDF (a text result marked
+// elYazisi), only when the PDF is in the tree and the record lies in the PDF's own folder.
+export function birlestir(agac: Pick<KitaplikAgaci, 'kitaplar' | 'konular' | 'dosyalar'>, q: string, metinIdleri: ReadonlySet<string> | null, ocr: readonly OcrBulgusu[] = []): KitaplikSonucu[] {
   if (!sorguHazirla(q)) return [];
   const kitaplar = adEsle(agac.kitaplar, q);
   const kitapIdleri = new Set(kitaplar.map(k => k.id));
   const konular = adEsle(agac.konular, q).filter(t => !kitapIdleri.has(t.kitap.id));
   const adla = new Set(adEsle(agac.dosyalar, q).map(f => f.id));
+  const elYazili = ocrPdfleri(agac.dosyalar, ocr);
   const dosyalar: Sirali[] = [];
   for (const f of agac.dosyalar) {
-    const ad = adla.has(f.id), metin = !!metinIdleri?.has(f.id);
-    if (ad || metin) dosyalar.push(dosyaSatiri(f, ad && metin ? 'ikisi' : ad ? 'ad' : 'metin'));
+    const el = elYazili.has(f.id);
+    const ad = adla.has(f.id), metin = !!metinIdleri?.has(f.id) || el;
+    if (ad || metin) dosyalar.push(dosyaSatiri(f, ad && metin ? 'ikisi' : ad ? 'ad' : 'metin', el));
   }
   return sirala([...kitaplar.map(kitapSatiri), ...konular.map(konuSatiri), ...dosyalar]);
+}
+
+// The PDFs the found records belong to (the record in the PDF's folder; a PDF the tree doesn't know: none)
+export function ocrPdfleri(dosyalar: readonly AgacDosyasi[], ocr: readonly OcrBulgusu[]): Set<string> {
+  if (!ocr.length) return new Set();
+  const byId = new Map(dosyalar.map(f => [f.id, f]));
+  return new Set(ocr.filter(o => { const f = byId.get(o.kaynak); return !!f?.klasorId && f.klasorId === o.klasor; }).map(o => o.kaynak));
 }
 
 export interface AramaSecenek {
   adGeldi?: (sonuclar: KitaplikSonucu[]) => void;   // the name results, before Drive answers
   signal?: AbortSignal;
   getir?: Getirici;
+  elYazisi?: boolean;   // 6.4c-3 (?ocrKayit=1): the handwriting records too, both spellings (ä/ae)
 }
 
 export async function kitaplikAra(q: string, o: AgacOrtami, sec: AramaSecenek = {}): Promise<KitaplikAramaSonucu> {
@@ -113,9 +127,9 @@ export async function kitaplikAra(q: string, o: AgacOrtami, sec: AramaSecenek = 
   sec.adGeldi?.(adlar);
 
   try {
-    const m = await driveMetinAra(q, agac.klasorIdleri, getir, sec.signal);
+    const m = await driveMetinAra(q, agac.klasorIdleri, getir, sec.signal, { elYazisi: sec.elYazisi });
     sureler.drive = m.ms;
-    return { q, sonuclar: birlestir(agac, q, m.idler), sureler, driveIstek: m.istek, eksik: m.eksik };
+    return { q, sonuclar: birlestir(agac, q, m.idler, m.ocr), sureler, driveIstek: m.istek, eksik: m.eksik };
   } catch (e) {
     if (sec.signal?.aborted) throw e;
     return { q, sonuclar: adlar, sureler, driveIstek: 0, eksik: false, driveHata: e instanceof Error ? e.message : String(e) };

@@ -1,5 +1,18 @@
 # Defter – Durum
 
+## 6.4c-3 — Okunan el yazısı aramada, kilitli (24 Ekim 2026, Claude Code)
+
+- Ölçüm (A, Deniz laptopta, `window.defterOcrDizinOlc()`, sadece GET): Drive `fullText` `application/json` `.ocr.json`'u dizinliyor (10 denemenin 7'si). Bulunamayan 3 deneme sadece "ae" yazımıydı (Drive ä = ae saymıyor). Tür değişmedi, `indexableText` yok, `src/ocr/kayit/` değişmedi, Drive'a yazılmadı. Dev aracı `src/arama/ocrDizinOlc.ts` kalıyor (defterDizinOlc gibi; build'de yok).
+- Kitaplık araması (`?ocrKayit=1`): `driveMetinAra` alanları `id,parents,appProperties`. Drive'ın bulduğu `.ocr.json` `defterOcrKaynak` ile asıl PDF'e bağlanır, ama sadece PDF ağaçta ve kayıt PDF'in kendi klasöründeyse (`AgacDosyasi.klasorId`). Sonuç "Metin" satırı + "el yazısı" rozeti; `.ocr.json` kendi başına satır olmaz. Kelimenin iki yazımı `or` ile aranır (ä↔ae, ö↔oe, ü↔ue, ß↔ss; `yazimlar`).
+- Okuyucu araması (`?ocrKayit=1`): fotoğraf (metinsiz) sayfaları için ilk aramada `src/ocr/okuyucuOcrKaynak.ts` (lazy) çalışır. Adımlar: PDF önbellekten → parmak izleri → klasör → `kayitOkuDrive` → `eslestir`. Ham ve düzeltilmiş metin, PDF metniyle aynı normalleştirmeden geçer (`src/okuma/elYazisiAra.ts`). "eski" kayıt aranmaz. Eşleşme = sayfa: kutu yok, sayfanın üstünde "El yazısında bulundu" etiketi var (geçerli eşleşmede turuncu). Not "N sayfa henüz okunmadı"; hepsi okunduysa not yok. Kayıt 30 sn bellekte (panelde yeni okunan sayfa sonraki aramada bulunur). Okunamazsa sadece PDF metni aranır ve eski not gösterilir.
+- Kilitsizken: sorgu, alanlar, sonuçlar ve not eskisi gibi (testli).
+- Kontroller: typecheck, build, 121 dosyada 1435/1435 test. `dist/`'te `defterOcrDizinOlc` izi 0.
+- Laptop denemesi Deniz'de.
+
+**Son güncelleyen (6.4c-3):** Claude Code, 24 Ekim 2026 · kod + testler hazır, commit/push yok; laptop denemesi bekliyor.
+
+---
+
 ## 6.4c-2 — "Temiz yazıya çevir": fotoğraf eklerken ve okuyucudan okuma + kayıt, kilitli (24 Ekim 2026, Claude Code)
 
 - Kilit `?ocrKayit=1` (`src/ocr/kilit.ts`, testli). Canlı sitede (build'de `VERCEL_ENV=production` ya da adres `defter-jade.vercel.app`) parametre olsa da kapalı (Deniz kararı). Kilitsiz arayüzde değişiklik yok; OCR kodu ayrı parçalarda, sadece kilitle yüklenir.

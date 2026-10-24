@@ -8,7 +8,7 @@ const kitap = (id: string, baslik: string, sira: number): AgacKitabi => ({ id, b
 const konu = (k: AgacKitabi, baslik: string, sira: number, klasor?: string): AgacKonusu =>
   ({ kitap: k, uniteBaslik: 'Logik', baslik, klasor, sira, anahtar: adAnahtari(baslik) });
 const dosya = (id: string, ad: string, k: AgacKitabi, t: AgacKonusu | null, materyal: MaterialKind | null = null, cozumMu = false): AgacDosyasi =>
-  ({ id, ad, modifiedTime: '', kitap: k, konu: t, materyal, cozumMu, anahtar: dosyaAnahtari(ad) });
+  ({ id, ad, modifiedTime: '', klasorId: `kl-${id}`, kitap: k, konu: t, materyal, cozumMu, anahtar: dosyaAnahtari(ad) });
 
 const prog = kitap('prog', 'Programmiergrundlagen', 0);
 const mathe = kitap('mathe-1', 'Mathe 1', 1);
@@ -57,5 +57,37 @@ describe('birlestir', () => {
 
   it('a query shorter than 2 letters: nothing', () => {
     expect(birlestir(agac, 'b', new Set(['m-ozet']))).toEqual([]);
+  });
+});
+
+describe('6.4c-3: handwriting records (.ocr.json) in the library search', () => {
+  it('a record counts for its PDF: a text result marked el yazısı; the record is no row of its own', () => {
+    const r = birlestir(agac, 'wort', new Set(['ocr-json-id']), [{ kaynak: 'm-ozet', klasor: 'kl-m-ozet' }]);
+    expect(ozet(r)).toEqual(['metin:m-ozet']);
+    expect(r[0]).toMatchObject({ dosyaId: 'm-ozet', materyal: 'ozet', konuSira: 0, elYazisi: true });
+  });
+
+  it('the PDF found by its own text too: one row, el yazısı', () => {
+    const r = birlestir(agac, 'wort', new Set(['m-ozet']), [{ kaynak: 'm-ozet', klasor: 'kl-m-ozet' }]);
+    expect(ozet(r)).toEqual(['metin:m-ozet']);
+    expect(r[0].elYazisi).toBe(true);
+  });
+
+  it('name + handwriting = ikisi', () => {
+    const r = birlestir(agac, 'beweis', null, [{ kaynak: 'm-ueb', klasor: 'kl-m-ueb' }]);
+    expect(r.find(x => x.dosyaId === 'm-ueb')).toMatchObject({ eslesme: 'ikisi', elYazisi: true });
+  });
+
+  it('a record in another folder, or for a PDF the tree does not know: dropped', () => {
+    expect(birlestir(agac, 'wort', null, [{ kaynak: 'm-ozet', klasor: 'baska-klasor' }])).toEqual([]);
+    expect(birlestir(agac, 'wort', null, [{ kaynak: 'cop-pdf', klasor: 'kl-cop-pdf' }])).toEqual([]);
+    expect(birlestir(agac, 'wort', null, [{ kaynak: 'm-ozet' }])).toEqual([]);
+  });
+
+  it('no records (no ?ocrKayit=1): the same results as before, no elYazisi field', () => {
+    const ids = new Set(['m-ozet', 'm-ueb', 'p-ders']);
+    const r = birlestir(agac, 'beweis', ids);
+    expect(r).toEqual(birlestir(agac, 'beweis', ids, []));
+    expect(r.some(x => 'elYazisi' in x)).toBe(false);
   });
 });

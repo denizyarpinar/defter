@@ -1,0 +1,82 @@
+import { describe, expect, it } from 'vitest';
+import type { BookPage } from '../okuma/kitapSayfalari';
+import { bosKayit, type OcrKayit, type OcrSayfa } from './kayit/sema';
+import { KAYIT_OMRU_MS, OkuyucuOcrKaynak, sayfaMetinleri, type OcrKaynakBagimlilik } from './okuyucuOcrKaynak';
+
+const s = (sayfa: number, parmakIzi: string, metin: string, duzeltme?: string): OcrSayfa => ({
+  sayfa, parmakIzi, model: 'm', okunma: '2026-10-24T10:00:00.000Z', dondurme: 0,
+  satirlar: [{ girinti: 0, parcalar: [{ metin, renk: 'mavi', ...(duzeltme ? { duzeltme } : {}) }] }],
+});
+const kayit = (id: string, ...sayfalar: OcrSayfa[]): OcrKayit => ({ ...bosKayit({ id, ad: 'ozet.pdf' }), sayfalar });
+const sayfa = (dosyaId: string, pdfSayfa: number, modifiedTime = 'mt1'): BookPage =>
+  ({ bolumIndex: 0, tur: 'pdf', dosyaId, modifiedTime, pdfSayfa, ad: 'ozet.pdf' });
+
+function sahte(o: { izler: Record<string, string[]>; kayitlar: Record<string, OcrKayit | null>; hata?: string[] }) {
+  const sayac = { izler: 0, klasor: 0, kayit: 0 };
+  let zaman = 0;
+  const d: OcrKaynakBagimlilik = {
+    async izler(id) { sayac.izler++; if (o.hata?.includes(id)) throw new Error('ağ'); return o.izler[id]; },
+    async klasor(id) { sayac.klasor++; return `kl-${id}`; },
+    async kayit(k) { sayac.kayit++; expect(k.klasorId).toBe(`kl-${k.id}`); return o.kayitlar[k.id] ?? null; },
+    simdi: () => zaman,
+  };
+  return { k: new OkuyucuOcrKaynak(d), sayac, ilerle: (ms: number) => { zaman += ms; } };
+}
+
+describe('sayfaMetinleri', () => {
+  it('as written and corrected, in search form; the same text once', () => {
+    expect(sayfaMetinleri(s(1, 'a', 'Bewies', 'Beweis'))).toEqual(['bewies', 'beweis']);
+    expect(sayfaMetinleri(s(1, 'a', 'Größe'))).toEqual(['groesse']);
+  });
+});
+
+describe('OkuyucuOcrKaynak', () => {
+  // the list: ozet.pdf pages 1–3 (2 and 3 photos), sorular.pdf page 1 (photo)
+  const pages = [sayfa('ozet', 1), sayfa('ozet', 2), sayfa('ozet', 3), sayfa('sorular', 1)];
+
+  it('the record is tied to the pages by fingerprint; an "eski" entry is never searched', async () => {
+    const { k } = sahte({
+      izler: { ozet: ['i:1', 'g:foto2', 'g:foto3'], sorular: ['g:s1'] },
+      kayitlar: {
+        ozet: kayit('ozet', s(2, 'g:foto2', 'Induktion'), s(3, 'g:silinmis', 'Eskimetin')),   // page 3's photo changed
+        sorular: kayit('sorular', s(1, 'g:s1', 'Frage')),
+      },
+    });
+    const r = await k.ara(pages, [1, 2, 3]);
+    expect(r.sayfalar).toEqual([{ sayfa: 1, metinler: ['induktion'] }, { sayfa: 3, metinler: ['frage'] }]);
+  });
+
+  it('no record: no pages (they count as not read)', async () => {
+    const { k } = sahte({ izler: { ozet: ['i:1', 'g:2', 'g:3'] }, kayitlar: {} });
+    expect((await k.ara(pages.slice(0, 3), [1, 2])).sayfalar).toEqual([]);
+  });
+
+  it('one file fails: the others are searched; every file fails: the error', async () => {
+    const { k } = sahte({ izler: { sorular: ['g:s1'] }, kayitlar: { sorular: kayit('sorular', s(1, 'g:s1', 'Frage')) }, hata: ['ozet'] });
+    expect((await k.ara(pages, [1, 3])).sayfalar).toEqual([{ sayfa: 3, metinler: ['frage'] }]);
+    await expect(k.ara(pages, [1, 2])).rejects.toThrow('ağ');
+  });
+
+  it('sample files and pages without a file are skipped', async () => {
+    const { k, sayac } = sahte({ izler: {}, kayitlar: {} });
+    const r = await k.ara([{ bolumIndex: 0, tur: 'pdf', dosyaId: 'ornek:demo.pdf', modifiedTime: 'x', pdfSayfa: 1 }, { bolumIndex: 0, tur: 'pdf', dosyaId: null }], [0, 1]);
+    expect(r.sayfalar).toEqual([]);
+    expect(sayac.izler + sayac.kayit).toBe(0);
+  });
+
+  it('memory: fingerprints per version, the record KAYIT_OMRU_MS long, unut forgets the record', async () => {
+    const { k, sayac, ilerle } = sahte({ izler: { ozet: ['i:1', 'g:2', 'g:3'] }, kayitlar: { ozet: kayit('ozet', s(2, 'g:2', 'x')) } });
+    const p = pages.slice(0, 3);
+    await k.ara(p, [1, 2]);
+    await k.ara(p, [1, 2]);
+    expect(sayac).toEqual({ izler: 1, klasor: 1, kayit: 1 });
+    ilerle(KAYIT_OMRU_MS);
+    await k.ara(p, [1, 2]);
+    expect(sayac).toEqual({ izler: 1, klasor: 1, kayit: 2 });
+    k.unut('ozet');
+    await k.ara(p, [1, 2]);
+    expect(sayac.kayit).toBe(3);
+    await k.ara([sayfa('ozet', 2, 'mt2')], [0]);   // a new version: its fingerprints again
+    expect(sayac.izler).toBe(2);
+  });
+});
