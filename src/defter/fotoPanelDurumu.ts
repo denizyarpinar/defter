@@ -1,4 +1,5 @@
 import type { DriveFile } from '../drive/drive';
+import type { BekleyenJpeg } from './bekleyenFotoKayit';
 import { OZET_ADI, ozetKarari } from './konuyaEkle';
 
 // Task 5.8a: the pure part of the "Fotoğraf ekle" panel (no DOM, so it can be tested):
@@ -71,4 +72,16 @@ export function boyutYazi(bayt: number): string {
 // Task 6.2c: the thumbnail's "Renk düzelt" toggle (no: the photo's number in the panel)
 export function renkEtiketi(acik: boolean, no: number): string {
   return acik ? `${no}. fotoğraf: renk düzeltiliyor – kapat` : `${no}. fotoğraf: renk düzeltme kapalı – aç`;
+}
+
+// Task 6.4c-2: "Temiz yazıya çevir" per photo; off by default (reading costs money: only when asked)
+export const TEMIZ_YAZI_VARSAYILAN = false;
+
+export function temizEtiketi(acik: boolean, no: number): string {
+  return acik ? `${no}. fotoğraf: temiz yazıya çevrilecek – kapat` : `${no}. fotoğraf: temiz yazıya çevrilmeyecek – aç`;
+}
+
+// The flag goes into the record only when on (records stay as before when the trial is off)
+export function temizYaziIsareti(j: BekleyenJpeg, acik: boolean): BekleyenJpeg {
+  return acik ? { ...j, temizYazi: true } : j;
 }

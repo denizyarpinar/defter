@@ -1,5 +1,6 @@
-// 6.4b-AI: one notebook page (JPEG) → Claude transcription as JSON (6.4c-1: parts inside a line). Development/measurement only:
-// production answers 404, only the owner's Google account may call it. No npm SDK (raw fetch),
+// 6.4b-AI: one notebook page (JPEG) → Claude transcription as JSON (6.4c-1: parts inside a line). Development and
+// Preview only (6.4c-2: the iPad trial on a Preview deployment): production answers 404, only the owner's Google
+// account may call it. No npm SDK (raw fetch),
 // no relative imports (the function is bundled on its own). The Anthropic key and the Google token
 // never reach a log, an error text or the response.
 
@@ -154,7 +155,7 @@ export async function okuIstegi(request: Request, deps: OkuDeps): Promise<Respon
   if (request.method !== 'POST') return hata(405, 'Sadece POST.');
 
   const eksik = ['ANTHROPIC_API_KEY', 'VITE_GOOGLE_CLIENT_ID', 'VITE_SAHIP_EPOSTA'].filter(k => !env[k]);
-  if (eksik.length) return hata(500, `Sunucu ayarı eksik: ${eksik.join(', ')}. Vercel'de development ortamına ekle ve vercel dev'i yeniden başlat.`);
+  if (eksik.length) return hata(500, `Sunucu ayarı eksik: ${eksik.join(', ')}. Vercel'de development (vercel dev) ya da preview ortamına ekle, sonra vercel dev'i yeniden başlat ya da yeniden yayınla.`);
 
   // 1. Google sign-in: the token must belong to this app and to the owner
   const yetki = request.headers.get('authorization') ?? '';

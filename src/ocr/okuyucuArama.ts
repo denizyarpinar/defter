@@ -1,28 +1,37 @@
-export interface SearchPage { number: number; index: number; text?: string; ocr?: boolean }
-export interface OcrImage { blob: Blob; hash: string }
+import { hamMetin, type OcrSayfa } from './kayit/sema';
+
+// Task 6.4c-2: a page is 'metin' (it has PDF text: never sent), 'okundu' (the record has it) or 'okunacak'.
+// start() reads the 'okunacak' ones (or the pages asked again with "Tekrar oku") and saves each one the
+// moment it is read, not all at the end.
+export type PageState = 'metin' | 'okundu' | 'okunacak';
+export interface SearchPage { number: number; index: number; text?: string; ocr?: boolean; state?: PageState; record?: OcrSayfa }
 export interface SearchIO {
   valid(): boolean;
   verify(): Promise<void>;
   text(page: SearchPage): Promise<string>;
-  image(page: SearchPage): Promise<OcrImage>;
-  read(image: Blob): Promise<string>; // OCR engine: image → text
+  recorded(page: SearchPage): Promise<OcrSayfa | null>;      // the record's entry for this page as it is now
+  read(page: SearchPage, signal: AbortSignal): Promise<OcrSayfa>;   // page image → engine (fingerprint inside)
+  save(page: SearchPage, reading: OcrSayfa): Promise<void>;
+  progress?(done: number, total: number, page: SearchPage): void;   // before each page: "Okunuyor done/total"
 }
 
-// One file/version/session. No persistence.
+// One file/version/session. The readings live in the record (Drive); here only for this panel.
 export class ReaderOcrSearch {
   pages: SearchPage[] = [];
   busy = false;
   cancelled = false;
   private generation = 0;
+  private abort: AbortController | null = null;
   constructor(private io: SearchIO) {}
   private check(generation: number): void {
     if (this.cancelled || generation !== this.generation || !this.io.valid()) throw new Error('İşlem iptal edildi veya dosya/oturum değişti. Eski sonuç kullanılmadı.');
   }
-  cancel(): void { this.cancelled = true; this.generation++; }
+  cancel(): void { this.cancelled = true; this.generation++; this.abort?.abort(); }
   forget(): void {
     this.cancel();
-    for (const p of this.pages) p.text = undefined;
+    for (const p of this.pages) { p.text = undefined; p.record = undefined; }
   }
+  // the number of pages that would be sent
   async prepare(selection: SearchPage[]): Promise<number> {
     if (this.busy) throw new Error('Önce sürmekte olan işlemi tamamla.');
     if (!selection.length || selection.length > 5 || new Set(selection.map(p => p.number)).size !== selection.length) throw new Error('Aynı dosyadan 1–5 farklı sayfa seç.');
@@ -32,25 +41,33 @@ export class ReaderOcrSearch {
       this.check(generation); await this.io.verify(); this.check(generation);
       for (const item of selection) {
         const text = await this.io.text(item); this.check(generation);
-        this.pages.push({ ...item, text: text.trim() ? text : undefined });
+        if (text.trim()) { this.pages.push({ ...item, text, state: 'metin' }); continue; }
+        const record = await this.io.recorded(item); this.check(generation);
+        this.pages.push(record ? { ...item, text: hamMetin(record), ocr: true, state: 'okundu', record } : { ...item, state: 'okunacak' });
       }
-      return this.pages.filter(p => p.text === undefined).length;
+      return this.pages.filter(p => p.state === 'okunacak').length;
     } catch (e) { this.pages = []; throw e; }
     finally { this.busy = false; }
   }
-  async start(): Promise<void> {
+  // again: page numbers to read even though the record has them ("Tekrar oku"); pages with text never
+  async start(again: number[] = []): Promise<void> {
     if (this.busy || !this.pages.length) throw new Error('Önce sayfaları kontrol et; aynı anda tek işlem çalışır.');
     this.busy = true; this.cancelled = false; const generation = ++this.generation;
+    const abort = this.abort = new AbortController();
     try {
       this.check(generation);
-      for (const p of this.pages) {
+      const todo = this.pages.filter(p => p.state === 'okunacak' || (p.state === 'okundu' && again.includes(p.number)));
+      for (const [i, p] of todo.entries()) {
         this.check(generation); await this.io.verify(); this.check(generation);
-        if (p.text !== undefined) continue;
-        const image = await this.io.image(p); this.check(generation);
-        const text = await this.io.read(image.blob);
-        this.check(generation); p.text = text; p.ocr = true;
+        this.io.progress?.(i + 1, todo.length, p);
+        const reading = await this.io.read(p, abort.signal);
+        this.check(generation);
+        await this.io.save(p, reading);
+        // saved: the page is read even if cancel came meanwhile (the next page is not started)
+        if (this.io.valid()) { p.record = reading; p.text = hamMetin(reading); p.ocr = true; p.state = 'okundu'; }
       }
-    } finally { this.busy = false; }
+      this.check(generation);
+    } finally { this.busy = false; if (this.abort === abort) this.abort = null; }
   }
   async matches(query: string): Promise<{ page: SearchPage; excerpt: string; ocr: boolean }[]> {
     this.check(this.generation); await this.io.verify(); this.check(this.generation);

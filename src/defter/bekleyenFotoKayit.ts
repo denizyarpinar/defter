@@ -8,7 +8,9 @@ import type { HazirGorsel } from './gorsel';
 
 // Task 6.2c: renkDuzelt = filter E is already in these bytes (only a note: an upload never filters
 // again, so "Tekrar dene" gives the same pages). Records from before 6.2c have no field: not filtered.
-export type BekleyenJpeg = Pick<HazirGorsel, 'bytes' | 'width' | 'height'> & { renkDuzelt?: boolean };
+// Task 6.4c-2: temizYazi = "Temiz yazıya çevir" asked for this photo (read by api/oku once it is on Drive).
+// Older records have no field: off.
+export type BekleyenJpeg = Pick<HazirGorsel, 'bytes' | 'width' | 'height'> & { renkDuzelt?: boolean; temizYazi?: boolean };
 
 export const renkDuzeltildi = (j: BekleyenJpeg): boolean => j.renkDuzelt === true;
 export type BekleyenDurum = 'bekliyor' | 'yukleniyor' | 'hata';
@@ -37,6 +39,7 @@ export const SON_HATA_UZUNLUK = 200;
 const kopya = (j: BekleyenJpeg): BekleyenJpeg => {
   const k: BekleyenJpeg = { bytes: j.bytes.slice(), width: j.width, height: j.height };
   if (j.renkDuzelt !== undefined) k.renkDuzelt = j.renkDuzelt;
+  if (j.temizYazi) k.temizYazi = true;
   return k;
 };
 

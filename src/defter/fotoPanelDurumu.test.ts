@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { FOLDER_MIME, type DriveFile } from '../drive/drive';
-import { boyutYazi, cikar, ekleDurumu, hedefHesapla, renkEtiketi, tasi, type HedefGirdi } from './fotoPanelDurumu';
+import { boyutYazi, cikar, ekleDurumu, hedefHesapla, renkEtiketi, tasi, TEMIZ_YAZI_VARSAYILAN, temizEtiketi, temizYaziIsareti, type HedefGirdi } from './fotoPanelDurumu';
 
 // Task 5.8a: the "Fotoğraf ekle" panel's pure part.
 
@@ -118,5 +118,19 @@ describe('renkEtiketi (6.2c)', () => {
   it('says the state and what a tap does', () => {
     expect(renkEtiketi(true, 3)).toBe('3. fotoğraf: renk düzeltiliyor – kapat');
     expect(renkEtiketi(false, 1)).toBe('1. fotoğraf: renk düzeltme kapalı – aç');
+  });
+});
+
+describe('Temiz yazıya çevir (6.4c-2)', () => {
+  const j = { bytes: new Uint8Array([1]), width: 1, height: 1, renkDuzelt: true };
+  it('off by default; the record gets the flag only when on', () => {
+    expect(TEMIZ_YAZI_VARSAYILAN).toBe(false);
+    expect(temizYaziIsareti(j, false)).toBe(j);
+    expect('temizYazi' in temizYaziIsareti(j, false)).toBe(false);
+    expect(temizYaziIsareti(j, true)).toEqual({ ...j, temizYazi: true });
+  });
+  it('labels', () => {
+    expect(temizEtiketi(true, 2)).toBe('2. fotoğraf: temiz yazıya çevrilecek – kapat');
+    expect(temizEtiketi(false, 1)).toBe('1. fotoğraf: temiz yazıya çevrilmeyecek – aç');
   });
 });

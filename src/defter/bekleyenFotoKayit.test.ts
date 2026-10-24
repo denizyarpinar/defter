@@ -117,3 +117,18 @@ describe('renkDuzelt (6.2c)', () => {
     expect(renkDuzeltildi(acilistaDuzelt({ ...k, durum: 'yukleniyor' }).jpegler[0])).toBe(false);
   });
 });
+
+describe('temizYazi (6.4c-2)', () => {
+  it('kept per photo; off is not written', () => {
+    const k = yeniKayit(girdi({ jpegler: [
+      { bytes: new Uint8Array([1]), width: 30, height: 40, temizYazi: true },
+      { bytes: new Uint8Array([2]), width: 30, height: 40, temizYazi: false },
+      { bytes: new Uint8Array([3]), width: 30, height: 40 },
+    ] }), T0, 'is-t');
+    expect(k.jpegler.map(j => j.temizYazi)).toEqual([true, undefined, undefined]);
+    expect('temizYazi' in k.jpegler[1]).toBe(false);
+  });
+  it('a record from before 6.4c-2: off', () => {
+    expect(yeniKayit(girdi(), T0, 'is-e').jpegler.some(j => j.temizYazi)).toBe(false);
+  });
+});

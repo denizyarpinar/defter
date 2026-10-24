@@ -22,6 +22,8 @@ export interface FotoEkleyiciBaglam {
   depo: Pick<BekleyenFotoDepo, 'kaydet' | 'durumGuncelle' | 'sil'>;
   ortam: () => KonuEklemeOrtami;
   ui: FotoEklemeUI;
+  // task 6.4c-2: after a successful adding (after ui.basari), not awaited; its errors never reach the adding
+  bitti?(k: BekleyenFoto, r: KonuyaEklendi): unknown;
   ekle?: typeof konuyaFotografEkle;   // tests
   simdi?: () => string;
 }
@@ -90,6 +92,12 @@ export class FotoEkleyici {
     this.bildir();
   }
 
+  private sonra(k: BekleyenFoto, r: KonuyaEklendi): void {
+    if (!this.b.bitti) return;
+    try { void Promise.resolve(this.b.bitti(k, r)).catch(e => console.warn('Ekleme sonrası iş tamamlanmadı.', e)); }
+    catch (e) { console.warn('Ekleme sonrası iş tamamlanmadı.', e); }
+  }
+
   private async calistir(eski: BekleyenFoto): Promise<void> {
     const { depo, ui } = this.b;
     const id = eski.islemId;
@@ -130,6 +138,7 @@ export class FotoEkleyici {
       try { await olc(o, 'cihaz: kaydı sil', () => depo.sil(id), { grup: 'cihaz' }); } catch (e) { console.warn('Eklenen fotoğrafların kaydı silinemedi.', e); }
       if (o) { o.bilgi.sayfa = `${r.eskiSayfa}→${r.yeniSayfa}`; if (r.zatenVardi) o.bilgi.zatenVardi = true; }
       ui.basari(k, basariMetni(r), r);
+      this.sonra(k, r);
     } finally {
       this.sirada.delete(id);
       this.bildir();

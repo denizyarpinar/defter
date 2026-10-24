@@ -61,6 +61,7 @@ import { autoTopicStatus, cycleStatus, markChapterPage, markTopicPage, type Resu
 import { MetinOnbellek } from './metinOnbellek';
 import type { Dikdortgen } from './metinAra';
 import { OkuyucuArama } from './okuyucuArama';
+import { ocrKayitAcik } from '../ocr/kilit';
 import { PageContent, pageKind } from './sayfaIcerik';
 import { PAD_TOP, canvasSize, currentPage, layoutPages, visibleRange, type Layout } from './sanalListe';
 import { anchorPoint, covers, detailRect, pdfLeft, tapZone, visiblePart, type Rect } from './yakinlastirma';
@@ -279,6 +280,16 @@ export function initOkuyucu(yer: () => DriveLocation | null): void {
     }));
     // task 6.3b: window.defterMetinAra(q) searches the pages of the open reader
     void import('./metinAraDene').then(m => m.installMetinAra(() => open && metin && pages.length ? { pages, metin } : null));
+  }
+  // task 6.4c-2: the "Temiz yazı" trial panel, only behind ?ocrKayit=1 (never on the live site; lazy)
+  if (ocrKayitAcik()) {
+    void import('../ocr/okuyucuPanel').then(m => m.installReaderOcr(() => {
+      const p = pages[focusPage()], loc = driveLocation();
+      if (!open || !content || !loc || !p?.dosyaId || !p.modifiedTime || pageKind(p) !== 'pdf' || isSampleId(p.dosyaId) || pen.isDrawing()) return null;
+      return { file: p.dosyaId, version: p.modifiedTime, content, yer: loc, focus: focusPage(),
+        pages: pages.map((page, index) => ({ page: { ...page }, index })).filter(x => x.page.dosyaId === p.dosyaId),
+        go: (index: number) => goToMatch(index, null) };
+    })).catch(e => console.warn('Temiz yazı paneli yüklenemedi.', e));
   }
   $('#oClose').addEventListener('click', closeOkuyucu);
   installOkuyucuKaydirma($('#okuyucu'));   // task 6.K5b-4: the page itself never moves under the reader
@@ -1031,6 +1042,7 @@ function openPhotoPanel(files: File[]): void {
     acikDosyaId: onScreen,
     sayfaSayisi: knownPageCount,
     ornek: isSampleId(folder),
+    temizYazi: ocrKayitAcik() && !isSampleId(folder),   // task 6.4c-2
     // task 5.8f: saved on the device first (a failure rejects: the panel stays open), then to Drive
     ekle: async (jpegler: BekleyenJpeg[], hedef: DriveFile | null) => {
       const basildi = olcumAcik() ? performance.now() : undefined;   // task 6.2e-1: "Ekle" pressed
@@ -1184,6 +1196,11 @@ const photoAdder = new FotoEkleyici({
       if (open && photoBox) photoBox.kartGoster(k.islemId, m, () => photoAdder.sirayaKoy(k));
       else toast(m);
     },
+  },
+  // task 6.4c-2: "Temiz yazıya çevir" photos are read once they are on Drive (lazy, never undoes the adding)
+  bitti: (k, r) => {
+    if (!ocrKayitAcik() || !k.jpegler.some(j => j.temizYazi)) return;
+    return import('../ocr/fotoOkumaBagla').then(m => m.fotoOku(k, r, driveLocation()));
   },
 });
 

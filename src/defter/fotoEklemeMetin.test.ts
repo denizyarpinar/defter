@@ -76,7 +76,7 @@ describe('seritDurumu / acilisToastMetni', () => {
 
 type Secenek = { islemId?: string; hedefFileId?: string; yukleme?: { basladi?(): void; ilerleme?(g: number, t: number): void } };
 
-function kur(ekle: (konu: string, j: unknown, o: unknown, s: Secenek) => Promise<KonuyaEklendi>, kaydetHata?: unknown) {
+function kur(ekle: (konu: string, j: unknown, o: unknown, s: Secenek) => Promise<KonuyaEklendi>, kaydetHata?: unknown, bitti?: (k: BekleyenFoto) => void | Promise<void>) {
   const kayitlar = new Map<string, BekleyenFoto>();
   const olaylar: string[] = [];
   const depo = {
@@ -95,7 +95,7 @@ function kur(ekle: (konu: string, j: unknown, o: unknown, s: Secenek) => Promise
     basari: (_, m) => olaylar.push(`basari:${m}`),
     hata: (_, m) => olaylar.push(`hata:${m}`),
   };
-  const e = new FotoEkleyici({ depo, ortam: () => ({}) as KonuEklemeOrtami, ui, ekle: ekle as never, simdi: () => 't1' });
+  const e = new FotoEkleyici({ depo, ortam: () => ({}) as KonuEklemeOrtami, ui, ekle: ekle as never, simdi: () => 't1', bitti });
   return { e, kayitlar, olaylar };
 }
 
@@ -197,5 +197,28 @@ describe('FotoEkleyici', () => {
     await e.bekle();
     expect(cagrildi).toBe(false);
     expect(olaylar.filter(o => !o.startsWith('durum:'))).toEqual([]);
+  });
+});
+
+describe('FotoEkleyici · bitti (6.4c-2)', () => {
+  it('runs after basari; its error (thrown or rejected) changes nothing in the adding', async () => {
+    for (const bitti of [() => { throw new Error('ocr'); }, async () => { throw new Error('ocr'); }]) {
+      const sira: string[] = [];
+      const { e, kayitlar, olaylar } = kur(async (_k, _j, _o, s) => sonuc({ islemId: s.islemId }), undefined,
+        k => { sira.push(`bitti:${k.islemId}:${olaylar.some(o => o.startsWith('basari:'))}`); return bitti(); });
+      const k = await e.baslat(girdi);
+      await e.bekle();
+      expect(sira).toEqual([`bitti:${k.islemId}:true`]);
+      expect(kayitlar.size).toBe(0);
+      expect(olaylar.filter(o => o.startsWith('hata:'))).toEqual([]);
+      expect(e.calisanlar().size).toBe(0);
+    }
+  });
+  it('not called when the adding fails', async () => {
+    let cagrildi = false;
+    const { e } = kur(async () => { throw new Error('ağ'); }, undefined, () => { cagrildi = true; });
+    await e.baslat(girdi);
+    await e.bekle();
+    expect(cagrildi).toBe(false);
   });
 });

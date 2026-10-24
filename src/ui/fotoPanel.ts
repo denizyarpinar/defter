@@ -3,7 +3,7 @@ import { KIRP_VARSAYILAN, RENK_DUZELT_VARSAYILAN } from '../defter/ayarlar';
 import { hazirlaKirpli, onizlemeHazirla, type KirpliGorsel } from '../defter/gorsel';
 import { GorselHatasi } from '../defter/gorselHesap';
 import type { BekleyenJpeg } from '../defter/bekleyenFotoKayit';
-import { boyutYazi, cikar, ekleDurumu, hedefHesapla, renkEtiketi, tasi } from '../defter/fotoPanelDurumu';
+import { boyutYazi, cikar, ekleDurumu, hedefHesapla, renkEtiketi, tasi, TEMIZ_YAZI_VARSAYILAN, temizEtiketi, temizYaziIsareti } from '../defter/fotoPanelDurumu';
 import type { Kose4 } from '../defter/kirp/kirpHesap';
 import { kipDegistir, kirpYazi, type KirpKarari, type KirpKip } from '../defter/kirp/kirpKarar';
 import { hazirlikEkle, olcumAcik } from '../defter/sureOlcum';
@@ -25,6 +25,7 @@ export interface FotoPanelBaglam {
   acikDosyaId: string | null;
   sayfaSayisi: (fileId: string) => number | undefined;
   ornek: boolean;
+  temizYazi?: boolean;   // task 6.4c-2: the "Temiz yazıya çevir" toggle is shown (?ocrKayit=1)
   // task 5.8f: saves the photos on the device and starts the adding; rejects (Turkish message) when
   // nothing was saved. hedef null: a new ozet.pdf.
   ekle(jpegler: BekleyenJpeg[], hedef: DriveFile | null): Promise<void>;
@@ -35,6 +36,7 @@ interface Oge {
   otoKoseler: Kose4 | null;   // found automatically at the first preparation (the editor's "Otomatik")
   elle: boolean;              // corners set in the corner editor
   renk: boolean;              // "Renk düzelt" asked (hazir.renkDuzelt: what was actually done)
+  temiz: boolean;             // task 6.4c-2: "Temiz yazıya çevir" (off by default)
 }
 
 const jpegUrl = (h: KirpliGorsel) => URL.createObjectURL(new Blob([h.gorsel.bytes as BlobPart], { type: 'image/jpeg' }));
@@ -44,6 +46,8 @@ const SIMGE_KIRP = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden=
 // colour fix: a half-filled circle (on) / an empty one (off)
 const SIMGE_RENK = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/></svg>';
 const SIMGE_RENK_YOK = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2"/></svg>';
+// "Temiz yazıya çevir": lines of text (on: filled box)
+const SIMGE_TEMIZ = (acik: boolean) => `<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="2" fill="${acik ? 'currentColor' : 'none'}" opacity="${acik ? '.3' : '1'}" stroke="currentColor" stroke-width="1.8"/><path d="M7 9h10M7 12.5h10M7 16h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`;
 const SIMGE_TUMU = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="13" rx="1.5" fill="currentColor" opacity=".35" stroke="currentColor" stroke-width="1.8"/></svg>';
 
 export const FOTO_PANEL_ID = 'fotoPanel';   // Okuyucu.ts checks it by this id (no import: the panel is lazy)
@@ -148,6 +152,15 @@ export function acFotoPanel(b: FotoPanelBaglam, dosyalar: File[]): void {
       renk.onclick = () => void renkDegistir(o);
       const resim = el('div', 'fp-resim');
       resim.append(duzelt, gecis, renk);
+      if (b.temizYazi) {
+        const temiz = dugme('fp-temiz', '', temizEtiketi(o.temiz, i + 1));
+        temiz.innerHTML = SIMGE_TEMIZ(o.temiz);
+        temiz.setAttribute('aria-pressed', String(o.temiz));
+        temiz.title = 'Temiz yazıya çevir';
+        temiz.disabled = o.mesgul;
+        temiz.onclick = () => { o.temiz = !o.temiz; ciz(); };
+        resim.append(temiz);
+      }
       if (o.hazir.kirpilamadi && !kirp) resim.append(el('span', 'fp-rozet', 'Kırpılamadı'));
       else if (o.elle && kirp) resim.append(el('span', 'fp-rozet fp-rozet-elle', 'elle'));
       li.append(resim, el('span', 'fp-no', String(i + 1)), x, oklar, el('small', 'fp-boyut', boyutYazi(o.hazir.gorsel.yeniBoyut)));
@@ -187,7 +200,7 @@ export function acFotoPanel(b: FotoPanelBaglam, dosyalar: File[]): void {
       try {
         const h = await sirada(() => hazirlaKirpli(f, KIRP_VARSAYILAN ? 'kirp' : 'tumu', undefined, { renkDuzelt: RENK_DUZELT_VARSAYILAN }));
         if (kapandi) break;
-        ogeler.push({ hazir: h, file: f, ad: f.name, url: jpegUrl(h), mesgul: false, otoKoseler: h.koseler, elle: false, renk: RENK_DUZELT_VARSAYILAN });
+        ogeler.push({ hazir: h, file: f, ad: f.name, url: jpegUrl(h), mesgul: false, otoKoseler: h.koseler, elle: false, renk: RENK_DUZELT_VARSAYILAN, temiz: TEMIZ_YAZI_VARSAYILAN });
       } catch (e) {
         if (kapandi) break;
         toast(e instanceof GorselHatasi ? `${f.name}: ${e.message}` : `${f.name} hazırlanamadı. Başka bir fotoğraf seç.`);
@@ -288,7 +301,7 @@ export function acFotoPanel(b: FotoPanelBaglam, dosyalar: File[]): void {
     console.info('Fotoğraf ekle:', ogeler.map((o, i) =>
       `${i + 1}. ${o.ad} ${o.hazir.gorsel.width}×${o.hazir.gorsel.height} ${boyutYazi(o.hazir.gorsel.yeniBoyut)} ${kirpYazi(o.hazir.kip, o.hazir.kirpilamadi, o.elle)}${o.hazir.renkDuzelt ? ' renk düzeltildi' : ''}`).join(' · '));
     try {
-      await b.ekle(ogeler.map(o => ({ ...o.hazir.gorsel, renkDuzelt: o.hazir.renkDuzelt })), h.hedef);
+      await b.ekle(ogeler.map(o => temizYaziIsareti({ ...o.hazir.gorsel, renkDuzelt: o.hazir.renkDuzelt }, !!b.temizYazi && o.temiz)), h.hedef);
     } catch (e) {
       kaydediliyor = false;
       hataMetni = e instanceof Error ? e.message : 'Fotoğraflar kaydedilemedi. Tekrar dene.';

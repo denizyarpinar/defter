@@ -1,5 +1,19 @@
 # Defter – Durum
 
+## 6.4c-2 — "Temiz yazıya çevir": fotoğraf eklerken ve okuyucudan okuma + kayıt, kilitli (24 Ekim 2026, Claude Code)
+
+- Kilit `?ocrKayit=1` (`src/ocr/kilit.ts`, testli). Canlı sitede (build'de `VERCEL_ENV=production` ya da adres `defter-jade.vercel.app`) parametre olsa da kapalı (Deniz kararı). Kilitsiz arayüzde değişiklik yok; OCR kodu ayrı parçalarda, sadece kilitle yüklenir.
+- Fotoğraf paneli: küçük resimde "Temiz yazıya çevir" aç/kapa (varsayılan KAPALI, `TEMIZ_YAZI_VARSAYILAN`). Bayrak bekleyen kayıtta (`BekleyenJpeg.temizYazi`, isteğe bağlı) → Tekrar dene'de de geçerli. Yükleme bitince (`FotoEkleyici.bitti`, `ui.basari`'dan sonra, beklenmeden) `src/ocr/fotoOkuma.ts`: parmak izi `g:` + SHA-256(JPEG) (PDF indirilmez; `fotoOkuma.test.ts` `sonaSayfaEkle` ve `isaretliYeniPdf` ile eşitliği kanıtlar), sayfa = eskiSayfa + 1 + i, sırayla api/oku → `sayfaYaz`. Hata eklemeyi geri almaz: toast "Okunamadı, okuyucudan tekrar dene (…)". 429'da 60 sn bekleyip bir kez daha. zatenVardi'de kayıtlı iz atlanır.
+- Okuyucu paneli (Codex'in, `src/ocr/okuyucuPanel.ts`): Claude motoru (`claudeMotor.ts`, Haiku 5.5) + kayıt. 1–5 sayfa; basılı metinli sayfa atlanır, kaydı olan "okundu" (Göster / Tekrar oku), "Okunuyor 2/5", İptal (fetch AbortController ile kesilir). Her sayfa okunur okunmaz kaydedilir. Sayfa görseli (`sayfaGorseli.ts`): fotoğraf sayfasında gömülü JPEG (tek görsel, DCTDecode, RGB/Gri, döndürmesiz, ≤ 2000 px, ≤ 2.9 MB); değilse pdf.js. Gömülü JPEG'in izi dosyadakiyle tutmazsa `console.warn` + pdf.js yolu (Deniz kararı). Kaydın klasörü dosyanın `parents`'ı (tek GET).
+- "Okunan metin" alanı (`okunanMetin.ts`): renkli parçalar, girinti, üstü çizili, formül mono, çizim notu, düzeltme `title`; sadece textContent. Asıl Temiz yazı görünümü 6.4e.
+- api/oku: davranış aynı (production 404, sahip kontrolü); sadece ayar-eksik mesajı Preview'u da söylüyor. iPad için Deniz: `vercel env add ANTHROPIC_API_KEY preview`.
+- Kontroller: typecheck, build, 119 dosyada 1407/1407 test. Gerçek Drive/api denemesi Deniz'de (laptop: `vercel dev --listen 5173` → `http://localhost:5173/?ocrKayit=1`).
+- Açık: sekme kapanırsa yüklemeden sonra bekleyen fotoğraf okuması kaybolur (okuyucudan tekrar okunur). Paneldeki "Temiz yazıya çevir" metni fotoPanel parçasında (düğme kilitsiz oluşmaz).
+
+**Son güncelleyen (6.4c-2):** Claude Code, 24 Ekim 2026 · kod + testler hazır, commit/push yok; laptop denemesi bekliyor.
+
+---
+
 ## 6.4c-1 — El yazısı okuma kaydı: şema + Drive kayıt modülü, arayüz yok (24 Ekim 2026, Claude Code)
 
 - Deniz kararları: okunan metin materyalin klasöründe `<pdf adı>.ocr.json` yan dosyasında (ör. `ozet.ocr.json`); okuma sadece kullanıcı isteyince; fotoğraf PDF'te kalır. Renklerde `kursun` kalır. Birleştirme anahtarı sadece parmak izi (aynı sayfa numarasında farklı parmak izli eski kayıt silinmez, `eslestir` "eski" der). Dev yardımcısı ocr-ai.html'den kurulur (main.ts değişmedi).
