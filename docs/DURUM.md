@@ -1,5 +1,13 @@
 # Defter – Durum
 
+## 6.K8c-3 — main canlı kontrol (24 Ekim 2026, Claude Code)
+
+- main = **a13fce6** (Faz 6 → main merge), origin/main ile aynı; `git push origin main` → zaten güncel.
+- Vercel Production: **dpl_AWeTwQja7sJuZE1c8B8nT3Tt59M7** (`defter-gcrvfozjg-deniz-b571.vercel.app`), Ready, 22 Ekim 2026 08:23; alias `defter-jade.vercel.app`.
+- Girişsiz kontrol: `/`, `/privacy.html`, `/terms.html` → HTTP 200. Giriş kartında TR + EN açıklama ve Gizlilik / Şartlar bağlantıları var.
+- faz-6 checkout'suz ff ile eşitlendi: a909b6f → a13fce6 (`git push origin main:faz-6`, `git fetch . main:faz-6`).
+- Uygulama kodu, Google/Vercel ayarları ve Drive değişmedi. Commit edilmemiş 6.4 OCR işi (kod + DURUM notları) çalışma alanında olduğu gibi duruyor.
+
 **Son güncelleyen:** Codex, 22 Ekim 2026 · 6.K8c-2 tamamlandı: faz-6 → main yalnız yerelde birleştirildi; main push/canlı yayın yok. DEV düzeltmesi a909b6f origin/faz-6 dalında. VITE_SAHIP_EPOSTA Production ve Preview'da var; typecheck/build ve 1284/1284 test geçti. Kaydırma kontrolündeki bekleme yöntemi düzeltildi; 390×844, JavaScript kapalı gizlilik senaryosu 3/3 geçti. Sıradaki adım Deniz'in açık onayıyla main push/canlı yayın; ayarlar ve Drive değişmedi.
 
 Ayrıntılı tarihçe repo dışında (Cowork'ün devir notu); ortak ve güncel durum bu dosya.
