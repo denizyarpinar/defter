@@ -1,5 +1,16 @@
 # Defter – Durum
 
+## 6.4c-0 — Codex'in OCR işini toparlama (24 Ekim 2026, Claude Code)
+
+- Arşiv: Codex'in commit edilmemiş 6.4 işi **67794de**'de olduğu gibi (sadece DURUM.md'de Drive id'leri `<drive-id>`, `C:/Users/yarpi` → `%USERPROFILE%`). Eski hâl gerekirse oradan alınır.
+- Kalktı: `src/ocr/deneme.ts` (Tesseract/Drive karşılaştırma, `?ocrDeneme=1`), `src/ocr/driveDeneme.ts` + testi (geçici Google Dokümanı motoru), `scripts/ocr-arama-kontrol.mjs`, `tesseract.js` paketi; `main.ts` ve `Okuyucu.ts`'teki `?ocrDeneme=1` / `?ocrArama=1` bağlantıları.
+- Kaldı: `src/ocr/image.ts`, `score.ts` (+ testleri), `scripts/ocr-production-kontrol.mjs`, `auth.ts`'teki DEV `defter-auth-change` olayı. `okuyucuArama.ts` + `okuyucuPanel.ts` (1–5 sayfa seçimi, metni olan sayfayı atlama, iptal, sonuçtan sayfaya gitme) motordan bağımsız: `installReaderOcr(snapshot, read)`, `read(görsel) → metin`. Panel şu an hiçbir yerden açılmaz; 6.4c'de Claude motoruyla bağlanacak.
+- Drive'a yazma, Google/Vercel ayarı, push yok. Deniz laptopta denedi (okuyucu, okuyucu araması, kitaplık araması), sonra temizlik commit edildi.
+
+**Son güncelleyen (6.4c-0):** Claude Code, 24 Ekim 2026 · arşiv commit'i 67794de + temizlik commit'i (push yok). Sıradaki: 6.4c (panel Claude motoruyla).
+
+---
+
 ## 6.4b-AI — Claude ile el yazısı okuma denemesi, yalnız geliştirme (24 Ekim 2026, Claude Code)
 
 - Amaç: görsel-dil modelinin (Claude) kötü el yazısını okuma ölçümü. Kalıcı kayıt, arama bağlantısı, font görünümü yok. Deniz kararları: api/oku **sadece sahip**; env `.env.development.local`'a çekilir (.env.local'a dokunulmaz); Vercel CLI global; `ANTHROPIC_API_KEY` **sadece development** (Preview'a eklenmedi, iPad denemesinde ayrıca karar).
