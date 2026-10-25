@@ -15,7 +15,8 @@ const ZOOMED = 1.01;
 export const isPageZoomed = (scale: number | undefined) => (scale ?? 1) > ZOOMED;
 
 // Controls whose clicks must not be cancelled (a fast second tap on them is a normal tap).
-const CONTROLS = 'button, a, input, select, textarea, label, [data-st], [data-u], [role="tab"]';
+// Also used by okuyucuKaydirma.ts (6.S-1b: a small move on a control is not cancelled).
+export const KONTROLLER = 'button, a, input, select, textarea, label, [data-st], [data-u], [role="tab"]';
 
 // Should this touch event be cancelled so the browser can't zoom?
 // sinceLastEnd: ms since the previous touchend (Infinity: none).
@@ -52,7 +53,7 @@ export function installPageZoomGuard(onViewportChange: () => void): void {
   }, opts);
   document.addEventListener('touchend', e => {
     const now = performance.now();
-    const onControl = !!(e.target as Element | null)?.closest?.(CONTROLS);
+    const onControl = !!(e.target as Element | null)?.closest?.(KONTROLLER);
     if (e.touches.length === 0 && blockTouch('end', 1, vv()?.scale, now - lastEnd, onControl)) { dokunmaIptal('sayfaZoom', e); e.preventDefault(); }
     if (e.touches.length === 0) lastEnd = now;
   }, opts);

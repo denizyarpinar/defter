@@ -463,6 +463,7 @@ Kitaplık/
 - 6.S-2: kitap modunda alan (`#oKitap`) değişince (kaydırıcı, kalem çubuğu, döndürme) kitap yeniden dizilir (ResizeObserver, `yenidenDuzenGerekir`); kalem basılıyken ertelenir, kalkınca bir kez dizilir.
 - 6.S-2b: kitap modunda sayfa içeriği kâğıt yuvasının içinde her kenarda pay kadar içeride (`KITAP_KAGIT_PAYI = 0.04`, yuva eninin oranı; `fitPage`, `kitapDuzen.ts`). Kâğıt yuvanın tamamını kaplar. Kalem, arama, temiz yazı ve zoom aynı içerik kutusunu (`.o-page`) kullanır; PDF koordinatı değişmez.
 - 6.S-2b: PDF canvas'ları (ana + zoom detay, temiz yazı dahil) `.o-baski` kutusunda; kitap modunda kutu tek parça `multiply` ile kâğıda basılır (beyaz → kâğıt rengi). Kalem ve arama katmanları kutunun dışında, multiply olmaz. PDF modu değişmez.
+- 6.K5b-4 / 6.S-1b: okuyucu açıkken altında kayan bir şey olmayan yerde parmak/kalem hareketi iptal edilir (`okuyucuKaydirma.ts`; iPad sayfa kayması). İstisna (6.S-1b): dokunuş bir kontrolün (`KONTROLLER`, `sayfaZoom.ts`) üstünde başladıysa ve başlangıçtan 10 px'ten az kaydıysa iptal yok (`kaymaIptalMi`; kalemle düğme dokunuşu click üretsin). Pay bir kez aşılınca bugünkü kural.
 - Kontrol: `node scripts/kitap-sigdir-kontrol.mjs` (Drive yok; sığma, pay, kalem 0.00 pt, pay 0 | 0.04 karşılaştırma görüntüleri).
 
 ## Sonra bakılabilir
