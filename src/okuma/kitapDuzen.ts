@@ -37,3 +37,10 @@ export function keepRange(idx: number, single: boolean, n: number, extra = 2): [
   if (!n) return [0, -1];
   return [Math.max(0, idx - extra), Math.min(n - 1, idx + (single ? 0 : 1) + extra)];
 }
+
+// Task 6.S-2: the area's size changed (the page slider shown, the pen bar, rotation): measure the book again.
+// Not before the first layout (null), not while the area is hidden (0), and less than 1 px is no change.
+export function yenidenDuzenGerekir(eski: { w: number; h: number } | null, yeni: { w: number; h: number }): boolean {
+  if (!eski || yeni.w <= 0 || yeni.h <= 0) return false;
+  return Math.abs(yeni.w - eski.w) >= 1 || Math.abs(yeni.h - eski.h) >= 1;
+}

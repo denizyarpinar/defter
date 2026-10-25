@@ -39,6 +39,7 @@ export class BookView {
   // turn (Safari keeps a composited layer one frame too long after it moves)
   private hidden = new Set<HTMLElement>();
   private revealGen = 0;
+  private alan: { w: number; h: number } | null = null;   // task 6.S-2: the area's size at the last layout
 
   constructor(private area: HTMLElement, private spread: HTMLElement, private host: BookHost) {}
 
@@ -49,12 +50,16 @@ export class BookView {
     this.layout();
   }
 
+  // The area's size the book was laid out for (null: not laid out).
+  get olcu(): { w: number; h: number } | null { return this.alan; }
+
   // Measure again (first show, rotation): new slot size, one or two pages, everything drawn again.
   layout(): void {
     this.stop();
     this.releaseSheets();
-    this.single = isSingle(this.area.clientWidth, this.area.clientHeight);
-    const s = slotSize(this.area.clientWidth, this.area.clientHeight, this.single);
+    this.alan = { w: this.area.clientWidth, h: this.area.clientHeight };
+    this.single = isSingle(this.alan.w, this.alan.h);
+    const s = slotSize(this.alan.w, this.alan.h, this.single);
     this.slotW = s.w; this.slotH = s.h;
     this.spread.style.width = (this.single ? s.w : s.w * 2) + 'px';
     this.spread.style.height = s.h + 'px';
@@ -75,6 +80,7 @@ export class BookView {
     this.spread.replaceChildren();
     this.left = this.right = null;
     this.idx = 0;
+    this.alan = null;
   }
 
   // The image's real shape is known now: fit its box again.

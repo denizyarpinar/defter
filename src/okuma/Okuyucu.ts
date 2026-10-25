@@ -53,7 +53,7 @@ import {
   acikIndeks, dosyaEklemeKarari, dosyaGosterHedefi, eklenenMateryal, GOSTER_OTOMATIK, gosterIndeksi, konuBirlestir, sayfaListesiniGenislet,
   yeniIndeks, yenilemeKarari, type EklenenDosya, type GosterHedefi
 } from './eklemeYenileme';
-import { visiblePages } from './kitapDuzen';
+import { visiblePages, yenidenDuzenGerekir } from './kitapDuzen';
 import { BookView } from './kitapModu';
 import { buildBookPages, buildSolutionPages, buildTopicPages, type BookPage } from './kitapSayfalari';
 import { MATERIAL_LABEL, availableKinds, defaultKind, discoverTopic, emptyMaterials, type MaterialKind, type TopicMaterials } from './konuKesfi';
@@ -395,7 +395,11 @@ export function initOkuyucu(yer: () => DriveLocation | null): void {
   let rt: number | undefined;
   addEventListener('resize', () => {
     clearTimeout(rt);
-    rt = window.setTimeout(() => { if (open) showSelectedTab(); if (open && pages.length) { zoom.reset(); dropDetails(); relayout(); } }, 150);
+    // task 6.S-2: book mode's new size is laid out by the ResizeObserver already (no second layout)
+    rt = window.setTimeout(() => {
+      if (open) showSelectedTab();
+      if (open && pages.length && (mode !== 'kitap' || kitapAlanDegisti())) { zoom.reset(); dropDetails(); relayout(); }
+    }, 150);
   });
 
   // surum 2: tabs, file chooser, solution (all stay on the same topic)
@@ -455,6 +459,7 @@ export function initOkuyucu(yer: () => DriveLocation | null): void {
     release: i => { mounted.get(i)?.release(); mounted.delete(i); queue.delete(i); },
     changed: () => { showPageNumber(); wakeVisible(); void drain(); },
   });
+  kitapGozlem = new ResizeObserver(kitapDuzenIste);   // task 6.S-2
 
   // Zoom + book mode taps: a tap on the side turns the page, a swipe too (only at 100 %)
   const area = $('#oKitap');
@@ -842,6 +847,7 @@ export async function openOkuyucu(b: Book, folderId: string, unit: number, topic
   requestAnimationFrame(() => el.classList.add('show'));
   gorunurAlaniDuzelt('okuyucu açıldı');   // task 6.K5b-4: a page moved before (not while the keyboard is open)
   startFps();
+  kitapGozle(true);
 
   if (v2) { await openTopic(unit, topicIndex, resume); return; }
   autoTopicStatus(b, 0, topicIndex, 'girildi');
@@ -888,6 +894,7 @@ export function openOkuyucuDuzenle(b: Book, folderId: string, closed: () => void
   requestAnimationFrame(() => el.classList.add('show'));
   gorunurAlaniDuzelt('okuyucu açıldı');
   startFps();
+  kitapGozle(true);
   openToc();
   if (duzenleyici.dugme(b, true).acik) { duzenleyici.ac(b); tocEditDugmesi(); }
 }
@@ -1746,6 +1753,7 @@ export function closeOkuyucu(): void {
   open = false;
   session++;
   cancelAnimationFrame(fpsRaf); fpsRaf = 0;
+  kitapGozle(false);   // task 6.S-2
   setPen(false);
   const dirty = penModel.dirtyFileIds();
   void saver.flush();   // task 4.8a: the records are taken now, before the model goes
@@ -1842,6 +1850,51 @@ function place(box: HTMLElement, i: number): void {
   box.style.height = layout.heights[i] + 'px';
   box.style.left = pageLeft + 'px';
   box.style.width = width + 'px';
+}
+
+// ---- task 6.S-2: the book area's size ----
+// The page slider appears after the first layout (and the area gets shorter), the window turns, …: when #oKitap's
+// size really changes, the book is laid out again once (the next frame; several changes in a frame = one layout),
+// the same way as a window resize. Not while a stroke is being drawn: then after the finger / pen goes up.
+
+let kitapGozlem: ResizeObserver | null = null;
+let kitapRaf = 0;
+let kitapBekle: (() => void) | null = null;   // waiting for pointerup
+
+function kitapAlanDegisti(): boolean {
+  const a = $('#oKitap');
+  return mode === 'kitap' && !!bookView && yenidenDuzenGerekir(bookView.olcu, { w: a.clientWidth, h: a.clientHeight });
+}
+
+function kitapDuzenIste(): void {
+  if (kitapRaf || kitapBekle || !open || !kitapAlanDegisti()) return;
+  kitapRaf = requestAnimationFrame(() => {
+    kitapRaf = 0;
+    if (!open || !pages.length || !kitapAlanDegisti()) return;
+    if (pen.isDrawing()) {
+      const sonra = () => { kitapBekleBirak(); kitapDuzenIste(); };
+      kitapBekle = sonra;
+      addEventListener('pointerup', sonra, true);
+      addEventListener('pointercancel', sonra, true);
+      return;
+    }
+    zoom.reset(); dropDetails(); relayout();   // as the window resize; the pen stays on
+  });
+}
+
+function kitapBekleBirak(): void {
+  if (!kitapBekle) return;
+  removeEventListener('pointerup', kitapBekle, true);
+  removeEventListener('pointercancel', kitapBekle, true);
+  kitapBekle = null;
+}
+
+// Watched only while the reader is open.
+function kitapGozle(on: boolean): void {
+  kitapGozlem?.disconnect();
+  cancelAnimationFrame(kitapRaf); kitapRaf = 0;
+  kitapBekleBirak();
+  if (on) kitapGozlem?.observe($('#oKitap'));
 }
 
 // New width (rotation) or a page got its real size: stay on the same spot of the same page.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PAGE_AR, fitPage, isSingle, keepRange, slotSize, spreadStart, visiblePages } from './kitapDuzen';
+import { PAGE_AR, fitPage, isSingle, keepRange, slotSize, spreadStart, visiblePages, yenidenDuzenGerekir } from './kitapDuzen';
 
 describe('isSingle', () => {
   it('is one page on a portrait screen', () => {
@@ -53,5 +53,24 @@ describe('spreads', () => {
     expect(keepRange(0, true, 20)).toEqual([0, 2]);
     expect(keepRange(18, false, 20)).toEqual([16, 19]);
     expect(keepRange(0, true, 0)).toEqual([0, -1]);
+  });
+});
+
+describe('yenidenDuzenGerekir', () => {
+  it('the same size or less than 1 px: no new layout', () => {
+    expect(yenidenDuzenGerekir({ w: 1180, h: 700 }, { w: 1180, h: 700 })).toBe(false);
+    expect(yenidenDuzenGerekir({ w: 1180, h: 700 }, { w: 1180.5, h: 699.5 })).toBe(false);
+  });
+  it('1 px in the width or the height: a new layout', () => {
+    expect(yenidenDuzenGerekir({ w: 1180, h: 700 }, { w: 1181, h: 700 })).toBe(true);
+    expect(yenidenDuzenGerekir({ w: 1180, h: 700 }, { w: 1180, h: 699 })).toBe(true);
+  });
+  it('the page slider shown: the area got shorter', () => {
+    expect(yenidenDuzenGerekir({ w: 1180, h: 700 }, { w: 1180, h: 652 })).toBe(true);
+  });
+  it('not before the first layout, not while hidden', () => {
+    expect(yenidenDuzenGerekir(null, { w: 1180, h: 700 })).toBe(false);
+    expect(yenidenDuzenGerekir({ w: 1180, h: 700 }, { w: 0, h: 0 })).toBe(false);
+    expect(yenidenDuzenGerekir({ w: 1180, h: 700 }, { w: 1180, h: 0 })).toBe(false);
   });
 });
