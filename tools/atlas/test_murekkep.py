@@ -60,8 +60,10 @@ def test_renk_sinifi():
     liste, _ = satirlar.bilesenler(murekkep.maske(r), r)
     renkler = sorted(b["renk"] for b in liste)
     assert renkler == ["kirmizi", "mavi"], renkler
-    # siyah, yeşil, kurşun kalem (koyuluk = 1 − oran)
-    assert satirlar.renk_sinifi(0.6, 0.55, 0.42) == "siyah"
+    # gerçek ölçümler (6.4d-2, koyuluk = 1 − oran): mavi tükenmez, siyah kalem, yeşil, kurşun kalem
+    assert satirlar.renk_sinifi(0.62, 0.57, 0.43) == "mavi"
+    assert satirlar.renk_sinifi(0.81, 0.75, 0.62) == "mavi"   # koyu pozlanmış foto
+    assert satirlar.renk_sinifi(0.61, 0.69, 0.66) == "siyah"
     assert satirlar.renk_sinifi(0.55, 0.35, 0.5) == "yesil"
     assert satirlar.renk_sinifi(0.33, 0.34, 0.33) == "kalem"
 

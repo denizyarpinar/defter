@@ -33,9 +33,10 @@ class SatirAyar:
     # renk
     kirmizi_renk_fark: float = 0.12  # dG − dR (koyuluk farkı) en az
     yesil_renk_fark: float = 0.06    # dR − dG ve dB − dG en az
-    mavi_oran: float = 0.55     # dB / dR altı = mavi (siyahta ~0.7)
-    kalem_koyu: float = 0.36    # ortalama koyuluk altı ve renksiz = kurşun kalem
-    kalem_renk: float = 0.08
+    # mavi tükenmez: kırmızı/yeşil kanal çok, mavi kanal az soğurulur. Ölçüm (6.4d-2):
+    # asıl mürekkep dB / max(dR, dG) ≈ 0.60–0.82, siyah kalem (Türkçe çeviriler) ≈ 0.90–1.0
+    mavi_oran: float = 0.84     # dB / max(dR, dG) altı = mavi
+    kalem_koyu: float = 0.45    # renksiz (mavi/kırmızı/yeşil değil) ve ortalama koyuluk altı = kurşun kalem
 
     def sozluk(self) -> dict:
         return asdict(self)
@@ -47,9 +48,9 @@ def renk_sinifi(dR: float, dG: float, dB: float, a: SatirAyar = SatirAyar()) -> 
         return "kirmizi"
     if dR - dG >= a.yesil_renk_fark and dB - dG >= a.yesil_renk_fark:
         return "yesil"
-    if dR > 0 and dB / dR < a.mavi_oran:
+    if max(dR, dG) > 0 and dB / max(dR, dG) < a.mavi_oran:
         return "mavi"
-    if (dR + dG + dB) / 3 < a.kalem_koyu and max(dR, dG, dB) - min(dR, dG, dB) < a.kalem_renk:
+    if (dR + dG + dB) / 3 < a.kalem_koyu:
         return "kalem"
     return "siyah"
 

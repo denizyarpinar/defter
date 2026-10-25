@@ -5,6 +5,8 @@ REPO = Path(__file__).resolve().parents[2]
 
 GIRDI = Path(r"C:\Users\yarpi\iCloudDrive\uni_plan_claude_code\el-yazisi-orijinal")
 CIKTI = Path(r"C:\Users\yarpi\Projeler\defter-test-dosyalari\atlas")
+# onay görselleri (Deniz'in baktığı yer; fotoğraf klasörü değil)
+ONAY = Path(r"C:\Users\yarpi\iCloudDrive\uni_plan_claude_code\Claude outputs\atlas-6.4d")
 
 
 def _icinde(yol: Path, kok: Path) -> bool:

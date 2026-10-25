@@ -24,6 +24,27 @@ Amaç: okunan metni (6.4c) arkadaşımızın gerçek el yazısıyla göstermek. 
 
 **Son güncelleyen (6.4d-1):** Claude Code, 25 Ekim 2026 · commit yok, Deniz'in bakması bekleniyor.
 
+### 6.4d-2 — Etiketleme, seçim, renk profilleri, görsel onay
+- Renk: asıl mürekkep mavi tükenmez "siyah" sayılıyordu. Ölçüm: dB / max(dR, dG) mavi ≈ 0.60–0.82, siyah kalem (Türkçe çeviriler, IMG_1568) ≈ 0.90–1.0. Yeni kural `mavi_oran` 0.84, renksiz + açık (< 0.45) = kurşun kalem. ozet.json (sayılan bileşen): mavi 6032, kırmızı 767, yeşil 157, siyah 193 (önce siyah 6248, mavi 107).
+- Etiket: 979 kayıt, elle (kesit küçük resimlerine bakarak), `atlas\2-etiket\etiket.json` (+ `etiket-kaynak.txt`). Aday sayfalarında kayık numaralı yanlış etiketler ayıklandı.
+- Atlas: 86 karakter (79 gerçek, 7 türetilmiş: İ Ä Ç Ğ Ö Ş Ü). Eksik (kaynak yok, uydurulmadı): q J Q 7 ; ". 1 örnekli: j C H Z ä ß 5 6 8 9 ! = → '.
+- Renk profilleri gerçek örneklerden (mavi 674, kırmızı 92, yeşil 52); siyah nötr (yoğunluk 88 siyah örnekten), kurşun nötr × 0.45. Kırmızı/yeşil kaynaklı harfler maviye basılabiliyor.
+- Kod: `taban.py`, `glif.py`, `secim.py`, `turet.py`, `basici.py`, `atlas_kur.py`, `onay.py`, `uret.py` (etiket-kontrol, atlas, onay). Test: `test_atlas.py` 7/7, `test_murekkep.py` 5/5.
+- Onay görselleri: `iCloudDrive\uni_plan_claude_code\Claude outputs\atlas-6.4d\` (alfabe, karsilastir-1, karsilastir-2, kapsama.txt).
+
+**Son güncelleyen (6.4d-2):** Claude Code, 25 Ekim 2026 · commit yok, Deniz'in bakması bekleniyor.
+
+### 6.4d-2b — Atlas düzeltmeleri, iki stil
+- Aralık orijinal satırlardan (`aralik.py`; 274 mavi/siyah satır, maske kutusu, Otsu): harf 0.188·xh, kelime 1.562·xh (önce tahmin 0.08 / 0.6). Glif payı 0.035·xh her yandan çıkarılır. atlas.json `aralik`.
+- Elle çıkarma: `etiket-kaynak.txt`'te `~neden` → etiket.json `haric` (11 örnek: ö 2, ğ 3, ç 1, ü 1, s 1, ş 1, - 1, ' 1). `'` tek örnekti → eksik. ç'de kalan 2 örnek yazarın bitişik çengelli ç'si (ς gibi); başka aday yok.
+- Ç/Ş çengeli: gövdenin alt ucuna bağlı bütün parça (ayrı bileşense o), harfin alt ortasına 1 px binerek. Ğ'de nokta gibi şapka kullanılmaz (`sapka_mi`).
+- İki stil (Deniz kararı): `basici.bas(..., stil="tukenmez")` varsayılan, `"yumusak"` eski görünüm. Eşikler renk başına kendi profiliyle D ölçeğine çevrilir; parametreler atlas.json `stiller` (6.4e için).
+- Koyuluk (kendi orijinal satırı): yumuşakta kırmızı −15%, yeşil −16% → yoğunluk ×1.18 / ×1.29 (atlas.json `koyuluk`); mavi −10% (değişmedi). Tükenmez bilerek koyu (+51…+82%), tonlar değişmedi.
+- Etiketleme yardımcıları repoya alındı: `etiket_donustur.py`, `etiket_sayfa.py`, `renk_olc.py` (yazma sadece `cikti_kontrol`'den geçen yola).
+- Onay (tükenmez): alfabe, karsilastir-1 (+ yumuşak), karsilastir-2, yeni karsilastir-3 (IMG_1571 s32 kırmızı), kapsama.txt. Test: `test_atlas.py` 18/18, `test_murekkep.py` 5/5.
+
+**Son güncelleyen (6.4d-2b):** Claude Code, 25 Ekim 2026 · commit yok, Deniz'in bakması bekleniyor.
+
 ---
 
 ## 6.4c-4 — Kilit kalktı, el yazısı okuma canlıya hazır (25 Ekim 2026, Claude Code)

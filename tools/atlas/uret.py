@@ -1,4 +1,4 @@
-"""Harf atlası üretimi. Tek giriş: `python tools/atlas/uret.py kesit`.
+"""Harf atlası üretimi. Giriş: `python tools/atlas/uret.py kesit | etiket-kontrol | atlas | onay`.
 
 Girdi klasörü sadece okunur. Çıktı repo dışında olmalı (yollar.cikti_kontrol).
 """
@@ -12,7 +12,7 @@ from pathlib import Path
 import murekkep
 import satirlar
 import kesit
-from yollar import CIKTI, GIRDI, cikti_kontrol
+from yollar import CIKTI, GIRDI, ONAY, cikti_kontrol
 
 
 def _ayar_argumanlari(p: argparse.ArgumentParser, sinif) -> None:
@@ -57,6 +57,7 @@ def kesit_uret(girdi: Path, cikti: Path, e: murekkep.Esikler, a: satirlar.SatirA
         kayit = [{
             "no": b["no"], "id": f"{ad}#{b['no']}", "kutu": b["kutu"], "alan": b["alan"],
             "satir": b["satir"], "renk": b["renk"], "sayilir": b["sayilir"], "neden": b["neden"],
+            "koyuluk": [round(v, 3) for v in b["_d"]], "kalin": round(b["_kalin"], 1),
         } for b in liste]
         (hedef / f"{ad}-bilesenler.json").write_text(
             json.dumps({"foto": p.name, "boyut": [int(src.shape[1]), int(src.shape[0])],
@@ -79,6 +80,43 @@ def kesit_uret(girdi: Path, cikti: Path, e: murekkep.Esikler, a: satirlar.SatirA
     return ozet
 
 
+def etiket_kontrol(cikti: Path) -> dict:
+    import atlas_kur
+    kayit, _ = atlas_kur.bilesenleri_oku(cikti / "1-kesit")
+    k = atlas_kur.kontrol(atlas_kur.etiketleri_oku(cikti / "2-etiket" / "etiket.json"), kayit)
+    for h in k["hata"]:
+        print("HATA:", h)
+    for u in k["uyari"][:20]:
+        print("uyarı:", u)
+    print("sayılar:", " ".join(f"{c}{k['sayi'][c]}" for c in atlas_kur.HEDEF if k["sayi"][c]))
+    print("4'ten az:", " ".join(f"{c}{n}" for c, n in k["az"].items()) or "yok")
+    print("hiç yok:", " ".join(k["eksik"]) or "yok")
+    return k
+
+
+def onay_uret(cikti: Path, girdi: Path, onay_dir: Path) -> None:
+    import atlas_kur
+    import onay
+    onay_dir = cikti_kontrol(onay_dir, girdi)
+    onay_dir.mkdir(parents=True, exist_ok=True)
+    atlas = atlas_kur.atlas_yukle(cikti / "3-atlas")
+    kesit_dir = cikti / "1-kesit"
+    # koyuluk: yumuşak stilde fark > %15 ise rengin yoğunluğu ölçeklenir ve atlas.json'a yazılır
+    koyu = onay.koyuluk_olc(atlas, girdi, kesit_dir)
+    yol = cikti / "3-atlas" / "atlas.json"
+    j = json.loads(yol.read_text(encoding="utf-8"))
+    j["renkler"], j["koyuluk"] = atlas["renkler"], koyu
+    yol.write_text(json.dumps(j, ensure_ascii=False, indent=1), encoding="utf-8")
+    onay.alfabe(atlas, onay_dir / "alfabe.png")
+    e1 = onay.karsilastir_1(atlas, girdi, kesit_dir, onay_dir / "karsilastir-1.png")
+    e2 = onay.karsilastir_2(atlas, onay_dir / "karsilastir-2.png")
+    e3 = onay.karsilastir_3(atlas, girdi, kesit_dir, onay_dir / "karsilastir-3.png")
+    notlar = onay.koyuluk_tablosu(koyu) + [
+        "", f"karsilastir-1 eksik: {' '.join(e1) or 'yok'}", f"karsilastir-2 eksik: {' '.join(e2) or 'yok'}",
+        f"karsilastir-3 eksik: {' '.join(e3) or 'yok'}"]
+    print(onay.kapsama(atlas, onay_dir / "kapsama.txt", notlar))
+
+
 def main(argv=None) -> None:
     p = argparse.ArgumentParser(description="Harf atlası (6.4d)")
     alt = p.add_subparsers(dest="komut", required=True)
@@ -88,8 +126,25 @@ def main(argv=None) -> None:
     k.add_argument("--foto", nargs="*", help="sadece bu fotolar (ör. IMG_1570); ozet.json yazılmaz")
     _ayar_argumanlari(k, murekkep.Esikler)
     _ayar_argumanlari(k, satirlar.SatirAyar)
+    for ad, yardim in (("etiket-kontrol", "etiket.json kontrolü ve karakter sayıları"),
+                       ("atlas", "taban, seçim, yoğunluk, türetme, aday sayfaları"),
+                       ("onay", "onay görselleri ve kapsama.txt")):
+        q = alt.add_parser(ad, help=yardim)
+        q.add_argument("--girdi", type=Path, default=GIRDI)
+        q.add_argument("--cikti", type=Path, default=CIKTI)
+        if ad == "onay":
+            q.add_argument("--onay", type=Path, default=ONAY)
     args = p.parse_args(argv)
-    if args.komut == "kesit":
+    if args.komut == "etiket-kontrol":
+        etiket_kontrol(args.cikti)
+    elif args.komut == "atlas":
+        import atlas_kur
+        j = atlas_kur.kur(cikti_kontrol(args.cikti, args.girdi), args.girdi)
+        print(f"{len(j['karakterler'])} karakter, türetilen {len(j['turetilenler'])}, "
+              f"eksik: {' '.join(j['eksikler']) or 'yok'}")
+    elif args.komut == "onay":
+        onay_uret(cikti_kontrol(args.cikti, args.girdi), args.girdi, args.onay)
+    elif args.komut == "kesit":
         kesit_uret(args.girdi, args.cikti, _ayar(args, murekkep.Esikler),
                    _ayar(args, satirlar.SatirAyar), args.foto)
 
