@@ -65,7 +65,7 @@ Amaç: okunan metni (6.4c) arkadaşımızın gerçek el yazısıyla göstermek. 
 ### 6.4e-1 — Çekirdek (728d658)
 - Atlas Drive'dan salt okunur (`atlasOkuDrive.ts`), PNG çözme (`atlasCoz.ts`), basıcı (`basici.ts`, Python ile eşdeğer), dizgi (`dizgi.ts`), sayfa çizimi (`temizSayfa.ts`); dev sayfası `temiz-yazi.html` (build'e girmez). Okuyucuda değil.
 
-### 6.4e-2 — Okuyucuda "Temiz yazı ↔ Orijinal"
+### 6.4e-2 — Okuyucuda "Temiz yazı ↔ Orijinal" (e6e103b)
 - Okunmuş fotoğraf sayfası temiz yazıyla önde; düğme "Temiz yazı (3/8)" (≤ 1024 px "3/8") + ▾ stil balonu (Tükenmez / Yumuşak). Tercih localStorage'da (açık + tükenmez varsayılan). PDF'e/Drive'a yazma yok.
 - Koşul: Drive kitaplığı + eşleşen kayıt (parmak izi) + atlas. Kayıt yoksa parmak izi/pdf-lib yok, eşleşme yoksa atlas indirilmez; atlas yok/hata → düğme gizli.
 - Açılış bekletilmez; cevap gelince sadece değişen sayfalar yeniden çizilir (eski canvas yenisi gelene kadar kalır). Zoom detail canvas'ı temiz sayfayı keskin çizer. Kalem açıkken orijinal + düğme gri.
@@ -76,7 +76,7 @@ Amaç: okunan metni (6.4c) arkadaşımızın gerçek el yazısıyla göstermek. 
 - Kontroller: typecheck, build (dist'te `defterTemizSahte` yok), 131 dosyada 1530/1530 test. Ekran görüntüleri: `scripts/temiz-yazi-okuyucu-kontrol.mjs` → `Claude outputs\temiz-yazi-6.4e\okuyucu\` (3 boyut × kitap/PDF; çubuk her yerde tek satır).
 - Açılış → temiz yazı süresi gerçek Drive'da ölçülmedi (Drive yok); `?olcum=1` kutusunda `temiz yazı:` satırında görünür.
 
-**Son güncelleyen (6.4e-2):** Claude Code, 25 Ekim 2026 · commit yok, Deniz'in denemesi bekleniyor.
+**Son güncelleyen (6.4e-2):** Claude Code, 25 Ekim 2026 · 6.4e-1 728d658, 6.4e-2 e6e103b (main); faz-6'ya ileri sarıldı ve push edildi (main push yok). Deniz'in denemesi bekleniyor.
 
 ---
 
