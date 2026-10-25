@@ -1,5 +1,12 @@
 # Defter – Durum
 
+## 6.4e-2b + 6.4e-3 canlıda (25 Ekim 2026)
+
+- ba6c96e main'de (8fa3769..ba6c96e), production defter-jade.vercel.app. `scripts/ocr-production-kontrol.mjs` geçti.
+- Laptop ve iPad gerçek Drive denemesi (elle düzeltme, temiz yazı hızı) bekleniyor.
+
+---
+
 ## 6.4e-3 – Okunan kelimeyi elle düzeltme (25 Ekim 2026, Claude Code)
 
 - Panelde ("El yazısını oku") yanlış okunan kelimeye dokun → doğrusunu yaz → Kaydet. Kayda `duzeltme` + `elle: true` olarak girer; yazıldığı gibi (`metin`) korunur. Ücretsiz, API çağrısı yok.

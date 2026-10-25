@@ -457,6 +457,7 @@ Kitaplık/
 - Yazma `duzeltmeYaz` (`kayitDrive.ts`): sayfaYaz ile aynı yol (kilit, son hal, headRevisionId, 3 tur); dosya oluşturmaz. Sayfa yeniden okunmuşsa (parmak izi + `okunma`) ya da parça değişmişse yazılmaz (`OcrSayfaDegisti`).
 - Kaydedince: kayıt okuyucu belleğine ve cihaz kopyasına (`guncelle` → `kayitOnbellegeYaz`; `unut` değil), temiz yazı hemen yeniden değerlendirilir. "Tekrar oku" elle düzeltmeli sayfada önce sorar (`confirm`).
 - Kod: `src/ocr/kayit/elleDuzelt.ts` (saf, testli), `okunanMetin.ts`, `okuyucuPanel.ts`.
+- 6.4e-2b + 6.4e-3 canlıya çıktı (25 Ekim 2026, ba6c96e; production defter-jade.vercel.app).
 
 ## Sonra bakılabilir
 - Oda zaman aşımı: şu an glb yüklemesine toplam 15 sn veriliyor; yavaş bağlantıda (masaüstü lightmap'leri ~3.3 MB) eski odaya düşüyor. Öneri: "15 sn hiç ilerleme yok" kuralı + yükleme göstergesi. Faz 2 kural metni değişeceği için Deniz'in onayı gerekir.
