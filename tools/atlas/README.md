@@ -81,15 +81,35 @@ Testler (pytest yok): `tools/atlas/.venv/Scripts/python tools/atlas/test_murekke
      0.80 + 0.20·D/D90, renk = kâğıt + kaplama·(ton − kâğıt), BOX ile küçült; kâğıt tam kâğıt
      rengi. e = önizlemedeki soğurma eşiği (0.10, 0.30) / (yoğunluk·ort(profil)), renk başına.
    - `yumusak`: kâğıt × exp(−D·yoğunluk·profil) + kâğıt gürültüsü.
-   Renkler: mavi/kırmızı/yeşil gerçek profil; siyah ve kurşun nötr (türetilmiş).
+   Renkler: mavi/kırmızı/yeşil gerçek profil; siyah ve kurşun nötr (türetilmiş). Tükenmezde kurşunun
+   eşiği siyahınkiyle aynıdır (6.4d-3; yoğunluğu düşük olduğu için kendi eşiği çok yüksek çıkıyordu), tonu açık kalır.
 7. **Onay** (`... uret.py onay`, varsayılan `iCloudDrive\...\Claude outputs\atlas-6.4d\`), tükenmez:
    `alfabe.png`, `karsilastir-1.png` (IMG_1570 satırı, kendi bileşenleri hariç; tükenmez +
    yumuşak), `karsilastir-2.png` (mavi/kırmızı/yeşil), `karsilastir-3.png` (IMG_1571 kırmızı
    Türkçe satır), `kapsama.txt`. Önce koyuluk ölçülür (rengin kendi orijinal satırı); yumuşakta
    fark > %15 ise rengin yoğunluğu ölçeklenir ve atlas.json'a yazılır (`koyuluk`).
 
-Testler: `test_murekkep.py` ve `test_atlas.py` (taban, kâğıtta sıfır yoğunluk, basıcı boyutları,
-türetme, çengel, stiller, aralık, `haric`, yardımcıların repoya yazmaması).
-Konsolda Türkçe karakter hatası olursa: `PYTHONIOENCODING=utf-8`.
+8. **Paket** (`... uret.py paket`, `paket.py`) → `atlas\4-paket\` (tarayıcı ve Drive için):
+   - `el-yazisi-atlas.png`: tek gri kanal, 8 bit. Örnekler yüksekliğe göre raflara dizilir; aralarında ve
+     kenarda 4 px, genişlik ≤ 2048. Örnekler xh = 40 px ölçeğinde (atlastaki gibi).
+   - Kodlama: `olcek = 255 / max(D)`. `dogrusal`: piksel = round(D·olcek), D = piksel / olcek.
+     `karekok`: piksel = round(√(D·olcek/255)·255), D = (piksel/255)²·255 / olcek. Önce doğrusal denenir;
+     basım farkı sınırı geçerse karekök. Sınır stil başına: tükenmez ≤ 5/255, yumuşak ≤ 2/255 (Deniz kararı
+     6.4d-3: tükenmezin eşik bölgesi dar, 8 bitle 2'nin altına inilemedi; doğrusal 11, karekök 5, üs 3–4 de 5).
+     İkisi de geçerse hiçbir dosya yazılmaz.
+   - `el-yazisi-atlas.json`: `{ tur: "defter-el-yazisi", surum: 1, xh, kodlama, olcek, sayfa: {w, h},
+     aralik: {harf, kelime}, stiller, renkler: {ad: {p, yogunluk}}, karakterler: {"a": [{x, y, w, h, taban,
+     turetilmis?}]}, eksikler }`. `aralik` glif kutuları arasıdır (pay çıkarılmış). `taban` = kutu üstünden
+     taban çizgisine px.
+   - Pakete girmez: foto adları, bileşen numaraları (`ids`), `puan`, `haric`, `aday`, `koyuluk` tablosu.
+   - Doğrulama: paket hem bellekten hem diskten geri okunur, aynı satırlar (5 renk, iki stil) 3-atlas ile
+     basılır, en büyük piksel farkı yazılır. Boyutlar da yazılır.
+   - Uygulamada şema `src/elYazisi/atlasSema.ts`. Drive yeri `<kitaplık kökü>/_sistem/el-yazisi/`. Yükleme
+     dev sayfası `atlas-yukle.html` ile yapılır (`src/elYazisi/atlasYukle.ts`, `atlasDrive.ts`; build'e girmez).
+     Gerçek paket kontrolü: `npx vitest run scripts/atlas-paket.test.ts` (paket yoksa atlanır).
 
-Sonraki adımlar: 6.4d-3 paket + Drive, 6.4e okuyucuda çizim.
+Testler: `test_murekkep.py` ve `test_atlas.py` (taban, kâğıtta sıfır yoğunluk, basıcı boyutları,
+türetme, çengel, stiller, kurşun eşiği, aralık, `haric`, paket yerleşimi/kodlama/kaynak adı yok,
+yardımcıların ve paketin repoya yazmaması). `uret.py` çıktısı UTF-8'e zorlanır (Windows konsolu).
+
+Sonraki adım: 6.4e okuyucuda çizim.

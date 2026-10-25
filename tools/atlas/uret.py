@@ -1,9 +1,10 @@
-"""Harf atlası üretimi. Giriş: `python tools/atlas/uret.py kesit | etiket-kontrol | atlas | onay`.
+"""Harf atlası üretimi. Giriş: `python tools/atlas/uret.py kesit | etiket-kontrol | atlas | onay | paket`.
 
 Girdi klasörü sadece okunur. Çıktı repo dışında olmalı (yollar.cikti_kontrol).
 """
 import argparse
 import json
+import sys
 import time
 from collections import Counter
 from dataclasses import fields
@@ -117,7 +118,26 @@ def onay_uret(cikti: Path, girdi: Path, onay_dir: Path) -> None:
     print(onay.kapsama(atlas, onay_dir / "kapsama.txt", notlar))
 
 
+def paket_uret(cikti: Path) -> dict:
+    import atlas_kur
+    import paket
+    hedef = cikti_kontrol(Path(cikti) / "4-paket")   # okumadan önce: çıktı repo dışında mı
+    r = paket.uret(atlas_kur.atlas_yukle(Path(cikti) / "3-atlas"), hedef)
+    b = r["boyut"]
+    print(f"kodlama {r['kodlama']}, {r['karakter']} karakter, {r['ornek']} örnek, "
+          f"sayfa {r['sayfa']['w']}×{r['sayfa']['h']} px")
+    for k, v in r["fark"].items():
+        print(f"  basım farkı ({k}): " + ", ".join(f"{s} {d}/255" for s, d in v.items()))
+    print(f"  boyut: png {b['png'] / 1024:.0f} KB, json {b['json'] / 1024:.0f} KB, "
+          f"toplam {b['toplam'] / 1024 / 1024:.2f} MB")
+    return r
+
+
 def main(argv=None) -> None:
+    # Windows konsolu (cp1252) "→" gibi karakterlerde çöker
+    for akis in (sys.stdout, sys.stderr):
+        if hasattr(akis, "reconfigure"):
+            akis.reconfigure(encoding="utf-8")
     p = argparse.ArgumentParser(description="Harf atlası (6.4d)")
     alt = p.add_subparsers(dest="komut", required=True)
     k = alt.add_parser("kesit", help="mürekkep maskesi, bileşenler, satır kesitleri")
@@ -128,7 +148,8 @@ def main(argv=None) -> None:
     _ayar_argumanlari(k, satirlar.SatirAyar)
     for ad, yardim in (("etiket-kontrol", "etiket.json kontrolü ve karakter sayıları"),
                        ("atlas", "taban, seçim, yoğunluk, türetme, aday sayfaları"),
-                       ("onay", "onay görselleri ve kapsama.txt")):
+                       ("onay", "onay görselleri ve kapsama.txt"),
+                       ("paket", "tarayıcı paketi (4-paket: png + json) ve doğrulama")):
         q = alt.add_parser(ad, help=yardim)
         q.add_argument("--girdi", type=Path, default=GIRDI)
         q.add_argument("--cikti", type=Path, default=CIKTI)
@@ -144,6 +165,8 @@ def main(argv=None) -> None:
               f"eksik: {' '.join(j['eksikler']) or 'yok'}")
     elif args.komut == "onay":
         onay_uret(cikti_kontrol(args.cikti, args.girdi), args.girdi, args.onay)
+    elif args.komut == "paket":
+        paket_uret(cikti_kontrol(args.cikti, args.girdi))
     elif args.komut == "kesit":
         kesit_uret(args.girdi, args.cikti, _ayar(args, murekkep.Esikler),
                    _ayar(args, satirlar.SatirAyar), args.foto)

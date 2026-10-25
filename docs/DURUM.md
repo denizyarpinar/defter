@@ -45,6 +45,19 @@ Amaç: okunan metni (6.4c) arkadaşımızın gerçek el yazısıyla göstermek. 
 
 **Son güncelleyen (6.4d-2b):** Claude Code, 25 Ekim 2026 · commit yok, Deniz'in bakması bekleniyor.
 
+### 6.4d-3 — Atlas paketi ve Drive'a yükleme
+- Düzeltmeler: tükenmezde kurşunun eşiği siyahınkiyle aynı (0.1839–0.5516), tonu açık kalır (`basici.stiller_varsayilan`). `uret.py` çıktısı UTF-8'e zorlandı ("→" çökmesi). Atlas + onay yeniden üretildi (85 karakter; eksik: q J Q 7 ; ' ").
+- Paket (`uret.py paket`, `paket.py`) → `atlas\4-paket\`: `el-yazisi-atlas.png` (8 bit gri, 2043×389, 250 örnek, 4 px boşluk) + `el-yazisi-atlas.json` (biçim: `tools/atlas/README.md` 8. adım). Kaynak foto adı ve bileşen numarası yok. Boyut: PNG 223 KB + JSON 13 KB = 0.23 MB.
+- Nicemleme: doğrusalda basım farkı tükenmez 11, yumuşak 3 (/255). Karekökte 5 / 2. Üs 3–4 de 5, tavanı kırpmak daha kötü (37–86). Deniz kararı: karekök (`kodlama: "karekok"`), sınır tükenmez ≤ 5, yumuşak ≤ 2. Diskten geri okununca da 5 / 2.
+- Uygulama (çizim yok): `src/elYazisi/atlasSema.ts` (şema; `AtlasBozuk` / `AtlasYeniSurum`; PNG başlığı 8 bit gri + boyut). `atlasDrive.ts`: `<kök>/_sistem/el-yazisi/`; yoksa oluşturur, varsa aynı id'ye yazar, çiftte en eskisi, işaretsiz aynı ad → `AtlasAdDolu`, sonra geri okuma + SHA-256.
+- Dev sayfası `atlas-yukle.html` + `src/elYazisi/atlasYukle.ts` (build girişi değil; `dist/`'te iz yok).
+- Kitaplık: `kitaplar/` altındaki `_…` klasörleri kitap değil (`src/model/gizliKlasor.ts`; driveLibrary + arama ağacı).
+- CLAUDE.md: 6.4d-3 istisnası (dar: sadece `_sistem/el-yazisi/` + iki dosya, düğmeyle).
+- Kontroller: `test_atlas.py` 23/23, `test_murekkep.py` 5/5; typecheck, build, 124 dosyada 1467/1467 test (gerçek paket kontrolü `scripts/atlas-paket.test.ts` dahil).
+- Drive'a gerçek yükleme Deniz'de (`vercel dev --listen 5173` → `/atlas-yukle.html`).
+
+**Son güncelleyen (6.4d-3):** Claude Code, 25 Ekim 2026 · commit yok, Deniz'in denemesi bekleniyor.
+
 ---
 
 ## 6.4c-4 — Kilit kalktı, el yazısı okuma canlıya hazır (25 Ekim 2026, Claude Code)

@@ -2,6 +2,7 @@ import { FOLDER_MIME, type DriveFile } from '../drive/drive';
 import { listele, parcala, parentsKosulu } from '../drive/aramaDrive';
 import type { DriveLocation } from '../drive/driveLibrary';
 import { saltOkunurFetch, type Getirici } from '../drive/saltOkunur';
+import { gizliKlasorMu } from '../model/gizliKlasor';
 import { newArrivals, shelfBooks } from '../model/library';
 import type { Book, Library } from '../model/types';
 import { bookUnits } from '../model/units';
@@ -89,9 +90,9 @@ export function klasorHaritasi(klasorler: readonly HamKlasor[], bookFolderIds: R
 }
 
 // The book folders to scan: only the library's books (6.K4b-2: a half made book, model/yarimKitap.ts,
-// is not in the library, so its files are not searched either)
+// is not in the library, so its files are not searched either; 6.4d-3: nor a "_…" folder, model/gizliKlasor.ts)
 export function agacKitapKlasorleri(bookFolderIds: ReadonlyMap<string, string>, books: ReadonlyMap<string, Book>): Map<string, string> {
-  return new Map([...bookFolderIds].filter(([kitap]) => books.has(kitap)));
+  return new Map([...bookFolderIds].filter(([kitap]) => books.has(kitap) && !gizliKlasorMu(kitap)));
 }
 
 // Folder → the book it is in (the book's folder and everything under it)

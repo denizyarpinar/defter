@@ -155,6 +155,15 @@ describe('agacKur', () => {
     expect(a.kitaplar.map(k => k.id)).not.toContain('deneme-6');
     expect(a.sure.klasor).toBe(10);
   });
+
+  it('a "_" folder is never scanned (6.4d-3), even if it is in books', async () => {
+    const gizli = new Map([...bookFolderIds, ['_sistem', 'sistem-klasor']]);
+    const kitaplar = new Map([...books, ['_sistem', parseBook('_sistem', null)]]);
+    expect([...agacKitapKlasorleri(gizli, kitaplar).keys()]).toEqual(['mathe-1', 'prog', 'json-yok']);
+    const d = sahteDrive();
+    await agacKur({ loc: { ...loc, bookFolderIds: gizli }, books: kitaplar, library }, d.getir);
+    expect(d.sorgular.some(q => q.includes('sistem-klasor'))).toBe(false);
+  });
 });
 
 describe('agacAl (memory)', () => {

@@ -1,4 +1,6 @@
 """Düz assert testleri (pytest yok): `python tools/atlas/test_atlas.py`."""
+import json
+
 import numpy as np
 from PIL import Image, ImageDraw
 from scipy import ndimage as ndi
@@ -9,10 +11,12 @@ import etiket_donustur
 import etiket_sayfa
 import glif
 import murekkep
+import paket
 import renk_olc
 import secim
 import taban
 import turet
+import uret
 import yollar
 
 KAGIT = (245, 244, 238)
@@ -278,6 +282,64 @@ def test_yardimci_betikler_repoya_yazmaz():
             assert False, f"{f.__module__} repo içine yazmamalı"
         except SystemExit as e:
             assert "repo içinde" in str(e), e
+
+
+def test_kursun_esigi_siyahtan():
+    n = [0.5774] * 3
+    st = basici.stiller_varsayilan({"siyah": {"p": n, "yogunluk": 0.94}, "kursun": {"p": n, "yogunluk": 0.42}})
+    e = st["tukenmez"]["esik"]
+    assert e["kursun"] == e["siyah"], e
+    assert st["tukenmez"]["tonlar"]["kursun"] != st["tukenmez"]["tonlar"]["siyah"]   # ton açık kalır
+
+
+def test_paket_yerlesim():
+    rng = np.random.default_rng(3)
+    boy = [(int(rng.integers(5, 90)), int(rng.integers(20, 120))) for _ in range(300)]
+    konum, W, H = paket.yerlestir(boy)
+    assert W <= paket.MAX_GENISLIK
+    kutu = [(x, y, x + w, y + h) for (x, y), (w, h) in zip(konum, boy)]
+    for x0, y0, x1, y1 in kutu:
+        assert x0 >= paket.BOSLUK and y0 >= paket.BOSLUK and x1 + paket.BOSLUK <= W and y1 + paket.BOSLUK <= H
+    for i, a in enumerate(kutu):                       # çakışma yok, aralarında en az BOSLUK
+        for b in kutu[i + 1:]:
+            ayri = (a[2] + paket.BOSLUK <= b[0] or b[2] + paket.BOSLUK <= a[0]
+                    or a[3] + paket.BOSLUK <= b[1] or b[3] + paket.BOSLUK <= a[1])
+            assert ayri, (a, b)
+
+
+def test_paket_kodlama_gidis_donus():
+    D = np.linspace(0, 6.6, 5000, dtype=np.float32).reshape(50, 100)
+    olcek = 255 / 6.6
+    for kod in paket.KODLAMALAR:
+        px = paket.kodla(D, olcek, kod)
+        assert px.dtype == np.uint8 and px.max() == 255 and px.min() == 0
+        geri = paket.coz(px, olcek, kod)
+        assert float(np.abs(geri - D).max()) <= 6.6 / 255 + 1e-5, kod   # karekökte adım en çok bir doğrusal adım
+    assert paket.coz(paket.kodla(np.zeros((2, 2)), olcek, "karekok"), olcek, "karekok").max() == 0  # kâğıt 0 kalır
+
+
+def test_paket_kaynak_adi_yok_ve_basim_ayni():
+    at = _sahte_atlas()
+    at["karakterler"]["a"][0]["D"] = np.linspace(0, 2, 300, dtype=np.float32).reshape(30, 10)
+    at["karakterler"]["b"][0]["turetilmis"] = True
+    sayfa, j = paket.paket_kur(at, "karekok")
+    metin = json.dumps(j, ensure_ascii=False)
+    assert "X#" not in metin and "ids" not in metin and "puan" not in metin, metin
+    assert j["tur"] == "defter-el-yazisi" and j["surum"] == 1 and j["kodlama"] == "karekok"
+    assert sayfa.shape == (j["sayfa"]["h"], j["sayfa"]["w"]) and sayfa.dtype == np.uint8
+    assert j["karakterler"]["b"][0]["turetilmis"] is True and "turetilmis" not in j["karakterler"]["a"][0]
+    pa = paket.paket_atlas(sayfa, j)
+    a, _ = basici.bas("ab ga", "mavi", at, stil="yumusak")
+    b, _ = basici.bas("ab ga", "mavi", pa, stil="yumusak")
+    assert a.shape == b.shape and int(np.abs(a.astype(int) - b.astype(int)).max()) <= 2
+
+
+def test_paket_repoya_yazmaz():
+    try:
+        uret.paket_uret(yollar.REPO / "x")
+        assert False, "paket repo içine yazmamalı"
+    except SystemExit as e:
+        assert "repo içinde" in str(e), e
 
 
 if __name__ == "__main__":

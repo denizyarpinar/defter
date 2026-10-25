@@ -109,3 +109,30 @@ describe('loadDriveLibrary: the owner\'s "Kitaplık", a shelf id without its fol
     expect(r.library.raflar[0].kitaplar).toEqual(['cop-kitap', 'mathe-2']);
   });
 });
+
+// Task 6.4d-3: "_…" folders (the app's _sistem data) are not books: not shown, not on a shelf, not among "Yeni gelenler"
+describe('loadDriveLibrary: "_" folders', () => {
+  beforeEach(() => {
+    kitaplikJson = { raflar: [{ id: 'raf-1', ad: 'Raf 1', kitaplar: ['_sistem', 'mathe-2'] }] };
+    agac = {
+      D: [klasor('K', 'kitaplar'), dosya('LJ', 'kitaplik.json'), klasor('SIS', '_sistem', { defter: '1', defterSistem: '1' })],
+      K: [
+        klasor('W2', 'mathe-2'),
+        klasor('G1', '_sistem', { defter: '1', defterSistem: '1' }),
+        klasor('G2', '_eski')
+      ],
+      W2: [dosya('JW', 'kitap.json')],
+      G1: [dosya('JG', 'kitap.json')]
+    };
+  });
+
+  it('skipped quietly: no book, no folder id, no half made entry, no warning', async () => {
+    const r = await loadDriveLibrary('dar', kokDrive);
+    expect([...r.books.keys()]).toEqual(['mathe-2']);
+    expect([...r.loc.bookFolderIds.keys()]).toEqual(['mathe-2']);
+    expect(r.yarimlar).toEqual([]);
+    expect(r.warnings).toEqual([]);
+    expect(shelfBooks(r.library, r.books, 0)).toEqual(['mathe-2']);
+    expect(newArrivals(r.library, r.books)).toEqual([]);
+  });
+});

@@ -46,8 +46,10 @@ def esik_cevir(renk: dict, sogurma=TUKENMEZ_SOGURMA) -> list[float]:
 
 
 def stiller_varsayilan(renkler: dict) -> dict:
-    t = dict(TUKENMEZ, sogurma=list(TUKENMEZ_SOGURMA),
-             esik={ad: esik_cevir(r) for ad, r in renkler.items()})
+    esik = {ad: esik_cevir(r) for ad, r in renkler.items()}
+    if "siyah" in esik and "kursun" in esik:
+        esik["kursun"] = list(esik["siyah"])   # kurşun: siyahın eşiği, tonu açık (yoğunluğu düşük, eşiği yüksek olmasın)
+    t = dict(TUKENMEZ, sogurma=list(TUKENMEZ_SOGURMA), esik=esik)
     return {"varsayilan": "tukenmez", "kagit": list(KAGIT), "tukenmez": t, "yumusak": {"gurultu": 1.4}}
 
 

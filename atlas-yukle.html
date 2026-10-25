@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>Atlas yükleme</title>
+    <!-- 6.4d-3: dev only. Not a build input (vite.config.ts builds index.html only), so it never ships. -->
+    <style>
+      :root { color-scheme: light; --zemin: #f6f3ee; --kart: #fff; --cizgi: #d9d2c5; --yazi: #1d232b; --soluk: #5d6670; --vurgu: #2f5d8a; }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: var(--zemin); color: var(--yazi); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+      #app { max-width: 900px; margin: 0 auto; padding: 20px 16px 48px; }
+      h1 { font-size: 22px; margin: 0 0 4px; }
+      h2 { font-size: 15px; margin: 0 0 8px; color: var(--soluk); text-transform: uppercase; letter-spacing: .04em; }
+      section { background: var(--kart); border: 1px solid var(--cizgi); border-radius: 10px; padding: 12px 14px; margin: 12px 0; }
+      .satirlar { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+      .not { color: var(--soluk); margin: 6px 0; overflow-wrap: anywhere; }
+      button { font: inherit; padding: 7px 12px; border-radius: 8px; border: 1px solid var(--cizgi); background: #fff; cursor: pointer; min-height: 40px; }
+      button.ana { background: var(--vurgu); color: #fff; border-color: var(--vurgu); }
+      button:disabled { opacity: .45; cursor: default; }
+      input[type=file] { max-width: 100%; }
+      .durum { min-height: 1.5em; margin: 8px 0 0; }
+      .hata { color: #b03a2e; }
+      table { border-collapse: collapse; margin: 10px 0; font-size: 13px; width: 100%; display: block; overflow-x: auto; }
+      th, td { border: 1px solid var(--cizgi); padding: 4px 8px; text-align: left; white-space: nowrap; }
+      pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }
+    </style>
+  </head>
+  <body>
+    <main id="app"></main>
+    <script type="module" src="/src/elYazisi/atlasYukle.ts"></script>
+  </body>
+</html>

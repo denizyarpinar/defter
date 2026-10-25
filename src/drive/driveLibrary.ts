@@ -2,6 +2,7 @@ import type { LoadedLibrary } from '../model/localSource';
 import { parseBook, parseLibrary } from '../model/parse';
 import type { Book } from '../model/types';
 import { yarimKitapNedeni, type YarimNeden } from '../model/yarimKitap';
+import { gizliKlasorMu } from '../model/gizliKlasor';
 import { listChildren, readJson, type DriveFile } from './drive';
 import { kurulumGerekli, type KurulumDugmesi } from '../ui/kurulumDurumu';
 import { driveKokApi, kokBul, ROOT_NAME, type KokDrive, type KokModu, type KokSonucu } from './kok';
@@ -11,6 +12,7 @@ import { driveKokApi, kokBul, ROOT_NAME, type KokDrive, type KokModu, type KokSo
 // Task 6.K2b: no root, or the app's own root half set up → LibraryNotFound (main.ts shows "Kitaplığını kur").
 // Task 6.K3: a sample book folder (defterOrnek) without its kitap.json is a half made sample: not shown.
 // Task 6.K4b-2: the same for a wizard book folder (defterIslem) without kitap.json (model/yarimKitap.ts).
+// Task 6.4d-3: a folder named "_…" in kitaplar/ is not a book (model/gizliKlasor.ts).
 
 export { ROOT_NAME };
 const MAX_PARALLEL = 4;
@@ -77,6 +79,7 @@ export async function loadDriveLibrary(mod: KokModu, kokDrive: KokDrive = driveK
 
   const folders: DriveFile[] = [];
   for (const f of await listChildren(kitaplar.id, { foldersOnly: true })) {
+    if (gizliKlasorMu(f.name)) continue;
     if (loc.bookFolderIds.has(f.name)) { warnings.push(`"kitaplar" içinde iki tane "${f.name}" klasörü var; ilki kullanılıyor.`); continue; }
     loc.bookFolderIds.set(f.name, f.id);
     folders.push(f);
