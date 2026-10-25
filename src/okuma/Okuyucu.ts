@@ -71,7 +71,7 @@ import { TemizDugme } from '../ui/temizDugme';
 import { temizIzYaz } from './temizIz';
 import type { TemizBildirim, TemizYaziOkuyucu } from './temizYaziOkuyucu';
 import type { TemizSahte } from './temizSahte';
-import { currentToken } from '../drive/auth';
+import { currentToken, rememberedUser } from '../drive/auth';
 import { PageContent, pageKind } from './sayfaIcerik';
 import { PAD_TOP, canvasSize, currentPage, layoutPages, visibleRange, type Layout } from './sanalListe';
 import { anchorPoint, covers, detailRect, pdfLeft, tapZone, visiblePart, type Rect } from './yakinlastirma';
@@ -151,10 +151,13 @@ let arama: OkuyucuArama;                  // task 6.3c: the search bar
 // task 6.4c-3: the read handwriting for the search (6.4c-4: for everyone in a Drive library; loaded on the first search)
 // 6.4e-2: also the clean view's matches, loaded when a topic opens; its memory stays when the reader closes
 // (fingerprints per version, the record KAYIT_OMRU_MS), it goes only on sign-out (okuyucuOturumKapandi)
+// 6.4e-2b: the last records and the atlas also on the device per account (shown at once, Drive read behind)
 let ocrKaynak: Promise<DriveOcrKaynak> | null = null;
+let ocrKaynakHazir: DriveOcrKaynak | null = null;   // the loaded one (the ?olcum=1 line)
+const hesapAl = (): string | null => rememberedUser()?.email || null;
 function ocrKaynakAl(): Promise<DriveOcrKaynak> {
   if (!ocrKaynak) {
-    ocrKaynak = import('../ocr/okuyucuOcrKaynak').then(m => m.driveOcrKaynak(driveLocation));
+    ocrKaynak = import('../ocr/okuyucuOcrKaynak').then(m => ocrKaynakHazir = m.driveOcrKaynak(driveLocation, { hesap: hesapAl, yenilendi: temizKayitYenilendi }));
     ocrKaynak.catch(e => { ocrKaynak = null; console.warn('El yazısı kayıtları yüklenemedi.', e); });
   }
   return ocrKaynak;
@@ -164,6 +167,7 @@ function ocrKaynakAl(): Promise<DriveOcrKaynak> {
 let temiz: TemizYaziOkuyucu<TemizYazici> | null = null;
 let temizYukleme: Promise<TemizYaziOkuyucu<TemizYazici> | null> | null = null;
 let temizSahte: TemizSahte | null = null;   // dev only (temizSahte.ts)
+let temizAtlasIzi: () => { nereden: string; ms: number } | null = () => null;   // task 6.4e-2b (?olcum=1)
 let temizTercih = tercihOku(() => localStorage);
 let temizDugme: TemizDugme;
 let temizT0 = 0;            // the list came on screen (performance.now); 0: measured / nothing to measure
@@ -1062,8 +1066,10 @@ function temizAl(): Promise<TemizYaziOkuyucu<TemizYazici> | null> {
       boyut: p => { if (!content) throw new Error('Okuyucu kapalı.'); return content.viewport(p); },
       tercih: temizTercih,
       degisti: temizGeldi,
+      atlas: { kok: () => driveLocation()?.rootId ?? null, hesap: hesapAl },   // task 6.4e-2b
       ...(s ? { eslesmeler: s.eslesmeler, yazici: s.yazici } : {}),
     });
+    temizAtlasIzi = () => m.atlasIzi;
     temiz = t;
     return t;
   }, e => { temizYukleme = null; console.warn('Temiz yazı yüklenemedi; sayfalar orijinal gösteriliyor.', e); return null; });
@@ -1081,7 +1087,7 @@ function temizDegerlendir(): void {
 
 function temizGeldi(b: TemizBildirim): void {
   if (!open) return;
-  temizEslesmeMs = b.sure;
+  temizEslesmeMs = b.eslesme ?? b.sure;
   if (!b.eslesen || !temiz?.etkin) temizT0 = 0;
   temizDugmesi();
   temizYenile();
@@ -1133,12 +1139,23 @@ function temizOkundu(fileId: string): void {
   temizOkunduZaman = window.setTimeout(() => { if (open && pages.some(p => p.dosyaId === fileId)) temizDegerlendir(); }, 300);
 }
 
+// Task 6.4e-2b: the record on Drive differed from the one shown at once (the device copy): the list looked at again
+function temizKayitYenilendi(fileId: string): void {
+  clearTimeout(temizOkunduZaman);
+  temizOkunduZaman = window.setTimeout(() => { if (open && pages.some(p => p.dosyaId === fileId)) temizDegerlendir(); }, 300);
+}
+
 // The first clean page on screen after the list came: the time (?olcum=1 box, console in dev / ?olcum=1)
+// 6.4e-2b: with the parts: the record (memory / device / Drive) and the atlas of the session (device / Drive)
 function temizOlc(): void {
   if (!temizT0 || !temiz) return;
   const ms = Math.round(performance.now() - temizT0), s = temiz.sayac();
   temizT0 = 0;
-  const iz = `açılış → temiz ${ms} ms · eşleşme ${temizEslesmeMs} ms · ${s.okunmus}/${s.fotograf}`;
+  const k = ocrKaynakHazir?.kayitIzi(), a = temizAtlasIzi();
+  const ad = { bellek: 'bellek', cihaz: 'cihaz', drive: 'Drive' } as Record<string, string>;
+  const iz = `açılış → temiz ${ms} ms · eşleşme ${temizEslesmeMs} ms`
+    + (k ? ` · kayıt ${k.ms} (${ad[k.kaynak]})` : '') + (a ? ` · atlas ${a.ms} (${ad[a.nereden]})` : '')
+    + ` · ${s.okunmus}/${s.fotograf}`;
   temizIzYaz(iz);
   if (import.meta.env.DEV || olcumAcik()) console.info(`[temiz yazı] ${iz}`);
 }
@@ -1147,9 +1164,11 @@ function temizOlc(): void {
 export function okuyucuOturumKapandi(): void {
   const k = ocrKaynak;
   ocrKaynak = null;
+  ocrKaynakHazir = null;
   void k?.then(x => x.temizle(), () => {});
   temiz?.oturumDegisti();
   if (temizYukleme) void import('./temizYaziBagla').then(m => m.atlasBellekTemizle());
+  void import('./temizDepo').then(m => m.depoTemizle());   // task 6.4e-2b: the device copies of records and atlas
 }
 
 function renderBar(): void {

@@ -39,13 +39,34 @@ describe('TemizYaziOkuyucu', () => {
     expect(t.sayfa(pages, 1)?.parmakIzi).toBe('g:b');
     expect(t.sayfa(pages, 0)).toBeNull();
     expect(t.sayfa(pages, 2)).toBeNull();     // a photo page not read: the original
-    expect(bildirimler).toEqual([{ sure: 0, eslesen: 1 }]);
+    expect(bildirimler).toEqual([{ sure: 0, eslesen: 1, eslesme: 0 }]);
   });
 
-  it('okunmuş sayfa yoksa atlas hiç istenmez', async () => {
+  it('6.4e-2b: atlas kayıtlarla aynı anda istenir (eşleşmeyi beklemez)', async () => {
+    let bitir!: (e: Eslesmeler) => void;
+    const { t, sayac, bildirimler } = kur({ eslesme: () => new Promise(r => { bitir = r; }) });
+    const p = t.degerlendir(pages);
+    await Promise.resolve();
+    expect(sayac.yazici).toBe(1);        // the records still on their way
+    expect(bildirimler).toEqual([]);
+    bitir(eslesme({ 1: 'g:b' }));
+    await p;
+    expect(t.sayfa(pages, 1)).not.toBeNull();
+    expect(sayac.yazici).toBe(1);
+  });
+
+  it('6.4e-2b: atlas hatası, okunmuş sayfa yoksa uyarısız', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { t } = kur({ eslesme: async () => eslesme({}), yazici: async () => { throw new Error('ağ'); } });
+    await t.degerlendir(pages);
+    expect(warn).not.toHaveBeenCalled();
+    expect(t.gorunur(true)).toBe(false);
+  });
+
+  it('okunmuş sayfa yoksa atlas beklenmez (6.4e-2b: kayıtlarla aynı anda istenir), düğme gizli', async () => {
     const { t, sayac } = kur({ eslesme: async () => eslesme({}) });
     await t.degerlendir(pages);
-    expect(sayac.yazici).toBe(0);
+    expect(sayac.yazici).toBe(1);
     expect(t.gorunur(true)).toBe(false);
   });
 

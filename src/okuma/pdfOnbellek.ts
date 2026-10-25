@@ -101,11 +101,31 @@ async function download(id: string): Promise<ArrayBuffer> {
   return res.arrayBuffer();
 }
 
+// Task 6.4e-2b: calls for the same version at the same time share one read/download (the reader and the
+// clean view's fingerprints open the same file together). The bytes are shared: every user copies them.
+const yolda = new Map<string, Promise<{ data: ArrayBuffer; kaynak: PdfKaynakBilgisi['kaynak'] }>>();
+
 // The PDF's bytes: from the cache, or downloaded from Drive (and then cached).
 // Sample library (task 3.6): straight from public/, never from Drive or the cache.
 // bilgi (task 6.2e-1, ?olcum=1): where the bytes came from is written into it
 export async function getPdf(id: string, modifiedTime: string, bilgi?: PdfKaynakBilgisi): Promise<ArrayBuffer> {
   if (isSampleId(id)) { if (bilgi) bilgi.kaynak = 'ornek'; return fetchSample(id); }
+  const key = keyOf(id, modifiedTime);
+  let p = yolda.get(key);
+  if (!p) {
+    const b: PdfKaynakBilgisi = {};
+    const yeni = getPdfTek(id, modifiedTime, b).then(data => ({ data, kaynak: b.kaynak }));
+    yolda.set(key, yeni);
+    const birak = () => { if (yolda.get(key) === yeni) yolda.delete(key); };
+    yeni.then(birak, birak);
+    p = yeni;
+  }
+  const r = await p;
+  if (bilgi) bilgi.kaynak = r.kaynak;
+  return r.data;
+}
+
+async function getPdfTek(id: string, modifiedTime: string, bilgi: PdfKaynakBilgisi): Promise<ArrayBuffer> {
   try {
     const cached = await readCached(id, modifiedTime);
     if (cached) { if (bilgi) bilgi.kaynak = 'onbellek'; return cached; }

@@ -1,8 +1,8 @@
 import kaynak from './atlasOkuDrive.ts?raw';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { FOLDER_MIME } from '../drive/drive';
 import type { AtlasOge } from './atlasDrive';
-import { atlasBellekTemizle, atlasOku, atlasOkuBellekli, okunacakSec, type AtlasOkuDrive } from './atlasOkuDrive';
+import { atlasBellekTemizle, atlasOku, atlasOkuBellekli, atlasTazelemesi, kopyaCoz, okunacakSec, type AtlasKopya, type AtlasOkuDrive, type AtlasOnbellegi } from './atlasOkuDrive';
 
 interface Oge extends AtlasOge { parent: string; bytes?: Uint8Array }
 
@@ -101,5 +101,144 @@ describe('atlasOku (salt okuma)', () => {
   it('gerçek Drive kodu sadece saltOkunurFetch kullanır (yazma isteği yok)', () => {
     expect(kaynak).not.toMatch(/driveFetch\(|updateJson|method:/);
     expect(kaynak).toMatch(/saltOkunurFetch\(/);
+  });
+});
+
+// ---- task 6.4e-2b: one search, the copy on the device ----
+
+const mt = (o: Oge, modifiedTime: string): Oge => ({ ...o, modifiedTime });
+const tamMt = (pngMt = 'p1', jsonMt = 'j1'): Oge[] => { const o = tam(); return [o[0], o[1], mt(o[2], pngMt), mt(o[3], jsonMt)]; };
+
+function topluDrive(ogeler: Oge[], o: { cok?: boolean } = {}) {
+  const d = sahteDrive(ogeler);
+  d.drive.toplu = async adlar => {
+    d.istekler.push('toplu');
+    return o.cok ? null : ogeler.filter(x => adlar.includes(x.name)).map(x => ({ ...x, parents: [x.parent] }));
+  };
+  return d;
+}
+
+function sahteOnbellek(ilk: unknown = null) {
+  const durum = { deger: ilk, yazilan: 0, silinen: 0 };
+  const onbellek: AtlasOnbellegi = {
+    oku: async () => durum.deger,
+    yaz: async k => { durum.deger = k; durum.yazilan++; },
+    sil: async () => { durum.deger = null; durum.silinen++; },
+  };
+  return { onbellek, durum };
+}
+
+describe('atlasOku: one search (6.4e-2b)', () => {
+  it('toplu: one search instead of folder by folder; the same choice and warnings', async () => {
+    const yabanci = dosya('P0', 'el-yazisi-atlas.png', 'E', png(1, 1), '2026-09-01T00:00:00Z', {});
+    const baska = klasor('S2', '_sistem', 'BASKA');   // another _sistem elsewhere in Drive: not ours
+    const d = topluDrive([...tam(), yabanci, baska]);
+    const r = await atlasOku(d.drive);
+    expect(r!.png).toEqual(png(30, 40));
+    expect(r!.uyarilar.length).toBe(1);
+    expect(d.istekler.filter(x => !x.startsWith('indir'))).toEqual(['kok', 'toplu']);
+  });
+
+  it('toplu says too many → folder by folder as before', async () => {
+    const d = topluDrive(tam(), { cok: true });
+    expect((await atlasOku(d.drive))!.atlas.xh).toBe(40);
+    expect(d.istekler.filter(x => x.startsWith('cocuklar')).length).toBe(4);
+  });
+});
+
+describe('atlasOkuBellekli: the copy on the device (6.4e-2b)', () => {
+  it('no copy → Drive, then copied; a copy → no Drive request before the answer', async () => {
+    atlasBellekTemizle();
+    const c = sahteOnbellek();
+    const d1 = topluDrive(tamMt());
+    const ilk = await atlasOkuBellekli(d1.drive, c.onbellek);
+    expect(ilk!.nereden).toBe('drive');
+    expect(c.durum.yazilan).toBe(1);
+
+    atlasBellekTemizle();   // a new session (the page reloaded)
+    const d2 = topluDrive(tamMt());
+    const ikinci = await atlasOkuBellekli(d2.drive, c.onbellek);
+    expect(ikinci!.nereden).toBe('cihaz');
+    expect(ikinci!.atlas.xh).toBe(40);
+    expect(d2.istekler.filter(x => x.startsWith('indir'))).toEqual([]);
+    await atlasTazelemesi();
+    expect(d2.istekler).toEqual(['kok', 'toplu']);   // the check behind it: one search, nothing downloaded
+    expect(c.durum.yazilan).toBe(1);
+    atlasBellekTemizle();
+  });
+
+  it('changed on Drive → read behind the copy into the device (used next time)', async () => {
+    atlasBellekTemizle();
+    const c = sahteOnbellek();
+    await atlasOkuBellekli(topluDrive(tamMt()).drive, c.onbellek);
+    atlasBellekTemizle();
+    const d = topluDrive(tamMt('p1', 'j2'));
+    expect((await atlasOkuBellekli(d.drive, c.onbellek))!.nereden).toBe('cihaz');
+    await atlasTazelemesi();
+    expect(d.istekler.filter(x => x.startsWith('indir')).sort()).toEqual(['indir J', 'indir P']);
+    expect((c.durum.deger as AtlasKopya).kimlik.jsonMt).toBe('j2');
+    atlasBellekTemizle();
+  });
+
+  it('gone from Drive → the copy removed (the next session finds no atlas)', async () => {
+    atlasBellekTemizle();
+    const c = sahteOnbellek();
+    await atlasOkuBellekli(topluDrive(tamMt()).drive, c.onbellek);
+    atlasBellekTemizle();
+    await atlasOkuBellekli(topluDrive([]).drive, c.onbellek);
+    await atlasTazelemesi();
+    expect(c.durum.deger).toBeNull();
+    atlasBellekTemizle();
+  });
+
+  it('a broken copy / the device failing → Drive as before', async () => {
+    for (const bozuk of [{ png: 'x' }, { ...{ png: png(30, 40), json: '{', kimlik: { pngId: 'P', jsonId: 'J', pngMt: '', jsonMt: '' } } }, 'hata']) {
+      atlasBellekTemizle();
+      const c = sahteOnbellek(bozuk);
+      if (bozuk === 'hata') c.onbellek.oku = async () => { throw new Error('IndexedDB'); };
+      const d = topluDrive(tamMt());
+      expect((await atlasOkuBellekli(d.drive, c.onbellek))!.nereden).toBe('drive');
+      expect(d.istekler.filter(x => x.startsWith('indir')).length).toBe(2);
+    }
+    atlasBellekTemizle();
+  });
+
+  it('kopyaCoz: only a whole, checked copy', () => {
+    expect(kopyaCoz(null)).toBeNull();
+    expect(kopyaCoz({ png: png(30, 40), json, kimlik: { pngId: 'P' } })).toBeNull();
+    expect(kopyaCoz({ png: png(31, 40), json, kimlik: { pngId: 'P', jsonId: 'J', pngMt: 'a', jsonMt: 'b' } })).toBeNull();   // wrong size
+    expect(kopyaCoz({ png: png(30, 40), json, kimlik: { pngId: 'P', jsonId: 'J', pngMt: 'a', jsonMt: 'b' } })!.nereden).toBe('cihaz');
+  });
+});
+
+describe('atlasOkuBellekli: the copy stays when Drive could not answer (6.4e-2b)', () => {
+  it('network error / 401 / offline behind the copy → the copy is kept (only a successful empty search removes it)', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    for (const hata of [new TypeError('Failed to fetch'), Object.assign(new Error('401'), { status: 401 }), new Error('çevrimdışı')]) {
+      atlasBellekTemizle();
+      const c = sahteOnbellek();
+      await atlasOkuBellekli(topluDrive(tamMt()).drive, c.onbellek);
+      atlasBellekTemizle();
+      const d = topluDrive([]);
+      d.drive.toplu = async () => { throw hata; };
+      d.drive.kok = async () => { throw hata; };
+      expect((await atlasOkuBellekli(d.drive, c.onbellek))!.nereden).toBe('cihaz');
+      await atlasTazelemesi();
+      expect(c.durum.silinen).toBe(0);
+      expect((c.durum.deger as AtlasKopya).kimlik.pngId).toBe('P');
+    }
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+    atlasBellekTemizle();
+  });
+
+  it('no copy and Drive fails → the error (nothing removed, tried again next time)', async () => {
+    atlasBellekTemizle();
+    const c = sahteOnbellek();
+    const d = topluDrive(tamMt());
+    d.drive.indir = async () => { throw new TypeError('Failed to fetch'); };
+    await expect(atlasOkuBellekli(d.drive, c.onbellek)).rejects.toThrow();
+    expect(c.durum.silinen + c.durum.yazilan).toBe(0);
+    atlasBellekTemizle();
   });
 });

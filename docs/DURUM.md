@@ -1,5 +1,19 @@
 # Defter – Durum
 
+## 6.4e-2b – Temiz yazı hızlandı (25 Ekim 2026, Claude Code)
+
+- Atlas ve son kayıt cihazda (IndexedDB `defter-temiz`, anahtar hesap / hesap + PDF id); Drive arkadan bakılır. Atlas kayıtla paralel, bilinen kök + tek arama; kayıtta bilinen klasör (`parents` yok); `getPdf` aynı anda tek indirme. Drive'a yazma yok.
+- Ölçüm (laptop vercel dev, ozet.pdf 3.9 MB):
+
+| | Önce | Sonra |
+|---|---|---|
+| İlk açılış | 4653 ms | 1931 ms (kayıt 1573 ∥ atlas 1466, Drive) |
+| F5 sonrası tekrar açılış | – | 418 ms (kayıt 2 ms cihaz, atlas 17 ms cihaz) |
+
+- Deniz kabul etti. Preview ve iPad ölçümü sonra yapılacak. faz-6'ya push, main'e değil.
+
+---
+
 ## 6.4e-4 – Temiz yazıya kalemle çizme (25 Ekim 2026, Claude Code)
 
 - Kalem temiz yazıda kalır ve oraya çizer. Temizdeki çizgiler sadece temizde, orijinaldekiler sadece orijinalde görünür; ikisi aynı PDF'te (`/DefterGorunum /Temiz` + Hidden bayrağı).

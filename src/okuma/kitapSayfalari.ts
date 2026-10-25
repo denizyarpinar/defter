@@ -22,6 +22,7 @@ export interface BookPage {
   pdfSayfa?: number;        // 1-based page inside the PDF
   eksik?: string;            // name of the file that couldn't be found or read
   link?: string;             // tur "link": the address
+  klasorId?: string;         // task 6.4e-2b: with dosyaId, the folder the file was listed in (when known)
 }
 
 export const PDF_MIME = 'application/pdf';
@@ -40,7 +41,7 @@ export async function buildBookPages(book: Book, bookFolderId: string): Promise<
       try {
         const file = src.dosya ? await resolver.resolve(src.dosya) : null;
         if (!file) { pages.push(missing()); continue; }
-        const found = { bolumIndex, tur: src.tur, dosyaId: file.id, modifiedTime: file.modifiedTime, mimeType: file.mimeType, ad: src.dosya };
+        const found = { bolumIndex, tur: src.tur, dosyaId: file.id, modifiedTime: file.modifiedTime, mimeType: file.mimeType, ad: src.dosya, ...(file.klasorId ? { klasorId: file.klasorId } : {}) };
         if (src.tur !== 'pdf' && file.mimeType !== PDF_MIME) { pages.push(found); continue; }
 
         pages.push(...await pdfPages(found, src.sayfalar));
@@ -76,7 +77,7 @@ export function buildSolutionPages(cozum: DriveFile): Promise<BookPage[]> {
 async function filesToPages(files: DriveFile[]): Promise<BookPage[]> {
   const pages: BookPage[] = [];
   for (const file of files) {   // one after the other (iPad)
-    const found: BookPage = { bolumIndex: 0, tur: 'pdf', dosyaId: file.id, modifiedTime: file.modifiedTime, mimeType: file.mimeType, ad: file.name };
+    const found: BookPage = { bolumIndex: 0, tur: 'pdf', dosyaId: file.id, modifiedTime: file.modifiedTime, mimeType: file.mimeType, ad: file.name, ...(file.klasorId ? { klasorId: file.klasorId } : {}) };
     try {
       pages.push(...await pdfPages(found));
     } catch (e) {

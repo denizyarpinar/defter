@@ -115,6 +115,7 @@ export interface DriveFile {
   mimeType: string;
   modifiedTime: string;   // ISO date; changes when the file content changes
   appProperties?: Record<string, string>;   // task 6.K3: the sample book's folder is marked defterOrnek
+  klasorId?: string;   // task 6.4e-2b: the folder it was listed in (listChildren; not read from Drive)
 }
 
 // Value inside a Drive query string: escape \ and ' (file names like "Deniz'in notları.pdf").
@@ -144,7 +145,7 @@ export function listChildren(parentId: string, opts: { foldersOnly?: boolean; na
   let q = `'${qv(parentId)}' in parents and trashed = false`;
   if (opts.foldersOnly) q += ` and mimeType = '${FOLDER_MIME}'`;
   if (opts.name) q += ` and name = '${qv(opts.name)}'`;
-  return list(q, 'Klasör listelenirken');
+  return list(q, 'Klasör listelenirken').then(f => f.map(x => ({ ...x, klasorId: parentId })));
 }
 
 // File content as JSON. Broken JSON → {} (the parser then uses default values).

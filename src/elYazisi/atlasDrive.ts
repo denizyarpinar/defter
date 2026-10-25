@@ -19,7 +19,10 @@ export const ATLAS_PNG = 'el-yazisi-atlas.png';
 export const ATLAS_JSON = 'el-yazisi-atlas.json';
 export const SISTEM_ISARETI: Record<string, string> = { defter: '1', defterSistem: '1' };
 
-export interface AtlasOge { id: string; name: string; mimeType: string; createdTime?: string; appProperties?: Record<string, string> }
+export interface AtlasOge {
+  id: string; name: string; mimeType: string; createdTime?: string; appProperties?: Record<string, string>;
+  modifiedTime?: string; parents?: string[];   // task 6.4e-2b: read only (the reader's atlas copy)
+}
 
 export interface AtlasDrive {
   kok(): Promise<{ id: string; name: string } | null>;

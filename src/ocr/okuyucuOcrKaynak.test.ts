@@ -126,3 +126,112 @@ describe('OkuyucuOcrKaynak.eslesmeler (6.4e-2)', () => {
     expect(sayac).toEqual({ izler: 1, klasor: 1, kayit: 2 });
   });
 });
+
+describe('OkuyucuOcrKaynak: the last record at once, Drive behind it (6.4e-2b)', () => {
+  const pages = [sayfa('ozet', 1), sayfa('ozet', 2), sayfa('ozet', 3)];
+  const izler = { ozet: ['i:1', 'g:2', 'g:3'] };
+
+  // Drive answers when `cevapla` is called; the device copy is a map
+  function kur(cihaz: Record<string, OcrKayit | 'bozuk'>, drive: OcrKayit | null) {
+    let zaman = 0;
+    const cevaplar: (() => void)[] = [];
+    const yazilan: [string, OcrKayit][] = [];
+    const silinen: string[] = [];
+    const yenilenen: string[] = [];
+    const sayac = { kayit: 0 };
+    const d: OcrKaynakBagimlilik = {
+      izler: async id => izler[id as 'ozet'],
+      klasor: async id => `kl-${id}`,
+      kayit: () => { sayac.kayit++; return new Promise(r => cevaplar.push(() => r(drive))); },
+      simdi: () => zaman,
+      onbellek: {
+        oku: async id => { const x = cihaz[id]; if (x === 'bozuk') throw new Error('bozuk'); return x ?? null; },
+        yaz: async (id, k) => { yazilan.push([id, k]); },
+        sil: async id => { silinen.push(id); },
+      },
+      yenilendi: id => yenilenen.push(id),
+    };
+    const k = new OkuyucuOcrKaynak(d);
+    const bekle = () => new Promise(r => setTimeout(r, 0));
+    return { k, cevapla: async () => { cevaplar.splice(0).forEach(f => f()); await bekle(); }, yazilan, silinen, yenilenen, sayac, ilerle: (ms: number) => { zaman += ms; }, bekle };
+  }
+
+  it('a device copy: shown at once, without waiting for Drive; Drive the same → written to the device anyway, no yenilendi', async () => {
+    const r = kayit('ozet', s(2, 'g:2', 'x'));
+    const t = kur({ ozet: r }, r);
+    const e = await t.k.eslesmeler(pages);   // Drive has not answered yet
+    expect([...e.sayfalar.keys()]).toEqual([1]);
+    expect(t.k.sonKayitIzi?.kaynak).toBe('cihaz');
+    await t.cevapla();
+    expect(t.yazilan.map(([id]) => id)).toEqual(['ozet']);
+    expect(t.yenilenen).toEqual([]);
+  });
+
+  it('Drive differs → yenilendi; the next look gives Drive\'s record (from memory)', async () => {
+    const t = kur({ ozet: kayit('ozet', s(2, 'g:2', 'eski')) }, kayit('ozet', s(2, 'g:2', 'eski'), s(3, 'g:3', 'yeni')));
+    expect([...(await t.k.eslesmeler(pages)).sayfalar.keys()]).toEqual([1]);
+    await t.cevapla();
+    expect(t.yenilenen).toEqual(['ozet']);
+    expect([...(await t.k.eslesmeler(pages)).sayfalar.keys()]).toEqual([1, 2]);
+    expect(t.k.sonKayitIzi?.kaynak).toBe('bellek');
+    expect(t.sayac.kayit).toBe(1);
+  });
+
+  it('no copy / a broken copy: Drive is waited for, then copied', async () => {
+    for (const cihaz of [{}, { ozet: 'bozuk' }] as Record<string, OcrKayit | 'bozuk'>[]) {
+      const t = kur(cihaz, kayit('ozet', s(3, 'g:3', 'x')));
+      let bitti = false;
+      const p = t.k.eslesmeler(pages).then(e => { bitti = true; return e; });
+      await t.bekle();
+      expect(bitti).toBe(false);
+      await t.cevapla();
+      expect([...(await p).sayfalar.keys()]).toEqual([2]);
+      expect(t.k.sonKayitIzi?.kaynak).toBe('drive');
+      expect(t.yazilan.length).toBe(1);
+    }
+  });
+
+  it('Drive has no record any more → the copy removed; unut → the copy removed and Drive waited for', async () => {
+    const t = kur({ ozet: kayit('ozet', s(2, 'g:2', 'x')) }, null);
+    await t.k.eslesmeler(pages);
+    await t.cevapla();
+    expect(t.silinen).toEqual(['ozet']);
+    expect(t.yenilenen).toEqual(['ozet']);
+    t.k.unut('ozet');
+    expect(t.silinen).toEqual(['ozet', 'ozet']);
+  });
+
+  it('memory past KAYIT_OMRU_MS: the last record at once again, Drive read once more behind it', async () => {
+    const r = kayit('ozet', s(2, 'g:2', 'x'));
+    const t = kur({}, r);
+    const p = t.k.eslesmeler(pages);
+    await t.bekle();   // the request is on its way
+    await t.cevapla();
+    await p;
+    t.ilerle(KAYIT_OMRU_MS);
+    expect([...(await t.k.eslesmeler(pages)).sayfalar.keys()]).toEqual([1]);   // Drive not answered
+    expect(t.sayac.kayit).toBe(2);
+    expect(t.k.sonKayitIzi?.kaynak).toBe('bellek');
+  });
+});
+
+describe('OkuyucuOcrKaynak: the folder the reader knows (6.4e-2b)', () => {
+  it('a page with klasorId: no parents request, the record searched in that folder; without: as before', async () => {
+    const klasorler: string[] = [];
+    const sayac = { klasor: 0 };
+    const d: OcrKaynakBagimlilik = {
+      izler: async () => ['i:1', 'g:2'],
+      klasor: async id => { sayac.klasor++; return `kl-${id}`; },
+      kayit: async k => { klasorler.push(k.klasorId); return kayit(k.id, s(2, 'g:2', 'x')); },
+    };
+    const k = new OkuyucuOcrKaynak(d);
+    const bilinen = [1, 2].map(n => ({ ...sayfa('ozet', n), klasorId: 'KONU' }));
+    expect([...(await k.eslesmeler(bilinen)).sayfalar.keys()]).toEqual([1]);
+    expect(sayac.klasor).toBe(0);
+    expect(klasorler).toEqual(['KONU']);
+
+    await k.eslesmeler([sayfa('sorular', 1), sayfa('sorular', 2)]);   // not known: the old way
+    expect(sayac.klasor).toBe(1);
+    expect(klasorler).toEqual(['KONU', 'kl-sorular']);
+  });
+});
