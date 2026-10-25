@@ -7,10 +7,12 @@ import type { PageContent } from '../okuma/sayfaIcerik';
 import { pageKind } from '../okuma/sayfaIcerik';
 import { okuApi } from './claudeMotor';
 import { eslestir } from './kayit/eslestir';
-import { driveOcrApi, kayitOkuDrive, sayfaYaz, type OcrKaynakDosya } from './kayit/kayitDrive';
-import type { OcrSayfa } from './kayit/sema';
-import { okunanMetinCiz } from './okunanMetin';
-import { ReaderOcrSearch, type SearchPage } from './okuyucuArama';
+import { gorunurAlaniDuzelt } from '../ui/gorunurAlan';
+import { gosterilen, kelimeDegistir, kelimeGeriAl, kelimeler, tekrarOkuUyarisi, yazildigiGibi, type DuzeltmeHedefi } from './kayit/elleDuzelt';
+import { driveOcrApi, duzeltmeYaz, kayitOkuDrive, sayfaYaz, type OcrDrive, type OcrKaynakDosya } from './kayit/kayitDrive';
+import { yaziSatiriMi, type OcrKayit, type OcrParca, type OcrSayfa } from './kayit/sema';
+import { okunanMetinCiz, type KelimeYeri } from './okunanMetin';
+import { aramaMetni, ReaderOcrSearch, type SearchPage } from './okuyucuArama';
 import { MAX_BAYT, MAX_KENAR, PdfSayfaGorselleri } from './sayfaGorseli';
 
 // Task 6.4c-0 (Codex) → 6.4c-2: the reader's handwriting panel. 6.4c-4: opened by the reader's "El yazısını oku"
@@ -19,6 +21,9 @@ import { MAX_BAYT, MAX_KENAR, PdfSayfaGorselleri } from './sayfaGorseli';
 // "Tekrar oku" reads it again. Each page is read by Claude (api/oku) and written to <pdf>.ocr.json the moment
 // it is read. The page image: the embedded JPEG of a photo page, otherwise pdf.js (sayfaGorseli.ts).
 // 6.4e-2: after each saved page `okundu(file)` (the reader's clean view looks again, without reopening).
+// 6.4e-3: with `duzenlenebilir()` (okumaIzni) a word of the shown text is tapped → a small box in the line
+// (Kaydet / Vazgeç / Geri al; Enter / Esc) → duzeltmeYaz on the record → `duzeltildi(file, record)` (the reader's
+// memory, the device copy, the clean view). "Tekrar oku" on a page with hand corrections asks first.
 
 export interface ReaderSnapshot {
   file: string; version: string; content: PageContent;
@@ -48,7 +53,13 @@ async function cizJpeg(content: PageContent, page: BookPage): Promise<Uint8Array
 export interface OkumaPaneli { ac(): void; kapat(): void }
 let kurulu: OkumaPaneli | null = null;
 
-export function installReaderOcr(snapshot: () => ReaderSnapshot | null, o: { okundu?(file: string): void } = {}): OkumaPaneli {
+export interface OkumaPaneliSecenek {
+  okundu?(file: string): void;
+  duzenlenebilir?(): boolean;                                   // task 6.4e-3: the account may read handwriting
+  duzeltildi?(file: string, kayit: OcrKayit): Promise<void>;    // a hand correction written
+}
+
+export function installReaderOcr(snapshot: () => ReaderSnapshot | null, o: OkumaPaneliSecenek = {}): OkumaPaneli {
   if (kurulu) return kurulu;
   const host = document.createElement('div'); host.id = 'reader-ocr-search'; host.hidden = true;
   host.setAttribute('role', 'dialog'); host.setAttribute('aria-label', 'El yazısını oku');
@@ -72,6 +83,8 @@ export function installReaderOcr(snapshot: () => ReaderSnapshot | null, o: { oku
   let search: ReaderOcrSearch | undefined, bound: ReaderSnapshot | null = null;
   let epoch = 0, boundEpoch = -1, invalid = false, working = false;
   let lastFile = '';
+  let yazim: { drive: OcrDrive; kaynak: OcrKaynakDosya } | null = null;   // the bound file's record (6.4e-3)
+  let duzenKutu: HTMLElement | null = null;
   const status = (message: string) => { el('status').textContent = message; };
   const valid = () => {
     const now = snapshot();
@@ -83,6 +96,7 @@ export function installReaderOcr(snapshot: () => ReaderSnapshot | null, o: { oku
     if (!search || invalid) return;
     invalid = true; search.forget(); el('results').replaceChildren(); el('list').replaceChildren(); el('text').replaceChildren();
     el<HTMLButtonElement>('start').disabled = true;
+    duzenKapat(); yazim = null;
     el('count').textContent = 'Eski sayfa seçimi geçersiz.';
     status('Dosya/sürüm veya oturum değişti. Sayfaları tekrar kontrol et.');
   };
@@ -90,7 +104,7 @@ export function installReaderOcr(snapshot: () => ReaderSnapshot | null, o: { oku
   window.addEventListener('pagehide', () => { epoch++; invalidate(); });
   // reader/version changes are noticed even when no button is pressed
   let acik = false;
-  const kapat = () => { acik = false; host.hidden = true; };
+  const kapat = () => { duzenKapat(); acik = false; host.hidden = true; };
   el('close').onclick = kapat;
   setInterval(() => {
     const now = snapshot();
@@ -117,10 +131,85 @@ export function installReaderOcr(snapshot: () => ReaderSnapshot | null, o: { oku
     finally { working = false; drawList(); setButtons(); }
   };
   const showText = (p: SearchPage) => {
+    duzenKapat();
     el('text').replaceChildren();
     if (!p.record) return;
     const h = document.createElement('strong'); h.textContent = `Okunan metin · PDF s.${p.number}`;
-    el('text').append(h, okunanMetinCiz(p.record));
+    const duzenle = o.duzenlenebilir?.() && yazim ? { duzenle: (yer: KelimeYeri, w: HTMLElement) => duzenAc(p, yer, w) } : {};
+    el('text').append(h, okunanMetinCiz(p.record, duzenle));
+    if ('duzenle' in duzenle) {
+      const ipucu = document.createElement('small');
+      ipucu.style.cssText = 'display:block;color:#555';
+      ipucu.textContent = 'Yanlış okunan kelimeye dokunup düzeltebilirsin.';
+      el('text').append(ipucu);
+    }
+  };
+
+  // ---- task 6.4e-3: a word corrected by hand ----
+  // Touch screens: the panel sits at the top while the box is open (the keyboard covers the bottom; 5.10g)
+  const dokunmatik = () => matchMedia('(pointer: coarse)').matches;
+  function duzenKapat(): void {
+    if (!duzenKutu) return;
+    duzenKutu.remove(); duzenKutu = null;
+    host.style.top = ''; host.style.bottom = '12px';
+    gorunurAlaniDuzelt('el yazısı düzeltme');
+  }
+  const parcaAl = (s: OcrSayfa, yer: KelimeYeri): OcrParca | null => {
+    const satir = s.satirlar[yer.satir];
+    return satir && yaziSatiriMi(satir) ? satir.parcalar[yer.parca] ?? null : null;
+  };
+  const duzenAc = (p: SearchPage, yer: KelimeYeri, w: HTMLElement) => {
+    if (working || !p.record || !yazim || !o.duzenlenebilir?.()) return;
+    duzenKapat();
+    const rec = p.record, parca = parcaAl(rec, yer), k = parca && kelimeler(parca)[yer.kelime];
+    if (!parca || !k?.oz) return;
+    const kutu = document.createElement('span');
+    kutu.id = 'ocrDuzelt';
+    kutu.style.cssText = 'display:inline-flex;flex-wrap:wrap;gap:4px;align-items:center;margin:2px 4px;padding:4px;border:1px solid #567;border-radius:6px;background:#eef3f8;color:#17202a';
+    const input = document.createElement('input');
+    input.value = k.oz; input.setAttribute('aria-label', 'Doğru kelime');
+    input.autocapitalize = 'off'; input.spellcheck = false;
+    input.style.cssText = 'font:16px system-ui;width:10em;min-height:36px';   // 16px: iOS does not zoom
+    const dugme = (metin: string) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = metin; b.style.minHeight = '36px'; return b; };
+    const kaydetB = dugme('Kaydet'), vazgecB = dugme('Vazgeç');
+    kutu.append(input, kaydetB, vazgecB);
+    const ham = yazildigiGibi(parca, yer.kelime);
+    let geriB: HTMLButtonElement | null = null;
+    if (ham !== null) { geriB = dugme('Geri al'); geriB.title = `yazıldığı gibi: ${ham}`; kutu.append(geriB); }
+    const hedef: DuzeltmeHedefi = { parmakIzi: rec.parmakIzi, okunma: rec.okunma, satir: yer.satir, parca: yer.parca, metin: parca.metin, gosterilen: gosterilen(parca) };
+    const kilit = (k: boolean) => { input.disabled = k; for (const b of kutu.querySelectorAll('button')) b.disabled = k; };
+    const kaydet = (degistir: (x: OcrParca) => OcrParca, ne: string) => action(async () => {
+      if (!yazim) throw new Error('Önce sayfaları tekrar kontrol et.');
+      if (degistir(parca) === parca) { duzenKapat(); return; }   // nothing changed: no write
+      kilit(true);
+      try {
+        await verify();
+        status('Düzeltme kaydediliyor…');
+        const r = await duzeltmeYaz(yazim.drive, yazim.kaynak, hedef, degistir);
+        const yeni = r.kayit.sayfalar.find(x => x.parmakIzi === rec.parmakIzi && x.okunma === rec.okunma);
+        if (yeni && valid()) { p.record = yeni; p.text = aramaMetni(yeni); }
+        showText(p);
+        await o.duzeltildi?.(yazim.kaynak.id, r.kayit);
+        status(ne);
+      } finally { if (duzenKutu === kutu) kilit(false); }
+    });
+    const kaydetElle = () => {
+      if (!input.value.trim()) { status('Kelime boş olamaz. Doğrusunu yaz ya da Vazgeç.'); return; }
+      void kaydet(x => kelimeDegistir(x, yer.kelime, input.value), 'Düzeltme kaydedildi. Temiz yazı ve arama yeni kelimeyi kullanır.');
+    };
+    kaydetB.onclick = kaydetElle;
+    vazgecB.onclick = () => duzenKapat();
+    if (geriB) geriB.onclick = () => void kaydet(x => kelimeGeriAl(x, yer.kelime), 'Elle düzeltme kaldırıldı.');
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); kaydetElle(); }
+      else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); duzenKapat(); }
+    });
+    w.after(kutu);
+    duzenKutu = kutu;
+    if (dokunmatik()) { host.style.bottom = 'auto'; host.style.top = '12px'; }
+    host.scrollTop = Math.max(0, kutu.offsetTop - host.clientHeight / 3);
+    input.focus({ preventScroll: true });
+    input.select();
   };
   const drawList = () => {
     el('list').replaceChildren(...(search?.pages ?? []).map(p => {
@@ -132,7 +221,11 @@ export function installReaderOcr(snapshot: () => ReaderSnapshot | null, o: { oku
         const show = document.createElement('button'); show.textContent = 'Göster';
         show.onclick = () => showText(p);
         const again = document.createElement('button'); again.textContent = 'Tekrar oku'; again.dataset.again = String(p.number);
-        again.onclick = () => void read([p.number]);
+        again.onclick = () => {
+          const uyari = p.record && tekrarOkuUyarisi(p.record);   // task 6.4e-3
+          if (uyari && !confirm(uyari)) return;
+          void read([p.number]);
+        };
         row.append(show, again);
       }
       return row;
@@ -166,9 +259,11 @@ export function installReaderOcr(snapshot: () => ReaderSnapshot | null, o: { oku
     if (!meta.parents?.[0]) throw new Error('Dosyanın klasörü bulunamadı. Kitaplığı yenileyip tekrar dene.');
     const kaynak: OcrKaynakDosya = { id: now.file, ad: meta.name ?? page({ number: 1, index: selected[0].index }).ad ?? 'dosya.pdf', klasorId: meta.parents[0] };
     const drive = driveOcrApi(now.yer);
+    yazim = null;
     const kayit = (await kayitOkuDrive(drive, kaynak)).kayit;
     const eslesme = kayit ? eslestir(kayit, gorseller.izler).sayfalar : [];
     await verify();
+    yazim = { drive, kaynak };
     search = new ReaderOcrSearch({ valid, verify,
       text: async p => (await now.content.textContent(page(p))).parcalar.map(x => x.str).join(' '),
       recorded: async p => eslesme[p.number - 1] ?? null,

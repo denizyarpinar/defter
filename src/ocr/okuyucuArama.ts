@@ -1,8 +1,15 @@
-import { hamMetin, type OcrSayfa } from './kayit/sema';
+import { duzeltilmisMetin, hamMetin, type OcrSayfa } from './kayit/sema';
 
 // Task 6.4c-2: a page is 'metin' (it has PDF text: never sent), 'okundu' (the record has it) or 'okunacak'.
 // start() reads the 'okunacak' ones (or the pages asked again with "Tekrar oku") and saves each one the
 // moment it is read, not all at the end.
+// Task 6.4e-3: a read page's text in this panel: as written, and corrected when it differs (both are found)
+export function aramaMetni(s: Pick<OcrSayfa, 'satirlar'>): string {
+  const ham = hamMetin(s), duz = duzeltilmisMetin(s);
+  return duz === ham ? ham : `${ham}
+${duz}`;
+}
+
 export type PageState = 'metin' | 'okundu' | 'okunacak';
 export interface SearchPage { number: number; index: number; text?: string; ocr?: boolean; state?: PageState; record?: OcrSayfa }
 export interface SearchIO {
@@ -43,7 +50,7 @@ export class ReaderOcrSearch {
         const text = await this.io.text(item); this.check(generation);
         if (text.trim()) { this.pages.push({ ...item, text, state: 'metin' }); continue; }
         const record = await this.io.recorded(item); this.check(generation);
-        this.pages.push(record ? { ...item, text: hamMetin(record), ocr: true, state: 'okundu', record } : { ...item, state: 'okunacak' });
+        this.pages.push(record ? { ...item, text: aramaMetni(record), ocr: true, state: 'okundu', record } : { ...item, state: 'okunacak' });
       }
       return this.pages.filter(p => p.state === 'okunacak').length;
     } catch (e) { this.pages = []; throw e; }
@@ -64,7 +71,7 @@ export class ReaderOcrSearch {
         this.check(generation);
         await this.io.save(p, reading);
         // saved: the page is read even if cancel came meanwhile (the next page is not started)
-        if (this.io.valid()) { p.record = reading; p.text = hamMetin(reading); p.ocr = true; p.state = 'okundu'; }
+        if (this.io.valid()) { p.record = reading; p.text = aramaMetni(reading); p.ocr = true; p.state = 'okundu'; }
       }
       this.check(generation);
     } finally { this.busy = false; if (this.abort === abort) this.abort = null; }

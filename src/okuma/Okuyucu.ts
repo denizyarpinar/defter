@@ -64,6 +64,7 @@ import type { Dikdortgen } from './metinAra';
 import { OkuyucuArama } from './okuyucuArama';
 import { OkumaIzni, okumaGorunur } from '../ocr/okumaIzni';
 import type { DriveOcrKaynak } from '../ocr/okuyucuOcrKaynak';
+import type { OcrKayit } from '../ocr/kayit/sema';
 import { tercihOku, tercihYaz } from '../elYazisi/temizGorunum';
 import type { Stil } from '../elYazisi/basici';
 import type { TemizYazici } from '../elYazisi/temizSayfa';
@@ -334,7 +335,7 @@ export function initOkuyucu(yer: () => DriveLocation | null): void {
       return { file: p.dosyaId, version: p.modifiedTime, content, yer: loc, focus: focusPage(),
         pages: pages.map((page, index) => ({ page: { ...page }, index })).filter(x => x.page.dosyaId === p.dosyaId),
         go: (index: number) => goToMatch(index, null) };
-    }, { okundu: temizOkundu }));
+    }, { okundu: temizOkundu, duzenlenebilir: () => okumaIzni.simdi(), duzeltildi: temizDuzeltildi }));
     okumaPaneli.then(p => p.ac(), e => { okumaPaneli = null; console.warn('El yazısı paneli yüklenemedi.', e); toast('El yazısı paneli açılamadı. Bağlantını kontrol edip tekrar dene.'); });
   });
   $('#oClose').addEventListener('click', closeOkuyucu);
@@ -371,7 +372,8 @@ export function initOkuyucu(yer: () => DriveLocation | null): void {
 
   addEventListener('keydown', e => {
     // task 5.8a / 5.10e: the panel has the keys; task 6.K6b: so has the trash dialog (Esc closes only it)
-    if (!open || document.getElementById('fotoPanel') || document.getElementById('dosyaPanel') || document.getElementById('copOnay')) return;
+    // task 6.4e-3: so has the handwriting panel's correction box
+    if (!open || document.getElementById('fotoPanel') || document.getElementById('dosyaPanel') || document.getElementById('copOnay') || document.getElementById('ocrDuzelt')) return;
     // task 6.3c: Ctrl/Cmd+F opens our search box (not the browser's)
     if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'f') { e.preventDefault(); e.stopPropagation(); if (!konusuz && !bosDurum) arama.ac(); return; }
     if (e.key === 'Escape') { e.stopPropagation(); if (toolbar?.closePopover() || temizDugme?.balonKapat()) return; if (tocOpen) closeToc(); else if (arama.acik) arama.kapat(); else closeOkuyucu(); return; }
@@ -1137,6 +1139,15 @@ function temizOkundu(fileId: string): void {
   void ocrKaynak?.then(k => k.unut(fileId), () => {});
   clearTimeout(temizOkunduZaman);
   temizOkunduZaman = window.setTimeout(() => { if (open && pages.some(p => p.dosyaId === fileId)) temizDegerlendir(); }, 300);
+}
+
+// Task 6.4e-3: a hand correction written: the record into memory and the device copy (not unut: that would
+// delete the copy and wait for Drive), then the clean view looks again at once
+async function temizDuzeltildi(fileId: string, kayit: OcrKayit): Promise<void> {
+  const k = await ocrKaynakAl();
+  await k.guncelle(fileId, kayit);
+  clearTimeout(temizOkunduZaman);
+  if (open && pages.some(p => p.dosyaId === fileId)) temizDegerlendir();
 }
 
 // Task 6.4e-2b: the record on Drive differed from the one shown at once (the device copy): the list looked at again

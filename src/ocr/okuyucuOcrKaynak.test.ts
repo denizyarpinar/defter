@@ -215,6 +215,49 @@ describe('OkuyucuOcrKaynak: the last record at once, Drive behind it (6.4e-2b)',
   });
 });
 
+describe('OkuyucuOcrKaynak.guncelle (6.4e-3)', () => {
+  const pages = [sayfa('ozet', 1), sayfa('ozet', 2)];
+  const izler = { ozet: ['i:1', 'g:2'] };
+
+  function kur(drive: OcrKayit | null) {
+    const yazilan: [string, OcrKayit][] = [];
+    const cevaplar: (() => void)[] = [];
+    const sayac = { kayit: 0 };
+    const k = new OkuyucuOcrKaynak({
+      izler: async id => izler[id as 'ozet'],
+      klasor: async id => `kl-${id}`,
+      kayit: () => { sayac.kayit++; return new Promise(r => cevaplar.push(() => r(drive))); },
+      simdi: () => 0,
+      onbellek: { oku: async () => null, yaz: async (id, x) => { yazilan.push([id, x]); }, sil: async () => {} },
+    });
+    return { k, yazilan, sayac, cevapla: async () => { cevaplar.splice(0).forEach(f => f()); await new Promise(r => setTimeout(r, 0)); } };
+  }
+
+  it('the written record: on the device at once; the clean view and the search use it without Drive', async () => {
+    const t = kur(null);
+    const yeni = kayit('ozet', s(2, 'g:2', 'anzi', 'anki'));
+    await t.k.guncelle('ozet', yeni);
+    expect(t.yazilan).toEqual([['ozet', yeni]]);
+    const e = await t.k.eslesmeler(pages);
+    expect(e.sayfalar.get(1)?.satirlar).toEqual(yeni.sayfalar[0].satirlar);
+    expect((await t.k.ara(pages, [1])).sayfalar).toEqual([{ sayfa: 1, metinler: ['anzi', 'anki'] }]);
+    expect(t.sayac.kayit).toBe(0);
+    expect(t.k.sonKayitIzi?.kaynak).toBe('bellek');
+  });
+
+  it('an older Drive read still on its way does not overwrite the written record', async () => {
+    const t = kur(kayit('ozet', s(2, 'g:2', 'anzi')));
+    const p = t.k.eslesmeler(pages);
+    await new Promise(r => setTimeout(r, 0));
+    const yeni = kayit('ozet', s(2, 'g:2', 'anzi', 'anki'));
+    await t.k.guncelle('ozet', yeni);
+    await t.cevapla();
+    await p;
+    expect((await t.k.eslesmeler(pages)).sayfalar.get(1)?.satirlar).toEqual(yeni.sayfalar[0].satirlar);
+    expect(t.yazilan.map(([, x]) => x)).toEqual([yeni]);
+  });
+});
+
 describe('OkuyucuOcrKaynak: the folder the reader knows (6.4e-2b)', () => {
   it('a page with klasorId: no parents request, the record searched in that folder; without: as before', async () => {
     const klasorler: string[] = [];

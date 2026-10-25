@@ -129,6 +129,14 @@ export class OkuyucuOcrKaynak {
     void this.d.onbellek?.sil(id);
   }
 
+  // Task 6.4e-3: a record we just wrote (a hand correction): fresh in memory and on the device at once, so the
+  // clean view and the search use it without waiting for Drive (unut would delete the device copy)
+  async guncelle(id: string, kayit: OcrKayit): Promise<void> {
+    this.kayitBellek.set(id, { p: Promise.resolve(kayit), zaman: this.d.simdi?.() ?? Date.now(), bitti: true });
+    this.sonKayit.set(id, kayit);
+    try { await this.d.onbellek?.yaz(id, kayit); } catch { /* the device copy is only a copy */ }
+  }
+
   // Sign-out (the device copies are emptied by the reader: temizDepo.depoTemizle)
   temizle(): void {
     this.izBellek.clear();
@@ -204,6 +212,7 @@ export interface DriveOcrKaynak {
   ara(pages: BookPage[], metinsiz: number[]): Promise<ElYazisiSonucu | null>;
   eslesmeler(pages: readonly BookPage[]): Promise<Eslesmeler>;
   unut(id: string): void;
+  guncelle(id: string, kayit: OcrKayit): Promise<void>;
   temizle(): void;
   kayitIzi(): KayitIzi | null;
 }
@@ -235,6 +244,7 @@ export function driveOcrKaynak(yer: () => DriveLocation | null, o: { hesap?: () 
     ara: (pages, metinsiz) => yer() ? k.ara(pages, metinsiz) : Promise.resolve(null),
     eslesmeler: pages => yer() ? k.eslesmeler(pages) : Promise.resolve({ sayfalar: new Map(), izler: new Map() }),
     unut: id => k.unut(id),
+    guncelle: (id, kayit) => k.guncelle(id, kayit),
     temizle: () => k.temizle(),
     kayitIzi: () => k.sonKayitIzi,
   };

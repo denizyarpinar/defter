@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { OcrSayfa } from './kayit/sema';
-import { ReaderOcrSearch, type SearchIO, type SearchPage } from './okuyucuArama';
+import { aramaMetni, ReaderOcrSearch, type SearchIO, type SearchPage } from './okuyucuArama';
 
 // 6.4c-0 (Codex) + 6.4c-2: fake engine (read) and fake record (recorded / save)
 const okuma = (sayfa: number, metin: string): OcrSayfa =>
@@ -20,6 +20,18 @@ function fixture(texts: string[] = ['', 'Basılı mevcut kelime'], kayitli: Reco
   return { search: new ReaderOcrSearch(io), io, read, saved, progress, invalidate: () => { valid = false; } };
 }
 const selection = [{ number: 1, index: 7 }, { number: 2, index: 9 }];
+
+describe('aramaMetni (6.4e-3)', () => {
+  it('as written, and corrected when it differs: both found in the panel', async () => {
+    const duz = { ...okuma(1, 'das anzi'), satirlar: [{ girinti: 0, parcalar: [{ metin: 'das anzi', renk: 'mavi' as const, duzeltme: 'das anki', elle: true }] }] };
+    expect(aramaMetni(okuma(1, 'das anzi'))).toBe('das anzi');
+    expect(aramaMetni(duz)).toBe('das anzi\ndas anki');
+    const { search } = fixture([''], { 1: duz });
+    await search.prepare([{ number: 1, index: 0 }]);
+    expect((await search.matches('anki')).map(m => m.page.number)).toEqual([1]);
+    expect((await search.matches('anzi')).map(m => m.page.number)).toEqual([1]);
+  });
+});
 
 describe('reader OCR (Claude engine)', () => {
   it('counts before consent; no reading on prepare; a page with text is skipped', async () => {

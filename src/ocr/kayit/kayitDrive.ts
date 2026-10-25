@@ -4,7 +4,8 @@ import { drivePdfOlusturApi, yerKontrol } from '../../drive/pdfOlustur';
 import { UPLOAD } from '../../drive/pdfYazici';
 import { isSampleId } from '../../okuma/ornekKaynak';
 import { kayitBirlestir, sayfaBirlestir } from './birlestir';
-import { bosKayit, kayitOku, ocrDosyaAdi, sayfaKontrol, OcrKayitBozuk, type OcrKayit, type OcrSayfa } from './sema';
+import { duzeltmeUygula, type DuzeltmeHedefi } from './elleDuzelt';
+import { bosKayit, kayitOku, ocrDosyaAdi, sayfaKontrol, OcrKayitBozuk, type OcrKayit, type OcrParca, type OcrSayfa } from './sema';
 
 // Task 6.4c-1: the reading record of one PDF in Drive (`<pdf name>.ocr.json` in the PDF's folder).
 // - Found by appProperties { defter: "1", defterOcr: "1", defterOcrKaynak: <pdf id> } in that folder, not trashed.
@@ -15,6 +16,7 @@ import { bosKayit, kayitOku, ocrDosyaAdi, sayfaKontrol, OcrKayitBozuk, type OcrK
 //   meanwhile → from the start, at most 3 rounds, then OcrKayitCakisma. PATCH on the same id.
 // - A broken file or a newer surum: OcrKayitBozuk / OcrKayitYeniSurum, nothing written.
 // - The sample library: no request at all.
+// - Task 6.4e-3: duzeltmeYaz, a hand correction, the same rounds on the existing file (never creates one).
 
 export interface OcrKaynakDosya { id: string; ad: string; klasorId: string }   // the PDF and its folder
 export interface OcrDosya { id: string; createdTime: string }
@@ -116,7 +118,23 @@ export async function kayitOkuDrive(drive: OcrDrive, k: OcrKaynakDosya): Promise
   return { dosyaId: asil.id, kayit, kopyaSayisi: digerleri.length + 1 };
 }
 
-export interface OcrYazma { dosyaId: string; yeni: boolean; kopyaSayisi: number }
+export interface OcrYazma { dosyaId: string; yeni: boolean; kopyaSayisi: number; kayit: OcrKayit }
+
+// The rounds on the main file: modifiedTime + headRevisionId → the latest content (+ the copies) → degistir →
+// the same again; changed meanwhile → from the start. Nothing changed → nothing written.
+async function turlar(drive: OcrDrive, k: OcrKaynakDosya, dosyalar: OcrDosya[], degistir: (k: OcrKayit) => OcrKayit): Promise<OcrKayit> {
+  const [asil, ...digerleri] = dosyalar;
+  for (let tur = 1; tur <= MAX_TUR; tur++) {
+    const once = await drive.durum(asil.id);
+    const birlesik = await kopyalarla(drive, cozumle(await drive.oku(asil.id), k.id), digerleri, k.id);
+    const kayit = degistir(birlesik);
+    const sonra = await drive.durum(asil.id);
+    if (sonra.modifiedTime !== once.modifiedTime || sonra.headRevisionId !== once.headRevisionId) continue;
+    if (JSON.stringify(kayit) !== JSON.stringify(birlesik) || digerleri.length) await drive.yaz(asil.id, kayit);
+    return kayit;
+  }
+  throw new OcrKayitCakisma();
+}
 
 // Writes one page's reading (the new reading wins over the same fingerprint)
 export async function sayfaYaz(drive: OcrDrive, k: OcrKaynakDosya, sayfa: OcrSayfa): Promise<OcrYazma> {
@@ -127,23 +145,31 @@ export async function sayfaYaz(drive: OcrDrive, k: OcrKaynakDosya, sayfa: OcrSay
     let yeni = false;
     if (!dosyalar.length) {
       await drive.yerKontrol(k.klasorId);
-      const id = await drive.olustur(k, sayfaBirlestir(bosKayit(k), sayfa));
+      const ilk = sayfaBirlestir(bosKayit(k), sayfa);
+      const id = await drive.olustur(k, ilk);
       yeni = true;
       dosyalar = sirala(await drive.ara(k));
       if (!dosyalar.some(d => d.id === id)) dosyalar = sirala([...dosyalar, { id, createdTime: '￿' }]);   // not in the search yet
-      if (dosyalar.length === 1) return { dosyaId: id, yeni, kopyaSayisi: 1 };
+      if (dosyalar.length === 1) return { dosyaId: id, yeni, kopyaSayisi: 1, kayit: ilk };
       // another device created one at the same time: our page goes into the oldest file below
     }
-    const [asil, ...digerleri] = dosyalar;
-    for (let tur = 1; tur <= MAX_TUR; tur++) {
-      const once = await drive.durum(asil.id);
-      let kayit = cozumle(await drive.oku(asil.id), k.id);
-      kayit = sayfaBirlestir(await kopyalarla(drive, kayit, digerleri, k.id), sayfa);
-      const sonra = await drive.durum(asil.id);
-      if (sonra.modifiedTime !== once.modifiedTime || sonra.headRevisionId !== once.headRevisionId) continue;
-      await drive.yaz(asil.id, kayit);
-      return { dosyaId: asil.id, yeni, kopyaSayisi: dosyalar.length };
-    }
-    throw new OcrKayitCakisma();
+    const kayit = await turlar(drive, k, dosyalar, x => sayfaBirlestir(x, sayfa));
+    return { dosyaId: dosyalar[0].id, yeni, kopyaSayisi: dosyalar.length, kayit };
+  });
+}
+
+export class OcrKayitYok extends Error {
+  constructor() { super("Okuma kaydı Drive'da bulunamadı. Sayfaları kontrol et ile yenileyip tekrar dene."); }
+}
+
+// Task 6.4e-3: a hand correction of one part (elleDuzelt.ts) on the existing record, the same way as sayfaYaz
+// (lock, the latest content, 3 rounds). Never creates a file. The page read again meanwhile → OcrSayfaDegisti.
+export async function duzeltmeYaz(drive: OcrDrive, k: OcrKaynakDosya, h: DuzeltmeHedefi, degistir: (p: OcrParca) => OcrParca): Promise<OcrYazma> {
+  if (isSampleId(k.id)) throw new OcrOrnekYazmaYok();
+  return kilitle(`defter-ocr-${k.id}`, async () => {
+    const dosyalar = sirala(await drive.ara(k));
+    if (!dosyalar.length) throw new OcrKayitYok();
+    const kayit = await turlar(drive, k, dosyalar, x => duzeltmeUygula(x, h, degistir));
+    return { dosyaId: dosyalar[0].id, yeni: false, kopyaSayisi: dosyalar.length, kayit };
   });
 }

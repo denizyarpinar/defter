@@ -18,6 +18,11 @@ describe('kayitOku', () => {
     expect(kayitOku(x)).toBe(x);
   });
 
+  it('6.4e-3: elle düzeltme (elle: true + duzeltme) geçerli', () => {
+    const x = kayit({ sayfalar: [sayfa({ satirlar: [{ girinti: 0, parcalar: [{ metin: 'anzi', renk: 'mavi', duzeltme: 'anki', elle: true }] }] })] });
+    expect(kayitOku(x)).toBe(x);
+  });
+
   it('bilinmeyen alanlar her seviyede korunur', () => {
     const x = JSON.parse(JSON.stringify(kayit({ ekKok: 1 })));
     x.sayfalar[0].ekSayfa = 'a';
@@ -35,7 +40,8 @@ describe('kayitOku', () => {
       kayit({ sayfalar: [sayfa({ satirlar: [{ girinti: 0, parcalar: [{ metin: 'x', renk: 'mor' as never }] }] })] }),
       kayit({ sayfalar: [sayfa({ satirlar: [{ girinti: -1, cizim: 'x' }] })] }),
       kayit({ sayfalar: [sayfa({ satirlar: [{ girinti: 0 } as never] })] }),
-      kayit({ sayfalar: [sayfa({ satirlar: [{ girinti: 0, parcalar: [{ metin: 'x', renk: 'mavi', tur: 'cizim' as never }] }] })] })
+      kayit({ sayfalar: [sayfa({ satirlar: [{ girinti: 0, parcalar: [{ metin: 'x', renk: 'mavi', tur: 'cizim' as never }] }] })] }),
+      kayit({ sayfalar: [sayfa({ satirlar: [{ girinti: 0, parcalar: [{ metin: 'x', renk: 'mavi', elle: 'evet' as never }] }] })] })
     ];
     for (const b of bozuklar) expect(() => kayitOku(b), JSON.stringify(b)).toThrow(OcrKayitBozuk);
   });

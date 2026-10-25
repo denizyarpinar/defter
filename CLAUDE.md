@@ -451,6 +451,13 @@ Kitaplık/
 - Dizgi (6.4e-2): yedek yazı ağırlık 400, kâğıda %15; atlasta olmayan `·` (formülde `\cdot` dahil) mürekkep renginde dolu nokta (yarıçap 0.1·xh, x-yüksekliğinin ortası), eksik sayılmaz.
 - Kod: `src/elYazisi/temizGorunum.ts`, `src/okuma/temizYaziOkuyucu.ts` (testli), `temizYaziBagla.ts` (tembel), `src/ui/temizDugme.ts`, `src/okuma/temizIz.ts`. Dev: `window.defterTemizSahte({ sayfalar, fotograf?, atlasJson, atlasPng })` (sadece `npm run dev`, `src/okuma/temizSahte.ts`). Ekran görüntüleri: `node scripts/temiz-yazi-okuyucu-kontrol.mjs` (Drive yok; atlas paketi yoksa atlar).
 
+## Faz 6.4e-3 — Okunan kelimeyi elle düzeltme
+- "El yazısını oku" panelinde okunan metin kelime kelime dokunulabilir (sadece okuma izni olan hesapta, `okumaIzni`; diğerlerinde salt okunur). Satır içi kutu: Kaydet / Vazgeç (Enter / Esc) + elle düzeltilmiş kelimede Geri al. Formül ve üstü çizili parça düzenlenmez; boş kelime yok; boşluklu birden çok kelime olur. API çağrısı yok.
+- Kayıt: parçanın `metin`i (yazıldığı gibi) DEĞİŞMEZ; `duzeltme` = (varsa düzeltme, yoksa metin) içinde o kelime değişmiş hali + `elle: true`. Metne dönünce iki alan silinir. Geri al: kelime sayısı aynıysa o kelime metindekine döner, değilse parçanın bütün elle düzeltmesi kalkar. Şema surum 1 (eski sürüm `elle`'yi bilinmeyen alan olarak korur).
+- Yazma `duzeltmeYaz` (`kayitDrive.ts`): sayfaYaz ile aynı yol (kilit, son hal, headRevisionId, 3 tur); dosya oluşturmaz. Sayfa yeniden okunmuşsa (parmak izi + `okunma`) ya da parça değişmişse yazılmaz (`OcrSayfaDegisti`).
+- Kaydedince: kayıt okuyucu belleğine ve cihaz kopyasına (`guncelle` → `kayitOnbellegeYaz`; `unut` değil), temiz yazı hemen yeniden değerlendirilir. "Tekrar oku" elle düzeltmeli sayfada önce sorar (`confirm`).
+- Kod: `src/ocr/kayit/elleDuzelt.ts` (saf, testli), `okunanMetin.ts`, `okuyucuPanel.ts`.
+
 ## Sonra bakılabilir
 - Oda zaman aşımı: şu an glb yüklemesine toplam 15 sn veriliyor; yavaş bağlantıda (masaüstü lightmap'leri ~3.3 MB) eski odaya düşüyor. Öneri: "15 sn hiç ilerleme yok" kuralı + yükleme göstergesi. Faz 2 kural metni değişeceği için Deniz'in onayı gerekir.
 - Masaüstü lightmap PNG'lerinin küçültülmesi (boyut/sıkıştırma).

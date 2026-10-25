@@ -85,6 +85,12 @@ describe('dizgi', () => {
     expect(gg.slice(5).every(g => g.renk === 'siyah')).toBe(true);
   });
 
+  it('6.4e-3: elle düzeltilmiş parça düzeltmesiyle dizilir (yazıldığı gibi değil)', () => {
+    const s: OcrSatir = { girinti: 0, parcalar: [{ metin: 'das anzi', renk: 'mavi', duzeltme: 'das anki', elle: true }] };
+    const gg = glifler(dizgi(sayfa(s), ayar()).ogeler);
+    expect(gg.map(g => g.karakter).join('')).toBe('dasanki');
+  });
+
   it('örnekler karakter başına sırayla döner', () => {
     const d = dizgi(sayfa(satir('a a a')), ayar());
     expect(glifler(d.ogeler).map(g => g.ornek)).toEqual([0, 1, 0]);

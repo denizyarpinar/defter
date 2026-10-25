@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { YerDisi } from '../../drive/pdfOlustur';
-import { kayitOkuDrive, sayfaYaz, MAX_TUR, OcrKayitCakisma, OcrOrnekYazmaYok, type OcrDrive, type OcrKaynakDosya } from './kayitDrive';
+import { duzeltmeYaz, kayitOkuDrive, sayfaYaz, MAX_TUR, OcrKayitCakisma, OcrKayitYok, OcrOrnekYazmaYok, type OcrDrive, type OcrKaynakDosya } from './kayitDrive';
+import { kelimeDegistir, OcrSayfaDegisti, type DuzeltmeHedefi } from './elleDuzelt';
 import { bosKayit, OcrKayitBozuk, OcrKayitYeniSurum, type OcrKayit, type OcrSayfa } from './sema';
 
 // Task 6.4c-1: a fake Drive in memory. There is no delete / trash in OcrDrive at all; the tests also check
@@ -54,13 +55,13 @@ describe('sayfaYaz', () => {
   it('dosya yok: yer kontrolü → oluştur (içinde sayfa) → tekrar ara; ikinci çağrı aynı dosyayı günceller', async () => {
     const f = sahte();
     const r1 = await sayfaYaz(f.drive, K, s(1, 'a'));
-    expect(r1).toEqual({ dosyaId: 'yeni1', yeni: true, kopyaSayisi: 1 });
+    expect(r1).toMatchObject({ dosyaId: 'yeni1', yeni: true, kopyaSayisi: 1 });
     expect(f.drive.yerKontrol).toHaveBeenCalledWith('konu1');
     expect(f.drive.ara).toHaveBeenCalledTimes(2);
     expect(f.icerik('yeni1').sayfalar.map(x => x.parmakIzi)).toEqual(['a']);
 
     const r2 = await sayfaYaz(f.drive, K, s(2, 'b'));
-    expect(r2).toEqual({ dosyaId: 'yeni1', yeni: false, kopyaSayisi: 1 });
+    expect(r2).toMatchObject({ dosyaId: 'yeni1', yeni: false, kopyaSayisi: 1 });
     expect(f.drive.olustur).toHaveBeenCalledTimes(1);
     expect(f.dosyalar).toHaveLength(1);
     expect(f.icerik('yeni1').sayfalar.map(x => x.parmakIzi)).toEqual(['a', 'b']);
@@ -109,7 +110,7 @@ describe('sayfaYaz', () => {
     f.ekle('genc', '2026-10-20T00:00:00Z', kayit(s(5, 'e')));
     f.ekle('yasli', '2026-10-01T00:00:00Z', kayit(s(1, 'a')));
     const r = await sayfaYaz(f.drive, K, s(2, 'b'));
-    expect(r).toEqual({ dosyaId: 'yasli', yeni: false, kopyaSayisi: 2 });
+    expect(r).toMatchObject({ dosyaId: 'yasli', yeni: false, kopyaSayisi: 2 });
     expect(f.yazilan).toEqual(['yasli']);
     expect(f.icerik('yasli').sayfalar.map(x => x.parmakIzi)).toEqual(['a', 'b', 'e']);
     expect(f.dosyalar.map(d => d.id)).toEqual(['genc', 'yasli']);
@@ -124,7 +125,7 @@ describe('sayfaYaz', () => {
       return 'bizim';
     });
     const r = await sayfaYaz(f.drive, K, s(1, 'a'));
-    expect(r).toEqual({ dosyaId: 'baska', yeni: true, kopyaSayisi: 2 });
+    expect(r).toMatchObject({ dosyaId: 'baska', yeni: true, kopyaSayisi: 2 });
     expect(f.yazilan).toEqual(['baska']);
     expect(f.icerik('baska').sayfalar.map(x => x.parmakIzi)).toEqual(['a', 'z']);
     expect(f.dosyalar).toHaveLength(2);
@@ -135,7 +136,7 @@ describe('sayfaYaz', () => {
     // the first search (before creating) is empty anyway; the delay hides yeni1 in the second
     (f.drive.ara as ReturnType<typeof vi.fn>).mockImplementationOnce(async () => []);
     const r = await sayfaYaz(f.drive, K, s(1, 'a'));
-    expect(r).toEqual({ dosyaId: 'yeni1', yeni: true, kopyaSayisi: 1 });
+    expect(r).toMatchObject({ dosyaId: 'yeni1', yeni: true, kopyaSayisi: 1 });
     expect(f.drive.olustur).toHaveBeenCalledTimes(1);
   });
 
@@ -183,6 +184,88 @@ describe('sayfaYaz', () => {
     try {
       const f = sahte();
       await sayfaYaz(f.drive, K, s(1, 'a'));
+      expect(request).toHaveBeenCalledWith('defter-ocr-pdf1', expect.any(Function));
+    } finally { vi.unstubAllGlobals(); }
+  });
+});
+
+describe('sayfaYaz sonucu', () => {
+  it('yazılan kayıt döner (yeni dosyada da)', async () => {
+    const f = sahte();
+    const r1 = await sayfaYaz(f.drive, K, s(1, 'a'));
+    expect(r1.kayit).toEqual(f.icerik('yeni1'));
+    const r2 = await sayfaYaz(f.drive, K, s(2, 'b'));
+    expect(r2.kayit).toEqual(f.icerik('yeni1'));
+  });
+});
+
+// Task 6.4e-3: a hand correction on the existing record
+describe('duzeltmeYaz', () => {
+  const sa = s(1, 'a');   // one part: metin 'a'
+  const ok = (o: Partial<DuzeltmeHedefi> = {}): DuzeltmeHedefi =>
+    ({ parmakIzi: 'a', okunma: sa.okunma, satir: 0, parca: 0, metin: 'a', gosterilen: 'a', ...o });
+  const degistir = (x: Parameters<typeof kelimeDegistir>[0]) => kelimeDegistir(x, 0, 'b');
+
+  it('son hali okur, sadece o parçayı yazar; metin korunur, elle: true; diğer sayfalar aynen', async () => {
+    const f = sahte();
+    f.ekle('o1', '2026-10-01T00:00:00Z', { ...kayit(sa, s(2, 'z')), gelecek: 1 });
+    const r = await duzeltmeYaz(f.drive, K, ok(), degistir);
+    const k = f.icerik('o1');
+    expect(r).toMatchObject({ dosyaId: 'o1', yeni: false, kopyaSayisi: 1 });
+    expect(r.kayit).toEqual(k);
+    expect(k.sayfalar[0].satirlar[0]).toEqual({ girinti: 0, parcalar: [{ metin: 'a', renk: 'mavi', duzeltme: 'b', elle: true }] });
+    expect(k.sayfalar[1]).toEqual(s(2, 'z'));
+    expect((k as unknown as { gelecek: number }).gelecek).toBe(1);
+    expect(f.drive.olustur).not.toHaveBeenCalled();
+  });
+
+  it('sayfa bu arada yeniden okunmuş: OcrSayfaDegisti, yazma yok', async () => {
+    const f = sahte();
+    f.ekle('o1', '2026-10-01T00:00:00Z', kayit(s(1, 'a', '2026-10-24T12:00:00.000Z')));
+    await expect(duzeltmeYaz(f.drive, K, ok(), degistir)).rejects.toThrow(OcrSayfaDegisti);
+    expect(f.yazilan).toEqual([]);
+  });
+
+  it('turda başka cihaz sayfayı yeniden okursa baştan; yeni okumada parça yok → OcrSayfaDegisti', async () => {
+    const f = sahte();
+    f.ekle('o1', '2026-10-01T00:00:00Z', kayit(sa));
+    // round 1 reads the old content; right after it another device writes a new reading of page 1
+    (f.drive.oku as ReturnType<typeof vi.fn>).mockImplementationOnce(async (id: string) => {
+      const d = f.dosyalar.find(x => x.id === id)!, eski = d.metin;
+      d.metin = JSON.stringify(kayit(s(1, 'a', '2026-10-24T13:00:00.000Z'))); d.surum++;
+      return eski;
+    });
+    await expect(duzeltmeYaz(f.drive, K, ok(), degistir)).rejects.toThrow(OcrSayfaDegisti);
+    expect(f.drive.oku).toHaveBeenCalledTimes(2);
+    expect(f.yazilan).toEqual([]);
+  });
+
+  it(`hep değişirse ${MAX_TUR} denemeden sonra OcrKayitCakisma`, async () => {
+    const f = sahte();
+    f.ekle('o1', '2026-10-01T00:00:00Z', kayit(sa));
+    let kez = 0;
+    f.kanca(() => { if (++kez % 2 === 1) f.dosyalar[0].surum++; });
+    await expect(duzeltmeYaz(f.drive, K, ok(), degistir)).rejects.toThrow(OcrKayitCakisma);
+    expect(f.yazilan).toEqual([]);
+  });
+
+  it('kayıt dosyası yok: OcrKayitYok, hiçbir şey oluşturulmaz', async () => {
+    const f = sahte();
+    await expect(duzeltmeYaz(f.drive, K, ok(), degistir)).rejects.toThrow(OcrKayitYok);
+    expect(f.drive.olustur).not.toHaveBeenCalled();
+    expect(f.drive.yerKontrol).not.toHaveBeenCalled();
+  });
+
+  it('değişiklik yoksa yazılmaz; örnek kitaplıkta istek yok; kilit adı aynı', async () => {
+    const f = sahte();
+    f.ekle('o1', '2026-10-01T00:00:00Z', kayit(sa));
+    await duzeltmeYaz(f.drive, K, ok(), x => x);
+    expect(f.yazilan).toEqual([]);
+    await expect(duzeltmeYaz(f.drive, { ...K, id: 'ornek:x' }, ok(), degistir)).rejects.toThrow(OcrOrnekYazmaYok);
+    const request = vi.fn((_ad: string, fn: () => Promise<unknown>) => fn());
+    vi.stubGlobal('navigator', { locks: { request } });
+    try {
+      await duzeltmeYaz(f.drive, K, ok(), degistir);
       expect(request).toHaveBeenCalledWith('defter-ocr-pdf1', expect.any(Function));
     } finally { vi.unstubAllGlobals(); }
   });

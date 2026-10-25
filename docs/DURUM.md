@@ -1,5 +1,13 @@
 # Defter – Durum
 
+## 6.4e-3 – Okunan kelimeyi elle düzeltme (25 Ekim 2026, Claude Code)
+
+- Panelde ("El yazısını oku") yanlış okunan kelimeye dokun → doğrusunu yaz → Kaydet. Kayda `duzeltme` + `elle: true` olarak girer; yazıldığı gibi (`metin`) korunur. Ücretsiz, API çağrısı yok.
+- Temiz yazı ve okuyucu araması hemen düzelir (kayıt cihaz kopyasına da yazılır). Geri al; "Tekrar oku" elle düzeltmeli sayfada önce sorar.
+- Testler + typecheck + build geçti. Commit yok; laptop ve iPad denemesi bekleniyor.
+
+---
+
 ## 6.4e-2b – Temiz yazı hızlandı (25 Ekim 2026, Claude Code)
 
 - Atlas ve son kayıt cihazda (IndexedDB `defter-temiz`, anahtar hesap / hesap + PDF id); Drive arkadan bakılır. Atlas kayıtla paralel, bilinen kök + tek arama; kayıtta bilinen klasör (`parents` yok); `getPdf` aynı anda tek indirme. Drive'a yazma yok.

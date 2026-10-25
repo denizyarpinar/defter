@@ -14,6 +14,7 @@ export interface OcrParca {
   tur?: 'yazi' | 'formul';   // missing = yazi; formul = LaTeX
   ustuCizili?: boolean;
   duzeltme?: string;         // only when it differs from metin
+  elle?: boolean;            // task 6.4e-3: duzeltme was written by hand in the panel (elleDuzelt.ts)
 }
 export interface OcrYaziSatiri { girinti: number; parcalar: OcrParca[] }
 export interface OcrCizimSatiri { girinti: number; cizim: string }   // a short description of a drawing
@@ -54,6 +55,7 @@ function parcaKontrol(p: unknown, yer: string): void {
   if (p.tur !== undefined && p.tur !== 'yazi' && p.tur !== 'formul') throw new OcrKayitBozuk(`${yer}.tur bilinmiyor`);
   if (p.ustuCizili !== undefined && typeof p.ustuCizili !== 'boolean') throw new OcrKayitBozuk(`${yer}.ustuCizili yanlış`);
   if (p.duzeltme !== undefined && typeof p.duzeltme !== 'string') throw new OcrKayitBozuk(`${yer}.duzeltme yanlış`);
+  if (p.elle !== undefined && typeof p.elle !== 'boolean') throw new OcrKayitBozuk(`${yer}.elle yanlış`);
 }
 
 function satirKontrol(s: unknown, yer: string): void {
