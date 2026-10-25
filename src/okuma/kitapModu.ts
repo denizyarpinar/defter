@@ -1,4 +1,4 @@
-import { FLIP_MS, fitPage, isSingle, keepRange, pageStep, slotSize, spreadStart } from './kitapDuzen';
+import { FLIP_MS, KITAP_KAGIT_PAYI, fitPage, isSingle, keepRange, pageStep, slotSize, spreadStart } from './kitapDuzen';
 
 // Reader, book mode (task 3.3): two pages side by side with a spine shadow, one page on a portrait screen.
 // Pages turn with CSS 3D (prototype flipTo). Every page is one "sheet" element that lives in one
@@ -198,7 +198,7 @@ export class BookView {
   }
 
   private fit(i: number, page: HTMLElement): { w: number; h: number } {
-    const f = fitPage(this.host.ratio(i), this.slotW, this.slotH);
+    const f = fitPage(this.host.ratio(i), this.slotW, this.slotH, KITAP_KAGIT_PAYI);   // task 6.S-2b: paper around
     page.style.left = f.x + 'px'; page.style.top = f.y + 'px';
     page.style.width = f.w + 'px'; page.style.height = f.h + 'px';
     return f;

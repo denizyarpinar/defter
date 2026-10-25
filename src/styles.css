@@ -506,6 +506,11 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 .o-sheet.leftp { box-shadow: inset -18px 0 26px -18px rgba(0, 0, 0, .18) }
 .o-sheet.rightp { box-shadow: inset 18px 0 26px -18px rgba(0, 0, 0, .18) }
 .o-sheet .o-page { right: auto; box-shadow: none }
+/* task 6.S-2b: a PDF page's canvases (main + sharp part, clean handwriting too) in one box. Book mode: printed on
+   the paper (the page's white becomes the paper's colour); the pen and search layers stay over it, not multiplied */
+.o-baski { position: absolute; inset: 0 }
+.o-kitap .o-page.ready { background: transparent }
+.o-kitap .o-baski { mix-blend-mode: multiply }
 .o-endtext { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font: italic 500 18px var(--serif); color: var(--ink); opacity: .45 }
 .o-leaf { position: absolute; top: 0; height: 100%; transform-style: preserve-3d; z-index: 5; transition: transform .4s cubic-bezier(.45, .05, .2, 1) }
 /* task 4.5b: translateZ(1px) keeps the leaf off the slots' plane; else Safari depth-sorts a page's

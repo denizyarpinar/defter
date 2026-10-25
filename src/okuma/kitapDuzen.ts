@@ -15,10 +15,17 @@ export function slotSize(areaW: number, areaH: number, single: boolean): { w: nu
   return { w: pw, h: Math.round(pw * PAGE_AR) };
 }
 
-// A page of the given ratio (height / width) fitted into the slot, centred, nothing cut off.
-export function fitPage(ratio: number, slotW: number, slotH: number): { x: number; y: number; w: number; h: number } {
-  let w = slotW, h = Math.round(slotW * ratio);
-  if (h > slotH) { h = slotH; w = Math.round(slotH / ratio); }
+// Task 6.S-2b: in book mode a page's content keeps this much paper on every side (a part of the slot's width),
+// like the margin of a printed book. The paper itself still fills the whole slot.
+export const KITAP_KAGIT_PAYI = 0.04;
+
+// A page of the given ratio (height / width) fitted into the slot, centred, nothing cut off;
+// `pay` (a part of the slot's width) kept free on every side.
+export function fitPage(ratio: number, slotW: number, slotH: number, pay = 0): { x: number; y: number; w: number; h: number } {
+  const p = Math.round(slotW * pay);
+  const iw = slotW - 2 * p, ih = slotH - 2 * p;
+  let w = iw, h = Math.round(iw * ratio);
+  if (h > ih) { h = ih; w = Math.round(ih / ratio); }
   return { x: Math.round((slotW - w) / 2), y: Math.round((slotH - h) / 2), w, h };
 }
 

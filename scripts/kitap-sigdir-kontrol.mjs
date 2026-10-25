@@ -8,8 +8,13 @@
 // Checks: every spread's #oSpread box inside #oKitap; again after the pen bar on / off; a stroke over "ÜST" stays at
 // the same PDF spot after a new layout (and the pen stays on); while a stroke is being drawn no new layout, after
 // pointerup one. Exit code 1 if anything fails.
+// Task 6.S-2b: in book mode every page's content box is inside its paper by KITAP_KAGIT_PAYI (4 % of the paper's width) on
+// every side (checked: at least 90 % of it). Pages 6 and 7: a notebook photo (../defter-test-dosyalari/defter.jpg, outside
+// the repo; left out if missing) and page 1 of demo/demo-dikey.pdf (a lecture page with its own margins); for them a
+// side-by-side picture: pay 0 (as before 6.S-2b: no pay, white page; put back by the script) | pay 0.04 (*-karsilastirma-pay.png).
+// Screenshots end in -pay.
 import { spawn } from 'node:child_process';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -23,6 +28,8 @@ const OUT = process.argv[2] ?? 'C:\\Users\\yarpi\\iCloudDrive\\uni_plan_claude_c
 const KONU = 'Unite-01-Temeller/Konu-01-Degiskenler';
 const TOPIC = 'Değişkenler ve veri tipleri';
 const SIZES = [[1180, 820], [820, 1180], [1280, 800], [390, 844]];
+const PAY = 0.04;   // KITAP_KAGIT_PAYI (src/okuma/kitapDuzen.ts)
+const FOTO = join(ROOT, '..', 'defter-test-dosyalari', 'defter.jpg');
 
 const wait = (ms) => new Promise(r => setTimeout(r, ms));
 
@@ -48,6 +55,16 @@ async function testPdf() {
   add(595, 1400, { name: '595 x 1400' });
   add(595, 842, { oy: 200, name: 'MediaBox 0 200 595 1042' });
   add(595, 842, { rotate: 90, name: 'Rotate 90' });
+  // 6: a notebook photo, the page in the photo's shape (as a photo added to a topic)
+  if (existsSync(FOTO)) {
+    const img = await doc.embedJpg(readFileSync(FOTO));
+    const h = Math.round(595 * img.height / img.width);
+    doc.addPage([595, h]).drawImage(img, { x: 0, y: 0, width: 595, height: h });
+  }
+  // 7: a lecture page with its own margins (the sample library's demo PDF)
+  const ders = await PDFDocument.load(readFileSync(join(ROOT, 'public', 'demo', 'demo-dikey.pdf')));
+  const [dp] = await doc.copyPages(ders, [0]);
+  doc.addPage(dp);
   return doc.save();
 }
 
@@ -69,6 +86,55 @@ const fit = (page) => page.evaluate(() => {
   return { ust: r(s.top - a.top), alt: r(a.bottom - s.bottom), sol: r(s.left - a.left), sag: r(a.right - s.right), alan: `${Math.round(a.width)}×${Math.round(a.height)}` };
 });
 const okMu = (f) => f.ust >= -0.5 && f.alt >= -0.5 && f.sol >= -0.5 && f.sag >= -0.5;
+
+// task 6.S-2b: every visible page's content box against its paper (px): the smallest side, and what it must be at least
+const pay = (page, en) => page.evaluate((en) => {
+  let min = Infinity, ister = 0;
+  for (const sheet of document.querySelectorAll('#oSpread .o-slot > .o-sheet:not(.o-end)')) {
+    const k = sheet.querySelector('.o-page');
+    if (!k) continue;
+    const s = sheet.getBoundingClientRect(), b = k.getBoundingClientRect();
+    min = Math.min(min, b.left - s.left, s.right - b.right, b.top - s.top, s.bottom - b.bottom);
+    ister = Math.max(ister, en * s.width);
+  }
+  return { min: Math.round(min * 10) / 10, ister: Math.round(ister * 10) / 10 };
+}, en * 0.9);
+
+// task 6.S-2b: the visible pages as before 6.S-2b (no pay, white page, not multiplied) and back
+const payYok = (page, on) => page.evaluate((on) => {
+  let st = document.querySelector('#payYok');
+  if (!on) {
+    st?.remove();
+    for (const k of document.querySelectorAll('#oSpread .o-page[data-eski]')) { k.style.cssText = k.dataset.eski; delete k.dataset.eski; }
+    return;
+  }
+  if (!st) { st = document.createElement('style'); st.id = 'payYok'; document.head.append(st); }
+  st.textContent = '.o-kitap .o-page.ready { background: #fff var(--paperImg, none) !important } .o-kitap .o-baski { mix-blend-mode: normal !important }';
+  for (const sheet of document.querySelectorAll('#oSpread .o-slot > .o-sheet:not(.o-end)')) {
+    const k = sheet.querySelector('.o-page');
+    if (!k) continue;
+    const sw = sheet.clientWidth, sh = sheet.clientHeight, ratio = k.offsetHeight / k.offsetWidth;
+    // fitPage(ratio, sw, sh, 0)
+    let w = sw, h = Math.round(sw * ratio);
+    if (h > sh) { h = sh; w = Math.round(sh / ratio); }
+    k.dataset.eski = k.style.cssText;
+    Object.assign(k.style, { left: Math.round((sw - w) / 2) + 'px', top: Math.round((sh - h) / 2) + 'px', width: w + 'px', height: h + 'px' });
+  }
+}, on);
+
+// two screenshots side by side, with a label over each
+async function yanYana(browser, a, b, clip, path) {
+  const w = Math.ceil(clip.width), h = Math.ceil(clip.height);
+  const p = await browser.newPage({ viewport: { width: 2 * w + 36, height: h + 52 }, deviceScaleFactor: 2 });
+  const src = (buf) => `data:image/png;base64,${buf.toString('base64')}`;
+  const img = (buf) => `<img src="${src(buf)}" style="display:block;width:${w}px;height:${h}px">`;
+  await p.setContent(`<body style="margin:0;background:#333;font:600 16px system-ui;color:#fff;display:flex;gap:12px;padding:12px">
+    <figure style="margin:0"><figcaption style="padding:0 0 6px">pay 0 (önce)</figcaption>${img(a)}</figure>
+    <figure style="margin:0"><figcaption style="padding:0 0 6px">pay ${PAY} (6.S-2b)</figcaption>${img(b)}</figure></body>`);
+  await p.waitForFunction(() => [...document.images].every(i => i.complete));
+  await p.screenshot({ path });
+  await p.close();
+}
 
 // the stroke on the first visible page: its box as a part of the page box (0–1)
 const stroke = (page) => page.evaluate(() => {
@@ -117,6 +183,9 @@ mkdirSync(pdfDir, { recursive: true });
 const pdfPath = join(pdfDir, 'sigdir.pdf');
 writeFileSync(pdfPath, await testPdf());
 const pdfBytes = readFileSync(pdfPath);
+const FOTOLU = existsSync(FOTO);
+const SAYFA = FOTOLU ? 7 : 6;
+if (!FOTOLU) console.log(`Defter fotoğrafı yok (${FOTO}): fotoğraf sayfası ve karşılaştırması atlandı.`);
 
 mkdirSync(OUT, { recursive: true });
 const dev = await startDev();
@@ -157,12 +226,30 @@ try {
 
     const ad = `${w}×${h}`;
     const single = await page.evaluate(() => document.querySelector('#oSpread').classList.contains('single'));
-    const spreads = single ? 5 : 3;
-    const check = async (durum, sayfa) => { const f = await fit(page); const ok = okMu(f); if (!ok) bad++; rows.push([ad, durum, sayfa, f, ok]); };
+    const spreads = single ? SAYFA : Math.ceil(SAYFA / 2);
+    const check = async (durum, sayfa) => {
+      const f = await fit(page), pp = await pay(page, PAY);
+      f.pay = pp;
+      const ok = okMu(f) && pp.min >= pp.ister - 0.5;
+      if (!ok) bad++;
+      rows.push([ad, durum, sayfa, f, ok]);
+    };
+    // pay 0 | pay 0.04 of the spread on screen (only the spread's box)
+    const kiyas = async (adi) => {
+      const clip = await page.evaluate(() => { const r = document.querySelector('#oSpread').getBoundingClientRect(); return { x: r.left, y: r.top, width: r.width, height: r.height }; });
+      const b = await page.screenshot({ clip });
+      await payYok(page, true); await wait(300);
+      const a = await page.screenshot({ clip });
+      await payYok(page, false); await wait(200);
+      await yanYana(browser, a, b, clip, join(OUT, `${w}x${h}-${adi}-karsilastirma-pay.png`));
+    };
 
     for (let i = 0; i < spreads; i++) {
-      await check('açılış', single ? `${i + 1}` : `${2 * i + 1}–${Math.min(2 * i + 2, 5)}`);
-      await page.screenshot({ path: join(OUT, `${w}x${h}-kitap-${i + 1}.png`) });
+      const n = single ? [i + 1] : [2 * i + 1, 2 * i + 2].filter(k => k <= SAYFA);
+      await check('açılış', n.join('–'));
+      await page.screenshot({ path: join(OUT, `${w}x${h}-kitap-${i + 1}-pay.png`) });
+      if (FOTOLU && n.includes(6)) await kiyas('defter-foto');
+      if (n.includes(SAYFA)) await kiyas('ders-pdf');
       if (i < spreads - 1) { await page.keyboard.press('ArrowRight'); await wait(700); }
     }
     // back to the first spread (slider to 1)
@@ -197,10 +284,12 @@ try {
     const afterUp = await layouts(page);
     const penOn2 = await page.evaluate(() => document.querySelector('#okuyucu').classList.contains('kalem'));
     await check('çizim sonrası dizim', '1');
-    await page.screenshot({ path: join(OUT, `${w}x${h}-kalem.png`) });
+    await page.screenshot({ path: join(OUT, `${w}x${h}-kalem-pay.png`) });
 
     const p = {
       'çizgi var': !!s0,
+      // 6.S-2b: the stroke is where it was drawn in the content box (28/842 from its top)
+      'çizgi içerik kutusunda': !!s0 && Math.abs(s0.y + s0.h / 2 - 28 / 842) <= 0.01,
       'kalem kapat/aç: çizgi yerinde': near(s0, s1),
       'alan küçüldü: bir dizim': afterResize === 1,
       'alan küçüldü: çizgi yerinde': near(s0, s2),
@@ -216,7 +305,7 @@ try {
     await page.locator('#oPenBtn').click(); await wait(400);
     await page.locator('#oMode [data-m="pdf"]').click();
     await wait(1500);
-    await page.screenshot({ path: join(OUT, `${w}x${h}-pdf.png`) });
+    await page.screenshot({ path: join(OUT, `${w}x${h}-pdf-pay.png`) });
     await page.locator('#oMode [data-m="kitap"]').click();   // the next context starts in book mode again
     await wait(500);
     await ctx.close();
@@ -226,8 +315,8 @@ try {
   dev.kill();
 }
 
-console.log('ölçü | durum | sayfa | alan | üst | alt | sol | sağ | sonuç   (px; eksi = kesik)');
-for (const [ad, durum, sayfa, f, ok] of rows) console.log(`${ad} | ${durum} | ${sayfa} | ${f.alan} | ${f.ust} | ${f.alt} | ${f.sol} | ${f.sag} | ${ok ? 'geçti' : 'KALDI'}`);
+console.log('ölçü | durum | sayfa | alan | üst | alt | sol | sağ | pay (en az / gerekli) | sonuç   (px; eksi = kesik)');
+for (const [ad, durum, sayfa, f, ok] of rows) console.log(`${ad} | ${durum} | ${sayfa} | ${f.alan} | ${f.ust} | ${f.alt} | ${f.sol} | ${f.sag} | ${f.pay.min} / ${f.pay.ister} | ${ok ? 'geçti' : 'KALDI'}`);
 console.log('\nKalem:');
 for (const [ad, p, not] of pens) {
   console.log(`${ad}: ${Object.entries(p).map(([k, v]) => `${k} ${v ? 'evet' : 'HAYIR'}`).join(' · ')}`);

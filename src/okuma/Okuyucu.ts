@@ -2043,6 +2043,11 @@ function mountPdf(i: number, p: BookPage, box: HTMLElement, cssW: number, cssH: 
   let shown: Detail | null = null, pending: Detail | null = null;
   let cizilenTemiz = false;                     // task 6.4e-2: the canvas on screen is the clean page
   let eski: HTMLCanvasElement | null = null;    // … the one before it, until the new one is drawn
+  // task 6.S-2b: the page's canvases (main + sharp part) in one box, under the pen and search layers; in book mode
+  // the box is multiplied with the paper as one (the sharp part over the main canvas is not multiplied twice)
+  const baski = document.createElement('div');
+  baski.className = 'o-baski';
+  box.prepend(baski);
   const eskiBirak = () => { if (eski) { freeCanvas(eski); eski = null; } };
   const dropPending = () => { if (pending) { pending.job?.cancel(); freeCanvas(pending.canvas); pending = null; budget.delete(pKey); } };
   const dropDetail = () => { dropPending(); if (shown) { freeCanvas(shown.canvas); shown = null; budget.delete(dKey); } };
@@ -2064,7 +2069,7 @@ function mountPdf(i: number, p: BookPage, box: HTMLElement, cssW: number, cssH: 
   const dropLayer = () => { for (const e of penLayer) e.remove(); penLayer = []; };
   // task 6.3c: the search highlight (an SVG over the canvases, under the pen layer)
   const araKatman = arama.katman(i, box);
-  const release = () => { gone = true; sleep(); dropLayer(); araKatman.kaldir(); };
+  const release = () => { gone = true; sleep(); dropLayer(); araKatman.kaldir(); baski.remove(); };
   const mine = () => !gone && mounted.get(i)?.release === release;
 
   const draw = () => {
@@ -2087,7 +2092,7 @@ function mountPdf(i: number, p: BookPage, box: HTMLElement, cssW: number, cssH: 
         await d.promise;
         if (mine() && canvas === c && !d.cancelled()) {
           eskiBirak();
-          box.prepend(c); box.classList.add('ready');
+          baski.prepend(c); box.classList.add('ready');
           cizilenTemiz = !!t;
           box.classList.toggle('o-temizsayfa', cizilenTemiz);   // a mark only (checks); 6.4e-4: the pen layer is never hidden
           if (t) temizOlc();
@@ -2118,7 +2123,7 @@ function mountPdf(i: number, p: BookPage, box: HTMLElement, cssW: number, cssH: 
     job?.cancel(); job = null;
     queue.delete(i);
     budget.delete(key);
-    if (canvas.parentElement === box) { eskiBirak(); eski = canvas; } else freeCanvas(canvas);   // on screen: stays until the new one
+    if (canvas.parentElement === baski) { eskiBirak(); eski = canvas; } else freeCanvas(canvas);   // on screen: stays until the new one
     canvas = null;
     draw();
     if (!canvas) { eskiBirak(); box.classList.remove('ready'); }   // no room (off screen): grey until visible
@@ -2159,7 +2164,7 @@ function mountPdf(i: number, p: BookPage, box: HTMLElement, cssW: number, cssH: 
       if (pending !== it || d.cancelled()) { freeCanvas(c); return; }
       pending = null; it.job = null;
       budget.delete(pKey);
-      box.append(c);
+      baski.append(c);
       if (shown) freeCanvas(shown.canvas);
       shown = it;
       budget.set(dKey, { page: i, kind: 'detay', px: r.pw * r.ph, visible: true }, dropDetail);

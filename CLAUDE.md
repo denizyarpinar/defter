@@ -459,6 +459,12 @@ Kitaplık/
 - Kod: `src/ocr/kayit/elleDuzelt.ts` (saf, testli), `okunanMetin.ts`, `okuyucuPanel.ts`.
 - 6.4e-2b + 6.4e-3 canlıya çıktı (25 Ekim 2026, ba6c96e; production defter-jade.vercel.app).
 
+## 6.S — Kitap modu yerleşimi
+- 6.S-2: kitap modunda alan (`#oKitap`) değişince (kaydırıcı, kalem çubuğu, döndürme) kitap yeniden dizilir (ResizeObserver, `yenidenDuzenGerekir`); kalem basılıyken ertelenir, kalkınca bir kez dizilir.
+- 6.S-2b: kitap modunda sayfa içeriği kâğıt yuvasının içinde her kenarda pay kadar içeride (`KITAP_KAGIT_PAYI = 0.04`, yuva eninin oranı; `fitPage`, `kitapDuzen.ts`). Kâğıt yuvanın tamamını kaplar. Kalem, arama, temiz yazı ve zoom aynı içerik kutusunu (`.o-page`) kullanır; PDF koordinatı değişmez.
+- 6.S-2b: PDF canvas'ları (ana + zoom detay, temiz yazı dahil) `.o-baski` kutusunda; kitap modunda kutu tek parça `multiply` ile kâğıda basılır (beyaz → kâğıt rengi). Kalem ve arama katmanları kutunun dışında, multiply olmaz. PDF modu değişmez.
+- Kontrol: `node scripts/kitap-sigdir-kontrol.mjs` (Drive yok; sığma, pay, kalem 0.00 pt, pay 0 | 0.04 karşılaştırma görüntüleri).
+
 ## Sonra bakılabilir
 - Oda zaman aşımı: şu an glb yüklemesine toplam 15 sn veriliyor; yavaş bağlantıda (masaüstü lightmap'leri ~3.3 MB) eski odaya düşüyor. Öneri: "15 sn hiç ilerleme yok" kuralı + yükleme göstergesi. Faz 2 kural metni değişeceği için Deniz'in onayı gerekir.
 - Masaüstü lightmap PNG'lerinin küçültülmesi (boyut/sıkıştırma).

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PAGE_AR, fitPage, isSingle, keepRange, slotSize, spreadStart, visiblePages, yenidenDuzenGerekir } from './kitapDuzen';
+import { KITAP_KAGIT_PAYI, PAGE_AR, fitPage, isSingle, keepRange, slotSize, spreadStart, visiblePages, yenidenDuzenGerekir } from './kitapDuzen';
 
 describe('isSingle', () => {
   it('is one page on a portrait screen', () => {
@@ -35,6 +35,25 @@ describe('fitPage', () => {
     expect(f.h).toBe(141);
     expect(f.w).toBe(71);
     expect(f.x).toBe(15);
+  });
+  it('pay 0 is the same as no pay', () => {
+    for (const r of [PAGE_AR, 0.75, 2]) expect(fitPage(r, 100, 141, 0)).toEqual(fitPage(r, 100, 141));
+  });
+  it('with KITAP_KAGIT_PAYI the content is inside the slot by the pay, centred, its shape kept', () => {
+    for (const [sw, sh] of [[100, 141], [360, 509], [590, 834]]) {
+      const p = Math.round(sw * KITAP_KAGIT_PAYI);
+      for (const r of [PAGE_AR, 0.75, 2, 1400 / 595]) {
+        const f = fitPage(r, sw, sh, KITAP_KAGIT_PAYI);
+        const sol = f.x, sag = sw - f.x - f.w, ust = f.y, alt = sh - f.y - f.h;
+        expect(Math.min(sol, sag, ust, alt)).toBeGreaterThanOrEqual(p);
+        expect(Math.abs(sol - sag)).toBeLessThanOrEqual(1);
+        expect(Math.abs(ust - alt)).toBeLessThanOrEqual(1);
+        expect(Math.abs(f.h - f.w * r)).toBeLessThanOrEqual(1 * Math.max(1, r));
+      }
+    }
+  });
+  it('an A4 page with the pay: 4 px of 100 on each side', () => {
+    expect(fitPage(PAGE_AR, 100, 141, KITAP_KAGIT_PAYI)).toEqual({ x: 4, y: 6, w: 92, h: 130 });
   });
 });
 
