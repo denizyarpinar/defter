@@ -440,7 +440,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 .o-temizbtn:disabled[aria-pressed="true"] { background: none }
 .o-temiz-balon button { min-width: 96px }
 /* a page drawn in clean handwriting: the pen's notes belong to the photo, not to this text */
-.o-temizsayfa > svg.o-cizim { display: none }
+#okuyucu:not(.kalem) .o-temizsayfa > svg.o-cizim { display: none }   /* never with the pen on */
 .dp-bilgi { margin: 0; opacity: .8; overflow-wrap: anywhere }
 .dp-hedefler { margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 2px }
 .dp-baslik2 { padding: 0; margin-bottom: 6px; font-weight: 600 }

@@ -63,7 +63,7 @@ import type { Dikdortgen } from './metinAra';
 import { OkuyucuArama } from './okuyucuArama';
 import { OkumaIzni, okumaGorunur } from '../ocr/okumaIzni';
 import type { DriveOcrKaynak } from '../ocr/okuyucuOcrKaynak';
-import { tercihOku, tercihYaz } from '../elYazisi/temizGorunum';
+import { kalemKatmaniGizli, tercihOku, tercihYaz } from '../elYazisi/temizGorunum';
 import type { Stil } from '../elYazisi/basici';
 import type { TemizYazici } from '../elYazisi/temizSayfa';
 import { TemizDugme } from '../ui/temizDugme';
@@ -1947,6 +1947,9 @@ function mountPdf(i: number, p: BookPage, box: HTMLElement, cssW: number, cssH: 
   let cizilenTemiz = false;                     // task 6.4e-2: the canvas on screen is the clean page
   let eski: HTMLCanvasElement | null = null;    // … the one before it, until the new one is drawn
   const eskiBirak = () => { if (eski) { freeCanvas(eski); eski = null; } };
+  // the pen layer hidden only over a clean page that stays clean; never with the pen on (temizGorunum.ts)
+  const katmanSinifi = () => box.classList.toggle('o-temizsayfa',
+    kalemKatmaniGizli({ cizilenTemiz, temizIstenir: !!temiz?.sayfa(pages, i), kalem: penOn }));
   const dropPending = () => { if (pending) { pending.job?.cancel(); freeCanvas(pending.canvas); pending = null; budget.delete(pKey); } };
   const dropDetail = () => { dropPending(); if (shown) { freeCanvas(shown.canvas); shown = null; budget.delete(dKey); } };
   // no canvas, but still mounted (the budget took the room; wake() draws it again)
@@ -1957,6 +1960,8 @@ function mountPdf(i: number, p: BookPage, box: HTMLElement, cssW: number, cssH: 
     if (canvas) freeCanvas(canvas);   // Safari frees the canvas memory only like this
     canvas = null;
     eskiBirak();
+    cizilenTemiz = false;
+    katmanSinifi();
     budget.delete(key);
     box.classList.remove('ready');
   };
@@ -1990,7 +1995,7 @@ function mountPdf(i: number, p: BookPage, box: HTMLElement, cssW: number, cssH: 
           eskiBirak();
           box.prepend(c); box.classList.add('ready');
           cizilenTemiz = !!t;
-          box.classList.toggle('o-temizsayfa', !!t);
+          katmanSinifi();
           if (t) temizOlc();
           if (zoom.zoomed) zoom.settleLater();   // drawn while zoomed: make it sharp too
         }
@@ -2011,6 +2016,7 @@ function mountPdf(i: number, p: BookPage, box: HTMLElement, cssW: number, cssH: 
   // task 6.4e-2: the clean view changed (the button, the pen, a read page, the style for a clean page)
   const yenile = (stil = false) => {
     if (!mine()) return;
+    katmanSinifi();   // at once: e.g. the pen on → its layer shows and takes the pen before the original is drawn
     const ister = !!temiz?.sayfa(pages, i);
     if (ister === cizilenTemiz && !(stil && ister)) return;
     if (!canvas) return;   // asleep or not drawn yet: wake() / the queue draws the right one
@@ -2029,7 +2035,7 @@ function mountPdf(i: number, p: BookPage, box: HTMLElement, cssW: number, cssH: 
   const detailWant = (view: DOMRect) => {
     const b = box.getBoundingClientRect();
     const vis = visiblePart(b, view);
-    if (!vis || !box.classList.contains('ready')) return 0;
+    if (!vis || !box.classList.contains('ready') || eski) return 0;
     const r = detailRect(vis, b.width, b.height, devicePixelRatio, budget.limits.perCanvas);
     return r.pw * r.ph;
   };
@@ -2038,6 +2044,9 @@ function mountPdf(i: number, p: BookPage, box: HTMLElement, cssW: number, cssH: 
     const b = box.getBoundingClientRect();
     const vis = view && visiblePart(b, view);
     if (!vis || !content || !box.classList.contains('ready')) { dropDetail(); return; }
+    // task 6.4e-2: the page is being drawn again (clean ↔ original): the sharp part waits for it (one drawing per
+    // page: starting it now would cancel that redraw, the old canvas and its class would stay); it comes after it
+    if (eski) return;
     const have = pending ?? shown;
     if (have && Math.abs(have.pageW - b.width) < 2 && covers(have.rect, vis)) return;
     dropPending();

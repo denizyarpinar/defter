@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  TERCIH_ANAHTARI, VARSAYILAN_TERCIH, dugmeGorunur, dugmeMetni, etkin, kisaMetin, sayac, tercihOku, tercihYaz, type Depo
+  TERCIH_ANAHTARI, VARSAYILAN_TERCIH, dugmeGorunur, dugmeMetni, etkin, kalemKatmaniGizli, kisaMetin, sayac, tercihOku, tercihYaz, type Depo
 } from './temizGorunum';
 
 const bellekDepo = (ilk: Record<string, string> = {}): Depo & { veri: Record<string, string> } => {
@@ -23,6 +23,20 @@ describe('etkin (kalem)', () => {
     expect(etkin({ acik: true }, true)).toBe(false);
     expect(etkin({ acik: false }, false)).toBe(false);
     expect(etkin({ acik: false }, true)).toBe(false);
+  });
+});
+
+describe('kalemKatmaniGizli (iPad hatası: temiz sayfaya kalemle çizilemiyordu)', () => {
+  it('kalem açıkken hiçbir sayfada gizli değil — temiz canvas henüz ekranda olsa da', () => {
+    expect(kalemKatmaniGizli({ cizilenTemiz: true, temizIstenir: true, kalem: true })).toBe(false);
+    expect(kalemKatmaniGizli({ cizilenTemiz: true, temizIstenir: false, kalem: true })).toBe(false);
+  });
+  it('orijinale dönen sayfa: yeni canvas gelmeden de görünür', () => {
+    expect(kalemKatmaniGizli({ cizilenTemiz: true, temizIstenir: false, kalem: false })).toBe(false);
+  });
+  it('sadece temiz kalan temiz sayfada gizli; kalem kapanınca geri gizlenir', () => {
+    expect(kalemKatmaniGizli({ cizilenTemiz: true, temizIstenir: true, kalem: false })).toBe(true);
+    expect(kalemKatmaniGizli({ cizilenTemiz: false, temizIstenir: true, kalem: false })).toBe(false);   // still the original on screen
   });
 });
 

@@ -26,6 +26,12 @@ export const dugmeGorunur = (g: DugmeGirdisi): boolean => g.drive && g.eslesen >
 // Clean handwriting is drawn now (button pressed and not greyed)
 export const etkin = (t: Pick<TemizTercih, 'acik'>, kalem: boolean): boolean => t.acik && !kalem;
 
+// The page's pen layer hidden (the box's o-temizsayfa class): only while the canvas on screen is the clean page
+// and the page stays clean. Never with the pen on (the strokes, also the live one, must show and take the pen),
+// and at once when the page is on its way back to the original (not only when the original canvas is drawn).
+export const kalemKatmaniGizli = (o: { cizilenTemiz: boolean; temizIstenir: boolean; kalem: boolean }): boolean =>
+  o.cizilenTemiz && o.temizIstenir && !o.kalem;
+
 export const fotografSayfasiMi = (parmakIzi: string | undefined): boolean => !!parmakIzi?.startsWith('g:');
 
 export interface Sayac { okunmus: number; fotograf: number }
