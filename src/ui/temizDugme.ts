@@ -8,7 +8,7 @@ import { dugmeMetni, kisaMetin, type Sayac } from '../elYazisi/temizGorunum';
 
 const STIL_ADI: Record<Stil, string> = { tukenmez: 'Tükenmez', yumusak: 'Yumuşak' };
 
-export interface TemizDugmeDurumu { gorunur: boolean; basili: boolean; gri: boolean; sayac: Sayac; stil: Stil }
+export interface TemizDugmeDurumu { gorunur: boolean; basili: boolean; sayac: Sayac; stil: Stil }
 
 export class TemizDugme {
   private grup = document.querySelector<HTMLElement>('#oTemizGrup')!;
@@ -42,15 +42,14 @@ export class TemizDugme {
   goster(d: TemizDugmeDurumu): void {
     this.grup.hidden = !d.gorunur;
     this.stil = d.stil;
-    if (!d.gorunur || d.gri) this.balonKapat();
+    if (!d.gorunur) this.balonKapat();
     const metin = dugmeMetni(d.sayac);
     const eylem = d.basili ? 'Orijinali göster' : 'Temiz yazıyı göster';
     this.btn.querySelector('.o-uzun')!.textContent = metin;
     this.btn.querySelector('.o-kisa')!.textContent = kisaMetin(d.sayac);
     this.btn.setAttribute('aria-pressed', String(d.basili));
     this.btn.setAttribute('aria-label', `${metin} · ${eylem}`);
-    this.btn.title = d.gri ? 'Kalem açıkken sayfalar orijinal' : `${eylem} (${d.sayac.okunmus} okunmuş sayfa)`;
-    this.btn.disabled = this.stilBtn.disabled = d.gri;
+    this.btn.title = `${eylem} (${d.sayac.okunmus} okunmuş sayfa)`;
     this.stilBtn.title = `Stil: ${STIL_ADI[d.stil]}`;
   }
 

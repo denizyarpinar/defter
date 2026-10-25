@@ -2,7 +2,7 @@ import { PDFDocument, PDFName } from 'pdf-lib';
 import { describe, expect, it, vi } from 'vitest';
 import type { PageStrokes, Stroke } from './cizgi';
 import type { PendingRecord } from './bekleyenFark';
-import { PenModel } from './cizimModeli';
+import { PenModel, type Place, type ViewOf } from './cizimModeli';
 import { PdfYazilamaz } from './pdfNotlari';
 
 // Task 4.6: the pen mode's strokes in memory
@@ -163,7 +163,7 @@ describe('PenModel eraser', () => {
     expect(m.dirty).toBe(true);
     expect(m.undo()).toEqual({ tur: 'sil', places: [{ key: 'f@1', page: 0 }] });
     expect(ids(m)).toEqual(['a', 'b', 'c']);
-    expect(m.canUndo).toBe(false);
+    expect(m.canUndo()).toBe(false);
     expect(m.dirty).toBe(false);
   });
 
@@ -180,7 +180,7 @@ describe('PenModel eraser', () => {
     const m = await ready(new Map([[0, [stroke('a')]]]));
     expect(m.eraseAt('f@1', 0, at(500, 500), at(510, 510), 2)).toBe(0);
     m.eraseEnd();
-    expect(m.canUndo).toBe(false);
+    expect(m.canUndo()).toBe(false);
     expect(m.dirty).toBe(false);
   });
 
@@ -190,7 +190,7 @@ describe('PenModel eraser', () => {
     expect(ids(m)).toEqual(['b']);
     expect(m.eraseCancel()).toEqual([{ key: 'f@1', page: 0 }]);
     expect(ids(m)).toEqual(['a', 'b']);
-    expect(m.canUndo).toBe(false);
+    expect(m.canUndo()).toBe(false);
     expect(m.dirty).toBe(false);
     expect(m.eraseCancel()).toEqual([]);
   });
@@ -227,9 +227,9 @@ describe('PenModel undo / redo', () => {
     const m = await ready();
     m.add('f@1', 0, stroke('a'));
     m.undo();
-    expect(m.canRedo).toBe(true);
+    expect(m.canRedo()).toBe(true);
     m.add('f@1', 0, stroke('b'));
-    expect(m.canRedo).toBe(false);
+    expect(m.canRedo()).toBe(false);
     expect(m.redo()).toBeNull();
     expect(ids(m)).toEqual(['b']);
   });
@@ -299,7 +299,7 @@ describe('PenModel undo / redo', () => {
     const m = await ready();
     m.add('f@1', 0, stroke('a'));
     m.clear();
-    expect(m.canUndo).toBe(false);
+    expect(m.canUndo()).toBe(false);
     expect(m.undo()).toBeNull();
   });
 });
@@ -400,7 +400,7 @@ describe('PenModel difference and pending record', () => {
     await m.ensure('f@1', empty, async () => rec({ eklenen: [{ sayfa: 2, stroke: stroke('c') }], silinenIdler: [{ sayfa: 0, id: 'a' }] }));
     expect(ids(m)).toEqual(['b']);
     expect(ids(m, 'f@1', 2)).toEqual(['c']);
-    expect(m.canUndo).toBe(false);
+    expect(m.canUndo()).toBe(false);
     expect(m.isDirty('f@1')).toBe(true);
     expect(m.restored('f@1')?.baskaSurum).toBeUndefined();
     // the difference is still against the file as loaded
@@ -466,5 +466,105 @@ describe('PenModel.rebase', () => {
     m.rebase('f@1', 'f@2', new Map([[0, [stroke('a', { noktalar: [0, 50, 100, 50] })]]]), remainingDiff(sent, m.diff('f@1')));
     expect(ids(m, 'f@2', 0)).toEqual([]);
     expect(m.diff('f@2')).toEqual({ eklenen: [], silinenIdler: [{ sayfa: 0, id: 'a' }] });
+  });
+});
+
+// Task 6.4e-4: each view (orijinal / temiz) has its own strokes; eraser and undo / redo only in the one shown
+describe('6.4e-4: views', () => {
+  const T = { gorunum: 'temiz' as const };
+  const ids = (m: PenModel, v?: 'orijinal' | 'temiz', page = 0) => m.strokes('f@1', page, v).map(s => s.id);
+  // page 0 shows the view v, every other page the original (unless given)
+  const views = (v: 'orijinal' | 'temiz', ozel = new Map<number, 'orijinal' | 'temiz'>()): ViewOf =>
+    (p: Place) => ozel.get(p.page) ?? (p.page === 0 ? v : 'orijinal');
+
+  it('the filter: each view its own; inks marks the clean ones; no view = all', async () => {
+    const m = await ready();
+    m.add('f@1', 0, stroke('o'));
+    m.add('f@1', 0, stroke('t', T));
+    expect(ids(m, 'orijinal')).toEqual(['o']);
+    expect(ids(m, 'temiz')).toEqual(['t']);
+    expect(ids(m)).toEqual(['o', 't']);
+    expect(m.inks('f@1', 0, 'temiz')).toMatchObject([{ temiz: true }]);
+    expect(m.inks('f@1', 0)[0].temiz).toBeUndefined();
+  });
+
+  it('the eraser takes only the view the page shows; the hidden strokes stay', async () => {
+    const m = await ready();
+    m.add('f@1', 0, stroke('o'));
+    m.add('f@1', 0, stroke('t', T));   // the same points
+    expect(m.eraseAt('f@1', 0, [15, 20], [15, 20], 5, 'temiz')).toBe(1);
+    m.eraseEnd();
+    expect(ids(m)).toEqual(['o']);
+  });
+
+  it('a drag over a clean page and an original page: two operations, each undone in its own view', async () => {
+    const m = await ready();
+    m.add('f@1', 0, stroke('t', T));
+    m.add('f@1', 1, stroke('o'));
+    m.eraseAt('f@1', 0, [15, 20], [15, 20], 5, 'temiz');
+    m.eraseAt('f@1', 1, [15, 20], [15, 20], 5, 'orijinal');
+    m.eraseEnd();
+    expect([...ids(m), ...ids(m, undefined, 1)]).toEqual([]);
+    // page 0 shows the clean view: eraseEnd records the original one, then the clean one (the newer: first back)
+    expect(m.undo(views('temiz'))?.places).toEqual([{ key: 'f@1', page: 0 }]);
+    expect(m.undo(views('temiz'))?.places).toEqual([{ key: 'f@1', page: 1 }]);
+    expect(ids(m, 'temiz')).toEqual(['t']);
+    expect(ids(m, 'orijinal', 1)).toEqual(['o']);
+  });
+
+  it('undo / redo only in the view shown: the hidden view waits (canUndo false)', async () => {
+    const m = await ready();
+    m.add('f@1', 0, stroke('t', T));          // drawn over the clean handwriting
+    const orijinal = views('orijinal');
+    expect(m.canUndo(orijinal)).toBe(false);   // page 0 shows the photo now: the clean stroke can't be undone
+    expect(m.undo(orijinal)).toBeNull();
+    expect(ids(m, 'temiz')).toEqual(['t']);
+    m.add('f@1', 0, stroke('o'));             // drawn on the photo
+    m.add('f@1', 0, stroke('t2', T));         // not shown from here
+    expect(m.undo(orijinal)?.tur).toBe('ekle');   // o, not t2 (newer, but not shown)
+    expect(ids(m)).toEqual(['t', 't2']);
+    expect(m.canUndo(orijinal)).toBe(false);
+    expect(m.canRedo(orijinal)).toBe(true);
+    const temiz = views('temiz');
+    expect(m.canRedo(temiz)).toBe(false);   // o's redo is in the original view
+    expect(m.undo(temiz)).not.toBeNull();   // t2
+    expect(m.undo(temiz)).not.toBeNull();   // t
+    expect(ids(m)).toEqual([]);
+    expect(m.redo(orijinal)).not.toBeNull();
+    expect(ids(m)).toEqual(['o']);
+    expect(m.isDirty('f@1')).toBe(true);
+    m.undo(orijinal);
+    expect(m.isDirty('f@1')).toBe(false);   // everything undone: clean, revision back to 0
+    expect(m.revision('f@1')).toBe(0);
+  });
+
+  it('a new operation drops only its own view\'s redo', async () => {
+    const m = await ready();
+    m.add('f@1', 0, stroke('o'));
+    m.add('f@1', 0, stroke('t', T));
+    m.undo(views('orijinal'));
+    m.undo(views('temiz'));
+    m.add('f@1', 0, stroke('t3', T));
+    expect(m.canRedo(views('temiz'))).toBe(false);
+    expect(m.canRedo(views('orijinal'))).toBe(true);
+  });
+
+  it('an operation over pages that now show different views waits', async () => {
+    const m = await ready();
+    m.add('f@1', 0, stroke('a', T));
+    m.add('f@1', 1, stroke('b', T));
+    m.eraseAt('f@1', 0, [15, 20], [15, 20], 5, 'temiz');
+    m.eraseAt('f@1', 1, [15, 20], [15, 20], 5, 'temiz');
+    m.eraseEnd();
+    // page 1 shows the original now: the clean erase can't be undone (nor what came before it in that view)
+    expect(m.canUndo(views('temiz'))).toBe(false);
+    expect(m.canUndo(views('temiz', new Map([[1, 'temiz']])))).toBe(true);
+  });
+
+  it('the difference (pending record) has both views, with their view', async () => {
+    const m = await ready();
+    m.add('f@1', 0, stroke('o'));
+    m.add('f@1', 0, stroke('t', T));
+    expect(m.diff('f@1').eklenen.map(e => [e.stroke.id, e.stroke.gorunum])).toEqual([['o', undefined], ['t', 'temiz']]);
   });
 });

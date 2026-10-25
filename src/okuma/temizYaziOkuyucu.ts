@@ -9,7 +9,7 @@ import type { BookPage } from './kitapSayfalari';
 //   matched, the atlas (once per session, also "not found": atlasOkuDrive keeps null) and the printer.
 //   It never holds up the reader: the pages are drawn as always, the answer comes later (degisti → yenile).
 // - Atlas missing or failing → the button hidden (+ console.warn on an error); nothing in the reader breaks.
-// - ciz(): for a read page while the view is on and the pen off: a job like PageContent.drawPdf (the same
+// - ciz(): for a read page while the view is on (task 6.4e-4: the pen too): a job like PageContent.drawPdf (the same
 //   budget, the same zoom path: rect = the visible part); otherwise null (→ the original).
 // Nothing is written anywhere.
 
@@ -34,7 +34,6 @@ export class TemizYaziOkuyucu<Y = unknown> {
   private yaziciP: Promise<Y | null> | null = null;
   private gen = 0;
   tercih: TemizTercih;
-  kalem = false;
 
   constructor(private d: TemizBagimlilik<Y>, tercih: TemizTercih, private degisti: (b: TemizBildirim) => void) {
     this.tercih = { ...tercih };
@@ -97,7 +96,7 @@ export class TemizYaziOkuyucu<Y = unknown> {
     return sayac(this.izler, new Set(this.eslesme.keys()));
   }
 
-  get etkin(): boolean { return etkin(this.tercih, this.kalem); }
+  get etkin(): boolean { return etkin(this.tercih); }
 
   // The read page drawn in clean handwriting now (null: the original)
   sayfa(pages: readonly BookPage[], i: number): OcrSayfa | null {

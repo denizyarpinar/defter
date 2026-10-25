@@ -10,6 +10,10 @@ import { MAX_WIDTH_FACTOR } from './cizgiSekli';
 export type StrokeTool = 'kalem' | 'fosforlu';
 export const STROKE_TOOLS: readonly StrokeTool[] = ['kalem', 'fosforlu'];
 
+// Task 6.4e-4: the view a stroke was drawn in. A read photo page shown in clean handwriting has its own
+// strokes; the photo (the original) its own. Each view shows only its own; both are in the same PDF.
+export type StrokeView = 'orijinal' | 'temiz';
+
 export interface Stroke {
   id: string;           // unique; the caller makes it (crypto.randomUUID)
   arac: StrokeTool;
@@ -18,7 +22,18 @@ export interface Stroke {
   opaklik: number;      // 0 < x ≤ 1
   noktalar: number[];   // x,y,x,y… in PDF user space (pt)
   basinc?: number[];    // pen only: 0–1 per point, 2 decimals (rounded when drawn, so it stays as saved)
+  gorunum?: 'temiz';    // task 6.4e-4: drawn over the clean handwriting; none = the original (all older strokes)
 }
+
+export const strokeView = (s: Pick<Stroke, 'gorunum'>): StrokeView => s.gorunum === 'temiz' ? 'temiz' : 'orijinal';
+
+// A new stroke in the view its page shows now (the original: as it is)
+export const inView = (s: Stroke, v: StrokeView): Stroke => {
+  if (v === 'temiz') return { ...s, gorunum: 'temiz' };
+  if (s.gorunum === undefined) return s;
+  const { gorunum: _, ...rest } = s;
+  return rest;
+};
 
 // 2 decimals: what is stored, so the live stroke is the saved one
 export const roundPressure = (p: number) => Math.round(Math.min(1, Math.max(0, p)) * 100) / 100;
@@ -41,6 +56,7 @@ export function validateStroke(s: Stroke): void {
   if (s.arac === 'fosforlu' && s.opaklik === 1) bad(`fosforlu opaklığı 1'den küçük olmalı`);
   if (s.noktalar.length < 2 || s.noktalar.length % 2 !== 0) bad('nokta sayısı');
   if (!s.noktalar.every(Number.isFinite)) bad('nokta sayı değil');
+  if (s.gorunum !== undefined && s.gorunum !== 'temiz') bad(`görünüm "${s.gorunum}"`);
   if (s.basinc !== undefined) {
     if (s.arac !== 'kalem') bad('fosforluda basınç olmaz');
     if (!Array.isArray(s.basinc) || s.basinc.length !== s.noktalar.length / 2) bad('basınç sayısı nokta sayısına eşit değil');

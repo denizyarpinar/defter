@@ -5,8 +5,8 @@ const STILLER: readonly Stil[] = ['tukenmez', 'yumusak'];   // basici.ts STILLER
 // Task 6.4e-2: the reader's "Temiz yazı ↔ Orijinal" button, the decisions only (no DOM, no Drive).
 // - The button: a Drive library (never the sample one) + at least one page of the open list whose record
 //   matched by fingerprint (eslestir) + the atlas found. Otherwise hidden.
-// - A read page is drawn in clean handwriting while the choice is on and the pen is off. The pen on: every page
-//   the original (the pen's notes are in the photo's coordinates), the button grey; the pen off: the choice again.
+// - A read page is drawn in clean handwriting while the choice is on. Task 6.4e-4: the pen too (it draws there;
+//   those strokes are the clean view's own, cizgi.ts StrokeView); the button works with the pen on.
 // - The counter: read pages / photo pages of the list. A photo page = exactly one image on it (fingerprint "g:").
 // - The choice (on/off, style) per device in localStorage; reading or writing it may fail (private window):
 //   the default then, the page works the same.
@@ -23,14 +23,8 @@ export interface DugmeGirdisi {
 
 export const dugmeGorunur = (g: DugmeGirdisi): boolean => g.drive && g.eslesen > 0 && g.atlasVar;
 
-// Clean handwriting is drawn now (button pressed and not greyed)
-export const etkin = (t: Pick<TemizTercih, 'acik'>, kalem: boolean): boolean => t.acik && !kalem;
-
-// The page's pen layer hidden (the box's o-temizsayfa class): only while the canvas on screen is the clean page
-// and the page stays clean. Never with the pen on (the strokes, also the live one, must show and take the pen),
-// and at once when the page is on its way back to the original (not only when the original canvas is drawn).
-export const kalemKatmaniGizli = (o: { cizilenTemiz: boolean; temizIstenir: boolean; kalem: boolean }): boolean =>
-  o.cizilenTemiz && o.temizIstenir && !o.kalem;
+// Clean handwriting is drawn now (button pressed)
+export const etkin = (t: Pick<TemizTercih, 'acik'>): boolean => t.acik;
 
 export const fotografSayfasiMi = (parmakIzi: string | undefined): boolean => !!parmakIzi?.startsWith('g:');
 

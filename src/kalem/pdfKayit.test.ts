@@ -89,6 +89,13 @@ describe('uploadRecord', () => {
     expect(log).toEqual(['modifiedTime', 'bytes:t1', 'durum', 'durum', 'upload']);
   });
 
+  it('6.4e-4: a clean stroke goes up with its view; the clean one already in the file keeps it', async () => {
+    const start = await writeDefterStrokes(await samplePdf(), new Map([[0, [{ ...stroke('t0'), gorunum: 'temiz' as const }]]]));
+    const { file, deps } = fakeDrive(start);
+    await uploadRecord(deps, rec({ eklenen: [{ sayfa: 0, stroke: stroke('o') }, { sayfa: 0, stroke: { ...stroke('t1'), gorunum: 'temiz' } }] }));
+    expect((await readDefterStrokes(file.bytes)).get(0)!.map(s => [s.id, s.gorunum])).toEqual([['t0', 'temiz'], ['o', undefined], ['t1', 'temiz']]);
+  });
+
   it('task 6.2e-2: the second write of the file: one check (durum) before the upload', async () => {
     const { deps, log } = fakeDrive(await samplePdf());
     const u = await uploadRecord(deps, rec({ eklenen: [{ sayfa: 0, stroke: stroke('a') }] }));

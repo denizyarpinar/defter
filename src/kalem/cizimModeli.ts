@@ -1,6 +1,6 @@
 import { applyDiff, baseOf, computeDiff, isEmptyDiff, type PenDiff, type PendingRecord, type StrokeBase } from './bekleyenFark';
 import type { DefterInk } from './cizimKatmani';
-import { validateStroke, type PageStrokes, type Stroke } from './cizgi';
+import { strokeView, validateStroke, type PageStrokes, type Stroke, type StrokeView } from './cizgi';
 import { UndoStack } from './gecmis';
 import { PdfYazilamaz, readStrokesForPen } from './pdfNotlari';
 import { strokeHit, type Pt } from './silgi';
@@ -17,6 +17,10 @@ import { strokeHit, type Pt } from './silgi';
 // undo history). "Kaydedilmedi" = the difference is not empty (everything undone: clean again).
 // Task 4.8b: after an upload the file moves to its new version (rebase): new key, new base, the
 // history keeps working (same stroke objects, keys renamed).
+// Task 6.4e-4: a stroke belongs to a view (orijinal / temiz, cizgi.ts), and the reader shows a page's strokes of
+// the view the page shows now. The eraser takes only those; undo / redo too: one history per view (an operation
+// is always of one view; a stroke's view never changes, so the views don't depend on each other). Undo takes the
+// newest operation of a view whose pages all show that view now.
 
 export type FileState = 'yukleniyor' | 'hazir' | 'hata';
 
@@ -38,7 +42,12 @@ export interface Place { key: string; page: number }
 // A stroke the eraser took, on its page, at the place it had in that page's list then
 export interface Removed extends Place { s: Stroke; index: number }
 
-export type PenOp = { rev: number } & ({ tur: 'ekle'; key: string; page: number; stroke: Stroke } | { tur: 'sil'; removed: Removed[] });
+export type PenOp = { rev: number; gorunum: StrokeView } & ({ tur: 'ekle'; key: string; page: number; stroke: Stroke } | { tur: 'sil'; removed: Removed[] });
+
+// The view each page shows now (the reader decides; a page not open: the original)
+export type ViewOf = (p: Place) => StrokeView;
+const ORIJINAL_HER_YERDE: ViewOf = () => 'orijinal';
+const VIEWS: readonly StrokeView[] = ['orijinal', 'temiz'];
 
 // What an undo / redo changed (to draw those pages again, or to tell where)
 export interface Changed { tur: PenOp['tur']; places: Place[] }
@@ -55,7 +64,7 @@ const keysOf = (op: PenOp) => [...new Set(placesOf(op).map(p => p.key))];
 
 export class PenModel {
   private files = new Map<string, FileModel>();
-  private history = new UndoStack<PenOp>();
+  private history: Record<StrokeView, UndoStack<PenOp>> = { orijinal: new UndoStack(), temiz: new UndoStack() };
   private lastRev = 0;
   private erasing: Removed[] | null = null;
 
@@ -120,27 +129,32 @@ export class PenModel {
   add(key: string, page: number, s: Stroke): void {
     validateStroke(s);
     this.list(key, page).push(s);
-    this.record({ rev: 0, key, page, tur: 'ekle', stroke: s });
+    this.record({ rev: 0, gorunum: strokeView(s), key, page, tur: 'ekle', stroke: s });
   }
 
   // Eraser drag (task 4.7): the strokes the eraser (from → to, radius r pt) touches go at once.
   // The whole drag is one operation (eraseEnd), also across pages and files. Returns how many went now.
-  eraseAt(key: string, page: number, from: Pt, to: Pt, r: number): number {
+  // Task 6.4e-4: only the strokes of the view v (the one the page shows); the others stay.
+  eraseAt(key: string, page: number, from: Pt, to: Pt, r: number, v: StrokeView = 'orijinal'): number {
     const list = this.list(key, page);
     const e = this.erasing ??= [];
     let n = 0;
     for (let i = 0; i < list.length;) {
-      if (strokeHit(list[i], from, to, r)) { e.push({ key, page, s: list[i], index: i }); list.splice(i, 1); n++; }
+      if (strokeView(list[i]) === v && strokeHit(list[i], from, to, r)) { e.push({ key, page, s: list[i], index: i }); list.splice(i, 1); n++; }
       else i++;
     }
     return n;
   }
 
-  // The drag ended: what it erased becomes one operation (nothing erased: no operation)
+  // The drag ended: what it erased becomes one operation (nothing erased: no operation); one per view
+  // when the drag went over pages of both (task 6.4e-4)
   eraseEnd(): void {
     const e = this.erasing;
     this.erasing = null;
-    if (e?.length) this.record({ rev: 0, tur: 'sil', removed: e });
+    for (const v of VIEWS) {
+      const removed = e?.filter(r => strokeView(r.s) === v) ?? [];
+      if (removed.length) this.record({ rev: 0, gorunum: v, tur: 'sil', removed });
+    }
   }
 
   // The drag was cancelled (second finger, pointercancel): what it erased comes back, on every page.
@@ -153,25 +167,36 @@ export class PenModel {
     return placesOf(e);
   }
 
-  get canUndo(): boolean { return this.history.canUndo; }
-  get canRedo(): boolean { return this.history.canRedo; }
+  canUndo(viewOf: ViewOf = ORIJINAL_HER_YERDE): boolean { return !!this.next(viewOf, false); }
+  canRedo(viewOf: ViewOf = ORIJINAL_HER_YERDE): boolean { return !!this.next(viewOf, true); }
 
-  undo(): Changed | null {
+  // The stack whose next operation is shown now on all its pages; of two, the newer operation
+  private next(viewOf: ViewOf, redo: boolean): UndoStack<PenOp> | null {
+    let best: UndoStack<PenOp> | null = null, rev = -1;
+    for (const v of VIEWS) {
+      const st = this.history[v], op = redo ? st.nextRedo : st.nextUndo;
+      if (op && op.rev > rev && placesOf(op).every(p => viewOf(p) === v)) { best = st; rev = op.rev; }
+    }
+    return best;
+  }
+
+  undo(viewOf: ViewOf = ORIJINAL_HER_YERDE): Changed | null {
     this.eraseCancel();
-    const op = this.history.undo();
+    const op = this.next(viewOf, false)?.undo();
     if (!op) return null;
     if (op.tur === 'ekle') removeIds(this.list(op.key, op.page), [op.stroke]);
     else this.restore(op.removed);
+    // not always the last one now: the other view's operations may be newer
     for (const key of keysOf(op)) {
-      const revs = this.files.get(key)!.revs;
-      if (revs[revs.length - 1] === op.rev) revs.pop();
+      const revs = this.files.get(key)!.revs, i = revs.lastIndexOf(op.rev);
+      if (i >= 0) revs.splice(i, 1);
     }
     return { tur: op.tur, places: placesOf(op) };
   }
 
-  redo(): Changed | null {
+  redo(viewOf: ViewOf = ORIJINAL_HER_YERDE): Changed | null {
     this.eraseCancel();
-    const op = this.history.redo();
+    const op = this.next(viewOf, true)?.redo();
     if (!op) return null;
     if (op.tur === 'ekle') this.list(op.key, op.page).push(op.stroke);
     else for (const r of op.removed) removeIds(this.list(r.key, r.page), [r.s]);
@@ -216,7 +241,7 @@ export class PenModel {
     this.files.delete(oldKey);
     this.files.set(newKey, f);
     const re = (p: { key: string }) => { if (p.key === oldKey) p.key = newKey; };
-    this.history.each(op => { if (op.tur === 'ekle') re(op); else op.removed.forEach(re); });
+    for (const v of VIEWS) this.history[v].each(op => { if (op.tur === 'ekle') re(op); else op.removed.forEach(re); });
     this.erasing?.forEach(re);
   }
 
@@ -263,7 +288,7 @@ export class PenModel {
   private record(op: PenOp): void {
     op.rev = ++this.lastRev;
     for (const key of keysOf(op)) this.files.get(key)!.revs.push(op.rev);
-    this.history.push(op);
+    this.history[op.gorunum].push(op);
   }
 
   // Back in reverse order, each at the index it had on its page: every page is exactly as before
@@ -275,18 +300,23 @@ export class PenModel {
     }
   }
 
-  strokes(key: string, page: number): readonly Stroke[] {
-    return this.files.get(key)?.pages.get(page) ?? [];
+  // v: only that view's strokes (task 6.4e-4); none: all
+  strokes(key: string, page: number, v?: StrokeView): readonly Stroke[] {
+    const list = this.files.get(key)?.pages.get(page) ?? [];
+    return v ? list.filter(s => strokeView(s) === v) : list;
   }
 
-  // For the SVG layer (penLayerSvg)
-  inks(key: string, page: number): DefterInk[] {
-    return this.strokes(key, page).map(s => ({ lines: [s.noktalar], color: s.renk, width: s.kalinlik, opacity: s.opaklik, pressure: s.basinc }));
+  // For the SVG layer (penLayerSvg): the strokes of the view the page shows
+  inks(key: string, page: number, v: StrokeView = 'orijinal'): DefterInk[] {
+    return this.strokes(key, page, v).map(s => ({
+      lines: [s.noktalar], color: s.renk, width: s.kalinlik, opacity: s.opaklik, pressure: s.basinc,
+      ...(s.gorunum === 'temiz' ? { temiz: true } : {})
+    }));
   }
 
   clear(): void {
     this.files.clear();
-    this.history.clear();
+    for (const v of VIEWS) this.history[v].clear();
     this.erasing = null;
   }
 }

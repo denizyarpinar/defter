@@ -6,7 +6,7 @@
 // outside the repo; missing → skipped). No request goes to Google or Drive.
 // Sizes 1180×820, 820×1180 (iPad), 390×844 (phone), touch, ×2 pixels; Kitap and PDF mode × temiz / orijinal,
 // the style popover open, zoom 200 %, the pen on. Every shot: the bar is one row (else the script fails).
-// 820×1180 also: clean on → Kalem → a stroke on the page that was clean (it must show) → Kalem off → Orijinal.
+// 820×1180 also (6.4e-4): Kalem on a clean page → a stroke → Orijinal (no stroke) → a stroke → Temiz (only the first).
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -108,17 +108,47 @@ async function zoom2(page) {
   await wait(2500);   // the wheel commit + the sharp canvas
 }
 
-// The clean page in view, marked (data-prob); its state: clean class, pen layer strokes and whether they show
+// The clean page in view, marked (data-prob); its state: clean class, the pen layer's strokes and whether they show
 const sayfaDurumu = (page) => page.evaluate(() => {
   const b = document.querySelector('.o-page[data-prob]');
   if (!b) return null;
-  const svg = [...b.querySelectorAll(':scope > svg.o-cizim')];
+  const svg = [...b.querySelectorAll(':scope > svg.o-cizim:not(.canli)')];
   return { temiz: b.classList.contains('o-temizsayfa'), cizgi: svg.reduce((n, x) => n + x.querySelectorAll('path').length, 0),
     gorunur: svg.some(x => getComputedStyle(x).display !== 'none' && x.querySelector('path')) };
 });
 
-// 6.4e-2 iPad bug: clean on → Kalem → draw on the page that was clean → the stroke shows; Kalem off → clean again,
-// the stroke kept (pending, the pen button's dot); Orijinal → the stroke shows on the photo page
+// One pen stroke on the marked page (dy: px under the middle of its visible part)
+async function cizgiCiz(page, dy) {
+  const nokta = await page.evaluate((dy) => {
+    const v = document.querySelector('#oScroll').getBoundingClientRect(), r = document.querySelector('.o-page[data-prob]').getBoundingClientRect();
+    const top = Math.max(r.top, v.top) + 40, bottom = Math.min(r.bottom, v.bottom) - 40;
+    return { x: r.left + r.width * 0.25, y: (top + bottom) / 2 + dy };
+  }, dy);
+  await page.evaluate(({ x, y }) => {
+    const el = document.elementFromPoint(x, y);
+    const ev = (t, k) => el.dispatchEvent(new PointerEvent(t, { pointerId: 9, pointerType: 'pen', isPrimary: true, clientX: x + k * 8, clientY: y + k * 3,
+      pressure: 0.5, buttons: t === 'pointerup' ? 0 : 1, bubbles: true, cancelable: true }));
+    ev('pointerdown', 0); for (let k = 1; k <= 25; k++) ev('pointermove', k); ev('pointerup', 25);
+  }, nokta);
+  await wait(800);
+}
+
+// The pending record(s) on the device (IndexedDB defter-kalem/bekleyen): [id, gorunum] of the strokes added
+const bekleyenler = (page) => page.evaluate(() => new Promise(res => {
+  const r = indexedDB.open('defter-kalem', 1);
+  r.onerror = () => res(null);
+  r.onsuccess = () => {
+    try {
+      const q = r.result.transaction('bekleyen', 'readonly').objectStore('bekleyen').getAll();
+      q.onsuccess = () => res(q.result.flatMap(k => k.eklenen.map(e => e.stroke.gorunum ?? 'orijinal')));
+      q.onerror = () => res(null);
+    } catch { res(null); }
+  };
+}));
+
+// Task 6.4e-4: each view its own strokes. Clean page → Kalem (the page stays clean) → a stroke (shows) →
+// Orijinal (no stroke) → a stroke on the photo (1) → Temiz (only the first) → Kalem off (still only the first).
+// The pending record keeps both, each with its view.
 async function temizeCiz(page, cek) {
   const bulundu = await page.evaluate(() => {
     const v = document.querySelector('#oScroll').getBoundingClientRect();
@@ -128,39 +158,38 @@ async function temizeCiz(page, cek) {
   });
   if (!bulundu) throw new Error('Ekranda temiz sayfa yok.');
   await page.click('#oPenBtn');
-  await wait(150);   // at once (the original is not drawn yet on a slow iPad): the layer must already show
-  const hemen = await sayfaDurumu(page);
   await wait(1500);
-  const nokta = await page.evaluate(() => {
-    const v = document.querySelector('#oScroll').getBoundingClientRect(), r = document.querySelector('.o-page[data-prob]').getBoundingClientRect();
-    const top = Math.max(r.top, v.top) + 40, bottom = Math.min(r.bottom, v.bottom) - 40;
-    return { x: r.left + r.width * 0.25, y: (top + bottom) / 2 };
-  });
-  await page.evaluate(({ x, y }) => {
-    const el = document.elementFromPoint(x, y);
-    const ev = (t, k) => el.dispatchEvent(new PointerEvent(t, { pointerId: 9, pointerType: 'pen', isPrimary: true, clientX: x + k * 8, clientY: y + k * 3,
-      pressure: 0.5, buttons: t === 'pointerup' ? 0 : 1, bubbles: true, cancelable: true }));
-    ev('pointerdown', 0); for (let k = 1; k <= 25; k++) ev('pointermove', k); ev('pointerup', 25);
-  }, nokta);
-  await wait(800);
-  const kalemde = await sayfaDurumu(page);
-  await cek('9-kalem-temiz-sayfaya-cizgi');
-  await page.click('#oPenBtn');
-  await wait(1500);
-  const kapali = await sayfaDurumu(page);
-  const bekleyen = await page.evaluate(() => document.querySelector('#oPenBtn').classList.contains('bekleyen'));
-  await cek('10-kalem-kapali-temiz');
+  const kalemAcik = await sayfaDurumu(page);
+  const dugmeGri = await page.evaluate(() => document.querySelector('#oTemiz').disabled);
+  await cizgiCiz(page, -60);
+  const temizde = await sayfaDurumu(page);
+  await cek('9-temizde-ciz');
   await page.click('#oTemiz');
   await wait(1500);
   const orijinal = await sayfaDurumu(page);
-  await cek('11-orijinal-cizgi');
+  await cek('10-orijinal-cizgi-yok');
+  await cizgiCiz(page, 60);
+  const orijinalde = await sayfaDurumu(page);
+  await cek('11-orijinalde-ciz');
   await page.click('#oTemiz');
-  await wait(800);
-  const sonuc = { hemen, kalemde, kapali, bekleyen, orijinal };
-  console.log('temiz sayfaya çizim:', JSON.stringify(sonuc));
-  const ok = hemen && !hemen.temiz && kalemde.cizgi > 0 && kalemde.gorunur && !kalemde.temiz
-    && kapali.temiz && kapali.cizgi > 0 && bekleyen && !orijinal.temiz && orijinal.gorunur;
-  if (!ok) { console.error('HATA: temiz sayfaya kalemle çizim beklendiği gibi değil.'); process.exitCode = 1; }
+  await wait(1500);
+  const temizeDon = await sayfaDurumu(page);
+  await cek('12-temiz-yalniz-ilk');
+  await page.click('#oPenBtn');
+  await wait(1500);
+  const kalemKapali = await sayfaDurumu(page);
+  const kayit = await bekleyenler(page);
+  await cek('13-kalem-kapali-temiz');
+  const sonuc = { kalemAcik, dugmeGri, temizde, orijinal, orijinalde, temizeDon, kalemKapali, kayit };
+  console.log('temiz / orijinal çizgileri:', JSON.stringify(sonuc));
+  const ok = kalemAcik?.temiz && !dugmeGri
+    && temizde.temiz && temizde.cizgi === 1 && temizde.gorunur
+    && !orijinal.temiz && orijinal.cizgi === 0
+    && !orijinalde.temiz && orijinalde.cizgi === 1
+    && temizeDon.temiz && temizeDon.cizgi === 1 && temizeDon.gorunur
+    && kalemKapali.temiz && kalemKapali.cizgi === 1
+    && JSON.stringify([...(kayit ?? [])].sort()) === JSON.stringify(['orijinal', 'temiz']);
+  if (!ok) { console.error('HATA: temiz / orijinal çizgileri beklendiği gibi ayrılmadı.'); process.exitCode = 1; }
 }
 
 const BOYUTLAR = [['1180x820', { width: 1180, height: 820 }], ['820x1180', { width: 820, height: 1180 }], ['390x844', { width: 390, height: 844 }]];

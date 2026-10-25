@@ -4,11 +4,15 @@ import {
   PDFString, StandardFonts, type PDFPage
 } from 'pdf-lib';
 import type { PageStrokes, Stroke } from './cizgi';
+import { defterInks } from './cizimKatmani';
 import { PdfYazilamaz, readDefterStrokes, readStrokesForPen, writeDefterStrokes } from './pdfNotlari';
 
 // Task 4.3: Defter strokes as Ink annotations. The PDFs are made here with pdf-lib (no course PDFs).
 
 const N = (s: string) => PDFName.of(s);
+
+const penTestUrl = Object.values(import.meta.glob<string>('/public/demo/kalem-testi.pdf', { eager: true, query: '?inline', import: 'default' }))[0];
+const penTestBytes = () => Uint8Array.from(atob(penTestUrl.split(',')[1]), c => c.charCodeAt(0));
 
 // 3 A4 pages with text; page 2 (index 1) already has notes from other apps: Text, Highlight, Ink.
 async function samplePdf(): Promise<Uint8Array> {
@@ -357,6 +361,66 @@ describe('pdf.js reads the notes', () => {
       const nm = Object.entries(a).filter(([, v]) => typeof v === 'string' && v.startsWith('defter-')).map(([k]) => k);
       console.log(`[pdf.js] Defter notu alanları: ${Object.keys(a).sort().join(', ')}`);
       console.log(`[pdf.js] /NM (defter-…) gelen alan: ${nm.length ? nm.join(', ') : 'YOK'} · id: ${a.id}`);
+    } finally {
+      await doc.loadingTask.destroy();
+    }
+  });
+});
+
+// Task 6.4e-4: strokes drawn over the clean handwriting
+describe('6.4e-4: /DefterGorunum /Temiz', () => {
+  const flags = (d: PDFDict) => (d.get(N('F')) as PDFNumber).asNumber();
+
+  it('a clean stroke gets the key and the Hidden flag (F 6); an original one neither (F 4); both come back', async () => {
+    const out = await writeDefterStrokes(await samplePdf(), new Map([[0, [stroke('o'), stroke('t', { gorunum: 'temiz' })]]]));
+    const doc = await PDFDocument.load(out);
+    const [o, t] = annotDicts(doc, doc.getPage(0));
+    expect(o.get(N('DefterGorunum'))).toBeUndefined();
+    expect(flags(o)).toBe(4);
+    expect(t.get(N('DefterGorunum'))).toBe(N('Temiz'));
+    expect(flags(t)).toBe(6);
+    const back = (await readDefterStrokes(out)).get(0)!;
+    expect(back.map(s => [s.id, s.gorunum])).toEqual([['o', undefined], ['t', 'temiz']]);
+    expect('gorunum' in back[0]).toBe(false);
+  });
+
+  it('an older PDF (no key): every stroke the original, as before', async () => {
+    const back = await readDefterStrokes(penTestBytes());
+    let n = 0;
+    for (const list of back.values()) for (const s of list) { expect(s.gorunum).toBeUndefined(); n++; }
+    expect(n).toBe(15);
+  });
+
+  it('the flag is not what decides: Hidden without the key = the original; the key without Hidden = clean', async () => {
+    const out = await writeDefterStrokes(await samplePdf(), new Map([[0, [stroke('o'), stroke('t', { gorunum: 'temiz' })]]]));
+    const doc = await PDFDocument.load(out);
+    const [o, t] = annotDicts(doc, doc.getPage(0));
+    o.set(N('F'), PDFNumber.of(6));
+    t.set(N('F'), PDFNumber.of(4));
+    const back = (await readDefterStrokes(await doc.save())).get(0)!;
+    expect(back.map(s => [s.id, s.gorunum])).toEqual([['o', undefined], ['t', 'temiz']]);
+  });
+
+  it('writing the page again (another stroke added) keeps both views', async () => {
+    const first = await writeDefterStrokes(await samplePdf(), new Map([[0, [stroke('o'), stroke('t', { gorunum: 'temiz' })]]]));
+    const pages = await readDefterStrokes(first);
+    pages.get(0)!.push(stroke('t2', { gorunum: 'temiz' }));
+    const back = (await readDefterStrokes(await writeDefterStrokes(first, pages))).get(0)!;
+    expect(back.map(s => [s.id, s.gorunum])).toEqual([['o', undefined], ['t', 'temiz'], ['t2', 'temiz']]);
+  });
+
+  it('a bad view value is not written', async () => {
+    await expect(writeDefterStrokes(await samplePdf(), new Map([[0, [stroke('x', { gorunum: 'yanlis' as 'temiz' })]]]))).rejects.toThrow(/görünüm/);
+  });
+
+  it('pdf.js gives the Hidden note too (getAnnotations does not drop it); defterInks marks it temiz', async () => {
+    const out = await writeDefterStrokes(await samplePdf(), new Map([[0, [stroke('o'), stroke('t', { gorunum: 'temiz' })]]]));
+    const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+    const doc = await pdfjs.getDocument({ data: out }).promise;
+    try {
+      const annots = await (await doc.getPage(1)).getAnnotations({ intent: 'display' });
+      expect(annots.filter(a => a.titleObj?.str === 'Defter').map(a => a.annotationFlags)).toEqual([4, 6]);
+      expect(defterInks(annots).map(k => k.temiz)).toEqual([false, true]);
     } finally {
       await doc.loadingTask.destroy();
     }

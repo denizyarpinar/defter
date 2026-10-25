@@ -6,6 +6,7 @@ import { IdbPendingStore } from '../kalem/bekleyenDepo';
 import { remainingDiff, type PendingRecord } from '../kalem/bekleyenFark';
 import { PendingSaver } from '../kalem/bekleyenKayit';
 import { PenModel, fileIdOf, versionOf, type Place } from '../kalem/cizimModeli';
+import { inView, type StrokeView } from '../kalem/cizgi';
 import { locative } from '../kalem/gecmis';
 import { penLayerMode } from '../kalem/defterNotu';
 import { PenToolbar, strokeStyle } from '../kalem/kalemCubugu';
@@ -63,7 +64,7 @@ import type { Dikdortgen } from './metinAra';
 import { OkuyucuArama } from './okuyucuArama';
 import { OkumaIzni, okumaGorunur } from '../ocr/okumaIzni';
 import type { DriveOcrKaynak } from '../ocr/okuyucuOcrKaynak';
-import { kalemKatmaniGizli, tercihOku, tercihYaz } from '../elYazisi/temizGorunum';
+import { tercihOku, tercihYaz } from '../elYazisi/temizGorunum';
 import type { Stil } from '../elYazisi/basici';
 import type { TemizYazici } from '../elYazisi/temizSayfa';
 import { TemizDugme } from '../ui/temizDugme';
@@ -503,7 +504,7 @@ export function initOkuyucu(yer: () => DriveLocation | null): void {
     add: (pg, s) => {
       const p = pages[pg.index];
       if (!p?.pdfSayfa) return;
-      penModel.add(fileKey(p), p.pdfSayfa - 1, s);
+      penModel.add(fileKey(p), p.pdfSayfa - 1, inView(s, sayfaGorunumu(pg.index)));   // task 6.4e-4: the page's view
       changed(p.dosyaId!);
       mounted.get(pg.index)?.layer?.();
       renderTools();
@@ -511,7 +512,7 @@ export function initOkuyucu(yer: () => DriveLocation | null): void {
     erase: (pg, from, to, r) => {
       const p = pages[pg.index];
       if (!p?.pdfSayfa) return;
-      if (penModel.eraseAt(fileKey(p), p.pdfSayfa - 1, from, to, r)) { erasedFiles.add(p.dosyaId!); relayer(fileKey(p), p.pdfSayfa - 1); }
+      if (penModel.eraseAt(fileKey(p), p.pdfSayfa - 1, from, to, r, sayfaGorunumu(pg.index))) { erasedFiles.add(p.dosyaId!); relayer(fileKey(p), p.pdfSayfa - 1); }
     },
     eraseEnd: () => {
       penModel.eraseEnd();
@@ -1063,7 +1064,6 @@ function temizAl(): Promise<TemizYaziOkuyucu<TemizYazici> | null> {
       degisti: temizGeldi,
       ...(s ? { eslesmeler: s.eslesmeler, yazici: s.yazici } : {}),
     });
-    t.kalem = penOn;
     temiz = t;
     return t;
   }, e => { temizYukleme = null; console.warn('Temiz yazı yüklenemedi; sayfalar orijinal gösteriliyor.', e); return null; });
@@ -1085,6 +1085,7 @@ function temizGeldi(b: TemizBildirim): void {
   if (!b.eslesen || !temiz?.etkin) temizT0 = 0;
   temizDugmesi();
   temizYenile();
+  renderTools();   // task 6.4e-4: undo / redo follow the views the pages show
 }
 
 function temizYenile(stil = false): void {
@@ -1097,7 +1098,7 @@ function temizDugmesi(): void {
   const t = temiz;
   temizDugme.goster({
     gorunur: open && !!topic && !!t && t.gorunur(temizDrive()),
-    basili: !!t?.etkin, gri: penOn, sayac: t?.sayac() ?? { okunmus: 0, fotograf: 0 }, stil: temizTercih.stil,
+    basili: !!t?.etkin, sayac: t?.sayac() ?? { okunmus: 0, fotograf: 0 }, stil: temizTercih.stil,
   });
 }
 
@@ -1109,6 +1110,19 @@ function temizTercihDegisti(t: typeof temizTercih): void {
   if (temiz) temiz.tercih = { ...t };
   temizDugmesi();
   temizYenile(stil);
+  renderTools();   // task 6.4e-4
+}
+
+// Task 6.4e-4: the view a page of the list shows now (a read page in clean handwriting: temiz). Its pen layer
+// shows that view's strokes, a new stroke on it gets that view, the eraser and undo take only those.
+function sayfaGorunumu(i: number): StrokeView {
+  return temiz?.sayfa(pages, i) ? 'temiz' : 'orijinal';
+}
+
+// … of a file's page (a file not open now: the original)
+function yerGorunumu(c: Place): StrokeView {
+  const i = pages.findIndex(p => p.pdfSayfa === c.page + 1 && pageKind(p) === 'pdf' && fileKey(p) === c.key);
+  return i >= 0 ? sayfaGorunumu(i) : 'orijinal';
 }
 
 // "El yazısını oku" saved a page, "Temiz yazıya çevir" ended: the file's record is read again and the open list
@@ -1947,9 +1961,6 @@ function mountPdf(i: number, p: BookPage, box: HTMLElement, cssW: number, cssH: 
   let cizilenTemiz = false;                     // task 6.4e-2: the canvas on screen is the clean page
   let eski: HTMLCanvasElement | null = null;    // … the one before it, until the new one is drawn
   const eskiBirak = () => { if (eski) { freeCanvas(eski); eski = null; } };
-  // the pen layer hidden only over a clean page that stays clean; never with the pen on (temizGorunum.ts)
-  const katmanSinifi = () => box.classList.toggle('o-temizsayfa',
-    kalemKatmaniGizli({ cizilenTemiz, temizIstenir: !!temiz?.sayfa(pages, i), kalem: penOn }));
   const dropPending = () => { if (pending) { pending.job?.cancel(); freeCanvas(pending.canvas); pending = null; budget.delete(pKey); } };
   const dropDetail = () => { dropPending(); if (shown) { freeCanvas(shown.canvas); shown = null; budget.delete(dKey); } };
   // no canvas, but still mounted (the budget took the room; wake() draws it again)
@@ -1961,7 +1972,7 @@ function mountPdf(i: number, p: BookPage, box: HTMLElement, cssW: number, cssH: 
     canvas = null;
     eskiBirak();
     cizilenTemiz = false;
-    katmanSinifi();
+    box.classList.remove('o-temizsayfa');
     budget.delete(key);
     box.classList.remove('ready');
   };
@@ -1995,7 +2006,7 @@ function mountPdf(i: number, p: BookPage, box: HTMLElement, cssW: number, cssH: 
           eskiBirak();
           box.prepend(c); box.classList.add('ready');
           cizilenTemiz = !!t;
-          katmanSinifi();
+          box.classList.toggle('o-temizsayfa', cizilenTemiz);   // a mark only (checks); 6.4e-4: the pen layer is never hidden
           if (t) temizOlc();
           if (zoom.zoomed) zoom.settleLater();   // drawn while zoomed: make it sharp too
         }
@@ -2013,10 +2024,10 @@ function mountPdf(i: number, p: BookPage, box: HTMLElement, cssW: number, cssH: 
     });
   };
   const wake = () => { if (mine() && !canvas) draw(); };
-  // task 6.4e-2: the clean view changed (the button, the pen, a read page, the style for a clean page)
+  // task 6.4e-2: the clean view changed (the button, a read page, the style for a clean page)
   const yenile = (stil = false) => {
     if (!mine()) return;
-    katmanSinifi();   // at once: e.g. the pen on → its layer shows and takes the pen before the original is drawn
+    layer();   // task 6.4e-4: at once, the strokes of the view the page shows now (before its canvas is drawn)
     const ister = !!temiz?.sayfa(pages, i);
     if (ister === cizilenTemiz && !(stil && ister)) return;
     if (!canvas) return;   // asleep or not drawn yet: wake() / the queue draws the right one
@@ -2095,7 +2106,7 @@ function mountPdf(i: number, p: BookPage, box: HTMLElement, cssW: number, cssH: 
     if (!content || !mine()) return;
     const g = ++layerGen, key = fileKey(p);
     if (penModel.state(key) === 'hazir') {
-      const svg = (vp: PenViewport) => penLayerSvg(penModel.inks(key, p.pdfSayfa! - 1), vp, 'normal');
+      const svg = (vp: PenViewport) => penLayerSvg(penModel.inks(key, p.pdfSayfa! - 1, sayfaGorunumu(i)), vp, 'normal');
       // viewport known: at once, so a finished stroke doesn't blink between the live path and the layer
       if (m.vp) showLayer(g, svg(m.vp), m.vp);
       else content.viewport(p).then(vp => showLayer(g, svg(vp), vp), failed);
@@ -2103,7 +2114,9 @@ function mountPdf(i: number, p: BookPage, box: HTMLElement, cssW: number, cssH: 
       // task 4.8a: strokes waiting on the device → the file's model (pdf-lib), even without Defter notes
       if (PEN_LAYER === 'normal' && pendingIds.has(p.dosyaId!)) loadFile(p, true);
       content.defterNotes(p).then(n => {
-        showLayer(g, penLayerSvg(n.inks, n.viewport, PEN_LAYER), n.viewport);
+        // task 6.4e-4: the view's notes (here by the Hidden flag; the model reads the key)
+        const temizMi = sayfaGorunumu(i) === 'temiz';
+        showLayer(g, penLayerSvg(n.inks.filter(k => !!k.temiz === temizMi), n.viewport, PEN_LAYER), n.viewport);
         // task 4.7c: Defter notes here → the file's strokes with their pressure (pdf-lib, loaded only now)
         if (n.inks.length && PEN_LAYER === 'normal' && mine()) loadFile(p, true);
       }, failed);
@@ -2186,10 +2199,6 @@ function setPen(on: boolean): void {
   const listTop = $('#oScroll').getBoundingClientRect().top;
   penOn = on;
   pen.active = on;
-  // task 6.4e-2: the pen on → every page the original (its notes are on the photo), the button grey; off → the choice
-  if (temiz) temiz.kalem = on;
-  temizDugmesi();
-  temizYenile();
   if (!on) { pen.cancel(); pen.hideCursor(); toolbar.closePopover(); }
   if (!on && open) uploadNow();   // task 4.8b: pen off
   const el = $('#okuyucu');
@@ -2219,7 +2228,7 @@ function setPen(on: boolean): void {
 function renderTools(): void {
   const dirty = penModel.dirty;
   const kilit = isSampleId(folder) ? 'ornek' : 'acik';
-  toolbar?.set({ preparing: penOn && penModel.loading, dirty, onDevice: pendingStore.ok, canUndo: penModel.canUndo, canRedo: penModel.canRedo, kayit: { kilit, durum: saveState } });
+  toolbar?.set({ preparing: penOn && penModel.loading, dirty, onDevice: pendingStore.ok, canUndo: penModel.canUndo(yerGorunumu), canRedo: penModel.canRedo(yerGorunumu), kayit: { kilit, durum: saveState } });
   // reading mode (no tool bar): a dot on the pen button
   const btn = document.querySelector<HTMLElement>('#oPenBtn');
   if (btn) {
@@ -2373,7 +2382,7 @@ function relayer(key: string, pdfPage: number): void {
 function undoRedo(redo: boolean): void {
   if (!open) return;
   pen.cancel();
-  const c = redo ? penModel.redo() : penModel.undo();
+  const c = redo ? penModel.redo(yerGorunumu) : penModel.undo(yerGorunumu);
   renderTools();
   if (!c) return;
   for (const key of new Set(c.places.map(p => p.key))) changed(fileIdOf(key));

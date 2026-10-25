@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { roundPressure, strokeBounds, validateStroke, type Stroke } from './cizgi';
+import { inView, roundPressure, strokeBounds, strokeView, validateStroke, type Stroke } from './cizgi';
 import { penOutline } from './cizgiSekli';
 
 // Task 4.4: the pen is always opaque, the highlighter never is (the reader tells them apart by opacity)
@@ -60,5 +60,23 @@ describe('strokeBounds', () => {
 
   it('highlighter: half its width plus 1', () => {
     expect(strokeBounds(s({ arac: 'fosforlu', opaklik: 0.4, kalinlik: 10, noktalar: [0, 0, 10, 0] }))).toEqual([-6, -6, 16, 6]);
+  });
+});
+
+describe('6.4e-4: inView / strokeView', () => {
+  const s0: Stroke = { id: 'a', arac: 'kalem', renk: '#222222', kalinlik: 2, opaklik: 1, noktalar: [1, 2, 3, 4] };
+
+  it('a new stroke takes the view its page shows; the original one stays as it is (no key)', () => {
+    expect(inView(s0, 'temiz')).toEqual({ ...s0, gorunum: 'temiz' });
+    expect(inView(s0, 'orijinal')).toBe(s0);
+    const back = inView({ ...s0, gorunum: 'temiz' }, 'orijinal');
+    expect('gorunum' in back).toBe(false);
+    expect(strokeView(s0)).toBe('orijinal');
+    expect(strokeView(inView(s0, 'temiz'))).toBe('temiz');
+  });
+
+  it('validateStroke: only temiz (or none)', () => {
+    expect(() => validateStroke({ ...s0, gorunum: 'temiz' })).not.toThrow();
+    expect(() => validateStroke({ ...s0, gorunum: 'orijinal' as 'temiz' })).toThrow(/görünüm/);
   });
 });

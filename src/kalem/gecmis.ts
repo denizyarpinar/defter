@@ -30,6 +30,10 @@ export class UndoStack<Op> {
     return op;
   }
 
+  // Task 6.4e-4: the operation undo() / redo() would take, without taking it
+  get nextUndo(): Op | undefined { return this.done[this.done.length - 1]; }
+  get nextRedo(): Op | undefined { return this.undone[this.undone.length - 1]; }
+
   get canUndo(): boolean { return this.done.length > 0; }
   get canRedo(): boolean { return this.undone.length > 0; }
 

@@ -12,6 +12,7 @@ export interface DefterInk {
   width: number;                // PDF units
   opacity: number;              // < 1: highlighter
   pressure?: ArrayLike<number>; // pen, one line: 0–1 per point (from the pen model; pdf.js doesn't give it)
+  temiz?: boolean;              // task 6.4e-4: drawn over the clean handwriting (the reader shows each view's own)
 }
 
 // the part of a pdf.js annotation used here (InkAnnotation data)
@@ -22,7 +23,10 @@ interface InkData {
   color?: ArrayLike<number> | null;
   opacity?: number;
   borderStyle?: { width?: number; rawWidth?: number };
+  annotationFlags?: number;
 }
+
+const HIDDEN = 2;   // annotation flag
 
 export function defterInks(annots: readonly InkData[]): DefterInk[] {
   return annots.filter(isDefterAnnotation).map(a => {
@@ -32,7 +36,10 @@ export function defterInks(annots: readonly InkData[]): DefterInk[] {
       color: `rgb(${c[0]},${c[1]},${c[2]})`,
       // pdf.js sets width to 1 when it is over half the Rect height (a flat highlighter); rawWidth is the real one
       width: a.borderStyle?.rawWidth ?? a.borderStyle?.width ?? 1,
-      opacity: a.opacity ?? 1
+      opacity: a.opacity ?? 1,
+      // task 6.4e-4: pdf.js doesn't give /DefterGorunum; until the pen model (pdf-lib, the key) is loaded the
+      // Hidden flag stands in for it (Defter sets it on exactly those notes)
+      temiz: !!((a.annotationFlags ?? 0) & HIDDEN)
     };
   });
 }

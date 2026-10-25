@@ -1,5 +1,14 @@
 # Defter – Durum
 
+## 6.4e-4 – Temiz yazıya kalemle çizme (25 Ekim 2026, Claude Code)
+
+- Kalem temiz yazıda kalır ve oraya çizer. Temizdeki çizgiler sadece temizde, orijinaldekiler sadece orijinalde görünür; ikisi aynı PDF'te (`/DefterGorunum /Temiz` + Hidden bayrağı).
+- Silgi ve geri al/yinele sadece görünen kümede. 6.4e-2'deki "kalem açılınca orijinal" ve katman gizleme kalktı.
+- Testler + 820×1180 ekran görüntüsü akışı (`scripts/temiz-yazi-okuyucu-kontrol.mjs`) geçti. Commit yok, gerçek Drive denemesi bekleniyor.
+- Canlı sürüm (7b617b8) temiz çizgili sayfaya kayıt yaparsa o sayfanın temiz çizgilerini orijinale çevirir: main'e çıkana kadar canlıda kalem kullanma.
+
+---
+
 ## 6.4c canlıda (25 Ekim 2026)
 
 - 45048f8 (kilit kalktı) + 7b617b8 (kontrol betiği + DURUM notu) main'de; origin/main = 7b617b8.

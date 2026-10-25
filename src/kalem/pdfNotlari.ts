@@ -14,6 +14,9 @@ import { curveBounds, curveToPdf, strokeCurve, type Curve } from './cizgiSekli';
 // - Task 6.H2b: the highlighter's appearance is short straight pieces (l) with round caps and joins.
 // - Notes hang on the page object (/Annots, /P), not on a page number: a page inserted later
 //   (Faz 5) doesn't move them to another page.
+// - Task 6.4e-4: a stroke drawn over the clean handwriting gets /DefterGorunum /Temiz and the Hidden flag
+//   (/F 6 = Print + Hidden): other viewers (Drive preview…) don't show it over the photo, where it means
+//   nothing. Defter reads the key, never the flag: no key = the original (every older note).
 // - pdf-lib is loaded only when this runs (dynamic import), so it stays out of the first bundle.
 
 type Lib = typeof import('pdf-lib');
@@ -37,6 +40,8 @@ const CIZIM: YazilamazMesajlari = {
 };
 
 const NM_PREFIX = 'defter-';
+const GORUNUM_TEMIZ = 'Temiz';   // /DefterGorunum /Temiz (task 6.4e-4)
+const PRINT = 4, HIDDEN = 2;     // annotation flags (/F)
 
 // Up to 2 decimals: 0.01 pt is far below what a pen can draw
 const r2 = (n: number) => Math.round(n * 100) / 100;
@@ -120,6 +125,7 @@ function toStroke(L: Lib, ctx: PDFContext, dict: PDFDict): Stroke | null {
     const p = numbers(L, ctx, basinc);
     if (p.length === noktalar.length / 2 && p.every(v => v >= 0 && v <= 1)) s.basinc = p;
   }
+  if (get(ctx, dict, 'DefterGorunum', L.PDFName, L)?.decodeText() === GORUNUM_TEMIZ) s.gorunum = 'temiz';
   return s;
 }
 
@@ -219,7 +225,7 @@ function addInk(L: Lib, ctx: PDFContext, pageRef: PDFRef, s: Stroke, date: strin
     C: hexToRgb(s.renk).map(r3),
     BS: { Type: 'Border', W: r2(s.kalinlik), S: 'S' },
     CA: s.opaklik,
-    F: 4,   // Print
+    F: s.gorunum === 'temiz' ? PRINT | HIDDEN : PRINT,
     NM: L.PDFHexString.fromText(NM_PREFIX + s.id),
     M: L.PDFString.of(date),
     T: L.PDFString.of(TITLE),
@@ -227,6 +233,7 @@ function addInk(L: Lib, ctx: PDFContext, pageRef: PDFRef, s: Stroke, date: strin
     DefterArac: tool,
     // 6.H2b: a flat one too (a pen without a sensor): it keeps the stroke at a constant width when read again
     ...(s.basinc ? { DefterBasinc: s.basinc } : {}),
+    ...(s.gorunum === 'temiz' ? { DefterGorunum: GORUNUM_TEMIZ } : {}),
     AP: { N: ap }
   }));
 }

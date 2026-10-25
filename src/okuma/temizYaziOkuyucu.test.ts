@@ -107,13 +107,10 @@ describe('TemizYaziOkuyucu', () => {
     expect(t.sayfa(pages, 1)).toBeNull();
   });
 
-  it('kalem açık ya da tercih kapalı: orijinal; kalem kapanınca tercih geri gelir', async () => {
+  it('tercih kapalı: orijinal; açık: temiz (6.4e-4: kalem bunu değiştirmez)', async () => {
     const { t } = kur();
     await t.degerlendir(pages);
-    t.kalem = true;
-    expect(t.etkin).toBe(false);
-    expect(t.ciz(pages, 1, pages[1], canvas)).toBeNull();
-    t.kalem = false;
+    expect(t.etkin).toBe(true);
     expect(t.sayfa(pages, 1)).not.toBeNull();
     t.tercih = { acik: false, stil: 'tukenmez' };
     expect(t.sayfa(pages, 1)).toBeNull();

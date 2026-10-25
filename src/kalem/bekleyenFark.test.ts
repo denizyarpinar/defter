@@ -106,3 +106,29 @@ describe('touchedPages', () => {
     expect(touchedPages({ eklenen: [{ sayfa: 4, stroke: stroke('a') }, { sayfa: 0, stroke: stroke('b') }], silinenIdler: [{ sayfa: 4, id: 'c' }, { sayfa: 2, id: 'd' }] })).toEqual([0, 2, 4]);
   });
 });
+
+describe('6.4e-4: the view stays in the pending record', () => {
+  const temiz = (id: string): Stroke => ({ ...stroke(id), gorunum: 'temiz' });
+
+  it('through IndexedDB (structured clone) and applyDiff', () => {
+    const d = computeDiff(baseOf(new Map()), new Map([[0, [stroke('o'), temiz('t')]]]));
+    const kayit = structuredClone(d);   // what IndexedDB stores
+    const pages: PageStrokes = new Map();
+    applyDiff(pages, kayit);
+    expect(pages.get(0)!.map(s => [s.id, s.gorunum])).toEqual([['o', undefined], ['t', 'temiz']]);
+  });
+
+  it('remainingDiff keeps it (a clean stroke drawn during the upload)', () => {
+    const sent: PenDiff = { eklenen: [{ sayfa: 0, stroke: stroke('o') }], silinenIdler: [] };
+    const now: PenDiff = { eklenen: [{ sayfa: 0, stroke: stroke('o') }, { sayfa: 0, stroke: temiz('t') }], silinenIdler: [] };
+    expect(remainingDiff(sent, now).eklenen.map(e => e.stroke.gorunum)).toEqual(['temiz']);
+  });
+
+  it('a damaged record (bad view) is skipped', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const pages: PageStrokes = new Map();
+    applyDiff(pages, { eklenen: [{ sayfa: 0, stroke: { ...stroke('x'), gorunum: 'baska' as 'temiz' } }], silinenIdler: [] });
+    expect(pages.size).toBe(0);
+    warn.mockRestore();
+  });
+});
