@@ -7,6 +7,8 @@ import { alanDurumu } from './gorunurAlan';
 import { copIzi } from './copAkisi';
 import { icindekilerIzi } from './icindekilerBaglami';
 import { temizIzi } from '../okuma/temizIz';
+import { installDokunmaOlcum, type DokunmaKaydedici } from './dokunmaOlcum';
+import { dokunmaMetni, dokunmaSatirlari, SON_DOKUNUS } from './dokunmaOzet';
 
 // Task 5.10g-ek: ?olcum=1 — a small box in the corner with the numbers of the page's position
 // (iPad Safari: the screen stayed moved up after the keyboard / photo picker). Only for diagnosis.
@@ -19,6 +21,8 @@ import { temizIzi } from '../okuma/temizIz';
 // together, Kopyala (all 50 as JSON, raw events included) and Sıfırla.
 // Task 6.K5a-2: the contents' write queue: listeners, waiting changes, the last events.
 // Task 6.4e-2: the clean view: the time from the list on screen to clean handwriting.
+// Task 6.S-1a: the pen box has two tabs, Kalem and Dokunma (the touch log: one line per touch, dokunmaOlcum.ts).
+// It appears with the first touch; Kopyala / Sıfırla work on the open tab.
 
 const n = (x: number | undefined | null) => x == null ? '–' : String(Math.round(x * 10) / 10);
 
@@ -86,14 +90,19 @@ export function installOlcum(): void {
   yaz();
   olcumDinle(sonOlcumGoster);
   kalemOlcer?.dinle(() => { kalemKutusuGoster(); yaz(); });
+  dokunma = installDokunmaOlcum(kalemKutusuGoster);
 }
 
-let kalemKutu: { kok: HTMLDivElement; metin: HTMLPreElement; not: HTMLSpanElement; kucuk: boolean } | null = null;
+let dokunma: DokunmaKaydedici | null = null;
+
+type Sekme = 'kalem' | 'dokunma';
+let kalemKutu: { kok: HTMLDivElement; metin: HTMLPreElement; not: HTMLSpanElement; kucuk: boolean; sekme: Sekme; sekmeler: Record<Sekme, HTMLButtonElement> } | null = null;
 
 // Bottom right, above the page slider (at the top it covered "Kalemi kapat"); "–" folds it to its bar
 function kalemKutusuGoster(): void {
   const o = kalemOlcer;
   if (!o) return;
+  const d = dokunma;
   if (!kalemKutu) {
     const kok = document.createElement('div');
     kok.id = 'olcumKalem';
@@ -104,32 +113,43 @@ function kalemKutusuGoster(): void {
     } satisfies Partial<CSSStyleDeclaration>);
     const bar = document.createElement('div');
     Object.assign(bar.style, { display: 'flex', alignItems: 'center', gap: '6px' } satisfies Partial<CSSStyleDeclaration>);
-    const baslik = document.createElement('strong');
-    baslik.textContent = 'Kalem ölçümü';
-    baslik.style.flex = '1';
+    const kalemSekme = olcumDugmesi('Kalem', 'Kalem ölçümü');
+    const dokunmaSekme = olcumDugmesi('Dokunma', 'Dokunma günlüğü');
     const not = document.createElement('span');
-    not.style.opacity = '.85';
-    const kopyala = olcumDugmesi('Kopyala', 'Kalem ölçümünü kopyala');
-    const sifirla = olcumDugmesi('Sıfırla', 'Kalem ölçümünü sıfırla');
-    const katla = olcumDugmesi('–', 'Kalem ölçümünü küçült');
+    Object.assign(not.style, { opacity: '.85', flex: '1', textAlign: 'right' } satisfies Partial<CSSStyleDeclaration>);
+    const kopyala = olcumDugmesi('Kopyala', 'Ölçümü kopyala');
+    const sifirla = olcumDugmesi('Sıfırla', 'Ölçümü sıfırla');
+    const katla = olcumDugmesi('–', 'Ölçüm kutusunu küçült');
     const metin = document.createElement('pre');
     Object.assign(metin.style, { margin: '4px 0 0', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', maxHeight: '30vh', overflow: 'auto', userSelect: 'text', webkitUserSelect: 'text' } satisfies Partial<CSSStyleDeclaration>);
-    bar.append(baslik, not, kopyala, sifirla, katla);
+    bar.append(kalemSekme, dokunmaSekme, not, kopyala, sifirla, katla);
     kok.append(bar, metin);
     // the reader under it never sees these taps (no stroke, no page turn)
     for (const t of ['pointerdown', 'pointerup', 'click', 'touchstart', 'touchend', 'mousedown', 'mouseup', 'wheel']) {
       kok.addEventListener(t, e => e.stopPropagation());
     }
-    const k = { kok, metin, not, kucuk: false as boolean };
+    const k = { kok, metin, not, kucuk: false as boolean, sekme: 'dokunma' as Sekme, sekmeler: { kalem: kalemSekme, dokunma: dokunmaSekme } };
     kalemKutu = k;
-    kopyala.onclick = () => void kopyalaMetin(metin, not, kalemOlcumJson(o.kayitlar()));
-    sifirla.onclick = () => { o.sifirla(); not.textContent = 'Sıfırlandı'; kalemKutusuGoster(); };
+    kalemSekme.onclick = () => { k.sekme = 'kalem'; not.textContent = ''; kalemKutusuGoster(); };
+    dokunmaSekme.onclick = () => { k.sekme = 'dokunma'; not.textContent = ''; kalemKutusuGoster(); };
+    kopyala.onclick = () => void kopyalaMetin(metin, not, k.sekme === 'kalem' ? kalemOlcumJson(o.kayitlar()) : dokunmaMetni(d?.olaylar() ?? []));
+    sifirla.onclick = () => {
+      if (k.sekme === 'kalem') o.sifirla(); else d?.sifirla();
+      not.textContent = 'Sıfırlandı';
+      kalemKutusuGoster();
+    };
     katla.onclick = () => { k.kucuk = !k.kucuk; katla.textContent = k.kucuk ? '+' : '–'; metin.hidden = k.kucuk; };
     document.body.append(kok);
   }
-  const ks = o.kayitlar();
-  if (ks.length) kalemKutu.not.textContent = '';
-  kalemKutu.metin.textContent = `son: ${ozet(ks[ks.length - 1])}\n${toplam(ks)}`;
+  const k = kalemKutu;
+  for (const s of ['kalem', 'dokunma'] as const) k.sekmeler[s].style.opacity = k.sekme === s ? '1' : '.5';
+  if (k.sekme === 'kalem') {
+    const ks = o.kayitlar();
+    k.metin.textContent = ks.length ? `son: ${ozet(ks[ks.length - 1])}\n${toplam(ks)}` : 'Henüz kalem çizgisi yok.';
+  } else {
+    const satirlar = dokunmaSatirlari(d?.olaylar() ?? []);
+    k.metin.textContent = satirlar.length ? `son ${SON_DOKUNUS} dokunuş, yeni üstte\n${satirlar.join('\n')}` : 'Henüz dokunma yok.';
+  }
 }
 
 function olcumDugmesi(yazi: string, etiket: string): HTMLButtonElement {

@@ -1,3 +1,4 @@
+import { dokunmaIptal } from './dokunmaIz';
 import { gorunurAlaniDuzelt } from './gorunurAlan';
 import { isPageZoomed } from './sayfaZoom';
 
@@ -43,7 +44,7 @@ const sayfaKaymis = () => window.scrollY !== 0 || document.documentElement.scrol
 export function installOkuyucuKaydirma(kok: HTMLElement): void {
   kok.addEventListener('touchmove', e => {
     if (!e.cancelable || isPageZoomed(window.visualViewport?.scale)) return;   // zoomed: the fingers zoom back out
-    if (!kaymaSerbestMi(zincir(e.target, kok))) e.preventDefault();
+    if (!kaymaSerbestMi(zincir(e.target, kok))) { dokunmaIptal('okuyucuKaydirma', e); e.preventDefault(); }
   }, { passive: false });
   const bitti = () => { if (sayfaKaymis()) gorunurAlaniDuzelt('okuyucu dokunma'); };
   kok.addEventListener('touchend', bitti, { passive: true });

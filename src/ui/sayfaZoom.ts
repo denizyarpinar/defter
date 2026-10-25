@@ -1,3 +1,5 @@
+import { dokunmaIptal } from './dokunmaIz';
+
 // iPad: the browser must never zoom the page itself (task 3.7). Our own zoom (reader) works with
 // pointer events and CSS; a browser zoom pushed the bars off screen, stayed after a reload and
 // shrank the room. iOS often ignores user-scalable=no / maximum-scale=1, so:
@@ -46,16 +48,16 @@ export function installPageZoomGuard(onViewportChange: () => void): void {
   const opts = { passive: false } as const;
 
   document.addEventListener('touchmove', e => {
-    if (blockTouch('move', e.touches.length, vv()?.scale, Infinity, false)) e.preventDefault();
+    if (blockTouch('move', e.touches.length, vv()?.scale, Infinity, false)) { dokunmaIptal('sayfaZoom', e); e.preventDefault(); }
   }, opts);
   document.addEventListener('touchend', e => {
     const now = performance.now();
     const onControl = !!(e.target as Element | null)?.closest?.(CONTROLS);
-    if (e.touches.length === 0 && blockTouch('end', 1, vv()?.scale, now - lastEnd, onControl)) e.preventDefault();
+    if (e.touches.length === 0 && blockTouch('end', 1, vv()?.scale, now - lastEnd, onControl)) { dokunmaIptal('sayfaZoom', e); e.preventDefault(); }
     if (e.touches.length === 0) lastEnd = now;
   }, opts);
   for (const ev of ['gesturestart', 'gesturechange', 'gestureend']) {
-    document.addEventListener(ev, e => { if (!isPageZoomed(vv()?.scale)) e.preventDefault(); }, opts);
+    document.addEventListener(ev, e => { if (!isPageZoomed(vv()?.scale)) { dokunmaIptal('sayfaZoom', e); e.preventDefault(); } }, opts);
   }
 
   // ---- recovery ----

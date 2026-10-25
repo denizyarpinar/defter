@@ -4,6 +4,7 @@ import { InputRouter } from './girdi';
 import { kalemOlcer } from './kalemOlcum';
 import { EventOrder, minStep, pushLastPoint, pushPoint, roundPt, screenToViewport, toPdf, type PenViewport } from './koordinat';
 import { eraserRadius, type Pt } from './silgi';
+import { dokunmaIptal } from '../ui/dokunmaIz';
 
 // Pen mode (task 4.6): live drawing on the reader's pages. The stroke being drawn is an SVG
 // <path> over its page (no canvas: the canvas budget is not touched), updated once per frame.
@@ -116,7 +117,7 @@ export class PenInput {
         if (!this.active) return;
         const stylus = [...e.changedTouches].some(t => (t as Touch & { touchType?: string }).touchType === 'stylus');
         if (stylus && e.type === 'touchstart') kalemOlcer?.touchstart(e.cancelable);
-        if (stylus || this.live?.pen || this.rub?.pen) e.preventDefault();
+        if (stylus || this.live?.pen || this.rub?.pen) { dokunmaIptal('kalemModu', e); e.preventDefault(); }
       };
       a.addEventListener('touchstart', block, { passive: false });
       a.addEventListener('touchmove', block, { passive: false });
