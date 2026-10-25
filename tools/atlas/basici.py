@@ -66,8 +66,9 @@ def araliklar(atlas: dict) -> tuple[float, float]:
     return float(a["harf"]) - pay, float(a["kelime"]) - pay
 
 
-def yerlesim(metin: str, atlas: dict, xh: float, haric=(), tohum: int = 0):
-    """Basılacak parçalar: [(x, D, taban, oynama)], toplam genişlik, eksikler."""
+def yerlesim(metin: str, atlas: dict, xh: float, haric=(), tohum: int = 0, oynama: bool = True):
+    """Basılacak parçalar: [(x, D, taban, oynama)], toplam genişlik, eksikler.
+    oynama=False: tabanda oynama yok (6.4e referansı; rng çekilmez)."""
     haric = set(haric)
     olcek = xh / atlas["xh"]
     rng = np.random.default_rng(tohum)
@@ -95,7 +96,7 @@ def yerlesim(metin: str, atlas: dict, xh: float, haric=(), tohum: int = 0):
         n = sayac.get(k, 0); sayac[k] = n + 1
         o = secenek[n % len(secenek)]
         D = glif.olcekle(o["D"], olcek)
-        parcalar.append((x, D, o["taban"] * olcek, int(rng.integers(-1, 2))))
+        parcalar.append((x, D, o["taban"] * olcek, int(rng.integers(-1, 2)) if oynama else 0))
         x += D.shape[1]
         onceki_harf = True
     return parcalar, max(x + kenar, 1), eksik
@@ -136,14 +137,14 @@ def _tukenmez(parcalar, H, W, taban_y, renk: str, st: dict) -> np.ndarray:
 
 
 def bas(metin: str, renk: str, atlas: dict, xh: float | None = None, haric=(), tohum: int = 0,
-        gurultu: float | None = None, stil: str | None = None):
+        gurultu: float | None = None, stil: str | None = None, oynama: bool = True):
     """RGB satır görüntüsü (uint8) ve eksik karakterler."""
     st = atlas.get("stiller") or stiller_varsayilan(atlas["renkler"])
     stil = stil or st.get("varsayilan", "tukenmez")
     if stil not in STILLER:
         raise ValueError(f"bilinmeyen stil: {stil} (tukenmez | yumusak)")
     xh = float(xh or atlas["xh"])
-    parcalar, genislik, eksik = yerlesim(metin, atlas, xh, haric, tohum)
+    parcalar, genislik, eksik = yerlesim(metin, atlas, xh, haric, tohum, oynama)
     H = round(YUKSEKLIK * xh)
     taban_y = round(TABAN_Y * xh)
     if stil == "tukenmez":

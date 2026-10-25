@@ -342,6 +342,26 @@ def test_paket_repoya_yazmaz():
         assert "repo içinde" in str(e), e
 
 
+def test_oynama_kapali():
+    at = _sahte_atlas()
+    parcalar, _, _ = basici.yerlesim("abgab", at, 40, tohum=3, oynama=False)
+    assert all(p[3] == 0 for p in parcalar)
+    # varsayılan (oynama açık) eskisi gibi: aynı tohum aynı sonuç
+    a, _, _ = basici.yerlesim("abgab", at, 40, tohum=3)
+    b, _, _ = basici.yerlesim("abgab", at, 40, tohum=3, oynama=True)
+    assert [p[3] for p in a] == [p[3] for p in b]
+    im, _ = basici.bas("ab", "mavi", at, gurultu=0, oynama=False)
+    assert im.shape == basici.bas("ab", "mavi", at, gurultu=0)[0].shape
+
+
+def test_referans_repoya_yazmaz():
+    try:
+        uret.referans_uret(yollar.REPO / "x")
+        assert False, "referans repo içine yazmamalı"
+    except SystemExit as e:
+        assert "repo içinde" in str(e), e
+
+
 if __name__ == "__main__":
     testler = [f for ad, f in sorted(globals().items()) if ad.startswith("test_")]
     for f in testler:

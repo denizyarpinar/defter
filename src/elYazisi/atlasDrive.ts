@@ -63,7 +63,7 @@ export async function sha256Hex(b: Uint8Array): Promise<string> {
   return [...h].map(v => v.toString(16).padStart(2, '0')).join('');
 }
 
-const eskiOnce = (a: AtlasOge, b: AtlasOge) =>
+export const eskiOnce = (a: AtlasOge, b: AtlasOge) =>
   (a.createdTime ?? '￿').localeCompare(b.createdTime ?? '￿') || a.id.localeCompare(b.id);
 
 // The item to use among the same-named ones: null = none; an unmarked one → AtlasAdDolu; several → the oldest

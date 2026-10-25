@@ -108,6 +108,10 @@ Testler (pytest yok): `tools/atlas/.venv/Scripts/python tools/atlas/test_murekke
      dev sayfası `atlas-yukle.html` ile yapılır (`src/elYazisi/atlasYukle.ts`, `atlasDrive.ts`; build'e girmez).
      Gerçek paket kontrolü: `npx vitest run scripts/atlas-paket.test.ts` (paket yoksa atlanır).
 
+9. **Referans** (`... uret.py referans`, `referans.py`) → `atlas\5-referans\` (6.4e-1): 4-paket'ten okunan atlasla
+   2 stil × 5 renk × 2 satır, oynama kapalı (`bas(..., oynama=False)`), gürültü 0; `d-ornek.json` = ilk 3 örneğin D'si.
+   Tarayıcıdaki basıcıyla karşılaştırma: `npx vitest run scripts/temiz-yazi-esdeger.test.ts`, `node scripts/temiz-yazi-kontrol.mjs`.
+
 Testler: `test_murekkep.py` ve `test_atlas.py` (taban, kâğıtta sıfır yoğunluk, basıcı boyutları,
 türetme, çengel, stiller, kurşun eşiği, aralık, `haric`, paket yerleşimi/kodlama/kaynak adı yok,
 yardımcıların ve paketin repoya yazmaması). `uret.py` çıktısı UTF-8'e zorlanır (Windows konsolu).

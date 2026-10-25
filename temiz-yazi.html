@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>Temiz yazı deneme</title>
+    <!-- 6.4e-1: dev only. Not a build input (vite.config.ts builds index.html only), so it never ships. -->
+    <style>
+      :root { color-scheme: light; --zemin: #f6f3ee; --kart: #fff; --cizgi: #d9d2c5; --yazi: #1d232b; --soluk: #5d6670; --vurgu: #2f5d8a; }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: var(--zemin); color: var(--yazi); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+      #app { max-width: 1500px; margin: 0 auto; padding: 20px 16px 48px; }
+      h1 { font-size: 22px; margin: 0 0 4px; }
+      h2 { font-size: 15px; margin: 0 0 8px; color: var(--soluk); text-transform: uppercase; letter-spacing: .04em; }
+      section { background: var(--kart); border: 1px solid var(--cizgi); border-radius: 10px; padding: 12px 14px; margin: 12px 0; }
+      .satirlar { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin: 8px 0; }
+      .not { color: var(--soluk); margin: 6px 0; overflow-wrap: anywhere; }
+      button, select { font: inherit; padding: 7px 12px; border-radius: 8px; border: 1px solid var(--cizgi); background: #fff; min-height: 40px; }
+      select { max-width: 100%; }
+      textarea { width: 100%; font: 14px/1.4 ui-monospace, monospace; border: 1px solid var(--cizgi); border-radius: 8px; padding: 8px; }
+      .ikili { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
+      .ikili > canvas, canvas.sayfa { display: block; max-width: 100%; height: auto; box-shadow: 0 1px 4px rgba(0,0,0,.15); }
+      @media (max-width: 700px) { .ikili { grid-template-columns: 1fr; } }
+    </style>
+  </head>
+  <body>
+    <main id="app"></main>
+    <script type="module" src="/src/elYazisi/temizYaziDene.ts"></script>
+  </body>
+</html>

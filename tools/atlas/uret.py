@@ -1,4 +1,4 @@
-"""Harf atlası üretimi. Giriş: `python tools/atlas/uret.py kesit | etiket-kontrol | atlas | onay | paket`.
+"""Harf atlası üretimi. Giriş: `python tools/atlas/uret.py kesit | etiket-kontrol | atlas | onay | paket | referans`.
 
 Girdi klasörü sadece okunur. Çıktı repo dışında olmalı (yollar.cikti_kontrol).
 """
@@ -133,6 +133,14 @@ def paket_uret(cikti: Path) -> dict:
     return r
 
 
+def referans_uret(cikti: Path) -> dict:
+    import referans
+    hedef = cikti_kontrol(Path(cikti) / "5-referans")
+    r = referans.uret(Path(cikti) / "4-paket", hedef)
+    print(f"{r['satir']} satır → {r['hedef']}")
+    return r
+
+
 def main(argv=None) -> None:
     # Windows konsolu (cp1252) "→" gibi karakterlerde çöker
     for akis in (sys.stdout, sys.stderr):
@@ -149,7 +157,8 @@ def main(argv=None) -> None:
     for ad, yardim in (("etiket-kontrol", "etiket.json kontrolü ve karakter sayıları"),
                        ("atlas", "taban, seçim, yoğunluk, türetme, aday sayfaları"),
                        ("onay", "onay görselleri ve kapsama.txt"),
-                       ("paket", "tarayıcı paketi (4-paket: png + json) ve doğrulama")):
+                       ("paket", "tarayıcı paketi (4-paket: png + json) ve doğrulama"),
+                       ("referans", "6.4e eşdeğerlik referansı (4-paket ile basılan satırlar → 5-referans)")):
         q = alt.add_parser(ad, help=yardim)
         q.add_argument("--girdi", type=Path, default=GIRDI)
         q.add_argument("--cikti", type=Path, default=CIKTI)
@@ -167,6 +176,8 @@ def main(argv=None) -> None:
         onay_uret(cikti_kontrol(args.cikti, args.girdi), args.girdi, args.onay)
     elif args.komut == "paket":
         paket_uret(cikti_kontrol(args.cikti, args.girdi))
+    elif args.komut == "referans":
+        referans_uret(cikti_kontrol(args.cikti, args.girdi))
     elif args.komut == "kesit":
         kesit_uret(args.girdi, args.cikti, _ayar(args, murekkep.Esikler),
                    _ayar(args, satirlar.SatirAyar), args.foto)
