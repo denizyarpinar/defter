@@ -82,7 +82,7 @@ Kitaplık/
 - Faz 3 Okuma: pdf.js, kitap/PDF modu, yakınlaştırma
 - Faz 4 Kalem: çizimleri PDF'e kaydetme (MVP)
 - Faz 5 Defter ve ekleme: defter fotoğrafı (otomatik kırpma), Dosya ekle (PDF, görsel → PDF)  ← bitti (5.12), main'e birleştirme Deniz onayıyla
-- Faz 6 Akıllı özellikler: Word/PPT otomatik çeviri (Drive) ← bitti (6.1), arama ← bitti (6.3), el yazısı okuma + aramada el yazısı ← 6.4c-4 (kilitsiz), Temiz yazı görünümü (6.4e), quiz/özet
+- Faz 6 Akıllı özellikler: Word/PPT otomatik çeviri (Drive) ← bitti (6.1), arama ← bitti (6.3), el yazısı okuma + aramada el yazısı ← 6.4c-4 (kilitsiz), Temiz yazı görünümü ← 6.4e-2 (okuyucuda), quiz/özet
 
 ## Faz 2 — Görsel kalite kuralları
 
@@ -185,7 +185,7 @@ Kitaplık/
 - Hata ayıklama: `?defterNot=goster` (katman yok, pdf.js kendisi çizer).
 
 ### pdf-lib
-- Tam sürüm 1.17.1, tembel yüklenir (`await import('pdf-lib')`): kalem modunda, ya da okuma modunda Defter notu veya bekleyen kaydı olan bir dosya açılınca. Diğer dosyalarda hiç yüklenmez; ilk açılış paketine girmez.
+- Tam sürüm 1.17.1, tembel yüklenir (`await import('pdf-lib')`): kalem modunda, ya da okuma modunda Defter notu veya bekleyen kaydı olan bir dosya açılınca, ya da açık listede sayfalı bir `.ocr.json` kaydı olunca (parmak izi, 6.4e-2; Deniz onayı). Diğer dosyalarda hiç yüklenmez; ilk açılış paketine girmez.
 
 ### Cihazda saklama
 - Çizgiler önce cihazda, sonra Drive'a. Kaydedilmemiş çizimler dosya başına net fark olarak IndexedDB'de (`defter-kalem`) tutulur; sadece Drive'a başarılı yüklemeden sonra silinir, hiçbir hatada silinmez.
@@ -433,6 +433,19 @@ Kitaplık/
 - Durum sorgusu: GET `/api/oku` → `{ acik }` (sahip + anahtar; Anthropic'e istek yok, sayaca girmez). İstemci token başına bellekte tutar (`src/ocr/okumaIzni.ts`). `acik: false` ya da örnek kitaplık → okuma düğmeleri hiç görünmez.
 - Arama herkes için: kitaplıkta `.ocr.json` bulguları + iki yazım (ä↔ae, ö↔oe, ü↔ue, ß↔ss), okuyucuda okunmuş sayfalar. "N sayfa henüz okunmadı" notu sadece okuyabilen hesapta.
 - `?ocrKayit=1` kilidi kaldırıldı. Kontrol: `node scripts/ocr-production-kontrol.mjs [adres]`.
+
+## Faz 6.4e — Temiz yazı görünümü (6.4e-2)
+- Okunmuş fotoğraf sayfası (kaydı parmak iziyle eşleşen, `eslestir`; sayfa numarasıyla değil) okuyucuda el yazısı atlasıyla temiz yazı olarak ÖNDE görünür; fotoğraf PDF'te kalır. PDF'e ve Drive'a hiçbir şey yazılmaz (sadece GET).
+- Düğme `#oTemiz` "El yazısını oku"nun yanında: "Temiz yazı (3/8)" = okunmuş / fotoğraf sayfası (fotoğraf = parmak izi `g:`); ≤ 1024 px simge + "3/8". Tek dokunuş Temiz ↔ Orijinal, aynı sayfada; ▾ balonu (6.H1b) Tükenmez / Yumuşak. Tercih `localStorage` `defter-temiz-yazi` (`{ acik, stil }`, try/catch; varsayılan açık + tükenmez). Kâğıt kareli, oynama açık.
+- Düğme SADECE: Drive kitaplığı (örnek değil) + açık listede ≥ 1 eşleşen sayfa + atlas bulundu. Karar saf: `src/elYazisi/temizGorunum.ts`.
+- Sıra (`okuyucuOcrKaynak.eslesmeler`): önce kayıtlar; listede sayfalı kayıt yoksa parmak izi yok (pdf-lib yüklenmez). Eşleşme varsa atlas (`atlasOkuBellekli`, oturumda bir kez; bulunamadı (null) da tutulur, hata unutulur; çıkışta temizlenir). Atlas yok/hata → düğme gizli + console.warn; okuyucu bozulmaz.
+- Açılışı bekletmez: sayfalar her zamanki gibi çizilir, cevap gelince sadece değişen sayfalar yeniden çizilir (`Mounted.yenile`; eski canvas yenisi çizilene kadar kalır, gri kutu yok). Süre `?olcum=1` kutusunda `temiz yazı:` satırı.
+- Bellek: okuyucu kapanınca ocr kaynağı silinmez (izler sürüm başına, kayıt `KAYIT_OMRU_MS`); sadece çıkışta (`okuyucuOturumKapandi`).
+- Çizim: aynı canvas, aynı bütçe (uyku, Safari serbest bırakma), zoom'da detail canvas'ta görünen bölge (`temizSayfaCiz` `bolge`). Kitap ve PDF modunda. Temiz sayfada kalem katmanı gizli (`o-temizsayfa`).
+- Kalem açılınca bütün sayfalar orijinal, düğme gri; kapanınca tercih geri gelir.
+- "El yazısını oku" panelinde kaydedilen sayfa ve "Temiz yazıya çevir" bitince: `unut` + yeniden değerlendirme (300 ms) → okuyucu kapanmadan temiz yazıya geçer.
+- Dizgi (6.4e-2): yedek yazı ağırlık 400, kâğıda %15; atlasta olmayan `·` (formülde `\cdot` dahil) mürekkep renginde dolu nokta (yarıçap 0.1·xh, x-yüksekliğinin ortası), eksik sayılmaz.
+- Kod: `src/elYazisi/temizGorunum.ts`, `src/okuma/temizYaziOkuyucu.ts` (testli), `temizYaziBagla.ts` (tembel), `src/ui/temizDugme.ts`, `src/okuma/temizIz.ts`. Dev: `window.defterTemizSahte({ sayfalar, fotograf?, atlasJson, atlasPng })` (sadece `npm run dev`, `src/okuma/temizSahte.ts`). Ekran görüntüleri: `node scripts/temiz-yazi-okuyucu-kontrol.mjs` (Drive yok; atlas paketi yoksa atlar).
 
 ## Sonra bakılabilir
 - Oda zaman aşımı: şu an glb yüklemesine toplam 15 sn veriliyor; yavaş bağlantıda (masaüstü lightmap'leri ~3.3 MB) eski odaya düşüyor. Öneri: "15 sn hiç ilerleme yok" kuralı + yükleme göstergesi. Faz 2 kural metni değişeceği için Deniz'in onayı gerekir.

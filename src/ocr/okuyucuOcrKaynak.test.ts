@@ -80,3 +80,49 @@ describe('OkuyucuOcrKaynak', () => {
     expect(sayac.izler).toBe(2);
   });
 });
+
+describe('OkuyucuOcrKaynak.eslesmeler (6.4e-2)', () => {
+  const pages = [sayfa('ozet', 1), sayfa('ozet', 2), sayfa('ozet', 3), sayfa('sorular', 1)];
+
+  it('by fingerprint: the order of the pages changed → the entry goes with its photo, not its page number', async () => {
+    // read when the photos were pages 2 and 3; now the file's pages 2 and 3 swapped
+    const { k } = sahte({
+      izler: { ozet: ['i:1', 'g:foto3', 'g:foto2'], sorular: ['g:s1'] },
+      kayitlar: { ozet: kayit('ozet', s(2, 'g:foto2', 'Zwei'), s(3, 'g:foto3', 'Drei')) },
+    });
+    const e = await k.eslesmeler(pages);
+    expect([...e.sayfalar].map(([i, x]) => [i, x.satirlar[0]])).toEqual([
+      [1, expect.objectContaining({ parcalar: [expect.objectContaining({ metin: 'Drei' })] })],
+      [2, expect.objectContaining({ parcalar: [expect.objectContaining({ metin: 'Zwei' })] })],
+    ]);
+    // every file's fingerprints (sorular without a record: its photo page counts, not read)
+    expect([...e.izler]).toEqual([[0, 'i:1'], [1, 'g:foto3'], [2, 'g:foto2'], [3, 'g:s1']]);
+  });
+
+  it('no record in the list: no fingerprints (pdf-lib not loaded)', async () => {
+    const { k, sayac } = sahte({ izler: { ozet: ['i:1', 'g:2', 'g:3'], sorular: ['g:s1'] }, kayitlar: { ozet: kayit('ozet') } });
+    const e = await k.eslesmeler(pages);
+    expect(e.sayfalar.size + e.izler.size).toBe(0);
+    expect(sayac.izler).toBe(0);
+    expect(sayac.kayit).toBe(2);
+  });
+
+  it('a failing file is skipped, never throws', async () => {
+    const { k } = sahte({ izler: { sorular: ['g:s1'] }, kayitlar: { ozet: kayit('ozet', s(2, 'g:2', 'x')), sorular: kayit('sorular', s(1, 'g:s1', 'Frage')) }, hata: ['ozet'] });
+    const e = await k.eslesmeler(pages);
+    expect([...e.sayfalar.keys()]).toEqual([3]);
+  });
+
+  it('opened again: from memory (KAYIT_OMRU_MS); unut → the new record (a page read meanwhile)', async () => {
+    const kayitlar: Record<string, OcrKayit | null> = { ozet: kayit('ozet', s(2, 'g:2', 'x')) };
+    const { k, sayac } = sahte({ izler: { ozet: ['i:1', 'g:2', 'g:3'] }, kayitlar });
+    const p = pages.slice(0, 3);
+    expect([...(await k.eslesmeler(p)).sayfalar.keys()]).toEqual([1]);
+    expect([...(await k.eslesmeler(p)).sayfalar.keys()]).toEqual([1]);
+    expect(sayac).toEqual({ izler: 1, klasor: 1, kayit: 1 });
+    kayitlar.ozet = kayit('ozet', s(2, 'g:2', 'x'), s(3, 'g:3', 'yeni'));
+    k.unut('ozet');
+    expect([...(await k.eslesmeler(p)).sayfalar.keys()]).toEqual([1, 2]);
+    expect(sayac).toEqual({ izler: 1, klasor: 1, kayit: 2 });
+  });
+});

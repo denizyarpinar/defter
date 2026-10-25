@@ -16,6 +16,8 @@ import type { ElYazisiAtlas } from './atlasSema';
 // - A character not in the atlas → `yedek` (same colour, the system font scaled to the x height) and the page's
 //   `eksik` list. Formulas: simple LaTeX → plain text (latexDuz) and then the same rules. Drawings: a small grey
 //   italic "[çizim: …]".
+// - 6.4e-2: a "·" the atlas has no glyph for (also \cdot in a formula) → a filled dot in the ink's colour
+//   (radius NOKTA_R·xh, in the middle of the x height), not the fallback font; it is not "eksik".
 
 export const KAGITLAR = ['kareli', 'duz', 'cizgili'] as const;
 export type Kagit = typeof KAGITLAR[number];
@@ -32,6 +34,9 @@ export const ALT_PAY = 0.9;          // room below the last baseline (descenders
 export const KUCUK = 0.7;            // superscript / subscript size
 export const NOT_BOYUT = 0.8;           // drawing notes and the "devamı" note: smaller
 export const DEVAMI = '… devamı Orijinal\'de';
+export const NOKTA = '·';
+export const NOKTA_R = 0.1;          // the dot's radius (xh)
+export const NOKTA_W = 0.4;          // the room it takes (xh)
 
 const RENK_YEDEK = 'siyah';
 
@@ -50,7 +55,8 @@ export interface Harf {
 export type DizgiOge =
   | { tur: 'glif'; karakter: string; ornek: number; renk: string; x: number; y: number; olcek: number }
   | { tur: 'yedek'; metin: string; renk: string; x: number; taban: number; xh: number; w: number }
-  | { tur: 'cizim' | 'not'; metin: string; x: number; taban: number; xh: number; w: number };
+  | { tur: 'cizim' | 'not'; metin: string; x: number; taban: number; xh: number; w: number }
+  | { tur: 'nokta'; renk: string; x: number; y: number; r: number };   // centre and radius
 
 export interface Dizgi {
   en: number; boy: number;
@@ -182,6 +188,7 @@ export function oynamaDegeri(satir: number, sira: number, k: string): -1 | 0 | 1
 // A piece of a word: one atlas glyph, or a run drawn with the fallback font
 type Parca =
   | { tur: 'glif'; h: Harf; ornek: number; w: number }
+  | { tur: 'nokta'; h: Harf; w: number }
   | { tur: 'yedek'; h: Harf; metin: string; w: number };
 
 interface Kelime { parcalar: Parca[]; w: number }
@@ -203,6 +210,7 @@ function kelimeKur(harfler: Harf[], k: Kurulum): Kelime {
       parcalar.push({ tur: 'glif', h, ornek, w: oo[ornek].w * k.olcek * h.boyut });
       continue;
     }
+    if (h.k === NOKTA && !h.cizim && !h.ustOk) { parcalar.push({ tur: 'nokta', h, w: NOKTA_W * k.xh * h.boyut }); continue; }
     if (!h.cizim) k.eksik.add(h.k);
     const son = parcalar[parcalar.length - 1];
     if (son?.tur === 'yedek' && son.h.renk === h.renk && son.h.boyut === h.boyut && son.h.kayma === h.kayma && !!son.h.cizim === !!h.cizim && !h.ustOk && !son.h.ustOk) {
@@ -287,7 +295,7 @@ function satirYerlestir(s: FizikSatir, no: number, taban: number, kenar: number,
     kel.parcalar.forEach((p, pi) => {
       // the first run of this word joins the previous word's run: one text, the font's own space
       const son = ogeler[ogeler.length - 1];
-      if (pi === 0 && ara?.birlesir && son && son.tur !== 'glif') {
+      if (pi === 0 && ara?.birlesir && son && son.tur !== 'glif' && son.tur !== 'nokta') {
         son.metin += ' ' + (p as Extract<Parca, { tur: 'yedek' }>).metin;
         son.w = olc(son.metin, son.xh, son.tur !== 'yedek');
         onceki = { x: son.x, w: son.w }; x = son.x + son.w; sira++;
@@ -304,6 +312,9 @@ function satirYerlestir(s: FizikSatir, no: number, taban: number, kenar: number,
         const oyna = oynama ? oynamaDegeri(no, sira, p.h.k) * k.olcek : 0;
         const ustOkY = p.h.ustOk ? tb - 1.15 * k.xh : tb - o.taban * olcek;
         ogeler.push({ tur: 'glif', karakter: p.h.k, ornek: p.ornek, renk: p.h.renk, x: px, y: ustOkY + oyna, olcek });
+      } else if (p.tur === 'nokta') {
+        const xh = k.xh * p.h.boyut;
+        ogeler.push({ tur: 'nokta', renk: p.h.renk, x: px + p.w / 2, y: tb - xh / 2, r: NOKTA_R * xh });
       } else {
         const tabanY = p.h.ustOk ? tb - 1.4 * k.xh : tb;
         ogeler.push(p.h.cizim

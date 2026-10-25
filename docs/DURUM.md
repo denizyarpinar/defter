@@ -60,6 +60,26 @@ Amaç: okunan metni (6.4c) arkadaşımızın gerçek el yazısıyla göstermek. 
 
 ---
 
+## 6.4e – Temiz yazı (25 Ekim 2026, Claude Code)
+
+### 6.4e-1 — Çekirdek (728d658)
+- Atlas Drive'dan salt okunur (`atlasOkuDrive.ts`), PNG çözme (`atlasCoz.ts`), basıcı (`basici.ts`, Python ile eşdeğer), dizgi (`dizgi.ts`), sayfa çizimi (`temizSayfa.ts`); dev sayfası `temiz-yazi.html` (build'e girmez). Okuyucuda değil.
+
+### 6.4e-2 — Okuyucuda "Temiz yazı ↔ Orijinal"
+- Okunmuş fotoğraf sayfası temiz yazıyla önde; düğme "Temiz yazı (3/8)" (≤ 1024 px "3/8") + ▾ stil balonu (Tükenmez / Yumuşak). Tercih localStorage'da (açık + tükenmez varsayılan). PDF'e/Drive'a yazma yok.
+- Koşul: Drive kitaplığı + eşleşen kayıt (parmak izi) + atlas. Kayıt yoksa parmak izi/pdf-lib yok, eşleşme yoksa atlas indirilmez; atlas yok/hata → düğme gizli.
+- Açılış bekletilmez; cevap gelince sadece değişen sayfalar yeniden çizilir (eski canvas yenisi gelene kadar kalır). Zoom detail canvas'ı temiz sayfayı keskin çizer. Kalem açıkken orijinal + düğme gri.
+- Panelde okunan / "Temiz yazıya çevir" ile eklenen sayfa okuma bitince yeniden açmadan temiz yazıya geçer.
+- ocr kaynağı belleği okuyucu kapanınca silinmiyor (aynı konu yeniden açılınca Drive'a sorulmaz; kayıt 30 sn kuralı); çıkışta temizlenir.
+- 6.4e-1 düzeltmeleri: yedek yazı %15 / ağırlık 400; `·` dolu nokta.
+- CLAUDE.md: Faz 6.4e bölümü + pdf-lib kural eki (Deniz onayı).
+- Kontroller: typecheck, build (dist'te `defterTemizSahte` yok), 131 dosyada 1530/1530 test. Ekran görüntüleri: `scripts/temiz-yazi-okuyucu-kontrol.mjs` → `Claude outputs\temiz-yazi-6.4e\okuyucu\` (3 boyut × kitap/PDF; çubuk her yerde tek satır).
+- Açılış → temiz yazı süresi gerçek Drive'da ölçülmedi (Drive yok); `?olcum=1` kutusunda `temiz yazı:` satırında görünür.
+
+**Son güncelleyen (6.4e-2):** Claude Code, 25 Ekim 2026 · commit yok, Deniz'in denemesi bekleniyor.
+
+---
+
 ## 6.4c-4 — Kilit kalktı, el yazısı okuma canlıya hazır (25 Ekim 2026, Claude Code)
 
 - `?ocrKayit=1` kilidi kalktı (`src/ocr/kilit.ts` + testi silindi; `__VERCEL_ENV__` define'ı da). Deniz kararı aynen: okuma sadece kullanıcı isteyince.

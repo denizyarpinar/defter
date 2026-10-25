@@ -26,6 +26,9 @@ export interface OcrKaynakBagimlilik {
   simdi?(): number;
 }
 
+// Task 6.4e-2: the clean view's matches (index in the list → …)
+export interface Eslesmeler { sayfalar: Map<number, OcrSayfa>; izler: Map<number, string> }
+
 // A read page → its texts in search form (as written; corrected only when it differs)
 export function sayfaMetinleri(s: Pick<OcrSayfa, 'satirlar'>): string[] {
   return [...new Set([hamMetin(s), duzeltilmisMetin(s)].map(elYazisiHazirla))];
@@ -66,6 +69,40 @@ export class OkuyucuOcrKaynak {
     }));
     if (dosyalar.size && hatalar.length === dosyalar.size) throw hatalar[0];
     return { sayfalar: sayfalar.sort((a, b) => a.sayfa - b.sayfa) };
+  }
+
+  // Task 6.4e-2: the read pages of the open list for the clean view: page index → its record's entry (always by
+  // fingerprint, eslestir; never by page number) and page index → fingerprint (the counter's photo pages).
+  // The records first: no file of the list has a record with pages → no fingerprints at all (pdf-lib is not
+  // loaded). A file that fails is skipped (warned); this never throws.
+  async eslesmeler(pages: readonly BookPage[]): Promise<Eslesmeler> {
+    const out: Eslesmeler = { sayfalar: new Map(), izler: new Map() };
+    const dosyalar = new Map<string, { mt: string; ad: string; indeksler: number[] }>();
+    pages.forEach((p, i) => {
+      if (!p.dosyaId || !p.modifiedTime || !p.pdfSayfa || isSampleId(p.dosyaId)) return;
+      const f = dosyalar.get(p.dosyaId);
+      if (f) f.indeksler.push(i); else dosyalar.set(p.dosyaId, { mt: p.modifiedTime, ad: p.ad ?? '', indeksler: [i] });
+    });
+    const uyar = (f: { ad: string }, id: string, e: unknown) =>
+      console.warn(`El yazısı kaydı okunamadı (${f.ad || id}); temiz yazı bu dosyada gösterilmez.`, e);
+    const kayitlar = new Map<string, OcrKayit>();
+    await Promise.all([...dosyalar].map(async ([id, f]) => {
+      try { const k = await this.kayit(id, f.ad); if (k?.sayfalar.length) kayitlar.set(id, k); } catch (e) { uyar(f, id, e); }
+    }));
+    if (!kayitlar.size) return out;
+    // fingerprints of every file of the list (also those without a record: their photo pages count as not read)
+    await Promise.all([...dosyalar].map(async ([id, f]) => {
+      let izler: string[];
+      try { izler = await this.izler(id, f.mt); } catch (e) { uyar(f, id, e); return; }
+      const k = kayitlar.get(id);
+      const eslesme = k ? eslestir(k, izler).sayfalar : [];
+      for (const i of f.indeksler) {
+        const n = pages[i].pdfSayfa! - 1;
+        if (izler[n]) out.izler.set(i, izler[n]);
+        if (eslesme[n]) out.sayfalar.set(i, eslesme[n]!);
+      }
+    }));
+    return out;
   }
 
   // The file changed (pages added, a new version): its record is read again on the next search
@@ -109,7 +146,14 @@ function bellekte<T>(m: Map<string, Promise<T>>, k: string, yap: () => Promise<T
 }
 
 // The real one: the PDF from the cache (already open in the reader), Drive reads only (GET)
-export function driveOcrKaynak(yer: () => DriveLocation | null): { ara(pages: BookPage[], metinsiz: number[]): Promise<ElYazisiSonucu | null>; unut(id: string): void; temizle(): void } {
+export interface DriveOcrKaynak {
+  ara(pages: BookPage[], metinsiz: number[]): Promise<ElYazisiSonucu | null>;
+  eslesmeler(pages: readonly BookPage[]): Promise<Eslesmeler>;
+  unut(id: string): void;
+  temizle(): void;
+}
+
+export function driveOcrKaynak(yer: () => DriveLocation | null): DriveOcrKaynak {
   const k = new OkuyucuOcrKaynak({
     izler: async (id, mt) => sayfaParmakIzleri(new Uint8Array(await getPdf(id, mt))),
     async klasor(id) {
@@ -126,6 +170,7 @@ export function driveOcrKaynak(yer: () => DriveLocation | null): { ara(pages: Bo
   });
   return {
     ara: (pages, metinsiz) => yer() ? k.ara(pages, metinsiz) : Promise.resolve(null),
+    eslesmeler: pages => yer() ? k.eslesmeler(pages) : Promise.resolve({ sayfalar: new Map(), izler: new Map() }),
     unut: id => k.unut(id),
     temizle: () => k.temizle(),
   };

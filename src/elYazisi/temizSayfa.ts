@@ -7,15 +7,17 @@ import { dizgi, type Dizgi, type Kagit } from './dizgi';
 // Task 6.4e-1: a typeset page (dizgi.ts) → a canvas, at any pixel size (zoom: call again with a bigger size).
 // Paper in the atlas's paper colour; kareli/cizgili lines one device pixel wide, only a little darker than the
 // paper so they never compete with the ink. Glyphs: tukenmez source-over, yumusak multiply (basici.ts).
-// Fallback runs in the system font: light weight, its x height measured to equal the atlas xh, in the colour's
+// Fallback runs in the system font: normal weight, its x height measured to equal the atlas xh, in the colour's
 // tukenmez tone a little toward the paper (so it does not stand out darker than the ink); drawings and the
 // "devamı" note grey italic. A run is one fillText with the font's own spacing.
+// 6.4e-2: weight 300 → 400, fallback 30 % → 15 % toward the paper; the "·" dot filled in the tukenmez tone;
+// `bolge` draws only a part of the page into the canvas (the reader's sharp zoom canvas, like drawPdf's rect).
 
 const AILE = 'system-ui, -apple-system, "Segoe UI", sans-serif';
-const AGIRLIK = 300;               // light
+const AGIRLIK = 400;               // normal
 const OLCU_PX = 100;               // font size the x height is measured at
 const CIZGI_KOYULUK = 16;          // grid / rule: paper minus this (per channel)
-const YEDEK_ACIK = 0.3;            // fallback colour: tone + 30 % of the way to the paper
+const YEDEK_ACIK = 0.15;           // fallback colour: tone + 15 % of the way to the paper
 const NOT_RENGI = '#8a8a8a';
 
 const tip = (px: number, italik: boolean) => `${italik ? 'italic ' : ''}${AGIRLIK} ${px.toFixed(2)}px ${AILE}`;
@@ -61,17 +63,22 @@ export interface TemizCizimAyar {
   atlas: ElYazisiAtlas;
   stil: Stil;
   bellek: GlifBellegi;
+  bolge?: { x: number; y: number; w: number };   // 0–1 fractions of the page: only that part, filling the canvas
 }
 
 export function temizSayfaCiz(canvas: HTMLCanvasElement, d: Dizgi, o: TemizCizimAyar): void {
   canvas.width = Math.round(o.genislik);
   canvas.height = Math.round(o.yukseklik);
   const ctx = canvas.getContext('2d')!;
-  const s = canvas.width / d.en;
+  const b = o.bolge ?? { x: 0, y: 0, w: 1 };
+  const s = canvas.width / (b.w * d.en);
   const kagit = kagitRengi(o.atlas);
   ctx.globalCompositeOperation = 'source-over';
   ctx.fillStyle = rgb(kagit);
   ctx.fillRect(0, 0, canvas.width, canvas.height);
+  // a part of the page: shifted by whole pixels, so the paper lines stay on the pixel grid
+  ctx.translate(-Math.round(b.x * d.en * s), -Math.round(b.y * d.boy * s));
+  const W = Math.ceil(d.en * s), H = Math.ceil(d.boy * s);
 
   // paper lines: 1 device px, snapped to the pixel grid
   if (d.kagit !== 'duz') {
@@ -79,11 +86,11 @@ export function temizSayfaCiz(canvas: HTMLCanvasElement, d: Dizgi, o: TemizCizim
     ctx.lineWidth = 1;
     ctx.beginPath();
     const adim = d.kagit === 'kareli' ? d.kare : d.satirAraligi;
-    const yatay = (y: number) => { const p = Math.round(y * s) + 0.5; ctx.moveTo(0, p); ctx.lineTo(canvas.width, p); };
+    const yatay = (y: number) => { const p = Math.round(y * s) + 0.5; ctx.moveTo(0, p); ctx.lineTo(W, p); };
     for (let y = d.ilkTaban - Math.floor(d.ilkTaban / adim) * adim; y <= d.boy; y += adim) yatay(y);
     if (d.kagit === 'kareli') {
       for (let x = d.kenar - Math.floor(d.kenar / adim) * adim; x <= d.en; x += adim) {
-        const p = Math.round(x * s) + 0.5; ctx.moveTo(p, 0); ctx.lineTo(p, canvas.height);
+        const p = Math.round(x * s) + 0.5; ctx.moveTo(p, 0); ctx.lineTo(p, H);
       }
     }
     ctx.stroke();
@@ -100,6 +107,11 @@ export function temizSayfaCiz(canvas: HTMLCanvasElement, d: Dizgi, o: TemizCizim
       continue;
     }
     ctx.globalCompositeOperation = 'source-over';
+    if (e.tur === 'nokta') {
+      ctx.fillStyle = rgb(tonlar[e.renk] ?? tonlar.siyah ?? [25, 25, 30]);
+      ctx.beginPath(); ctx.arc(e.x * s, e.y * s, e.r * s, 0, 2 * Math.PI); ctx.fill();
+      continue;
+    }
     const italik = e.tur !== 'yedek';
     ctx.font = yedekFont(e.xh * s, italik);
     if (e.tur === 'yedek') {
@@ -110,6 +122,7 @@ export function temizSayfaCiz(canvas: HTMLCanvasElement, d: Dizgi, o: TemizCizim
     ctx.fillText(e.metin, e.x * s, e.taban * s);
   }
   ctx.globalCompositeOperation = 'source-over';
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
 }
 
 // ---- atlas + page in one step (the dev page and the Playwright check use this; 6.4e's reader will too) ----

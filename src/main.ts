@@ -25,7 +25,7 @@ import type { Book, ModeKey } from './model/types';
 import { usesUnits } from './model/units';
 import { markOpened, setReadingSink } from './okuma/okumaDurumu';
 import { sampleBookFolder, sampleFolders } from './okuma/ornekKaynak';
-import { bekleyenKalemIdleri, closeOkuyucu, forgetBook, fotoYuklemeSuruyor, initOkuyucu, isOkuyucuOpen, okuyucuAra, openOkuyucu, openOkuyucuDuzenle, sayfaEklemeOrtami, setDosyaCop, setIcindekilerBaglami, setKlasorAcma } from './okuma/Okuyucu';
+import { bekleyenKalemIdleri, closeOkuyucu, forgetBook, fotoYuklemeSuruyor, initOkuyucu, isOkuyucuOpen, okuyucuAra, okuyucuOturumKapandi, openOkuyucu, openOkuyucuDuzenle, sayfaEklemeOrtami, setDosyaCop, setIcindekilerBaglami, setKlasorAcma } from './okuma/Okuyucu';
 import { createRoomScene, type LibraryData, type RoomScene, type View } from './scene';
 import { canvas, drawWood, noise } from './scene/textures';
 import { updateHint } from './ui/hint';
@@ -524,6 +524,7 @@ initUserBox({
   onSignOut: async () => {
     await reading?.flush();   // while the token is still there
     signOut(); rememberUser(null); setAccountHint(undefined); setRememberedName(null);
+    okuyucuOturumKapandi();   // task 6.4e-2: handwriting records and the atlas belong to this account
     ownerName = null;
     updateUserBox({ kind: 'none' });
     // don't leave the Drive library on screen: empty shelves under the card

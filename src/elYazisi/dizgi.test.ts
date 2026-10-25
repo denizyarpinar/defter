@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { OcrSatir } from '../ocr/kayit/sema';
-import { DEVAMI, GIRINTI, KARE, KENAR_ORAN, MIN_OLCEK, SATIR_ARALIGI, VARSAYILAN_KAGIT, XH_BOLEN, dizgi, latexDuz, oynamaDegeri, type DizgiAyar, type DizgiOge } from './dizgi';
+import { DEVAMI, GIRINTI, NOKTA_R, KARE, KENAR_ORAN, MIN_OLCEK, SATIR_ARALIGI, VARSAYILAN_KAGIT, XH_BOLEN, dizgi, latexDuz, oynamaDegeri, type DizgiAyar, type DizgiOge } from './dizgi';
 
 const ornek = (w = 20) => ({ x: 0, y: 0, w, h: 30, taban: 25 });
 const karakterler: DizgiAyar['atlas']['karakterler'] = Object.fromEntries([...'bcdefghijklmnoprstuvwxyzK→'].map(k => [k, [ornek()]]));
@@ -69,7 +69,7 @@ describe('dizgi', () => {
     expect(cok.kesildi).toBe(true);
     const son = cok.ogeler[cok.ogeler.length - 1];
     expect(son).toMatchObject({ tur: 'not', metin: DEVAMI });
-    expect(son.tur !== 'glif' && son.taban).toBeLessThanOrEqual(1270 - cok.kenar);
+    expect(son.tur === 'not' && son.taban).toBeLessThanOrEqual(1270 - cok.kenar);
   });
 
   it('üstü çizili parça atlanır, düzeltme kullanılır, diger → siyah', () => {
@@ -112,7 +112,7 @@ describe('dizgi', () => {
   it('çizim satırı: gri italik not, eksik sayılmaz', () => {
     const d = dizgi(sayfa({ girinti: 1, cizim: 'üç düğümlü graf' }), ayar());
     const c = d.ogeler.filter(o => o.tur === 'cizim');
-    expect(c.map(o => o.tur !== 'glif' && o.metin)).toEqual(['[çizim: üç düğümlü graf]']);   // one text, the font's spaces
+    expect(c.map(o => o.tur === 'cizim' && o.metin)).toEqual(['[çizim: üç düğümlü graf]']);   // one text, the font's spaces
     expect(d.ogeler.some(o => o.tur === 'glif')).toBe(false);
     expect(d.eksik).toEqual([]);
   });
@@ -163,5 +163,28 @@ describe('latexDuz', () => {
     expect(ok.karakter).toBe('→');
     expect(ok.y).toBeLessThan(a.y);
     expect(b.x - (a.x + 18 * a.olcek)).toBeCloseTo(0.1 * d.xh);
+  });
+});
+
+describe('nokta (6.4e-2)', () => {
+  it('atlasta olmayan "·" (\\cdot) mürekkep renginde nokta: x-yüksekliğinin ortasında, yarıçap 0.1·xh, eksik değil', () => {
+    const d = dizgi(sayfa(satir('a \\cdot b',{ tur: 'formul' })), ayar({ oynama: false }));
+    const n = d.ogeler.filter((o): o is Extract<DizgiOge, { tur: 'nokta' }> => o.tur === 'nokta');
+    expect(n).toHaveLength(1);
+    expect(n[0].renk).toBe('mavi');
+    expect(n[0].r).toBeCloseTo(NOKTA_R * d.xh);
+    expect(n[0].y).toBeCloseTo(d.ilkTaban - d.xh / 2);
+    expect(d.eksik).toEqual([]);
+    expect(d.ogeler.some(o => o.tur === 'yedek')).toBe(false);
+    const [a, b] = glifler(d.ogeler);
+    expect(n[0].x).toBeGreaterThan(a.x + 18 * a.olcek);
+    expect(n[0].x).toBeLessThan(b.x);
+  });
+  it('metindeki "·" de nokta; atlasta "·" varsa glif', () => {
+    expect(dizgi(sayfa(satir('a·b')), ayar()).ogeler.some(o => o.tur === 'nokta')).toBe(true);
+    const ile = { ...atlas, karakterler: { ...karakterler, '·': [ornek(8)] } };
+    const d = dizgi(sayfa(satir('a·b')), ayar({ atlas: ile }));
+    expect(d.ogeler.some(o => o.tur === 'nokta')).toBe(false);
+    expect(glifler(d.ogeler).map(g => g.karakter)).toEqual(['a', '·', 'b']);
   });
 });

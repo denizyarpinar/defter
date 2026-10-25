@@ -18,6 +18,7 @@ import { MAX_BAYT, MAX_KENAR, PdfSayfaGorselleri } from './sayfaGorseli';
 // 1–5 pages of the open PDF: a page with PDF text is skipped, a page in the record shows "okundu",
 // "Tekrar oku" reads it again. Each page is read by Claude (api/oku) and written to <pdf>.ocr.json the moment
 // it is read. The page image: the embedded JPEG of a photo page, otherwise pdf.js (sayfaGorseli.ts).
+// 6.4e-2: after each saved page `okundu(file)` (the reader's clean view looks again, without reopening).
 
 export interface ReaderSnapshot {
   file: string; version: string; content: PageContent;
@@ -47,7 +48,7 @@ async function cizJpeg(content: PageContent, page: BookPage): Promise<Uint8Array
 export interface OkumaPaneli { ac(): void; kapat(): void }
 let kurulu: OkumaPaneli | null = null;
 
-export function installReaderOcr(snapshot: () => ReaderSnapshot | null): OkumaPaneli {
+export function installReaderOcr(snapshot: () => ReaderSnapshot | null, o: { okundu?(file: string): void } = {}): OkumaPaneli {
   if (kurulu) return kurulu;
   const host = document.createElement('div'); host.id = 'reader-ocr-search'; host.hidden = true;
   host.setAttribute('role', 'dialog'); host.setAttribute('aria-label', 'El yazısını oku');
@@ -176,7 +177,7 @@ export function installReaderOcr(snapshot: () => ReaderSnapshot | null): OkumaPa
         const o = await okuApi(g.jpeg, { token: currentToken(), signal });
         return { sayfa: p.number, parmakIzi: g.parmakIzi, model: o.model, okunma: new Date().toISOString(), dondurme: 0, satirlar: o.satirlar } satisfies OcrSayfa;
       },
-      save: async (_p, reading) => { await sayfaYaz(drive, kaynak, reading); },
+      save: async (_p, reading) => { await sayfaYaz(drive, kaynak, reading); o.okundu?.(kaynak.id); },
       progress: (d, t, p) => status(`Okunuyor ${d}/${t} (s.${p.number})…`)
     });
     const count = await search.prepare(selected);

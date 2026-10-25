@@ -6,6 +6,7 @@ import { kalemOlcer, kalemOlcumJson, ozet, toplam } from '../kalem/kalemOlcum';
 import { alanDurumu } from './gorunurAlan';
 import { copIzi } from './copAkisi';
 import { icindekilerIzi } from './icindekilerBaglami';
+import { temizIzi } from '../okuma/temizIz';
 
 // Task 5.10g-ek: ?olcum=1 — a small box in the corner with the numbers of the page's position
 // (iPad Safari: the screen stayed moved up after the keyboard / photo picker). Only for diagnosis.
@@ -17,6 +18,7 @@ import { icindekilerIzi } from './icindekilerBaglami';
 // Task 6.H2: the last pen stroke in one line; a third box (bottom right) with the last stroke, the last 50
 // together, Kopyala (all 50 as JSON, raw events included) and Sıfırla.
 // Task 6.K5a-2: the contents' write queue: listeners, waiting changes, the last events.
+// Task 6.4e-2: the clean view: the time from the list on screen to clean handwriting.
 
 const n = (x: number | undefined | null) => x == null ? '–' : String(Math.round(x * 10) / 10);
 
@@ -53,6 +55,7 @@ export function installOlcum(): void {
       `yarım kitap: ${yarimSatiri()}`,
       `içindekiler: ${icindekilerIzi()}`,
       `çöp: ${copIzi()}`,
+      `temiz yazı: ${temizIzi()}`,
       vv ? `vv offsetTop ${n(vv.offsetTop)} · pageTop ${n(vv.pageTop)} · scrollY ${n(scrollY)}` : `vv yok · scrollY ${n(scrollY)}`,
       `olay: ${olay} (#${sayac})`,
       `html.scrollTop ${n(de.scrollTop)} · body.scrollTop ${n(document.body.scrollTop)}`,

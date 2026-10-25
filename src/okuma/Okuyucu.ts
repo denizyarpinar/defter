@@ -62,6 +62,14 @@ import { MetinOnbellek } from './metinOnbellek';
 import type { Dikdortgen } from './metinAra';
 import { OkuyucuArama } from './okuyucuArama';
 import { OkumaIzni, okumaGorunur } from '../ocr/okumaIzni';
+import type { DriveOcrKaynak } from '../ocr/okuyucuOcrKaynak';
+import { tercihOku, tercihYaz } from '../elYazisi/temizGorunum';
+import type { Stil } from '../elYazisi/basici';
+import type { TemizYazici } from '../elYazisi/temizSayfa';
+import { TemizDugme } from '../ui/temizDugme';
+import { temizIzYaz } from './temizIz';
+import type { TemizBildirim, TemizYaziOkuyucu } from './temizYaziOkuyucu';
+import type { TemizSahte } from './temizSahte';
 import { currentToken } from '../drive/auth';
 import { PageContent, pageKind } from './sayfaIcerik';
 import { PAD_TOP, canvasSize, currentPage, layoutPages, visibleRange, type Layout } from './sanalListe';
@@ -96,6 +104,7 @@ interface Mounted {
   vp?: PenViewport;
   layer?(): void;
   ara?(): void;   // task 6.3c: the search highlight drawn again
+  yenile?(stil?: boolean): void;   // task 6.4e-2: clean ↔ original changed for this page (stil: the style changed)
 }
 
 interface Prepared { pages: BookPage[]; ratios: number[] }
@@ -139,7 +148,26 @@ let content: PageContent | null = null;
 let metin: MetinOnbellek | null = null;   // task 6.3b: the pages' text, read on the first search
 let arama: OkuyucuArama;                  // task 6.3c: the search bar
 // task 6.4c-3: the read handwriting for the search (6.4c-4: for everyone in a Drive library; loaded on the first search)
-let ocrKaynak: Promise<ReturnType<typeof import('../ocr/okuyucuOcrKaynak').driveOcrKaynak>> | null = null;
+// 6.4e-2: also the clean view's matches, loaded when a topic opens; its memory stays when the reader closes
+// (fingerprints per version, the record KAYIT_OMRU_MS), it goes only on sign-out (okuyucuOturumKapandi)
+let ocrKaynak: Promise<DriveOcrKaynak> | null = null;
+function ocrKaynakAl(): Promise<DriveOcrKaynak> {
+  if (!ocrKaynak) {
+    ocrKaynak = import('../ocr/okuyucuOcrKaynak').then(m => m.driveOcrKaynak(driveLocation));
+    ocrKaynak.catch(e => { ocrKaynak = null; console.warn('El yazısı kayıtları yüklenemedi.', e); });
+  }
+  return ocrKaynak;
+}
+// Task 6.4e-2: clean handwriting in front of the read photo pages (temizYaziOkuyucu.ts, loaded lazily in a Drive
+// library); the button and its style popover (ui/temizDugme.ts); the choice per device (temizGorunum.ts)
+let temiz: TemizYaziOkuyucu<TemizYazici> | null = null;
+let temizYukleme: Promise<TemizYaziOkuyucu<TemizYazici> | null> | null = null;
+let temizSahte: TemizSahte | null = null;   // dev only (temizSahte.ts)
+let temizTercih = tercihOku(() => localStorage);
+let temizDugme: TemizDugme;
+let temizT0 = 0;            // the list came on screen (performance.now); 0: measured / nothing to measure
+let temizEslesmeMs = 0;
+let temizOkunduZaman = 0;
 // task 6.4c-4: may this account read handwriting (api/oku status, per token)? The reading buttons only then.
 const okumaIzni = new OkumaIzni({ token: currentToken });
 let okumaPaneli: Promise<import('../ocr/okuyucuPanel').OkumaPaneli> | null = null;
@@ -286,6 +314,12 @@ export function initOkuyucu(yer: () => DriveLocation | null): void {
     }));
     // task 6.3b: window.defterMetinAra(q) searches the pages of the open reader
     void import('./metinAraDene').then(m => m.installMetinAra(() => open && metin && pages.length ? { pages, metin } : null));
+    // task 6.4e-2: window.defterTemizSahte({...}) shows the clean view without Drive (screenshots)
+    void import('./temizSahte').then(m => m.installTemizSahte(s => {
+      temizSahte = s; temiz = null; temizYukleme = null;
+      if (!s) { temizDugmesi(); temizYenile(); }
+      temizDegerlendir();
+    }));
   }
   // task 6.4c-4: "El yazısını oku" opens the handwriting panel (lazy; the button only with okumaIzni)
   $('#oOku').addEventListener('click', () => {
@@ -295,7 +329,7 @@ export function initOkuyucu(yer: () => DriveLocation | null): void {
       return { file: p.dosyaId, version: p.modifiedTime, content, yer: loc, focus: focusPage(),
         pages: pages.map((page, index) => ({ page: { ...page }, index })).filter(x => x.page.dosyaId === p.dosyaId),
         go: (index: number) => goToMatch(index, null) };
-    }));
+    }, { okundu: temizOkundu }));
     okumaPaneli.then(p => p.ac(), e => { okumaPaneli = null; console.warn('El yazısı paneli yüklenemedi.', e); toast('El yazısı paneli açılamadı. Bağlantını kontrol edip tekrar dene.'); });
   });
   $('#oClose').addEventListener('click', closeOkuyucu);
@@ -309,11 +343,7 @@ export function initOkuyucu(yer: () => DriveLocation | null): void {
     // task 6.4c-3/4: the read handwriting too (Drive library only; the module on the first search)
     elYazisi: (p: BookPage[], metinsiz: number[]) => {
       if (isSampleId(folder) || !driveLocation()) return Promise.resolve(null);
-      if (!ocrKaynak) {
-        ocrKaynak = import('../ocr/okuyucuOcrKaynak').then(m => m.driveOcrKaynak(driveLocation));
-        ocrKaynak.catch(e => { ocrKaynak = null; console.warn('El yazısı araması yüklenemedi.', e); });
-      }
-      return ocrKaynak.then(k => k.ara(p, metinsiz), () => null);
+      return ocrKaynakAl().then(k => k.ara(p, metinsiz), () => null);
     },
     okumaVar: () => okumaIzni.simdi(),
   });
@@ -339,7 +369,7 @@ export function initOkuyucu(yer: () => DriveLocation | null): void {
     if (!open || document.getElementById('fotoPanel') || document.getElementById('dosyaPanel') || document.getElementById('copOnay')) return;
     // task 6.3c: Ctrl/Cmd+F opens our search box (not the browser's)
     if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'f') { e.preventDefault(); e.stopPropagation(); if (!konusuz && !bosDurum) arama.ac(); return; }
-    if (e.key === 'Escape') { e.stopPropagation(); if (toolbar?.closePopover()) return; if (tocOpen) closeToc(); else if (arama.acik) arama.kapat(); else closeOkuyucu(); return; }
+    if (e.key === 'Escape') { e.stopPropagation(); if (toolbar?.closePopover() || temizDugme?.balonKapat()) return; if (tocOpen) closeToc(); else if (arama.acik) arama.kapat(); else closeOkuyucu(); return; }
     // pen mode: Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z and Ctrl+Y redo (not while typing somewhere)
     if (penOn && (e.ctrlKey || e.metaKey) && !e.altKey && !typing(e.target)) {
       const k = e.key.toLowerCase();
@@ -448,6 +478,11 @@ export function initOkuyucu(yer: () => DriveLocation | null): void {
     toolChanged: () => { pen.hideCursor(); showTool(); },
   });
   $('#oPenBtn').addEventListener('click', () => setPen(!penOn));
+  // task 6.4e-2: Temiz yazı ↔ Orijinal, and its style
+  temizDugme = new TemizDugme($('#oBar'), {
+    degistir: () => temizTercihDegisti({ ...temizTercih, acik: !temizTercih.acik }),
+    stil: (st: Stil) => temizTercihDegisti({ ...temizTercih, stil: st }),
+  });
   pen = new PenInput([scroller, area], {
     pageAtPoint: (x, y) => {
       for (const [i, m] of mounted) {
@@ -1014,6 +1049,95 @@ function okuDugmesi(): void {
   if (t && drive && !okumaIzni.simdi()) void okumaIzni.acik().then(a => { if (a && open && topic === t) goster(); });
 }
 
+// ---- task 6.4e-2: clean handwriting (temizYaziOkuyucu.ts) ----
+
+const temizDrive = () => !!temizSahte || (!isSampleId(folder) && !!driveLocation());
+
+function temizAl(): Promise<TemizYaziOkuyucu<TemizYazici> | null> {
+  temizYukleme ??= import('./temizYaziBagla').then(m => {
+    const s = temizSahte;
+    const t = m.temizYaziKur({
+      kaynak: ocrKaynakAl,
+      boyut: p => { if (!content) throw new Error('Okuyucu kapalı.'); return content.viewport(p); },
+      tercih: temizTercih,
+      degisti: temizGeldi,
+      ...(s ? { eslesmeler: s.eslesmeler, yazici: s.yazici } : {}),
+    });
+    t.kalem = penOn;
+    temiz = t;
+    return t;
+  }, e => { temizYukleme = null; console.warn('Temiz yazı yüklenemedi; sayfalar orijinal gösteriliyor.', e); return null; });
+  return temizYukleme;
+}
+
+// The list on screen (a topic, a material, pages added) or a page read: its read pages are looked up behind the
+// drawing (the pages are drawn as always; the answer redraws only the pages that change, temizGeldi)
+function temizDegerlendir(): void {
+  if (!open || !topic || !pages.length || !temizDrive()) { temizDugmesi(); return; }
+  temizT0 = performance.now();
+  const list = pages;
+  void temizAl().then(t => t?.degerlendir(list));
+}
+
+function temizGeldi(b: TemizBildirim): void {
+  if (!open) return;
+  temizEslesmeMs = b.sure;
+  if (!b.eslesen || !temiz?.etkin) temizT0 = 0;
+  temizDugmesi();
+  temizYenile();
+}
+
+function temizYenile(stil = false): void {
+  if (!open) return;
+  for (const m of mounted.values()) m.yenile?.(stil);
+}
+
+function temizDugmesi(): void {
+  if (!temizDugme) return;
+  const t = temiz;
+  temizDugme.goster({
+    gorunur: open && !!topic && !!t && t.gorunur(temizDrive()),
+    basili: !!t?.etkin, gri: penOn, sayac: t?.sayac() ?? { okunmus: 0, fotograf: 0 }, stil: temizTercih.stil,
+  });
+}
+
+function temizTercihDegisti(t: typeof temizTercih): void {
+  const stil = t.stil !== temizTercih.stil;
+  temizTercih = t;
+  tercihYaz(() => localStorage, t);   // not saved (private window): it still holds for this page
+  temizT0 = 0;
+  if (temiz) temiz.tercih = { ...t };
+  temizDugmesi();
+  temizYenile(stil);
+}
+
+// "El yazısını oku" saved a page, "Temiz yazıya çevir" ended: the file's record is read again and the open list
+// looked at again (300 ms together), so the page turns clean without reopening
+function temizOkundu(fileId: string): void {
+  void ocrKaynak?.then(k => k.unut(fileId), () => {});
+  clearTimeout(temizOkunduZaman);
+  temizOkunduZaman = window.setTimeout(() => { if (open && pages.some(p => p.dosyaId === fileId)) temizDegerlendir(); }, 300);
+}
+
+// The first clean page on screen after the list came: the time (?olcum=1 box, console in dev / ?olcum=1)
+function temizOlc(): void {
+  if (!temizT0 || !temiz) return;
+  const ms = Math.round(performance.now() - temizT0), s = temiz.sayac();
+  temizT0 = 0;
+  const iz = `açılış → temiz ${ms} ms · eşleşme ${temizEslesmeMs} ms · ${s.okunmus}/${s.fotograf}`;
+  temizIzYaz(iz);
+  if (import.meta.env.DEV || olcumAcik()) console.info(`[temiz yazı] ${iz}`);
+}
+
+// Sign-out (main.ts): the records, fingerprints and the atlas are asked again for the next account
+export function okuyucuOturumKapandi(): void {
+  const k = ocrKaynak;
+  ocrKaynak = null;
+  void k?.then(x => x.temizle(), () => {});
+  temiz?.oturumDegisti();
+  if (temizYukleme) void import('./temizYaziBagla').then(m => m.atlasBellekTemizle());
+}
+
 function renderBar(): void {
   const bar = $('#oBar');
   bar.hidden = !topic;
@@ -1037,6 +1161,7 @@ function renderBar(): void {
   }));
   showSelectedTab();
   okuDugmesi();
+  temizDugmesi();   // task 6.4e-2
   $('#oCop').hidden = !copDugmesiGorunur({
     kilitAcik: !!dosyaCop?.acik(), drive: !isSampleId(folder) && !!driveLocation(),
     surum2: !!book && usesUnits(book) && book.hasJson && book.surum >= 2, materyal: t.kind !== null, kalem: penOn
@@ -1230,7 +1355,9 @@ const photoAdder = new FotoEkleyici({
   // 6.4c-4: only while api/oku says acik)
   bitti: (k, r) => {
     if (!k.jpegler.some(j => j.temizYazi)) return;
-    return okumaIzni.acik().then(a => a ? import('../ocr/fotoOkumaBagla').then(m => m.fotoOku(k, r, driveLocation())) : undefined);
+    // task 6.4e-2: read → the open reader shows them in clean handwriting at once
+    return okumaIzni.acik().then(a => a ? import('../ocr/fotoOkumaBagla').then(m => m.fotoOku(k, r, driveLocation()))
+      .then(x => { temizOkundu(r.fileId); return x; }) : undefined);
   },
 });
 
@@ -1375,6 +1502,7 @@ function applyGrowth(next: BookPage[], at: number, extra: number[], atEnd: boole
     bookView?.show(yeniIndeks(cur, g), book?.kapak.renk ?? '#24476b');
   }
   arama.listeDegisti(old => yeniIndeks(old, g));   // task 6.3c: the current match stays where its page went
+  temizDegerlendir();   // task 6.4e-2: the new pages (a new version of the file)
 }
 
 // A new file in the topic (a new summary, task 5.10f: any material): its folders are listed again, the tabs
@@ -1561,10 +1689,12 @@ function clearPages(): void {
 function showPages(p: BookPage[], r: number[], scrollTo: number, emptyText: string): void {
   pages = p;
   ratios = [...r];
-  if (!pages.length) { setMessage(emptyText); return; }
+  temiz?.bosalt();   // task 6.4e-2: drawn as the original until this list's read pages are known
+  if (!pages.length) { setMessage(emptyText); temizDugmesi(); return; }
   setMessage(null);
   enterMode(scrollTo);
   arama.listeDegisti();   // task 6.3c: the same query in the new list
+  temizDegerlendir();
 }
 
 export function closeOkuyucu(): void {
@@ -1590,9 +1720,14 @@ export function closeOkuyucu(): void {
   content = null;
   metin?.kapat();
   metin = null;
-  void ocrKaynak?.then(k => k.temizle(), () => {});   // task 6.4c-3
+  // task 6.4c-3 / 6.4e-2: ocrKaynak keeps its memory (the same topic opened again: no new Drive request)
   void okumaPaneli?.then(p => p.kapat(), () => {});   // task 6.4c-4
   $('#oOku').hidden = true;
+  temiz?.bosalt();   // task 6.4e-2
+  temizT0 = 0;
+  clearTimeout(temizOkunduZaman);
+  temizDugme.balonKapat();
+  $('#oTemizGrup').hidden = true;
   topic = null;
   konusuzMod(false);
   materyalsizMod(null);
@@ -1799,6 +1934,9 @@ const freeCanvas = (c: HTMLCanvasElement) => { c.width = c.height = 0; c.remove(
 // A PDF page: its canvas at 100 % (drawn in turn, nearest first) and, zoomed, a sharp "detail" canvas.
 // Task 3.7: every canvas is in the budget. An off-screen page may "sleep" (no canvas, grey box)
 // when the budget needs the room; it wakes up when it comes on screen.
+// Task 6.4e-2: a read photo page may be drawn in clean handwriting instead (temiz.ciz, the same canvas, the same
+// budget, the same sharp zoom path). yenile(): clean ↔ original changed; the canvas on screen stays until the new
+// one is drawn (no grey box in between).
 function mountPdf(i: number, p: BookPage, box: HTMLElement, cssW: number, cssH: number): void {
   const key = `ana${i}`, dKey = `detay${i}`, pKey = `detay${i}+`;
   let canvas: HTMLCanvasElement | null = null;
@@ -1806,6 +1944,9 @@ function mountPdf(i: number, p: BookPage, box: HTMLElement, cssW: number, cssH: 
   let gone = false;
   // zoomed: a second canvas over the page with only the visible part, drawn at the zoomed size
   let shown: Detail | null = null, pending: Detail | null = null;
+  let cizilenTemiz = false;                     // task 6.4e-2: the canvas on screen is the clean page
+  let eski: HTMLCanvasElement | null = null;    // … the one before it, until the new one is drawn
+  const eskiBirak = () => { if (eski) { freeCanvas(eski); eski = null; } };
   const dropPending = () => { if (pending) { pending.job?.cancel(); freeCanvas(pending.canvas); pending = null; budget.delete(pKey); } };
   const dropDetail = () => { dropPending(); if (shown) { freeCanvas(shown.canvas); shown = null; budget.delete(dKey); } };
   // no canvas, but still mounted (the budget took the room; wake() draws it again)
@@ -1815,6 +1956,7 @@ function mountPdf(i: number, p: BookPage, box: HTMLElement, cssW: number, cssH: 
     queue.delete(i);
     if (canvas) freeCanvas(canvas);   // Safari frees the canvas memory only like this
     canvas = null;
+    eskiBirak();
     budget.delete(key);
     box.classList.remove('ready');
   };
@@ -1839,12 +1981,17 @@ function mountPdf(i: number, p: BookPage, box: HTMLElement, cssW: number, cssH: 
     budget.set(key, { page: i, kind: 'ana', px: w * h, visible }, sleep);
     queue.set(i, async () => {
       if (!content || canvas !== c) return;
-      const d = renders.start(i, content.drawPdf(p, c));
+      const t = temiz?.ciz(pages, i, p, c) ?? null;   // task 6.4e-2
+      const d = renders.start(i, t ?? content.drawPdf(p, c));
       job = d;
       try {
         await d.promise;
         if (mine() && canvas === c && !d.cancelled()) {
+          eskiBirak();
           box.prepend(c); box.classList.add('ready');
+          cizilenTemiz = !!t;
+          box.classList.toggle('o-temizsayfa', !!t);
+          if (t) temizOlc();
           if (zoom.zoomed) zoom.settleLater();   // drawn while zoomed: make it sharp too
         }
       } catch (e) {
@@ -1861,6 +2008,22 @@ function mountPdf(i: number, p: BookPage, box: HTMLElement, cssW: number, cssH: 
     });
   };
   const wake = () => { if (mine() && !canvas) draw(); };
+  // task 6.4e-2: the clean view changed (the button, the pen, a read page, the style for a clean page)
+  const yenile = (stil = false) => {
+    if (!mine()) return;
+    const ister = !!temiz?.sayfa(pages, i);
+    if (ister === cizilenTemiz && !(stil && ister)) return;
+    if (!canvas) return;   // asleep or not drawn yet: wake() / the queue draws the right one
+    dropDetail();
+    job?.cancel(); job = null;
+    queue.delete(i);
+    budget.delete(key);
+    if (canvas.parentElement === box) { eskiBirak(); eski = canvas; } else freeCanvas(canvas);   // on screen: stays until the new one
+    canvas = null;
+    draw();
+    if (!canvas) { eskiBirak(); box.classList.remove('ready'); }   // no room (off screen): grey until visible
+    void drain();
+  };
 
   // pixels the sharp part would like (for sharing the budget between the visible pages)
   const detailWant = (view: DOMRect) => {
@@ -1885,7 +2048,7 @@ function mountPdf(i: number, p: BookPage, box: HTMLElement, cssW: number, cssH: 
     c.className = 'o-detail';
     c.width = r.pw; c.height = r.ph;
     Object.assign(c.style, { left: r.x * 100 + '%', top: r.y * 100 + '%', width: r.w * 100 + '%', height: r.h * 100 + '%' });
-    const d = renders.start(i, content.drawPdf(p, c, r));
+    const d = renders.start(i, temiz?.ciz(pages, i, p, c, r) ?? content.drawPdf(p, c, r));   // task 6.4e-2: clean too
     const it: Detail = { canvas: c, rect: r, pageW: b.width, job: d };
     pending = it;
     budget.set(pKey, { page: i, kind: 'detay', px: r.pw * r.ph, visible: true }, dropDetail);
@@ -1937,7 +2100,7 @@ function mountPdf(i: number, p: BookPage, box: HTMLElement, cssW: number, cssH: 
       }, failed);
     }
   };
-  const m: Mounted = { release, detail, detailWant, wake, box, pdf: p, layer, ara: araKatman.ciz };
+  const m: Mounted = { release, detail, detailWant, wake, box, pdf: p, layer, ara: araKatman.ciz, yenile };
   mounted.set(i, m);
   draw();
   layer();
@@ -2014,6 +2177,10 @@ function setPen(on: boolean): void {
   const listTop = $('#oScroll').getBoundingClientRect().top;
   penOn = on;
   pen.active = on;
+  // task 6.4e-2: the pen on → every page the original (its notes are on the photo), the button grey; off → the choice
+  if (temiz) temiz.kalem = on;
+  temizDugmesi();
+  temizYenile();
   if (!on) { pen.cancel(); pen.hideCursor(); toolbar.closePopover(); }
   if (!on && open) uploadNow();   // task 4.8b: pen off
   const el = $('#okuyucu');
