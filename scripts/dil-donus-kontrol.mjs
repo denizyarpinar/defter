@@ -4,7 +4,7 @@
 // 2. The reader on a topic, a page further on, book and PDF mode → window.defterDilSec (the reader has no button; ?olcum=1
 //    turns the hook on in the build) → the same book / topic / material / file / page.
 import { spawn } from 'node:child_process';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 import { strict as assert } from 'node:assert';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -16,7 +16,26 @@ const URL = `http://localhost:${PORT}/?demo&olcum=1&lang=tr`;
 const OUT = process.argv[2] ?? 'C:\\Users\\yarpi\\iCloudDrive\\uni_plan_claude_code\\Claude outputs\\dil-6.5-1';
 const BOOKCASE = { x: 1040, y: 330 };   // room view at 1600 × 1000 (as in screenshots.mjs)
 const PRG_BOOK = { x: 618, y: 350 };    // shelf view: "Programlamaya Giriş"
-const TOPIC = 'Değişkenler ve veri tipleri';
+const KITAP = 'programlamaya-giris';
+
+// 6.5-2a: the sample library's names follow the language (public/ornek/en.json). The page has no ids, so the names of
+// both languages are mapped to one key (the book id, "u<unit>.t<topic>") and compared by that.
+const json = (p) => JSON.parse(readFileSync(join(ROOT, p), 'utf8'));
+const trKitap = json(`public/ornek/kitaplar/${KITAP}/kitap.json`);
+const enKitap = json('public/ornek/en.json').kitaplar[KITAP];
+const KIMLIK = new Map([[trKitap.baslik, KITAP], [enKitap.baslik, KITAP]]);
+trKitap.uniteler.forEach((u, i) => u.konular.forEach((k, j) => {
+  KIMLIK.set(k.baslik, `u${i}.t${j}`);
+  KIMLIK.set(enKitap.uniteler[i].konular[j], `u${i}.t${j}`);
+}));
+const kimlik = (ad) => ad == null ? ad : KIMLIK.get(ad) ?? ad;
+// the first topic, in the page's language
+const konuAdi = (lang) => lang === 'en' ? enKitap.uniteler[0].konular[0] : trKitap.uniteler[0].konular[0].baslik;
+// the same place, in either language
+const yer = (d) => ({
+  masa: kimlik(d.masa),
+  okuyucu: d.okuyucu && { ...d.okuyucu, kitap: kimlik(d.okuyucu.kitap), konu: kimlik(d.okuyucu.konu) },
+});
 
 const wait = (ms) => new Promise(r => setTimeout(r, ms));
 
@@ -43,7 +62,7 @@ const durum = (page) => page.evaluate(() => {
     okuyucu: vis('#okuyucu') ? {
       kitap: document.querySelector('#oBook')?.textContent,
       konu: document.querySelector('#oChap')?.textContent,
-      sekme: document.querySelector('#oTabs [aria-selected="true"]')?.dataset.k ?? document.querySelector('#oTabs [aria-selected="true"]')?.textContent,
+      sekme: document.querySelector('#oTabs [aria-selected="true"]')?.dataset.kind ?? null,   // the key, not the label (it follows the language)
       dosya: document.querySelector('#oFiles:not([hidden]) #oFile')?.value ?? null,
       sayfa: document.querySelector('#oPno')?.textContent,
       mod: document.querySelector('#oMode .on, #oMode [aria-pressed="true"]')?.dataset.m ?? null,
@@ -86,11 +105,12 @@ try {
   rapor.push({ adim: `1. masadaki kitap (${yol})`, once: once1, sonra: sonra1 });
   assert.equal(sonra1.lang, 'en');
   assert.ok(!sonra1.adres.includes('lang='), '?lang adresten kalkmalı');
-  assert.equal(sonra1.masa, once1.masa);
+  assert.equal(kimlik(sonra1.masa), KITAP);
+  assert.equal(kimlik(once1.masa), KITAP);
 
   // 2. the reader: a topic, two spreads further (book mode), then the language
   for (const mod of ['kitap', 'pdf']) {
-    await page.locator('#reader [data-t]', { hasText: TOPIC }).first().click();
+    await page.locator('#reader [data-t]', { hasText: konuAdi(await page.evaluate(() => document.documentElement.lang)) }).first().click();
     await page.waitForSelector('#okuyucu:not([hidden])', { timeout: 15_000 });
     await page.waitForFunction(() => /\d+ \/ \d+/.test(document.querySelector('#oPno')?.textContent ?? ''), null, { timeout: 20_000 });
     await page.locator(`#oMode [data-m="${mod}"]`).click();
@@ -108,7 +128,8 @@ try {
     await page.screenshot({ path: join(OUT, `donus-okuyucu-${mod}-${hedef}.png`) });
     rapor.push({ adim: `2. okuyucu, ${mod} modu → ${hedef}`, once, sonra });
     assert.equal(sonra.lang, hedef);
-    assert.deepEqual(sonra.okuyucu, once.okuyucu);
+    assert.deepEqual(yer(sonra).okuyucu, yer(once).okuyucu);
+    assert.equal(yer(sonra).okuyucu.konu, 'u0.t0');
     // back to the desk for the next round
     await page.locator('#oClose').click();
     await page.waitForTimeout(1200);

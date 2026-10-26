@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { parseLibrary } from '../model/parse';
 import type { Book, Library } from '../model/types';
 import { createJson, readJson, updateJson } from './drive';
 import type { DriveLocation } from './driveLibrary';
@@ -44,5 +45,23 @@ describe('DriveSaver.coverChanged', () => {
     expect(createJson).not.toHaveBeenCalled();
     expect(updateJson).toHaveBeenCalledWith('file-b', { baslik: 'X', kapak: { renk: '#123456', not: 1, stil: 'deri' } }, 'b/kitap.json kaydedilirken');
     expect(ui.saved).toHaveBeenCalled();
+  });
+});
+
+// Task 6.5-2b: the language choice (ayarlar.dil) is not ours to write here; a shelf change keeps Drive's latest one
+describe('DriveSaver.libraryChanged', () => {
+  beforeEach(() => { vi.useFakeTimers(); vi.stubGlobal('window', globalThis); vi.clearAllMocks(); });
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
+
+  it('keeps ayarlar from the latest file (not from memory)', async () => {
+    vi.mocked(readJson).mockResolvedValue({ surum: 1, raflar: [], oda: {}, ayarlar: { dil: 'tr', baska: 1 } });
+    const loc: DriveLocation = { rootId: 'root', libraryFileId: 'lib', bookFolderIds: new Map(), bookFileIds: new Map() };
+    const library = parseLibrary({ raflar: [{ id: 'r1', ad: 'Raf 1', kitaplar: ['a'] }], ayarlar: { dil: 'en' } });
+    const ui = { saving: vi.fn(), saved: vi.fn(), failed: vi.fn(), warn: vi.fn() };
+    new DriveSaver(loc, { library, books: new Map() }, ui).libraryChanged();
+    await vi.runAllTimersAsync();
+    const yazilan = vi.mocked(updateJson).mock.calls[0][1] as Record<string, unknown>;
+    expect(yazilan.ayarlar).toEqual({ dil: 'tr', baska: 1 });
+    expect((yazilan.raflar as unknown[])[0]).toEqual({ id: 'r1', ad: 'Raf 1', kitaplar: ['a'] });
   });
 });

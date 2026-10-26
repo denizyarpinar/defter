@@ -55,7 +55,7 @@ Kitaplık/
     kitap.json             ← başlık, sırt, kod, ders, kapak, bölümler, kaynaklar
     *.pdf, defter/*.jpg    ← kaynak dosyalar
 ```
-- `kitaplik.json`: `{ surum, raflar: [{ id, ad, kitaplar: [kitapId] }], oda: { duvar, zemin, mod } }`
+- `kitaplik.json`: `{ surum, raflar: [{ id, ad, kitaplar: [kitapId] }], oda: { duvar, zemin, mod }, ayarlar?: { dil: "en"|"tr" } }` (`ayarlar` 6.5-2b, isteğe bağlı; bkz. 6.5-2b)
 - `kitap.json`: `{ surum, baslik, sirt, kod, ders, dil?, kapak: { renk, stil: "kumas"|"deri" }, sonAcilis, kurdele, bolumler: [{ baslik, durum: "okunmadi"|"okunuyor"|"okundu"|"calisildi"|"tekrar", kaynaklar: [{ tur: "pdf"|"defter"|"claude"|"link", dosya, sayfalar? }] }] }`
 - `dil` isteğe bağlıdır. `"en"` ise sırt ve kapak yazıları İngilizce kurala göre büyük harfe çevrilir (i → I). Yoksa ya da başka bir dilse Türkçe kural geçerlidir (i → İ). Dil başlıktan tahmin edilmez.
 - `kitap.json` yoksa kitap yine görünür (klasör adıyla, gri kapak).
@@ -129,7 +129,7 @@ Kitaplık/
 - Canvas boyutu: devicePixelRatio en fazla 2; tek canvas en fazla 16 milyon piksel (iPad Safari sınırı). Yakınlaştırmada görüntü önce CSS ile büyür, parmak kalkınca keskin olarak yeniden çizilir.
 
 ### Yazılan alanlar (Faz 3)
-- kitaplik.json: raflar ve oda (Faz 1'deki gibi).
+- kitaplik.json: raflar ve oda (Faz 1'deki gibi); 6.5-2b'den beri `ayarlar.dil`.
 - kitap.json: kapak, sonAcilis, kurdele, uniteler[].konular[].durum ve .kurdeleler (surum 1: kurdele ({ bolum, sayfa }), bolumler[].durum). 6.K5a: ayrıca uniteler[].baslik/.klasor, konuların başlığı ve sırası, yeni ünite/konu (bkz. İçindekiler düzenleme). Başka alana dokunma; bilinmeyen alanları koru. Yazmadan önce dosyanın son halini oku, sadece bu alanları güncelle.
 
 ### Okuma durumu ve kurdele (Görev 3.5)
@@ -492,6 +492,15 @@ Kitaplık/
 - Bilinen sınır: PDF'in yer imleri (bookmark) silinen sayfaya bakıyorsa Geri al'da yeniden bağlanmaz (geri gelen sayfa yeni nesne).
 - Kod: `sayfaSil.ts`, `ozeteEkle.ts` (`SilinenYedek`), `bosSayfaIsi.ts` (`yeniSilmeIsi`, `yeniGeriKoymaIsi`), `sayfaKaydir.ts`, `silinenSayfaDepo.ts`, `sayfaEkleDurumu.ts` (`silmeHedefi`, `silmeEngeli`, `silOnay`, `geriGetirGorunur`), `sayfaEkleBalon.ts`, `Okuyucu.ts` (`sayfaSilBasla`, `silineniGeriGetir`). Kontrol: `node scripts/bos-sayfa-kontrol.mjs --4d`.
 
+## 6.5-2b — Dil tercihi Drive'da (Deniz kararı)
+- Yer: `kitaplik.json` → `ayarlar.dil` (`en` | `tr`, isteğe bağlı). Yeni dosya yok. Diğer yazıcılar dosyanın son halinin üstüne yazar, alanı korur (`save.test.ts`).
+- Yazma (`dilTercihiYaz`, `src/drive/dilTercihi.ts`: `jsonDegistir` ile modifiedTime → son hal → sadece `ayarlar.dil` → modifiedTime): (a) girişli Drive kitaplığında dil düğmesine basınca, yeniden yüklemeden önce, en çok 3 sn (bu sırada dil düğmesi kapalı); hata/zaman aşımı dili durdurmaz. (b) Kurulumda yeni `kitaplik.json` seçili dille (adreste `?lang` varsa alan yok). (c) Girişten sonra Drive'da dil yoksa ve cihazda açık seçim varsa bir kez. Seçim hiç yoksa hiçbir şey yazılmaz. `kitaplik.json` yoksa (sahibin Kitaplık'ı) dil yazılmaz, dosya oluşturulmaz.
+- Okuma: kitaplık yüklenince Drive'ın dili sayfanınkinden farklıysa localStorage'a yazılır + dönüş kaydıyla BİR KEZ yeniden yüklenir (sessionStorage `defter-dil-drive-yenilendi`; bayrak tutulamıyorsa yenileme yok). Bilinmeyen değer (ör. `de`) dokunulmaz.
+- `?lang` adresteyse Drive tercihi o açılışta ne uygulanır ne yazılır. Düğmeye basmak açık seçimdir (adresten `?lang` silinir), yazılır.
+- Bekleyen: yazılamayan seçim localStorage `defter-dil-bekleyen = { dil, fileId }`; bir sonraki açılışta önce o yazılır (Drive'daki eski dil sayfayı geri çevirmez). Başka `fileId` (başka hesap/kitaplık) → bayrak silinir, yazılmaz.
+- Örnek kitaplıkta ve girişsizken Drive'a dil okunmaz/yazılmaz. Bilinen: başka cihazda ilk girişte kitaplık bir an eski dilde görünür, sonra yenilenir (kabul edildi).
+- Kod: `src/dil/driveTercih.ts` (`tercihKarari`, `ayarlarDilYaz`, bayraklar; saf, testli), `src/drive/dilTercihi.ts` (testli), `main.ts` (`dilDriveYaz`, `dilTercihiUygula`). Kontrol: `node scripts/dil-drive-kontrol.mjs` (sahte GIS + Drive, `npm run dev` 5173).
+
 ## Sonra bakılabilir
 - Oda zaman aşımı: şu an glb yüklemesine toplam 15 sn veriliyor; yavaş bağlantıda (masaüstü lightmap'leri ~3.3 MB) eski odaya düşüyor. Öneri: "15 sn hiç ilerleme yok" kuralı + yükleme göstergesi. Faz 2 kural metni değişeceği için Deniz'in onayı gerekir.
 - Masaüstü lightmap PNG'lerinin küçültülmesi (boyut/sıkıştırma).
@@ -510,4 +519,5 @@ Kitaplık/
 - Sayfa yenilenince yarım kalan yükleme kaldığı yerden devam etmiyor (baştan yükleniyor).
 - Masadaki açık kitabın İçindekiler sayfası uzun listede taşıyor (kesiliyor, kaydırma yok; 6.K5a'dan önce de böyleydi).
 - Okuyucudaki × (kapat) düğmeleri 36 px (iPad için 40–44 px önerilir).
+- `scripts/dil-donus-kontrol.mjs` 6.5-2a'dan beri kırık: örnek kitaplık EN, betik "Programlamaya Giriş" bekliyor (06ddf9a'da da aynı).
 - 'Kurulumu tamamla'da `kitaplik.json` zaten varsa (sadece `kitaplar/` eksikse) örnek kitap rafa değil "Yeni gelenler"e düşüyor (kitaplik.json güncellenmez).

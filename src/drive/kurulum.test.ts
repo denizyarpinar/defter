@@ -91,6 +91,15 @@ describe('kitaplikKur', () => {
     expect(JSON.parse(json.icerik as string)).toEqual(bosKitaplikJson());
   });
 
+  it('6.5-2b: with a language, the new kitaplik.json has ayarlar.dil (only that is added)', async () => {
+    const f = fakeDrive();
+    await kitaplikKur(f.drive, { ...sec(), dil: 'tr' });
+    const json = JSON.parse(bul(f.items, 'kitaplik.json')[0][1].icerik as string) as Record<string, unknown>;
+    expect(json.ayarlar).toEqual({ dil: 'tr' });
+    const { ayarlar: _, ...geri } = json;
+    expect(geri).toEqual(bosKitaplikJson());
+  });
+
   it('run again (same or new islemId): nothing created', async () => {
     const f = fakeDrive();
     await kitaplikKur(f.drive, sec());

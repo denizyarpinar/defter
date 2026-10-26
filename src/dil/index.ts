@@ -36,6 +36,11 @@ function ilkDil(): Dil {
 
 let secili: Dil = ilkDil();
 
+// Task 6.5-2b (driveTercih.ts): a choice of this device's own (not only the default), and a ?lang in the address
+export const acikSecimVar = (): boolean => gecerli(kayitliOku());
+export const adresteLangVar = (): boolean =>
+  typeof location !== 'undefined' && gecerli(new URLSearchParams(location.search).get('lang'));
+
 export const dil = (): Dil => secili;
 
 // Only in memory, no reload (the tests: src/dil/testKurulum.ts)

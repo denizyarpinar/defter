@@ -1,5 +1,13 @@
 # Defter – Durum
 
+## 6.5-2b – Dil tercihi Drive'da (26 Ekim 2026, Claude Code)
+
+- TR'ye geçince seçim `kitaplik.json` → `ayarlar.dil`'e yazılır (en çok 3 sn beklenir, hata dili durdurmaz); başka cihazda girişte bir kez yenilenip o dilde açılır. `?lang` bağlantısı Drive'a dokunmaz. Yazılamayan seçim cihazda bekler (kitaplığa bağlı) ve sonraki açılışta yazılır.
+- Testler, typecheck, build ve `scripts/dil-drive-kontrol.mjs` (sahte Drive) geçti. Commit yok; laptop + iPad gerçek denemesi bekleniyor.
+- **Son güncelleyen:** Claude Code, 26 Ekim 2026.
+
+---
+
 ## 6.S canlıda (26 Ekim 2026)
 
 - main = e597b82 (+ bu not), production defter-jade.vercel.app. Testler (1730), typecheck, build ve `scripts/bos-sayfa-kontrol.mjs` geçti.

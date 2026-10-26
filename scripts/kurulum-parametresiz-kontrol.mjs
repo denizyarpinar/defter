@@ -40,7 +40,7 @@ try {
         }
         if (url.pathname.endsWith('/about')) return json({ user: { displayName: 'Yerel deneme' } });
         if (url.pathname.endsWith('/generateIds')) return json({ ids: Array.from({ length: Number(url.searchParams.get('count') || 1) }, (_, n) => `fake-${n}`) });
-        if (url.pathname.endsWith('/files/library-json')) return json({ surum: 1, raflar: [{ id: 'raf-1', ad: 'Raf 1', kitaplar: [] }], oda: {} });
+        if (url.pathname.endsWith('/files/library-json')) return json({ surum: 1, raflar: [{ id: 'raf-1', ad: 'Raf 1', kitaplar: [] }], oda: {}, ayarlar: { dil: 'tr' } });   // 6.5-2b: the same language as localStorage, nothing to write
         if (url.pathname.endsWith('/files')) {
           const q = url.searchParams.get('q') || '';
           if (q.includes("key='defterKok'")) return json({ files: root === 'missing' ? [] : [{ id: 'library-root', name: 'Defter Library', mimeType: FOLDER }] });

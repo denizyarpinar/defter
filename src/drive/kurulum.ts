@@ -1,4 +1,4 @@
-import { t } from '../dil';
+import { t, type Dil } from '../dil';
 import { libraryToJson } from '../model/serialize';
 import { ornekKatmani } from '../model/localSource';
 import { kitapCevir } from '../model/ornekCeviri';
@@ -337,6 +337,7 @@ export interface KitaplikKurSecenek extends KurulumSecenek {
   kilitAcik: boolean;         // writable context, independent of URL parameters
   yazabilir: () => boolean;   // signed in and not the sample library
   ornek?: { kaynak: OrnekKaynak; ilerleme?: (i: number, n: number) => void };   // the box "Örnek bir kitap da koy" (6.K3)
+  dil?: Dil;                  // 6.5-2b: the new kitaplik.json's ayarlar.dil (none: no ayarlar, e.g. ?lang in the address)
 }
 
 export interface KurulumSonucu {
@@ -350,9 +351,9 @@ export interface KurulumSonucu {
 }
 
 // The same as the library a missing kitaplik.json gives today: 5 empty shelves, the default room.
-// With the sample book (6.K3): the same, the book on shelf 1.
-export const bosKitaplikJson = (ornekKitap?: string): Record<string, unknown> =>
-  libraryToJson(parseLibrary({ raflar: [ornekKitap ? { kitaplar: [ornekKitap] } : {}, {}, {}, {}, {}] }));
+// With the sample book (6.K3): the same, the book on shelf 1. 6.5-2b: with a language, "ayarlar": { "dil" }.
+export const bosKitaplikJson = (ornekKitap?: string, dil?: Dil): Record<string, unknown> =>
+  libraryToJson(parseLibrary({ raflar: [ornekKitap ? { kitaplar: [ornekKitap] } : {}, {}, {}, {}, {}], ...(dil ? { ayarlar: { dil } } : {}) }));
 
 export async function kitaplikKur(drive: KurulumDrive, s: KitaplikKurSecenek): Promise<KurulumSonucu> {
   // checks without any request
@@ -394,7 +395,7 @@ export async function kitaplikKur(drive: KurulumDrive, s: KitaplikKurSecenek): P
     if (eksik.includes('kitaplik.json')) {
       await olusturOge(drive, {
         ad: 'kitaplik.json', ebeveynId: kokId, mimeType: 'application/json',
-        icerik: JSON.stringify(bosKitaplikJson(ornek ? ORNEK_KITAP : undefined), null, 2), islemId: s.islemId
+        icerik: JSON.stringify(bosKitaplikJson(ornek ? ORNEK_KITAP : undefined, s.dil), null, 2), islemId: s.islemId
       }, s);
       olusturulan.push('kitaplik.json');
     }

@@ -44,10 +44,12 @@ import { installPageZoomGuard } from './ui/sayfaZoom';
 import { installGorunurAlan } from './ui/gorunurAlan';
 import { toast } from './ui/toast';
 import { installKalemOlcumWindow } from './kalem/kalemOlcum';
-import { dilSec, t, type Dil } from './dil';
+import { acikSecimVar, adresteLangVar, dil, dilSec, t, type Dil } from './dil';
+import { bekleyenOku, bekleyenSil, bekleyenYaz, driveDilOku, tercihKarari, yenilendiMi, yenilendiYaz } from './dil/driveTercih';
+import { dilTercihiYaz, driveDilApi } from './drive/dilTercihi';
 import { htmlDoldur } from './dil/html';
 import { donusAl, donusYaz, type DilDonus } from './dil/donus';
-import { dilDugmeleriKur } from './ui/dilDugmesi';
+import { dilDugmeleriGuncelle, dilDugmeleriKur } from './ui/dilDugmesi';
 
 // task 6.5-1: index.html's fixed texts in the chosen language, before anything shows them
 htmlDoldur();
@@ -305,6 +307,7 @@ async function loadFromDrive(): Promise<void> {
     // the saver reads from the shared holder, whose contents useData replaces
     if (!await useData(r, driveSaver(r.loc), r.loc)) return;
     olay({ tur: 'driveGeldi' });
+    if (dilTercihiUygula(r.library.extra, r.loc)) return;   // task 6.5-2b: reloading in Drive's language
     if (r.warnings.length) uyar(r.warnings[0]);
     remindPendingPhotos();
     donusUygula('drive');
@@ -425,7 +428,8 @@ function kitaplikKurDugmesi(): void {
   const yazabilir = () => isSignedIn() && durum.tur !== 'demo';   // as the K2a dev helper
   // task 6.K3: the box checked → the sample book too, with its progress on the button
   const ornek = ornekIstendi() ? { kaynak: webOrnekKaynak(), ilerleme: (i: number, n: number) => olay({ tur: 'kurulumIlerleme', i, n }) } : undefined;
-  kitaplikKur(driveKurulumApi, { islemId: kurulum.islemId, mod: aktifKapsam() === 'tam' ? 'tam' : 'dar', kilitAcik: yazabilir(), yazabilir, ornek })
+  kitaplikKur(driveKurulumApi, { islemId: kurulum.islemId, mod: aktifKapsam() === 'tam' ? 'tam' : 'dar', kilitAcik: yazabilir(), yazabilir, ornek,
+    dil: adresteLangVar() ? undefined : dil() })   // task 6.5-2b: a shared link's ?lang is not written
     .then(async r => {
       kurulum.bitti();
       if (r.uyari) uyar(r.uyari);
@@ -597,7 +601,9 @@ function konuAc(unit: number, topic: number, resume?: Resume): void {
 let donus: DilDonus | null = donusAl();
 let bekleyenOkuyucu: (DilDonus['okuyucu'] & { kitapId: string }) | null = null;
 
-const dilMesgul = (): boolean => !!(saver?.hasUnsaved || icKuyruk?.hasUnsaved || fotoYuklemeSuruyor() || kalemYuklemeSuruyor());
+let dilYaziliyor = false;   // task 6.5-2b: the choice is being written to Drive (at most DIL_YAZ_MS)
+
+const dilMesgul = (): boolean => !!(dilYaziliyor || saver?.hasUnsaved || icKuyruk?.hasUnsaved || fotoYuklemeSuruyor() || kalemYuklemeSuruyor());
 
 async function dilDegistir(d: Dil): Promise<void> {
   if (dilMesgul()) { toast(t('dil.mesgul')); return; }
@@ -616,7 +622,59 @@ async function dilDegistir(d: Dil): Promise<void> {
       okuyucu: k ? { unit: k.unit, topic: k.topic, materyal: k.materyal, dosya: k.dosya, sayfa: k.sayfa, mod: k.mod } : undefined
     });
   }
+  dilYaziliyor = true;
+  dilDugmeleriGuncelle();
+  await dilDriveYaz(d);
   dilSec(d);
+}
+
+// ---- task 6.5-2b: the language choice in kitaplik.json (ayarlar.dil; dil/driveTercih.ts decides) ----
+
+const DIL_YAZ_MS = 3000;
+
+// Before the reload: the choice into the signed-in Drive library, waiting at most 3 s. It is remembered as
+// waiting ("bekleyen", tied to this kitaplik.json) until Drive has it: a failure or a timeout doesn't stop the
+// change, the next opening writes it. The sample library / signed out: nothing.
+async function dilDriveYaz(d: Dil): Promise<void> {
+  const fileId = writer() ? driveLoc?.libraryFileId : null;
+  if (!fileId) return;
+  bekleyenYaz({ dil: d, fileId });
+  let zaman = 0;
+  try {
+    await Promise.race([
+      dilTercihiYaz(driveDilApi, fileId, d),
+      new Promise((_, red) => { zaman = window.setTimeout(() => red(new Error('timeout')), DIL_YAZ_MS); })
+    ]);
+    bekleyenSil();
+  } catch (e) {
+    console.warn("Dil tercihi Drive'a yazılamadı; bir sonraki açılışta yeniden denenecek.", e);
+  } finally {
+    clearTimeout(zaman);
+  }
+}
+
+// After the Drive library is on screen. true: the page is reloading in Drive's language (nothing else to do).
+function dilTercihiUygula(extra: Record<string, unknown>, loc: DriveLocation): boolean {
+  const fileId = loc.libraryFileId;
+  const k = tercihKarari({
+    driveDil: driveDilOku(extra), yerelDil: dil(), yerelAcikSecim: acikSecimVar(), yerelBekleyen: bekleyenOku(),
+    fileId, adresteLang: adresteLangVar(), buOturumdaYenilendi: yenilendiMi()
+  });
+  if (k.bekleyenSil) bekleyenSil();
+  if (k.eylem === 'yenile' && k.dil) {
+    if (!yenilendiYaz()) return false;   // the flag can't be kept (private window): no reload, it could repeat
+    if (donus) donusYaz(donus);          // a way back not used yet stays for after the reload
+    dilSec(k.dil);
+    return true;
+  }
+  if (k.eylem === 'driveYaz' && k.dil && fileId && writer()) {
+    const yaz = k.dil;
+    dilTercihiYaz(driveDilApi, fileId, yaz).then(() => {
+      const b = bekleyenOku();
+      if (b && b.fileId === fileId && b.dil === yaz) bekleyenSil();
+    }, e => console.warn("Dil tercihi Drive'a yazılamadı; bir sonraki açılışta yeniden denenecek.", e));
+  }
+  return false;
 }
 
 // The library of that kind is on screen: the book flies to the desk (once; another kind keeps it for later)
