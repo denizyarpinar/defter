@@ -11,7 +11,7 @@ import { chromium } from 'playwright-core';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = 4182;
-const URL = `http://localhost:${PORT}/?demo&kalemTest=1`;
+const URL = `http://localhost:${PORT}/?demo&kalemTest=1&lang=tr`;
 const OUTPUTS = 'C:\\Users\\yarpi\\iCloudDrive\\uni_plan_claude_code\\Claude outputs';
 const RECORD = process.argv[2] ?? join(OUTPUTS, 'kalem-zoom.txt');
 const OUT = process.argv[3] ?? join(OUTPUTS, 'kalem-6.H2b');

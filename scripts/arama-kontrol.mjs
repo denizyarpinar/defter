@@ -10,7 +10,7 @@ import { chromium } from 'playwright-core';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = 4180;
-const URL = `http://localhost:${PORT}/?demo`;
+const URL = `http://localhost:${PORT}/?demo&lang=tr`;
 const QUERY = process.argv[2] ?? 'logic';
 const OUT = process.argv[3] ?? 'C:\\Users\\yarpi\\iCloudDrive\\uni_plan_claude_code\\Claude outputs\\arama-6.3c';
 const SUFFIX = process.argv[4] ?? '';   // 6.3c-2: arama-1280-pdf-2.png next to the first shots

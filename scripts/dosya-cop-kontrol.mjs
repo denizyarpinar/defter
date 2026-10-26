@@ -15,7 +15,7 @@ import { chromium } from 'playwright-core';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = 4188;
-const URL = `http://localhost:${PORT}/?demo`;
+const URL = `http://localhost:${PORT}/?demo&lang=tr`;
 const OUT = process.argv[2] ?? 'C:\\Users\\yarpi\\iCloudDrive\\uni_plan_claude_code\\Claude outputs\\kitap-6.K6b';
 
 const wait = (ms) => new Promise(r => setTimeout(r, ms));

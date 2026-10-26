@@ -1,3 +1,4 @@
+import { t } from '../dil';
 import type { View } from '../scene';
 
 export type LightMode = 'auto' | 'day' | 'night';
@@ -52,7 +53,7 @@ export function updateCrumb(view: View, bookTitle: string | null): void {
     crumb.append(b);
   };
   const sep = () => { const s = document.createElement('span'); s.textContent = '›'; crumb.append(s); };
-  part('Çalışma odası', view !== 'room' && !bookTitle ? 'room' : undefined);
-  if (view !== 'room') { sep(); part('Kitaplık'); }
+  part(t('ustCubuk.calismaOdasi'), view !== 'room' && !bookTitle ? 'room' : undefined);
+  if (view !== 'room') { sep(); part(t('ustCubuk.kitaplik')); }
   if (bookTitle) { sep(); part(bookTitle); }
 }

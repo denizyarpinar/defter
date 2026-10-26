@@ -40,180 +40,184 @@
     </noscript>
     <div id="app" data-mode="day" data-view="room">
       <div id="stage"></div>
-      <div id="loading">Oda hazırlanıyor…</div>
+      <div id="loading" data-t="yukleme.odaHazirlaniyor">Oda hazırlanıyor…</div>
 
       <header class="bar">
         <div class="brand">Defter</div>
-        <nav class="crumb" id="crumb" aria-label="Konum"></nav>
+        <nav class="crumb" id="crumb" aria-label="Konum" data-t-aria="ustCubuk.konum"></nav>
         <div class="spacer"></div>
-        <button class="pill arabtn" id="araBtn" type="button" title="Ara (Ctrl+F veya /)" aria-label="Kitaplıkta ara" aria-controls="aramaPaneli">
+        <button class="pill arabtn" id="araBtn" type="button" title="Ara (Ctrl+F veya /)" aria-label="Kitaplıkta ara" data-t-title="ustCubuk.araIpucu" data-t-aria="ustCubuk.araEtiket" aria-controls="aramaPaneli">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.3" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M15.2 15.2L20.5 20.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
-          <span>Ara</span>
+          <span data-t="genel.ara">Ara</span>
         </button>
-        <div class="seg" id="modeSeg" role="group" aria-label="Işık modu">
-          <button data-mode="auto" title="18:00'den sonra akşam modu">Otomatik</button>
-          <button data-mode="day">Gündüz</button>
-          <button data-mode="night">Akşam</button>
+        <div class="seg" id="modeSeg" role="group" aria-label="Işık modu" data-t-aria="ustCubuk.mod">
+          <button data-mode="auto" title="18:00'den sonra akşam modu" data-t-title="ustCubuk.mod.otomatikIpucu" data-t="ustCubuk.mod.otomatik">Otomatik</button>
+          <button data-mode="day" data-t="ustCubuk.mod.gunduz">Gündüz</button>
+          <button data-mode="night" data-t="ustCubuk.mod.aksam">Akşam</button>
         </div>
-        <button class="pill" id="custBtn" aria-expanded="false" aria-controls="panel">Özelleştir</button>
+        <button class="pill dilbtn" id="dilBtn" type="button" data-t="dil.dugme" data-t-aria="dil.dugmeEtiket">EN</button>
+        <button class="pill" id="custBtn" aria-expanded="false" aria-controls="panel" data-t="ustCubuk.ozellestir">Özelleştir</button>
         <div class="user" id="userBox" hidden>
-          <button class="pill" id="signInBtn" hidden>Giriş yap</button>
+          <button class="pill" id="signInBtn" hidden data-t="ustCubuk.girisYap">Giriş yap</button>
           <span class="uname" id="userName" hidden></span>
-          <button class="pill" id="signOutBtn" hidden>Çıkış</button>
+          <button class="pill" id="signOutBtn" hidden data-t="ustCubuk.cikis">Çıkış</button>
         </div>
       </header>
 
       <div id="login" hidden>
         <div class="card" role="dialog" aria-labelledby="loginTitle">
           <div class="brand" id="loginTitle">Defter</div>
-          <p id="loginText">Drive'daki notların, çalışma odandaki kitaplıkta.</p>
+          <p id="loginText" data-t="genel.aciklama">Drive'daki notların, çalışma odandaki kitaplıkta.</p>
           <div class="login-intro">
             <p>Defter, Google Drive’daki ders belgelerini 3D kitaplıkta gösterir. PDF oku, kalemle not al ve belgelerinde ara. Dosyaların kendi Drive’ında kalır.</p>
             <p lang="en">Defter displays your Google Drive study documents in a 3D library. Read PDFs, add pen annotations and search your documents. Your files stay in your own Drive.</p>
           </div>
           <button class="gbtn" id="loginGoogle">
             <svg viewBox="0 0 18 18" aria-hidden="true"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.97 10.72A5.4 5.4 0 0 1 3.68 9c0-.6.1-1.18.29-1.72V4.95H.96A9 9 0 0 0 0 9c0 1.45.35 2.83.96 4.05l3.01-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"/></svg>
-            <span>Google ile giriş yap</span>
+            <span data-t="giris.google">Google ile giriş yap</span>
           </button>
-          <a href="#" id="loginOther" hidden>Başka bir hesapla giriş yap</a>
-          <a href="#" id="loginSample">Örnek kitaplıkla dene</a>
-          <nav class="legal-links" aria-label="Gizlilik ve kullanım şartları">
-            <a href="/privacy.html" target="_blank" rel="noopener noreferrer" aria-label="Gizlilik / Privacy (yeni sekmede)">Gizlilik / Privacy ↗</a>
-            <a href="/terms.html" target="_blank" rel="noopener noreferrer" aria-label="Kullanım şartları / Terms (yeni sekmede)">Şartlar / Terms ↗</a>
+          <a href="#" id="loginOther" hidden data-t="giris.baskaHesap">Başka bir hesapla giriş yap</a>
+          <a href="#" id="loginSample" data-t="genel.ornekDene">Örnek kitaplıkla dene</a>
+          <nav class="legal-links" aria-label="Gizlilik ve kullanım şartları" data-t-aria="yasal.etiket">
+            <a href="/privacy.html" target="_blank" rel="noopener noreferrer" aria-label="Gizlilik / Privacy (yeni sekmede)" data-yasal="privacy" data-t="yasal.gizlilik" data-t-aria="yasal.gizlilikEtiket">Gizlilik / Privacy ↗</a>
+            <a href="/terms.html" target="_blank" rel="noopener noreferrer" aria-label="Kullanım şartları / Terms (yeni sekmede)" data-yasal="terms" data-t="yasal.sartlar" data-t-aria="yasal.sartlarEtiket">Şartlar / Terms ↗</a>
+          </nav>
+          <nav class="dil-sec" id="dilSec" aria-label="Dil" data-t-aria="dil.secim">
+            <button type="button" data-dil="en" lang="en">English</button><span aria-hidden="true">·</span><button type="button" data-dil="tr" lang="tr">Türkçe</button>
           </nav>
           <p class="err" id="loginError" role="alert" hidden></p>
         </div>
       </div>
 
-      <div class="hint" id="hint">Kitaplığa dokun, yakından bak</div>
-      <button class="pill bosipucu" id="bosKitaplik" type="button" hidden>Kitaplığın boş · ＋ Yeni kitap</button>
+      <div class="hint" id="hint" data-t="ipucu.oda">Kitaplığa dokun, yakından bak</div>
+      <button class="pill bosipucu" id="bosKitaplik" type="button" hidden data-t="ipucu.bosKitaplik">Kitaplığın boş · ＋ Yeni kitap</button>
 
-      <div class="libload" id="libLoading" role="status" hidden><span class="spin" aria-hidden="true"></span>Kitaplığın yükleniyor…</div>
+      <div class="libload" id="libLoading" role="status" hidden><span class="spin" aria-hidden="true"></span><span data-t="yukleme.kitaplik">Kitaplığın yükleniyor…</span></div>
 
       <div class="save" id="saveState" role="status" aria-live="polite" hidden>
         <span id="saveText"></span>
-        <button class="ibtn" id="saveRetry" hidden>Tekrar dene</button>
+        <button class="ibtn" id="saveRetry" hidden data-t="genel.tekrarDene">Tekrar dene</button>
       </div>
 
       <div class="overlay" id="kurulum" hidden>
         <div class="card" role="dialog" aria-labelledby="kuTitle" aria-describedby="kuText">
-          <b id="kuTitle">Kitaplığını kur</b>
+          <b id="kuTitle" data-t="kurulum.baslik">Kitaplığını kur</b>
           <p id="kuText"></p>
           <p class="err" id="kuError" role="alert" hidden></p>
-          <label class="kutu" for="kuOrnek"><input type="checkbox" id="kuOrnek" checked> Örnek bir kitap da koy</label>
+          <label class="kutu" for="kuOrnek"><input type="checkbox" id="kuOrnek" checked> <span data-t="kurulum.ornekKoy">Örnek bir kitap da koy</span></label>
           <div class="row">
-            <button class="ibtn solid" id="kuKur">Kitaplığı kur</button>
-            <button class="ibtn" id="kuSample">Önce örnek kitaplıkla dene</button>
+            <button class="ibtn solid" id="kuKur" data-t="kurulum.kur">Kitaplığı kur</button>
+            <button class="ibtn" id="kuSample" data-t="kurulum.onceOrnek">Önce örnek kitaplıkla dene</button>
           </div>
-          <p class="not" id="kuKilit" hidden>Kurulum için Google ile giriş yap.</p>
+          <p class="not" id="kuKilit" hidden data-t="kurulum.kilit">Kurulum için Google ile giriş yap.</p>
         </div>
       </div>
 
       <div class="overlay" id="fullAccess" hidden>
         <div class="card" role="dialog" aria-labelledby="faTitle">
-          <b id="faTitle">Tam erişim gerekiyor</b>
-          <p>Kitaplık klasörünü görebilmem için Drive'ına tam erişim izni gerekiyor. Düğmeye dokun, açılan Google penceresinde Drive iznini onayla.</p>
+          <b id="faTitle" data-t="tamErisim.baslik">Tam erişim gerekiyor</b>
+          <p data-t="tamErisim.metin">Kitaplık klasörünü görebilmem için Drive'ına tam erişim izni gerekiyor. Düğmeye dokun, açılan Google penceresinde Drive iznini onayla.</p>
           <p class="err" id="faError" role="alert" hidden></p>
           <div class="row">
-            <button class="ibtn solid" id="faOpen">Tam erişimi aç</button>
-            <button class="ibtn" id="faSample">Örnek kitaplıkla devam et</button>
+            <button class="ibtn solid" id="faOpen" data-t="tamErisim.ac">Tam erişimi aç</button>
+            <button class="ibtn" id="faSample" data-t="tamErisim.ornek">Örnek kitaplıkla devam et</button>
           </div>
         </div>
       </div>
 
       <div class="overlay" id="libError" hidden>
         <div class="card" role="alertdialog" aria-labelledby="leTitle" aria-describedby="leText">
-          <b id="leTitle">Kitaplık yüklenemedi</b>
+          <b id="leTitle" data-t="kitaplikHata.baslik">Kitaplık yüklenemedi</b>
           <p id="leText"></p>
           <div class="row">
-            <button class="ibtn solid" id="leRetry">Tekrar dene</button>
-            <button class="ibtn" id="leSample">Örnek kitaplıkla dene</button>
+            <button class="ibtn solid" id="leRetry" data-t="genel.tekrarDene">Tekrar dene</button>
+            <button class="ibtn" id="leSample" data-t="genel.ornekDene">Örnek kitaplıkla dene</button>
           </div>
         </div>
       </div>
 
-      <aside id="panel" hidden aria-label="Özelleştir"></aside>
+      <aside id="panel" hidden aria-label="Özelleştir" data-t-aria="ustCubuk.ozellestir"></aside>
 
       <div id="reader" hidden>
         <div class="r-top">
-          <button class="rb" id="rClose">← <span class="lbl">Kitaplığa dön</span></button>
-          <div class="r-title"><b id="rBook">Kitap</b><span id="rChap"></span></div>
+          <button class="rb" id="rClose">← <span class="lbl" data-t="okuyucu.kitapligaDon">Kitaplığa dön</span></button>
+          <div class="r-title"><b id="rBook" data-t="okuyucu.kitap">Kitap</b><span id="rChap"></span></div>
         </div>
         <div class="r-body">
           <div id="spreadWrap"><div id="spread"></div></div>
         </div>
         <div class="r-bottom">
-          <button class="arrow" id="prev" aria-label="Önceki sayfa">‹</button>
+          <button class="arrow" id="prev" aria-label="Önceki sayfa" data-t-aria="okuyucu.oncekiSayfa">‹</button>
           <span class="pno" id="pno"></span>
-          <button class="arrow" id="next" aria-label="Sonraki sayfa">›</button>
+          <button class="arrow" id="next" aria-label="Sonraki sayfa" data-t-aria="okuyucu.sonrakiSayfa">›</button>
         </div>
         <div id="okuyucu" hidden>
           <div class="o-top">
-            <button class="o-tocbtn" id="oTocBtn" type="button" aria-label="İçindekiler" aria-expanded="false" aria-controls="oToc">☰</button>
-            <button class="o-arabtn" id="oAraBtn" type="button" title="Ara (Ctrl+F)" aria-label="Bu materyalde ara" aria-expanded="false" aria-controls="oAra">
+            <button class="o-tocbtn" id="oTocBtn" type="button" aria-label="İçindekiler" data-t-aria="okuyucu.icindekiler" aria-expanded="false" aria-controls="oToc">☰</button>
+            <button class="o-arabtn" id="oAraBtn" type="button" title="Ara (Ctrl+F)" aria-label="Bu materyalde ara" data-t-title="okuyucu.araIpucu" data-t-aria="okuyucu.araEtiket" aria-expanded="false" aria-controls="oAra">
               <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.3" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M15.2 15.2L20.5 20.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
-              <span>Ara</span>
+              <span data-t="genel.ara">Ara</span>
             </button>
             <div class="o-title"><b id="oBook"></b><span id="oChap"></span></div>
             <div class="o-ara" id="oAra" role="search" hidden>
-              <input id="oAraKutu" type="search" enterkeyhint="search" placeholder="Bu materyalde ara" aria-label="Bu materyalde ara" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" />
+              <input id="oAraKutu" type="search" enterkeyhint="search" placeholder="Bu materyalde ara" aria-label="Bu materyalde ara" data-t-ph="okuyucu.araEtiket" data-t-aria="okuyucu.araEtiket" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" />
               <span class="o-ara-sayac" id="oAraSayac" aria-live="polite"></span>
               <span class="o-ara-not" id="oAraNot" hidden></span>
-              <button class="o-araik" id="oAraOnceki" type="button" title="Önceki (Shift+Enter)" aria-label="Önceki eşleşme" disabled>
+              <button class="o-araik" id="oAraOnceki" type="button" title="Önceki (Shift+Enter)" aria-label="Önceki eşleşme" data-t-title="okuyucu.oncekiIpucu" data-t-aria="okuyucu.oncekiEslesme" disabled>
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 6.5L9 12l5.5 5.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </button>
-              <button class="o-araik" id="oAraSonraki" type="button" title="Sonraki (Enter)" aria-label="Sonraki eşleşme" disabled>
+              <button class="o-araik" id="oAraSonraki" type="button" title="Sonraki (Enter)" aria-label="Sonraki eşleşme" data-t-title="okuyucu.sonrakiIpucu" data-t-aria="okuyucu.sonrakiEslesme" disabled>
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 6.5L15 12l-5.5 5.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </button>
-              <button class="o-araik" id="oAraKapat" type="button" title="Aramayı kapat (Esc)" aria-label="Aramayı kapat">
+              <button class="o-araik" id="oAraKapat" type="button" title="Aramayı kapat (Esc)" aria-label="Aramayı kapat" data-t-title="okuyucu.aramaKapatIpucu" data-t-aria="okuyucu.aramaKapat">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
               </button>
             </div>
-            <button class="o-penbtn" id="oPenBtn" type="button" aria-pressed="false" aria-controls="oTools" title="Kalem">✎ <span>Kalem</span></button>
-            <div class="o-seg" id="oMode" role="group" aria-label="Okuma modu">
-              <button type="button" data-m="kitap">Kitap</button><button type="button" data-m="pdf">PDF</button>
+            <button class="o-penbtn" id="oPenBtn" type="button" aria-pressed="false" aria-controls="oTools" title="Kalem" data-t-title="okuyucu.kalem">✎ <span data-t="okuyucu.kalem">Kalem</span></button>
+            <div class="o-seg" id="oMode" role="group" aria-label="Okuma modu" data-t-aria="okuyucu.okumaModu">
+              <button type="button" data-m="kitap" data-t="okuyucu.kitap">Kitap</button><button type="button" data-m="pdf">PDF</button>
             </div>
             <span class="o-pno" id="oPno"></span>
-            <button class="o-close" id="oClose" aria-label="Okuyucuyu kapat">×</button>
+            <button class="o-close" id="oClose" aria-label="Okuyucuyu kapat" data-t-aria="okuyucu.kapat">×</button>
           </div>
           <div class="o-bar" id="oBar" hidden>
-            <div class="o-tabs" id="oTabs" role="tablist" aria-label="Materyal"></div>
+            <div class="o-tabs" id="oTabs" role="tablist" aria-label="Materyal" data-t-aria="okuyucu.materyal"></div>
             <div class="o-files" id="oFiles" hidden>
-              <select id="oFile" aria-label="Dosya seç"></select>
-              <button class="o-sol" id="oSol" type="button" aria-pressed="false">Çözümü göster</button>
+              <select id="oFile" aria-label="Dosya seç" data-t-aria="okuyucu.dosyaSec"></select>
+              <button class="o-sol" id="oSol" type="button" aria-pressed="false" data-t="okuyucu.cozumGoster">Çözümü göster</button>
             </div>
-            <button class="o-cop" id="oCop" type="button" title="Dosyayı çöpe at" aria-label="Dosyayı çöpe at" hidden>
+            <button class="o-cop" id="oCop" type="button" title="Dosyayı çöpe at" aria-label="Dosyayı çöpe at" data-t-title="okuyucu.dosyaCop" data-t-aria="okuyucu.dosyaCop" hidden>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9.5 7V4.6h5V7M6.4 7l.9 12.4A1.6 1.6 0 0 0 8.9 21h6.2a1.6 1.6 0 0 0 1.6-1.6L17.6 7M10 11v6M14 11v6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
-            <button class="o-sekle" id="oSayfaEkle" type="button" title="Sayfa ekle" aria-label="Sayfa ekle" aria-haspopup="dialog" aria-expanded="false" aria-controls="oSayfaEkleBalon" hidden>
+            <button class="o-sekle" id="oSayfaEkle" type="button" title="Sayfa ekle" aria-label="Sayfa ekle" data-t-title="okuyucu.sayfaEkle" data-t-aria="okuyucu.sayfaEkle" aria-haspopup="dialog" aria-expanded="false" aria-controls="oSayfaEkleBalon" hidden>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h8.5L18 7v13.5H6z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M12 10.5v6M9 13.5h6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
               <span class="o-sekle-yuzde" hidden></span>
             </button>
-            <button class="o-foto" id="oFoto" type="button" title="Fotoğraf ekle" aria-label="Fotoğraf ekle">
+            <button class="o-foto" id="oFoto" type="button" title="Fotoğraf ekle" aria-label="Fotoğraf ekle" data-t-title="okuyucu.fotoEkle" data-t-aria="okuyucu.fotoEkle">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4h6l1.6 2.4H20a1.6 1.6 0 0 1 1.6 1.6v10.4A1.6 1.6 0 0 1 20 20H4a1.6 1.6 0 0 1-1.6-1.6V8A1.6 1.6 0 0 1 4 6.4h3.4z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><circle cx="12" cy="13" r="3.8" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>
-              <span>Fotoğraf ekle</span>
+              <span data-t="okuyucu.fotoEkle">Fotoğraf ekle</span>
             </button>
             <input id="oFotoInput" type="file" accept="image/*" multiple hidden />
-            <button class="o-foto o-dosya" id="oDosya" type="button" title="Dosya ekle" aria-label="Dosya ekle">
+            <button class="o-foto o-dosya" id="oDosya" type="button" title="Dosya ekle" aria-label="Dosya ekle" data-t-title="okuyucu.dosyaEkle" data-t-aria="okuyucu.dosyaEkle">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H7a1.6 1.6 0 0 0-1.6 1.6v14.8A1.6 1.6 0 0 0 7 21h10a1.6 1.6 0 0 0 1.6-1.6V7.6z M14 3v4.6h4.6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M12 11v6M9 14h6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
-              <span>Dosya ekle</span>
+              <span data-t="okuyucu.dosyaEkle">Dosya ekle</span>
             </button>
             <input id="oDosyaInput" type="file" multiple hidden />
-            <button class="o-foto o-dosya o-oku" id="oOku" type="button" title="El yazısını oku" aria-label="El yazısını oku" hidden>
+            <button class="o-foto o-dosya o-oku" id="oOku" type="button" title="El yazısını oku" aria-label="El yazısını oku" data-t-title="okuyucu.elYazisiOku" data-t-aria="okuyucu.elYazisiOku" hidden>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19.5c2.2-3 3.6-4.4 5-4.4 1.6 0 .6 3.4 2.2 3.4 1.3 0 2.4-2.2 3.6-2.2.9 0 1.2 1.5 2.4 1.5.8 0 1.6-.6 2.8-1.6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M14.8 4.2l3 3L10 15l-3.6.6.6-3.6z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
-              <span>El yazısını oku</span>
+              <span data-t="okuyucu.elYazisiOku">El yazısını oku</span>
             </button>
             <span class="o-temizgrup" id="oTemizGrup" hidden>
-              <button class="o-temizbtn" id="oTemiz" type="button" aria-pressed="true" aria-label="Temiz yazı">
+              <button class="o-temizbtn" id="oTemiz" type="button" aria-pressed="true" aria-label="Temiz yazı" data-t-aria="okuyucu.temizYazi">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3.5h10.5L19 7v13.5H5z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M8 10.5c1-1.2 1.8-1.2 2.4 0s1.4 1.2 2.4 0 1.8-1.2 2.4 0M8 15c1-1.2 1.8-1.2 2.4 0s1.4 1.2 2.4 0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-                <span class="o-uzun">Temiz yazı</span><span class="o-kisa"></span>
+                <span class="o-uzun" data-t="okuyucu.temizYazi">Temiz yazı</span><span class="o-kisa"></span>
               </button>
-              <button class="o-temizstil" id="oTemizStil" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="oTemizBalon" aria-label="Temiz yazı stili">
+              <button class="o-temizstil" id="oTemizStil" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="oTemizBalon" aria-label="Temiz yazı stili" data-t-aria="okuyucu.temizStil">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </button>
             </span>
           </div>
-          <div class="o-tools" id="oTools" role="toolbar" aria-label="Kalem araçları" hidden></div>
+          <div class="o-tools" id="oTools" role="toolbar" aria-label="Kalem araçları" data-t-aria="okuyucu.kalemAraclari" hidden></div>
           <div class="o-msg" id="oMsg" hidden></div>
           <div class="o-scroll" id="oScroll">
             <div class="o-pages" id="oPages"></div>
@@ -221,13 +225,13 @@
           <div class="o-kitap" id="oKitap" hidden><div class="o-zoom" id="oZoom"><div class="o-spread" id="oSpread"></div></div></div>
           <div class="o-foot" id="oFoot" hidden>
             <div class="o-sl">
-              <input type="range" id="oSlider" min="1" max="1" value="1" step="1" aria-label="Sayfa" />
+              <input type="range" id="oSlider" min="1" max="1" value="1" step="1" aria-label="Sayfa" data-t-aria="okuyucu.sayfa" />
               <div class="o-bubble" id="oBubble" hidden></div>
             </div>
           </div>
           <div class="o-scrim" id="oScrim" hidden></div>
-          <aside class="o-toc" id="oToc" hidden aria-label="İçindekiler">
-            <div class="o-tochead"><b>İçindekiler</b><button class="o-tocedit" id="oTocEdit" type="button" aria-pressed="false" hidden>Düzenle</button><button class="o-close" id="oTocClose" type="button" aria-label="İçindekileri kapat">×</button></div>
+          <aside class="o-toc" id="oToc" hidden aria-label="İçindekiler" data-t-aria="okuyucu.icindekiler">
+            <div class="o-tochead"><b data-t="okuyucu.icindekiler">İçindekiler</b><button class="o-tocedit" id="oTocEdit" type="button" aria-pressed="false" hidden data-t="okuyucu.duzenle">Düzenle</button><button class="o-close" id="oTocClose" type="button" aria-label="İçindekileri kapat" data-t-aria="okuyucu.icindekileriKapat">×</button></div>
             <div class="o-tocdurum" id="oTocDurum" role="status" aria-live="polite" hidden></div>
             <nav class="o-toclist" id="oTocList"></nav>
           </aside>

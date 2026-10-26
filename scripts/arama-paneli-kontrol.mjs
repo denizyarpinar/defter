@@ -11,7 +11,7 @@ import { chromium } from 'playwright-core';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = 4181;
-const URL = `http://localhost:${PORT}/?demo`;
+const URL = `http://localhost:${PORT}/?demo&lang=tr`;
 const OUT = process.argv[2] ?? 'C:\\Users\\yarpi\\iCloudDrive\\uni_plan_claude_code\\Claude outputs\\arama-6.3e';
 const QUERY = 'or';            // sample library: books, topics and files (orijinal.pdf)
 const WIDTHS = [1440, 1280, 1024, 820, 768, 600, 430, 390, 360];

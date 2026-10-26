@@ -23,9 +23,10 @@ import { loadLocalLibrary, type LoadedLibrary } from './model/localSource';
 import { parseLibrary } from './model/parse';
 import type { Book, ModeKey } from './model/types';
 import { usesUnits } from './model/units';
-import { markOpened, setReadingSink } from './okuma/okumaDurumu';
+import { markOpened, setReadingSink, type Resume } from './okuma/okumaDurumu';
+import type { MaterialKind } from './okuma/konuKesfi';
 import { sampleBookFolder, sampleFolders } from './okuma/ornekKaynak';
-import { bekleyenKalemIdleri, closeOkuyucu, forgetBook, fotoYuklemeSuruyor, initOkuyucu, isOkuyucuOpen, okuyucuAra, okuyucuOturumKapandi, openOkuyucu, openOkuyucuDuzenle, sayfaEklemeOrtami, setDosyaCop, setIcindekilerBaglami, setKlasorAcma, setSayfaIsi } from './okuma/Okuyucu';
+import { bekleyenKalemIdleri, closeOkuyucu, forgetBook, fotoYuklemeSuruyor, initOkuyucu, isOkuyucuOpen, kalemKaydiCihazaYaz, kalemYuklemeSuruyor, okuyucuAra, okuyucuKonumu, okuyucuOturumKapandi, openOkuyucu, openOkuyucuDuzenle, sayfaEklemeOrtami, setDosyaCop, setIcindekilerBaglami, setKlasorAcma, setSayfaIsi } from './okuma/Okuyucu';
 import { createRoomScene, type LibraryData, type RoomScene, type View } from './scene';
 import { canvas, drawWood, noise } from './scene/textures';
 import { updateHint } from './ui/hint';
@@ -43,6 +44,13 @@ import { installPageZoomGuard } from './ui/sayfaZoom';
 import { installGorunurAlan } from './ui/gorunurAlan';
 import { toast } from './ui/toast';
 import { installKalemOlcumWindow } from './kalem/kalemOlcum';
+import { dilSec, t, type Dil } from './dil';
+import { htmlDoldur } from './dil/html';
+import { donusAl, donusYaz, type DilDonus } from './dil/donus';
+import { dilDugmeleriKur } from './ui/dilDugmesi';
+
+// task 6.5-1: index.html's fixed texts in the chosen language, before anything shows them
+htmlDoldur();
 
 const app = document.querySelector<HTMLElement>('#app')!;
 const stageEl = document.querySelector<HTMLElement>('#stage')!;
@@ -245,7 +253,7 @@ initTopBar({
     if (data) data.library.oda.mod = MODE_TO_DATA[m];
     writer()?.libraryChanged();
     applyMode();
-    if (m === 'auto') toast(isEvening() ? 'Otomatik: saat 18:00\'i geçti, oda akşam modunda.' : 'Otomatik: oda 18:00\'de akşam moduna geçecek.');
+    if (m === 'auto') toast(t(isEvening() ? 'ustCubuk.mod.otomatikAksam' : 'ustCubuk.mod.otomatikGunduz'));
   },
   onGoRoom: () => scene?.setView('room')
 });
@@ -300,6 +308,7 @@ async function loadFromDrive(): Promise<void> {
     olay({ tur: 'driveGeldi' });
     if (r.warnings.length) uyar(r.warnings[0]);
     remindPendingPhotos();
+    donusUygula('drive');
   } catch (e) {
     if (!current()) return;
     if (!(e instanceof LibraryNotFound)) { olay({ tur: 'driveHata', mesaj: errorText(e) }); return; }
@@ -453,7 +462,7 @@ async function useSample(): Promise<void> {
   olay({ tur: 'demoSecildi' });
   if (durum.tur !== 'demo') return;
   updateUserBox({ kind: 'sample' });
-  try { await useData(await loadLocalLibrary(), null, null); } catch { olay({ tur: 'demoHata', mesaj: 'Örnek kitaplık yüklenemedi. Sayfayı yenile.' }); }
+  try { if (await useData(await loadLocalLibrary(), null, null)) donusUygula('demo'); } catch { olay({ tur: 'demoHata', mesaj: 'Örnek kitaplık yüklenemedi. Sayfayı yenile.' }); }
 }
 
 initKurulum({ onSetup: kitaplikKurDugmesi, onSignIn: () => void googleSignIn(), onSample: () => void useSample() });
@@ -495,7 +504,7 @@ async function googleSignIn(chooseAccount = false): Promise<void> {
     ownerName = user.name;
     updateUserBox({ kind: 'user', name: user.name });
     olay({ tur: 'girisBasarili' });
-    toast(`Hoş geldin, ${user.name}.`);
+    toast(t('giris.hosgeldin', { ad: user.name }));
     // signing in again after the session expired: the Drive library is already here (state 'drive')
     if (!gorunum(durum).yukleniyor) return;
     // the owner with drive.file only: offer full access (no popup here, only on the card's tap)
@@ -562,15 +571,7 @@ initReader(() => {
   void reading?.flush();
   scene?.setPaused(false);
   scene?.closeBook();
-}, (unit, topic, resume) => {
-  const b = deskBook ? data?.books.get(deskBook) : undefined;
-  if (!b) return;
-  const folderId = bookFolder(b);
-  if (!folderId) { toast('Sayfaları görmek için Google ile giriş yap. Örnek kitaplıkta bu kitabın dosyası yok.'); return; }
-  // the room is behind the reader: don't draw it (it stays paused under the contents page too)
-  scene?.setPaused(true);
-  void openOkuyucu(b, folderId, unit, topic, okuyucuClosed, resume);
-}, () => {
+}, konuAc, () => {
   // task 6.K5b-3: "İçindekileri düzenle" (also a book without topics: + Ünite, Kitabı çöpe at)
   const b = deskBook ? data?.books.get(deskBook) : undefined;
   const folderId = b && bookFolder(b);
@@ -578,6 +579,71 @@ initReader(() => {
   scene?.setPaused(true);
   openOkuyucuDuzenle(b, folderId, okuyucuClosed);
 });
+
+// A topic of the book on the desk in the full-screen reader (the contents page, the ribbon, the language change's return)
+function konuAc(unit: number, topic: number, resume?: Resume): void {
+  const b = deskBook ? data?.books.get(deskBook) : undefined;
+  if (!b) return;
+  const folderId = bookFolder(b);
+  if (!folderId) { toast('Sayfaları görmek için Google ile giriş yap. Örnek kitaplıkta bu kitabın dosyası yok.'); return; }
+  // the room is behind the reader: don't draw it (it stays paused under the contents page too)
+  scene?.setPaused(true);
+  void openOkuyucu(b, folderId, unit, topic, okuyucuClosed, resume);
+}
+
+// ---- task 6.5-1: the language change (a reload) and the way back to the same place ----
+// Before the reload: the reading state, the shelves / cover and the pen's records are written (the button is off while
+// something is still being saved). After it: the book on the desk again, the reader on the same topic / material / page.
+
+let donus: DilDonus | null = donusAl();
+let bekleyenOkuyucu: (DilDonus['okuyucu'] & { kitapId: string }) | null = null;
+
+const dilMesgul = (): boolean => !!(saver?.hasUnsaved || icKuyruk?.hasUnsaved || fotoYuklemeSuruyor() || kalemYuklemeSuruyor());
+
+async function dilDegistir(d: Dil): Promise<void> {
+  if (dilMesgul()) { toast(t('dil.mesgul')); return; }
+  try {
+    await reading?.flush();
+    await saver?.bekleyenleriYaz();
+    await kalemKaydiCihazaYaz();
+  } catch (e) { console.warn('Dil değişmeden önce kayıt yazılamadı.', e); }
+  // a reload now would lose what is still only in memory
+  if (reading?.hasUnsaved || saver?.hasUnsaved) { toast(t('dil.mesgul')); return; }
+  const k = okuyucuKonumu();
+  const kitapId = k?.kitapId ?? deskBook;
+  if (kitapId && (durum.tur === 'demo' || durum.tur === 'drive')) {
+    donusYaz({
+      kaynak: durum.tur, kitapId,
+      okuyucu: k ? { unit: k.unit, topic: k.topic, materyal: k.materyal, dosya: k.dosya, sayfa: k.sayfa, mod: k.mod } : undefined
+    });
+  }
+  dilSec(d);
+}
+
+// The library of that kind is on screen: the book flies to the desk (once; another kind keeps it for later)
+function donusUygula(kaynak: DilDonus['kaynak']): void {
+  if (!donus || donus.kaynak !== kaynak) return;
+  const d = donus;
+  donus = null;
+  if (!data?.books.has(d.kitapId)) return;
+  bekleyenOkuyucu = d.okuyucu ? { ...d.okuyucu, kitapId: d.kitapId } : null;
+  if (!scene?.openBook(d.kitapId)) bekleyenOkuyucu = null;
+}
+
+// The book landed on the desk: the reader where it was (after the contents page has opened)
+function donusOkuyucu(id: string): void {
+  const k = bekleyenOkuyucu;
+  if (!k || k.kitapId !== id) return;
+  bekleyenOkuyucu = null;
+  const resume: Resume | undefined = k.materyal
+    ? { unit: k.unit, topic: k.topic, materyal: k.materyal as MaterialKind, dosya: k.dosya, sayfa: k.sayfa ?? 1, label: '' }
+    : undefined;
+  setTimeout(() => { if (deskBook === id && !isOkuyucuOpen()) konuAc(k.unit, k.topic, resume); }, 700);
+}
+
+dilDugmeleriKur({ sec: d => void dilDegistir(d), mesgul: dilMesgul });
+// the reader has no language button: the return test calls this (development, and ?olcum=1)
+if (import.meta.env.DEV || OLCUM) (window as { defterDilSec?: (d: Dil) => void }).defterDilSec = d => void dilDegistir(d);
 
 // The full-screen reader closed: back to the desk (its contents page) or, opened from the search, the library
 function okuyucuClosed(): void {
@@ -661,7 +727,7 @@ async function boot(): Promise<void> {
   try {
     data = startWithSample ? await loadLocalLibrary() : emptyLibrary();
   } catch {
-    loading.textContent = 'Örnek kitaplık yüklenemedi. Sayfayı yenile; düzelmezse terminalde npm run dev çalışıyor mu bak.';
+    loading.textContent = t('yukleme.ornekHata');
     return;
   }
   const d = data;
@@ -680,7 +746,7 @@ async function boot(): Promise<void> {
     ]);
   } catch { /* fonts are optional */ }
 
-  loading.textContent = 'Oda yükleniyor…';
+  loading.textContent = t('yukleme.oda');
   scene = await createRoomScene(stageEl, {
     data: d,
     night: effectiveMode() === 'night',
@@ -694,6 +760,7 @@ async function boot(): Promise<void> {
       const shelf = shelfOf(d.library, id);
       openReader(b, { shelfName: shelf >= 0 ? d.library.raflar[shelf].ad : null, daysSinceOpened: daysSinceOpened(b), owner: saver ? ownerName : null });
       markOpened(b);
+      donusOkuyucu(id);
       setTimeout(() => { if (isReaderOpen()) scene?.setPaused(true); }, 400);
     },
     onBookClosed: () => { openTitle = null; updateChrome(); },
@@ -727,6 +794,9 @@ async function boot(): Promise<void> {
   new ResizeObserver(resized).observe(stageEl);
 
   loading.hidden = true;
+  // task 6.5-1: back from a language change — the sample library again (also without ?demo)
+  if (startWithSample) donusUygula('demo');
+  else if (donus?.kaynak === 'demo') void useSample();
 }
 
 ready = boot();

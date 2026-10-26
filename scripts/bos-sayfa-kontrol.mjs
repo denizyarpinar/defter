@@ -34,7 +34,7 @@ import { PDFDocument, StandardFonts, degrees, rgb } from 'pdf-lib';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = 4189;
-const URL = `http://localhost:${PORT}/?demo`;
+const URL = `http://localhost:${PORT}/?demo&lang=tr`;
 const OUT = process.argv.slice(2).find(a => !a.startsWith('--')) ?? 'C:\\Users\\yarpi\\iCloudDrive\\uni_plan_claude_code\\Claude outputs\\bos-sayfa-6.S';
 const KONU = 'Unite-01-Temeller/Konu-01-Degiskenler';
 const TOPIC = 'Değişkenler ve veri tipleri';

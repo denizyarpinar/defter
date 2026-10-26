@@ -23,7 +23,7 @@ import { PDFDocument, PDFName, PDFArray, PDFNumber, StandardFonts, degrees, rgb 
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = 4187;
-const URL = `http://localhost:${PORT}/?demo`;
+const URL = `http://localhost:${PORT}/?demo&lang=tr`;
 const OUT = process.argv[2] ?? 'C:\\Users\\yarpi\\iCloudDrive\\uni_plan_claude_code\\Claude outputs\\kitap-sigdir-6.S';
 const KONU = 'Unite-01-Temeller/Konu-01-Degiskenler';
 const TOPIC = 'Değişkenler ve veri tipleri';

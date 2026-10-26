@@ -25,7 +25,7 @@ import sharp from 'sharp';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const DOCS = join(ROOT, 'docs');
 const PORT = 4179;
-const URL = `http://localhost:${PORT}/?demo`;
+const URL = `http://localhost:${PORT}/?demo&lang=tr`;
 const VIEW = { width: 1600, height: 1000 };
 const BOOKCASE = { x: 1040, y: 330 };   // room view: a point on the bookcase
 const BOOK = { x: 655, y: 210 };        // shelf view: "Machine Learning Basics" (English, top shelf)

@@ -15,7 +15,7 @@ import { chromium } from 'playwright-core';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = 4181;
-const URL = `http://localhost:${PORT}/?demo`;
+const URL = `http://localhost:${PORT}/?demo&lang=tr`;
 const OUT = process.argv[2] ?? 'C:\\Users\\yarpi\\iCloudDrive\\uni_plan_claude_code\\Claude outputs\\kalem-6.H1';
 const BOOKCASE = { x: 1040, y: 330 };   // room view at 1600 × 1000 (as in screenshots.mjs)
 const PRG_BOOK = { x: 618, y: 350 };    // shelf view: "Programlamaya Giriş"
@@ -99,21 +99,23 @@ async function draw(page) {
 }
 
 // Task 6.H1b: the colour / width popover at this width (pen on, Kalem chosen)
+// The pen's popover has no class of its own; 6.S-4 (Sayfa ekle) and 6.4e-2 (Temiz yazı) popovers are .o-balon too and come first
+const KALEM_BALON = '.o-balon:not(.o-sekle-balon):not(.o-temiz-balon)';
 async function popoverTest(page, shotName) {
-  const state = () => page.evaluate(() => ({
-    open: !document.querySelector('.o-balon').hidden,
+  const state = () => page.evaluate((balon) => ({
+    open: !document.querySelector(balon).hidden,
     h: Math.round(document.querySelector('#oTools').getBoundingClientRect().height * 10) / 10,
     color: document.querySelector('#oTools [data-pop="renk"]')?.style.getPropertyValue('--c'),
     undo: document.querySelector('#oTools [data-geri]').disabled,
     reader: !document.querySelector('#okuyucu').hidden,
-  }));
+  }), KALEM_BALON);
   const before = await state();
   await page.locator('#oTools [data-pop="renk"]').click();
   await page.waitForTimeout(250);
   const opened = await state();
-  const inBalloon = await page.locator('.o-balon [data-renk]').count();
+  const inBalloon = await page.locator(`${KALEM_BALON} [data-renk]`).count();
   if (shotName) await shot(page, shotName);
-  await page.locator('.o-balon [data-renk]').nth(2).click();
+  await page.locator(`${KALEM_BALON} [data-renk]`).nth(2).click();
   await page.waitForTimeout(200);
   const chose = await state();
   // again; a tap (and drag) on the page only closes it, no stroke
@@ -130,7 +132,7 @@ async function popoverTest(page, shotName) {
   const esc = await state();
   // back to the colour it had
   await page.locator('#oTools [data-pop="renk"]').click();
-  await page.locator(`.o-balon [data-renk="${before.color}"]`).click();
+  await page.locator(`${KALEM_BALON} [data-renk="${before.color}"]`).click();
   await page.waitForTimeout(200);
   const ok = {
     'açılır': opened.open && opened.h === before.h && inBalloon >= 5,

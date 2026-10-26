@@ -1,13 +1,15 @@
 import { addShelf, deleteShelf, newArrivals } from '../model/library';
 import { MAX_SHELVES, MIN_SHELVES, type Book, type CoverStyle, type FloorKey, type Library } from '../model/types';
+import { t, type Anahtar } from '../dil';
+import { yasalHref } from '../dil/html';
 import { esc } from './dom';
 import { toast } from './toast';
 
 // "Özelleştir" side panel (as in the prototype). Changes stay in memory for now (Drive: task 1.5).
 
 export const COVER_SWATCHES = ['#24476b', '#2f5d50', '#7cc47f', '#6cc5c9', '#7a8fa6', '#b0306d', '#e0453a', '#f08a3c', '#f0dc5a', '#6b3a2a', '#8a4b33', '#b89a7a'];
-const WALL_SWATCHES: [string, string][] = [['Kum', '#efe6d8'], ['Kırık beyaz', '#f6f3ee'], ['Adaçayı', '#dfe5d6'], ['Pudra', '#f0dfd8'], ['Gece mavisi', '#c9d3e3']];
-const FLOOR_SWATCHES: [string, FloorKey, string, string][] = [['Meşe', 'mese', '#d9a46a', '#c48d55'], ['Ceviz', 'ceviz', '#9a6a45', '#7f5536'], ['Açık', 'acik', '#e6cfae', '#d6b98f']];
+const WALL_SWATCHES: [Anahtar, string][] = [['panel.duvar.kum', '#efe6d8'], ['panel.duvar.kirikBeyaz', '#f6f3ee'], ['panel.duvar.adacayi', '#dfe5d6'], ['panel.duvar.pudra', '#f0dfd8'], ['panel.duvar.geceMavisi', '#c9d3e3']];
+const FLOOR_SWATCHES: [Anahtar, FloorKey, string, string][] = [['panel.zemin.mese', 'mese', '#d9a46a', '#c48d55'], ['panel.zemin.ceviz', 'ceviz', '#9a6a45', '#7f5536'], ['panel.zemin.acik', 'acik', '#e6cfae', '#d6b98f']];
 
 export interface PanelHooks {
   shelvesChanged(): void;
@@ -36,27 +38,27 @@ export function initPanel(data: { library: Library; books: Map<string, Book> }, 
     const cb = selBook ? books.get(selBook)! : null;
     const opt = (id: string) => `<option value="${esc(id)}" ${id === selBook ? 'selected' : ''}>${esc(books.get(id)!.baslik)}</option>`;
     const pile = newArrivals(lib, books);
-    panel.innerHTML = `<div class="phead"><b>Özelleştir</b><button class="ibtn" id="pClose">Kapat</button></div>
-    ${hooks.yeniKitap?.acik() ? '<div class="prow" style="margin-top:12px"><button class="ibtn solid" id="pNewBook">＋ Yeni kitap</button></div>' : ''}
-    <h3>Raflar (üstten alta)</h3>
-    ${lib.raflar.map((s, i) => `<div class="prow"><span class="n">${i + 1}</span><input type="text" data-i="${i}" value="${esc(s.ad)}" maxlength="22" aria-label="Raf ${i + 1} adı">
-       <button class="ibtn danger" data-del="${i}" ${lib.raflar.length <= MIN_SHELVES ? 'disabled' : ''}>${pendingDelete === i ? 'Emin misin?' : 'Sil'}</button></div>`).join('')}
-    <div class="prow"><button class="ibtn solid" id="addShelf" ${lib.raflar.length >= MAX_SHELVES ? 'disabled' : ''}>＋ Raf ekle</button><span class="note" style="margin:0">${lib.raflar.length}/${MAX_SHELVES} raf</span></div>
-    <p class="note">Silinen raftaki kitaplar bir alttaki (yoksa üstteki) rafa taşınır.</p>
-    <h3>Kitap kapağı</h3>
-    ${cb ? `<select id="pBook" aria-label="Kitap seç">${lib.raflar.map(s => `<optgroup label="${esc(s.ad)}">${s.kitaplar.filter(id => books.has(id)).map(opt).join('')}</optgroup>`).join('')}
-      ${pile.length ? `<optgroup label="Yeni gelenler">${pile.map(opt).join('')}</optgroup>` : ''}</select>
-    <div class="sw" id="pCover">${COVER_SWATCHES.map(c => `<button style="background:${c}" data-c="${c}" class="${c === cb.kapak.renk ? 'on' : ''}" aria-label="Renk ${c}"></button>`).join('')}</div>
-    <div class="prow" style="margin-top:10px"><div class="seg" id="pStyle" style="backdrop-filter:none"><button data-s="kumas" class="${cb.kapak.stil === 'kumas' ? 'on' : ''}">Kumaş</button><button data-s="deri" class="${cb.kapak.stil === 'deri' ? 'on' : ''}">Deri, yaldız</button></div></div>` : '<p class="note">Kitaplıkta henüz kitap yok.</p>'}
-    <h3>Oda</h3>
-    <div class="note" style="margin:0 0 6px">Duvar</div>
-    <div class="sw" id="pWall">${WALL_SWATCHES.map(([n, c]) => `<button style="background:${c}" data-c="${c}" title="${n}" aria-label="${n}" class="${c === lib.oda.duvar ? 'on' : ''}"></button>`).join('')}</div>
-    <div class="note" style="margin:10px 0 6px">Zemin</div>
-    <div class="sw" id="pFloor">${FLOOR_SWATCHES.map(([n, k, a, b]) => `<button style="background:linear-gradient(135deg,${a},${b})" data-f="${k}" title="${n}" aria-label="${n}" class="${k === lib.oda.zemin ? 'on' : ''}"></button>`).join('')}</div>
-    <p class="note">Değişiklikler şimdilik sadece bu oturumda kalır; Drive'a kaydetme yakında geliyor.</p>
-    <nav class="legal-links panel-legal" aria-label="Gizlilik ve kullanım şartları">
-      <a href="/privacy.html" target="_blank" rel="noopener noreferrer" aria-label="Gizlilik / Privacy (yeni sekmede)">Gizlilik / Privacy ↗</a>
-      <a href="/terms.html" target="_blank" rel="noopener noreferrer" aria-label="Kullanım şartları / Terms (yeni sekmede)">Şartlar / Terms ↗</a>
+    panel.innerHTML = `<div class="phead"><b>${t('ustCubuk.ozellestir')}</b><button class="ibtn" id="pClose">${t('genel.kapat')}</button></div>
+    ${hooks.yeniKitap?.acik() ? `<div class="prow" style="margin-top:12px"><button class="ibtn solid" id="pNewBook">${t('panel.yeniKitap')}</button></div>` : ''}
+    <h3>${t('panel.raflar')}</h3>
+    ${lib.raflar.map((s, i) => `<div class="prow"><span class="n">${i + 1}</span><input type="text" data-i="${i}" value="${esc(s.ad)}" maxlength="22" aria-label="${esc(t('panel.rafAdi', { n: i + 1 }))}">
+       <button class="ibtn danger" data-del="${i}" ${lib.raflar.length <= MIN_SHELVES ? 'disabled' : ''}>${t(pendingDelete === i ? 'panel.eminMisin' : 'panel.sil')}</button></div>`).join('')}
+    <div class="prow"><button class="ibtn solid" id="addShelf" ${lib.raflar.length >= MAX_SHELVES ? 'disabled' : ''}>${t('panel.rafEkle')}</button><span class="note" style="margin:0">${t('panel.rafSayisi', { n: lib.raflar.length, en: MAX_SHELVES })}</span></div>
+    <p class="note">${t('panel.silNot')}</p>
+    <h3>${t('panel.kapak')}</h3>
+    ${cb ? `<select id="pBook" aria-label="${esc(t('panel.kitapSec'))}">${lib.raflar.map(s => `<optgroup label="${esc(s.ad)}">${s.kitaplar.filter(id => books.has(id)).map(opt).join('')}</optgroup>`).join('')}
+      ${pile.length ? `<optgroup label="${esc(t('panel.yeniGelenler'))}">${pile.map(opt).join('')}</optgroup>` : ''}</select>
+    <div class="sw" id="pCover">${COVER_SWATCHES.map(c => `<button style="background:${c}" data-c="${c}" class="${c === cb.kapak.renk ? 'on' : ''}" aria-label="${esc(t('panel.renk', { renk: c }))}"></button>`).join('')}</div>
+    <div class="prow" style="margin-top:10px"><div class="seg" id="pStyle" style="backdrop-filter:none"><button data-s="kumas" class="${cb.kapak.stil === 'kumas' ? 'on' : ''}">${t('panel.kumas')}</button><button data-s="deri" class="${cb.kapak.stil === 'deri' ? 'on' : ''}">${t('panel.deri')}</button></div></div>` : `<p class="note">${t('panel.kitapYok')}</p>`}
+    <h3>${t('panel.oda')}</h3>
+    <div class="note" style="margin:0 0 6px">${t('panel.duvar')}</div>
+    <div class="sw" id="pWall">${WALL_SWATCHES.map(([n, c]) => `<button style="background:${c}" data-c="${c}" title="${esc(t(n))}" aria-label="${esc(t(n))}" class="${c === lib.oda.duvar ? 'on' : ''}"></button>`).join('')}</div>
+    <div class="note" style="margin:10px 0 6px">${t('panel.zemin')}</div>
+    <div class="sw" id="pFloor">${FLOOR_SWATCHES.map(([n, k, a, b]) => `<button style="background:linear-gradient(135deg,${a},${b})" data-f="${k}" title="${esc(t(n))}" aria-label="${esc(t(n))}" class="${k === lib.oda.zemin ? 'on' : ''}"></button>`).join('')}</div>
+    <p class="note">${t('panel.oturumNot')}</p>
+    <nav class="legal-links panel-legal" aria-label="${esc(t('yasal.etiket'))}">
+      <a href="${yasalHref('privacy')}" target="_blank" rel="noopener noreferrer" aria-label="${esc(t('yasal.gizlilikEtiket'))}">${t('yasal.gizlilik')}</a>
+      <a href="${yasalHref('terms')}" target="_blank" rel="noopener noreferrer" aria-label="${esc(t('yasal.sartlarEtiket'))}">${t('yasal.sartlar')}</a>
     </nav>`;
 
     const q = <T extends HTMLElement>(s: string) => panel.querySelector<T>(s);
@@ -75,7 +77,7 @@ export function initPanel(data: { library: Library; books: Map<string, Book> }, 
       const res = deleteShelf(lib, i);
       if (!res) return;
       hooks.shelvesChanged(); render();
-      toast(`“${res.name}” silindi${res.movedTo ? `, kitaplar ${res.movedTo} rafına taşındı` : ''}.`);
+      toast(res.movedTo ? t('panel.rafSilindiTasindi', { ad: res.name, hedef: res.movedTo }) : t('panel.rafSilindi', { ad: res.name }));
     });
     const add = q<HTMLButtonElement>('#addShelf');
     if (add) add.onclick = () => { if (addShelf(lib)) { hooks.shelvesChanged(); render(); } };

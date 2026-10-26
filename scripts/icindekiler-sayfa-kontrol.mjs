@@ -12,7 +12,7 @@ import { transformWithOxc } from 'vite';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = 4189;
-const URL = `http://localhost:${PORT}/?demo&kapsam=dar&sahip=0&kurulum=1&olcum=1`;
+const URL = `http://localhost:${PORT}/?demo&kapsam=dar&sahip=0&kurulum=1&olcum=1&lang=tr`;
 const OUT = process.argv[2] ?? join(process.env.USERPROFILE, 'iCloudDrive', 'uni_plan_claude_code', 'Claude outputs', 'kitap-6.K6c');
 const wait = ms => new Promise(r => setTimeout(r, ms));
 const sizes = [

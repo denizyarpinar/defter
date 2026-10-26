@@ -1,3 +1,5 @@
+import { t } from '../dil';
+
 // Sign-in card over the room: "Google ile giriş yap" + "Örnek kitaplıkla dene".
 // After a reload it offers one tap: "<ad> olarak devam et".
 
@@ -8,7 +10,7 @@ export interface LoginHandlers {
 }
 
 const $ = <T extends HTMLElement>(s: string) => document.querySelector<T>(s)!;
-let label = 'Google ile giriş yap';
+let label = t('giris.google');
 
 export function initLogin(h: LoginHandlers): void {
   $('#loginGoogle').addEventListener('click', h.onGoogle);
@@ -18,8 +20,8 @@ export function initLogin(h: LoginHandlers): void {
 
 // name = remembered user (one-tap mode), null = first visit / signed out.
 export function setRememberedName(name: string | null): void {
-  label = name ? `${name} olarak devam et` : 'Google ile giriş yap';
-  $('#loginText').textContent = name ? 'Tekrar hoş geldin. Kitaplığın Drive\'dan yüklenecek.' : 'Drive\'daki notların, çalışma odandaki kitaplıkta.';
+  label = name ? t('giris.devamEt', { ad: name }) : t('giris.google');
+  $('#loginText').textContent = t(name ? 'giris.tekrarHosgeldin' : 'genel.aciklama');
   $('#loginOther').hidden = !name;
   setLoginBusy(false);
 }
@@ -37,7 +39,7 @@ export function hideLogin(): void {
 export function setLoginBusy(busy: boolean): void {
   const b = $<HTMLButtonElement>('#loginGoogle');
   b.disabled = busy;
-  b.querySelector('span')!.textContent = busy ? 'Bağlanıyor…' : label;
+  b.querySelector('span')!.textContent = busy ? t('giris.baglaniyor') : label;
 }
 
 export function setLoginError(msg: string | null): void {

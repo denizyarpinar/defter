@@ -140,6 +140,7 @@ interface OpenTopic {
 let topic: OpenTopic | null = null;
 let current = { unit: 0, topic: 0 };   // surum 2: the topic chosen last (also while it is loading)
 let mainCount = 0;                     // surum 2: pages of the material itself (the solution's come after)
+let sonOkunan: { kind: MaterialKind; dosya: string; sayfa: number } | null = null;   // task 6.5-1: the page read last in this topic
 
 type Mode = 'kitap' | 'pdf';
 const MODE_KEY = 'defter.okumaModu';
@@ -309,6 +310,22 @@ let saveState: UploadStatus = { tur: 'bos' };
 let lastSaveToast = '';
 
 export const isOkuyucuOpen = () => open;
+
+// Task 6.5-1: where the reader is, for the language change's reload (null: closed, or no topic open).
+// Read only; the page is the one read last (recordReading), when it belongs to the material on screen.
+export function okuyucuKonumu(): { kitapId: string; unit: number; topic: number; materyal?: MaterialKind; dosya?: string; sayfa?: number; mod: Mode } | null {
+  if (!open || !book || konusuz) return null;
+  const k = { kitapId: book.id, unit: current.unit, topic: current.topic, mod: mode };
+  const kind = topic?.kind ?? undefined;
+  if (!kind) return k;
+  return sonOkunan?.kind === kind ? { ...k, materyal: kind, dosya: sonOkunan.dosya, sayfa: sonOkunan.sayfa } : { ...k, materyal: kind };
+}
+
+// Task 6.5-1: before the language change's reload: the pen's records to the device now (they go to Drive after the reload)
+export const kalemKaydiCihazaYaz = (): Promise<void> => saver.flush();
+
+// Task 6.5-1: a pen upload going on, or strokes not on their way yet (the language button waits)
+export const kalemYuklemeSuruyor = (): boolean => uploader.busy || penModel.dirtyFileIds().length > 0;
 
 // Task 6.3c: search the open reader's material (6.3e: from the library search). Resolves with the number of matches.
 export function okuyucuAra(q: string, o: { ilkEslesmeyeGit?: boolean } = {}): Promise<number> {
@@ -695,7 +712,10 @@ function recordReading(cur: number, shown: number[]): void {
   if (topic) {
     if (!okumaKaydiYazilsinMi(topic.kind)) return;   // task 6.K6a: no material, nothing written
     if (p.dosyaId && sayfaIsiDosyalari.has(p.dosyaId)) return;   // task 6.S-4: its page numbers are changing
-    if (p.ad && p.pdfSayfa) markTopicPage(b, current.unit, current.topic, topic.kind, { dosya: p.ad, sayfa: p.pdfSayfa });
+    if (p.ad && p.pdfSayfa) {
+      markTopicPage(b, current.unit, current.topic, topic.kind, { dosya: p.ad, sayfa: p.pdfSayfa });
+      if (topic.kind) sonOkunan = { kind: topic.kind, dosya: p.ad, sayfa: p.pdfSayfa };
+    }
     if (topic.kind === readKind(topic.materials) && mainCount && seen(mainCount - 1)) autoTopicStatus(b, current.unit, current.topic, 'bitti');
   } else if (!usesUnits(b)) {
     const bolum = p.bolumIndex;
@@ -980,6 +1000,7 @@ async function openTopic(unit: number, topicIndex: number, resume?: Resume): Pro
   if (!t || !book) return;
   const my = ++session;
   current = { unit, topic: topicIndex };
+  sonOkunan = null;
   konusuzMod(false);
   materyalsizMod(null);
   topic = null;

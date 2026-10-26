@@ -1032,3 +1032,13 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
   #copOnay .fp-kart { border-radius: 16px; padding: 18px 16px 16px }
   .co-kart .fp-alt button { flex: 1 1 auto }
 }
+
+/* ---------- task 6.5-1: language buttons ---------- */
+/* top bar: one short button, the language it goes to ("TR" / "EN") */
+.dilbtn { padding: 8px 11px; letter-spacing: .04em }
+.dilbtn:disabled { opacity: .5; cursor: default }
+/* sign-in card: "English · Türkçe" under the legal links */
+.dil-sec { display: flex; justify-content: center; align-items: center; gap: 2px; font-size: 12px; line-height: 1.4; flex-shrink: 0 }
+.dil-sec button { background: none; border: 0; min-height: 44px; padding: 0 8px; text-decoration: underline; text-underline-offset: 3px }
+.dil-sec button[aria-current] { text-decoration: none; font-weight: 700; cursor: default; opacity: 1 }
+.dil-sec button:disabled:not([aria-current]) { opacity: .5; cursor: default }

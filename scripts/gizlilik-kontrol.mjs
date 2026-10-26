@@ -94,7 +94,7 @@ try {
     const app = await appContext.newPage();
     const errors = [];
     app.on('pageerror', e => errors.push(e.message));
-    await app.goto(ORIGIN + '/?kapsam=dar&sahip=0&kurulum=1&olcum=1');
+    await app.goto(ORIGIN + '/?kapsam=dar&sahip=0&kurulum=1&olcum=1&lang=tr');
     await app.locator('#login:not([hidden])').waitFor();
     const loginLinks = app.locator('#login .legal-links a');
     assert.equal(await loginLinks.count(), 2);
@@ -105,7 +105,7 @@ try {
       await link.click();
       const popup = await popupPromise;
       await popup.waitForLoadState('domcontentloaded');
-      assert.ok(/\/(privacy|terms)\.html$/.test(popup.url()));
+      assert.ok(/\/(privacy|terms)\.html#tr$/.test(popup.url()));   // task 6.5-1: the part in the app's language
       assert.equal(await popup.locator('section[lang]').count(), 2);
       assert.equal(await popup.evaluate(() => window.opener === null), true);
       await popup.close();

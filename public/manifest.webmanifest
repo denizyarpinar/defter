@@ -1,8 +1,8 @@
 {
   "name": "Defter",
   "short_name": "Defter",
-  "description": "Drive'daki notların, çalışma odandaki kitaplıkta.",
-  "lang": "tr",
+  "description": "Your Drive notes, on the bookcase in your study room.",
+  "lang": "en",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

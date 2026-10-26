@@ -12,7 +12,7 @@ import { chromium } from 'playwright-core';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = 4182;
-const URL = `http://localhost:${PORT}/`;
+const URL = `http://localhost:${PORT}/?lang=tr`;
 const OUT = process.argv[2] ?? 'C:\\Users\\yarpi\\iCloudDrive\\uni_plan_claude_code\\Claude outputs\\kurulum-6.K3';
 
 const wait = (ms) => new Promise(r => setTimeout(r, ms));
