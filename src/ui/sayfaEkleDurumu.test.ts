@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { eklemeEngeli, eklemeHedefi, eklemeSonrasiOkunan, isSonrasiSayfa, kaldirmaHedefleri, kaldirmaSonrasiOkunan, kitapCiftiSonrasi, okunanTaraflar, sayfaEkleGorunur, varsayilanTaraf, yapistirHedefi, yapistirHedefleri, type GorunenSayfa, type Taraf } from './sayfaEkleDurumu';
+import { eklemeEngeli, eklemeHedefi, eklemeSonrasiOkunan, geriGetirGorunur, isSonrasiSayfa, kitapCiftiSonrasi, silmeEngeli, silmeHedefi, silmeSonrasiOkunan, silOnay, okunanTaraflar, sayfaEkleGorunur, varsayilanTaraf, yapistirHedefi, yapistirHedefleri, type GorunenSayfa, type Taraf } from './sayfaEkleDurumu';
 import type { Yon } from '../defter/bosSayfa';
 
 // Task 6.S-4
@@ -38,12 +38,27 @@ describe('eklemeHedefi', () => {
   });
 });
 
-describe('kaldirmaHedefleri', () => {
-  const kayit = { islemId: 'b', iz: 'i:b' };
-  it('sadece işaretli sayfalar; iki tane → sol / sağ, bir tane → tek', () => {
-    expect(kaldirmaHedefleri([p(0, 1), p(1, 2)], () => null)).toEqual([]);
-    expect(kaldirmaHedefleri([p(0, 1), p(1, 2)], (_f, i) => i === 1 ? kayit : null).map(h => [h.taraf, h.indeks])).toEqual([['tek', 1]]);
-    expect(kaldirmaHedefleri([p(0, 1), p(1, 2)], () => kayit).map(h => h.taraf)).toEqual(['sol', 'sag']);
+describe('6.S-4d silmeHedefi / silmeEngeli / geriGetirGorunur', () => {
+  it('okunan sayfa (6.S-4b seçimi), PDF değilse diğeri; hiç yoksa null', () => {
+    expect(silmeHedefi([p(4, 5)])).toEqual({ liste: 4, dosyaId: 'f', ad: 'ozet.pdf', indeks: 4 });
+    expect(silmeHedefi([p(2, 3), p(3, 4)], 'sag')).toMatchObject({ liste: 3, indeks: 3 });
+    expect(silmeHedefi([p(2, 3), p(3)], 'sag')).toMatchObject({ liste: 2 });
+    expect(silmeHedefi([p(0)])).toBeNull();
+  });
+  it('nedenler sırayla; onay metni', () => {
+    const yok = { isSuruyor: false, kalemYazamaz: null, okumaSuruyor: false, sonSayfa: false, hedefYok: false };
+    expect(silmeEngeli(yok)).toBeNull();
+    expect(silmeEngeli({ ...yok, sonSayfa: true })).toMatch(/Son sayfa silinemez/);
+    expect(silmeEngeli({ ...yok, sonSayfa: true, kalemYazamaz: 'imzalı' })).toBe('imzalı');
+    expect(silmeEngeli({ ...yok, okumaSuruyor: true, sonSayfa: true })).toMatch(/okunuyor/);
+    expect(silmeEngeli({ ...yok, hedefYok: true, kalemYazamaz: 'imzalı' })).toMatch(/PDF sayfası değil/);
+    expect(silmeEngeli({ ...yok, isSuruyor: true, hedefYok: true })).toMatch(/sürüyor/);
+    expect(silOnay(7)).toBe('s. 7 silinecek. Sayfadaki kalem yazısı ve okunmuş el yazısı da gider. Geri al ile hemen geri getirebilirsin.');
+  });
+  it('geri getir: son silinenin dosyası açık listede', () => {
+    expect(geriGetirGorunur('f', ['a', null, 'f'])).toBe(true);
+    expect(geriGetirGorunur('f', ['a'])).toBe(false);
+    expect(geriGetirGorunur(null, ['a'])).toBe(false);
   });
 });
 
@@ -55,7 +70,10 @@ describe('eklemeEngeli / isSonrasiSayfa', () => {
     expect(eklemeEngeli({ ...yok, isSuruyor: true, kalemYazamaz: 'imzalı' })).toMatch(/sürüyor/);
     expect(eklemeEngeli({ ...yok, hedefYok: true })).toMatch(/PDF sayfası değil/);
   });
-  it('ekleme: yeni sayfa; kaldırma: öncesi (ilk sayfa: 1)', () => {
+  it('ekleme / geri koyma: yeni sayfa; kaldırma / silme: öncesi (ilk sayfa: 1)', () => {
+    expect(isSonrasiSayfa('geriKoy', 2)).toBe(3);
+    expect(isSonrasiSayfa('sil', 2)).toBe(2);
+    expect(isSonrasiSayfa('sil', 0)).toBe(1);
     expect(isSonrasiSayfa('ekle', 0)).toBe(1);
     expect(isSonrasiSayfa('ekle', 3)).toBe(4);
     expect(isSonrasiSayfa('kaldir', 3)).toBe(3);
@@ -65,7 +83,6 @@ describe('eklemeEngeli / isSonrasiSayfa', () => {
 
 // Task 6.S-4b: the page read stays on screen. The list's pages are pages 1..n of one PDF (liste = pdfSayfa − 1).
 describe('kitap modu: okunan sayfa yerinde', () => {
-  const kayit = { islemId: 'b', iz: 'i:b' };
   // the spread after adding, as the page numbers (1-based, 0: empty paper) of the new list
   const sonra = (sol: number, n: number, taraf: Taraf, yon: Yon): [number, number, number] => {
     const g = [p(sol, sol + 1), p(sol + 1, sol + 2)];
@@ -96,30 +113,30 @@ describe('kitap modu: okunan sayfa yerinde', () => {
     expect(varsayilanTaraf(g, 7)).toBe('sol');   // not on screen any more
     expect(varsayilanTaraf([p(2), p(3, 4)], null)).toBe('sag');
   });
-  it('kaldırma: komşu kendi tarafında kalır', () => {
+  it('silme: komşu kendi tarafında kalır', () => {
     // B on the right (index 3): the left page (index 2) stays left
-    let g = [p(2, 3), p(3, 4)], h = kaldirmaHedefleri(g, (_f, i) => i === 3 ? kayit : null)[0];
-    let o = kaldirmaSonrasiOkunan(g, h)!;
+    let g = [p(2, 3), p(3, 4)], h = silmeHedefi(g, 'sag')!;
+    let o = silmeSonrasiOkunan(g, h)!;
     expect(o).toEqual({ dosya: 'ozet.pdf', sayfa: 3, taraf: 'sol' });
     expect(kitapCiftiSonrasi({ okunanIndeks: o.sayfa - 1, taraf: o.taraf, sayfaSayisi: 9 })).toEqual({ ciftBaslangic: 2, ofset: 0 });
     // B on the left (index 2): the right page (old 4, now 3) stays right
-    h = kaldirmaHedefleri(g, (_f, i) => i === 2 ? kayit : null)[0];
-    o = kaldirmaSonrasiOkunan(g, h)!;
+    h = silmeHedefi(g, 'sol')!;
+    o = silmeSonrasiOkunan(g, h)!;
     expect(o).toEqual({ dosya: 'ozet.pdf', sayfa: 3, taraf: 'sag' });
     expect(kitapCiftiSonrasi({ okunanIndeks: o.sayfa - 1, taraf: o.taraf, sayfaSayisi: 9 })).toEqual({ ciftBaslangic: 1, ofset: 1 });
     // B is the first page, on the left: an empty paper on the left, the page on the right
     g = [p(0, 1), p(1, 2)];
-    h = kaldirmaHedefleri(g, (_f, i) => i === 0 ? kayit : null)[0];
-    o = kaldirmaSonrasiOkunan(g, h)!;
+    h = silmeHedefi(g, 'sol')!;
+    o = silmeSonrasiOkunan(g, h)!;
     expect(kitapCiftiSonrasi({ okunanIndeks: o.sayfa - 1, taraf: o.taraf, sayfaSayisi: 9 })).toEqual({ ciftBaslangic: -1, ofset: 1 });
     // one page on screen, or the other one not a PDF page: as in 6.S-4
-    expect(kaldirmaSonrasiOkunan([p(2, 3)], { ...h, liste: 2 })).toBeNull();
-    expect(kaldirmaSonrasiOkunan([p(2, 3), p(3)], { ...h, liste: 2 })).toBeNull();
+    expect(silmeSonrasiOkunan([p(2, 3)], { ...h, liste: 2 })).toBeNull();
+    expect(silmeSonrasiOkunan([p(2, 3), p(3)], { ...h, liste: 2 })).toBeNull();
   });
-  it('kaldırma: komşu başka dosyada → sayfası değişmez', () => {
+  it('silme: komşu başka dosyada → sayfası değişmez', () => {
     const g = [p(9, 10, 'brifing'), p(10, 1, 'sorular')];
-    const h = kaldirmaHedefleri(g, (f, i) => f === 'brifing' && i === 9 ? kayit : null)[0];
-    expect(kaldirmaSonrasiOkunan(g, h)).toMatchObject({ sayfa: 1, taraf: 'sag' });
+    const h = silmeHedefi(g, 'sol')!;
+    expect(silmeSonrasiOkunan(g, h)).toMatchObject({ sayfa: 1, taraf: 'sag' });
   });
 });
 

@@ -38,4 +38,13 @@ describe('kayitBirlestir (iki dosya)', () => {
     expect(r.sayfalar.map(x => [x.parmakIzi, (x.satirlar[0] as { parcalar: { metin: string }[] }).parcalar[0].metin])).toEqual([['a', 'diger'], ['b', 'asil-b'], ['c', 'x']]);
     expect((r as unknown as { ek: string }).ek).toBe('asil');
   });
+
+  it('6.S-4d: silinenler alanları islemId ile birleşir; aynı islemId + sayfada okunması yeni olan kalır', () => {
+    const asil = { ...k(s(1, 'a', T1)), silinenler: [{ islemId: 'x', sira: 1, sayfa: s(2, 'b', T1, 'eski') }, { islemId: 'y', sira: 0, sayfa: s(4, 'd', T1) }] };
+    const diger = { ...k(s(1, 'a', T1)), silinenler: [{ islemId: 'x', sira: 1, sayfa: s(2, 'b', T2, 'yeni') }, { islemId: 'z', sira: 2, sayfa: s(5, 'e', T1) }] };
+    const r = kayitBirlestir(asil, diger);
+    expect(r.silinenler!.map(x => [x.islemId, (x.sayfa.satirlar[0] as { parcalar: { metin: string }[] }).parcalar[0].metin])).toEqual([['x', 'yeni'], ['y', 'x'], ['z', 'x']]);
+    expect(kayitBirlestir(k(s(1, 'a', T1)), k(s(2, 'b', T1))).silinenler).toBeUndefined();
+    expect(kayitBirlestir(k(), diger).silinenler!.map(x => x.islemId)).toEqual(['x', 'z']);
+  });
 });

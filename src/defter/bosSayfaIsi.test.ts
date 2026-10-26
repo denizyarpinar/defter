@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { EklenenSayfalar } from './ozeteEkle';
-import { sayfaIsiCalistir, SayfaIsiYarim, yeniEklemeIsi, yeniGeriAlIsi, yeniKaldirmaIsi, yeniYapistirmaIsi, type SayfaIsi, type SayfaIsiOrtami } from './bosSayfaIsi';
+import { isAnahtari, sayfaIsiCalistir, SayfaIsiYarim, yeniEklemeIsi, yeniGeriAlIsi, yeniGeriKoymaIsi, yeniKaldirmaIsi, yeniSilmeIsi, yeniYapistirmaIsi, type SayfaIsi, type SayfaIsiOrtami } from './bosSayfaIsi';
 
 // Task 6.S-4: the job's order and what is left after a failure
 
@@ -80,5 +80,26 @@ describe('sayfaIsiCalistir', () => {
     const is = yeniKaldirmaIsi({ islemId: 'b1', fileId: 'f', dosyaAdi: 'ozet.pdf', klasorId: null, kitapId: 'b', konu: 'U/K', kaldir: { indeks: 4, iz: 'i:x' } });
     expect((await sayfaIsiCalistir(is, f.m)).indeks).toBe(4);
     expect(f.sira).toEqual(['json 4 -1 ozet.pdf U/K', 'ocr 4 -1', 'sil']);
+  });
+
+  it('6.S-4d silme: delta −1, aynı iz bilgisi işe yazılır; geri koyma: delta +1, sona eklendi bilgisi', async () => {
+    const f = ortam({ pdf: async () => sonuc({ indeks: 2, ayniIzVar: true }) });
+    const o = { islemId: 's1', fileId: 'f', dosyaAdi: 'ozet.pdf', klasorId: null, kitapId: 'b', konu: 'U/K' };
+    const is = yeniSilmeIsi({ ...o, sil: { indeks: 2, iz: 'g:x' } });
+    expect((await sayfaIsiCalistir(is, f.m)).indeks).toBe(2);
+    expect(is.ayniIzVar).toBe(true);
+    expect(f.sira).toEqual(['json 2 -1 ozet.pdf U/K', 'ocr 2 -1', 'sil']);
+    const g = ortam({ pdf: async () => sonuc({ indeks: 7, sonaEklendi: true }) });
+    const gk = yeniGeriKoymaIsi({ ...o, geriKoy: { indeks: 2, komsuIz: 'i:k', komsuYon: 'sonra' } });
+    expect(isAnahtari(gk)).toBe('geriKoy:s1');
+    await sayfaIsiCalistir(gk, g.m);
+    expect([gk.indeks, gk.sonaEklendi]).toEqual([7, true]);
+    expect(g.sira).toEqual(['json 7 1 ozet.pdf U/K', 'ocr 7 1', 'sil']);
+  });
+
+  it('6.S-4d silme: zaten silinmiş (cevap kaybolmuş) → kullanıcının gördüğü indeks', async () => {
+    const f = ortam({ pdf: async () => sonuc({ zatenVardi: true, indeks: undefined }) });
+    const is = yeniSilmeIsi({ islemId: 's2', fileId: 'f', dosyaAdi: 'ozet.pdf', klasorId: null, kitapId: 'b', konu: 'U/K', sil: { indeks: 3 } });
+    expect((await sayfaIsiCalistir(is, f.m)).indeks).toBe(3);
   });
 });

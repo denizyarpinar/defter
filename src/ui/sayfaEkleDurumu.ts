@@ -1,11 +1,12 @@
-import type { BosSayfaKaydi, YapistirilmisSayfa, Yon } from '../defter/bosSayfa';
+import type { YapistirilmisSayfa, Yon } from '../defter/bosSayfa';
 
 // Task 6.S-4: the "Sayfa ekle" button and its popover, without DOM (tested). ui/sayfaEkleBalon.ts draws it.
 // - Shown: a Drive library (not the sample one), surum 2 with kitap.json, a material open. With the pen on too.
 // - The target page: PDF mode the page on screen; book mode (6.S-4b) the page being read (the side last touched,
 //   else the left; chosen in the popover), Önüne / Arkasına that page. After the job that page stays on screen,
 //   the blank page beside it (kitapCiftiSonrasi; the spread may start one page later, BookView.ofset).
-// - "Bu sayfayı kaldır" only on pages carrying /DefterBosSayfa; two on screen → Soldaki / Sağdaki.
+// - Task 6.S-4d: "Bu sayfayı sil" for the page read (any PDF page, the blank one too), confirmed; "Son silineni geri
+//   getir" while this session's last deleted page belongs to a file in the open list.
 
 export interface GorunenSayfa {
   liste: number;              // index in the reader's list
@@ -32,22 +33,41 @@ export function eklemeHedefi(gorunen: readonly GorunenSayfa[], yon: Yon, taraf: 
   return { liste: p.liste, dosyaId: p.dosyaId, ad: p.ad ?? '', komsu: p.pdfSayfa - 1, yon };
 }
 
-export interface KaldirmaHedefi { taraf: 'tek' | 'sol' | 'sag'; liste: number; dosyaId: string; ad: string; indeks: number; kayit: BosSayfaKaydi }
+// ---- task 6.S-4d: deleting the page read ----
 
-// bos(dosyaId, indeks 0-based): the blank page's mark, or null
-export function kaldirmaHedefleri(gorunen: readonly GorunenSayfa[], bos: (dosyaId: string, indeks: number) => BosSayfaKaydi | null): KaldirmaHedefi[] {
-  const out: KaldirmaHedefi[] = [];
-  gorunen.forEach((p, i) => {
-    if (!pdfMi(p)) return;
-    const kayit = bos(p.dosyaId, p.pdfSayfa - 1);
-    if (kayit) out.push({ taraf: gorunen.length > 1 ? (i === 0 ? 'sol' : 'sag') : 'tek', liste: p.liste, dosyaId: p.dosyaId, ad: p.ad ?? '', indeks: p.pdfSayfa - 1, kayit });
-  });
-  if (out.length === 1) out[0].taraf = 'tek';
-  return out;
+export interface SilmeHedefi { liste: number; dosyaId: string; ad: string; indeks: number }   // indeks: 0-based in the PDF
+
+export function silmeHedefi(gorunen: readonly GorunenSayfa[], taraf: Taraf = 'sol'): SilmeHedefi | null {
+  const h = eklemeHedefi(gorunen, 'sonra', taraf);
+  return h && { liste: h.liste, dosyaId: h.dosyaId, ad: h.ad, indeks: h.komsu };
 }
 
-export const KALDIR_METNI: Record<KaldirmaHedefi['taraf'], string> = { tek: 'Bu sayfayı kaldır', sol: 'Soldaki boş sayfayı kaldır', sag: 'Sağdaki boş sayfayı kaldır' };
-export const KALDIR_ONAY = 'Bu boş sayfa ve üstündeki kalem yazısı silinecek. Devam edilsin mi?';
+export const SIL_METNI = 'Bu sayfayı sil';
+export const GERI_GETIR_METNI = 'Son silineni geri getir';
+// n: the page number in the reader (as the popover's "s. N")
+export const silOnay = (n: number) => `s. ${n} silinecek. Sayfadaki kalem yazısı ve okunmuş el yazısı da gider. Geri al ile hemen geri getirebilirsin.`;
+
+export interface SilmeEngelGirdisi {
+  isSuruyor: boolean;
+  kalemYazamaz: string | null;
+  okumaSuruyor: boolean;
+  sonSayfa: boolean;            // the file has one page
+  hedefYok: boolean;            // the page read is not a PDF page
+}
+
+// Why "Bu sayfayı sil" is grey (null: it works)
+export function silmeEngeli(g: SilmeEngelGirdisi): string | null {
+  if (g.isSuruyor) return 'Bir sayfa işi sürüyor; bitince tekrar dene.';
+  if (g.hedefYok) return 'Bu sayfa silinemiyor (PDF sayfası değil).';
+  if (g.kalemYazamaz) return g.kalemYazamaz;
+  if (g.okumaSuruyor) return 'El yazısı okunuyor; bitince tekrar dene.';
+  if (g.sonSayfa) return 'Son sayfa silinemez; dosyada en az bir sayfa kalmalı.';
+  return null;
+}
+
+// "Son silineni geri getir": this session's last deleted page, its file in the open list
+export const geriGetirGorunur = (sonDosya: string | null, listedekiDosyalar: Iterable<string | null>): boolean =>
+  sonDosya !== null && [...listedekiDosyalar].includes(sonDosya);
 
 export interface EngelGirdisi {
   isSuruyor: boolean;           // a blank-page job of this reader is going
@@ -65,10 +85,10 @@ export function eklemeEngeli(g: EngelGirdisi): string | null {
   return null;
 }
 
-// After the job: the PDF page (1-based) the reader opens at. ekle: the new page; kaldir: the page before it (or 1);
-// 6.S-4c yapistir / geri al: the same page
-export const isSonrasiSayfa = (tur: 'ekle' | 'kaldir' | 'yapistir' | 'yapistirGeriAl', indeks: number): number =>
-  tur === 'kaldir' ? Math.max(1, indeks) : indeks + 1;
+// After the job: the PDF page (1-based) the reader opens at. ekle / geriKoy: the new page; kaldir / sil: the page
+// before it (or 1); 6.S-4c yapistir / geri al: the same page
+export const isSonrasiSayfa = (tur: 'ekle' | 'kaldir' | 'yapistir' | 'yapistirGeriAl' | 'sil' | 'geriKoy', indeks: number): number =>
+  tur === 'kaldir' || tur === 'sil' ? Math.max(1, indeks) : indeks + 1;
 
 // ---- task 6.S-4c: "Deftere yapıştır" for the page being read ----
 
@@ -122,9 +142,9 @@ export interface OkunanSonrasi { dosya: string; sayfa: number; taraf: Taraf }   
 export const eklemeSonrasiOkunan = (h: EklemeHedefi): OkunanSonrasi =>
   h.yon === 'once' ? { dosya: h.ad, sayfa: h.komsu + 2, taraf: 'sag' } : { dosya: h.ad, sayfa: h.komsu + 1, taraf: 'sol' };
 
-// Removing: the other page on screen stays on its side (a page after the removed one in the same file moves up one).
+// Deleting: the other page on screen stays on its side (a page after the deleted one in the same file moves up one).
 // null: no other PDF page on screen (the reader goes on as in 6.S-4)
-export function kaldirmaSonrasiOkunan(gorunen: readonly GorunenSayfa[], h: KaldirmaHedefi): OkunanSonrasi | null {
+export function silmeSonrasiOkunan(gorunen: readonly GorunenSayfa[], h: SilmeHedefi): OkunanSonrasi | null {
   if (gorunen.length < 2) return null;
   const i = gorunen.findIndex(x => x.liste !== h.liste), k = gorunen[i];
   if (i < 0 || !pdfMi(k)) return null;

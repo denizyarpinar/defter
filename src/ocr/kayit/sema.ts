@@ -30,7 +30,10 @@ export interface OcrSayfa {
 }
 
 export interface OcrKaynak { id: string; ad: string }   // the PDF (Drive id, file name)
-export interface OcrKayit { tur: 'defter-ocr'; surum: 1; kaynak: OcrKaynak; sayfalar: OcrSayfa[] }
+// Task 6.S-4d: the entries of deleted pages, kept until "Geri al" puts them back (sira: their place in sayfalar).
+// Optional and not checked: older versions keep it as an unknown field.
+export interface OcrSilinen { islemId: string; sira: number; sayfa: OcrSayfa }
+export interface OcrKayit { tur: 'defter-ocr'; surum: 1; kaynak: OcrKaynak; sayfalar: OcrSayfa[]; silinenler?: OcrSilinen[] }
 
 export const OCR_SURUM = 1;
 

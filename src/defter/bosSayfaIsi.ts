@@ -13,9 +13,13 @@ import type { EklenenSayfalar } from './ozeteEkle';
 // A PDF step that fails is not stored: the user decides ("Tekrar dene" in the toast, same islemId).
 // Task 6.S-4c: "Deftere yapıştır" and its undo are jobs too, but only the PDF step: the page count stays, so the
 // ribbons and the reading record don't move (their steps start done).
+// Task 6.S-4d: any page out ('sil', delta −1) and back with "Geri al" ('geriKoy', delta +1, the removal's islemId).
+// The deleted page's ribbons and reading entries are kept for the undo (sayfaKaydir.ts: ocrSil / ocrGeriKoy,
+// silinenKurdeleler / kurdeleGeriKoy); the backup itself is on the device (okuma/silinenSayfaDepo.ts).
+// 'kaldir' (6.S-4's blank page) is no longer started: only jobs left on a device finish their steps.
 
 export interface SayfaIsi {
-  tur: 'ekle' | 'kaldir' | 'yapistir' | 'yapistirGeriAl';
+  tur: 'ekle' | 'kaldir' | 'yapistir' | 'yapistirGeriAl' | 'sil' | 'geriKoy';
   islemId: string;          // ekle: the new page's id; kaldir: the blank page's id (its /DefterBosSayfa); yapistir(GeriAl): the paste's
   fileId: string;
   dosyaAdi: string;         // the ribbons' `dosya`
@@ -26,13 +30,17 @@ export interface SayfaIsi {
   kaldir?: { indeks: number; iz?: string };   // iz: the blank page's fingerprint (its reading entry goes)
   yapistir?: Omit<YapistirIstek, 'islemId'>;
   yapistirGeriAl?: Omit<GeriAlIstek, 'islemId'>;
+  sil?: { indeks: number; iz?: string; taraf?: 'sol' | 'sag' };   // 6.S-4d: the page (in the reader's version), its fingerprint, its side (book mode)
+  geriKoy?: { indeks: number; komsuIz?: string; komsuYon: 'once' | 'sonra' };   // 6.S-4d: where it was; the bytes: the device's backup
+  ayniIzVar?: boolean;      // 6.S-4d sil: another page has its fingerprint (known after the PDF step)
+  sonaEklendi?: boolean;    // 6.S-4d geriKoy: its place wasn't found, it went to the end
   indeks?: number;          // where the page went in / came out, known after the PDF step
   adimlar: { pdf: boolean; kitapJson: boolean; ocr: boolean };
   zaman: string;            // ISO, when the job started
 }
 
 export const isAnahtari = (is: Pick<SayfaIsi, 'tur' | 'islemId'>) => `${is.tur}:${is.islemId}`;
-export const isDeltasi = (is: Pick<SayfaIsi, 'tur'>): Delta => is.tur === 'ekle' ? 1 : -1;
+export const isDeltasi = (is: Pick<SayfaIsi, 'tur'>): Delta => is.tur === 'ekle' || is.tur === 'geriKoy' ? 1 : -1;
 
 export function yeniEklemeIsi(o: Omit<SayfaIsi, 'tur' | 'adimlar' | 'zaman' | 'kaldir' | 'indeks'> & { ekle: NonNullable<SayfaIsi['ekle']> }, simdi = new Date()): SayfaIsi {
   return { ...o, tur: 'ekle', adimlar: { pdf: false, kitapJson: false, ocr: false }, zaman: simdi.toISOString() };
@@ -51,6 +59,17 @@ export function yeniYapistirmaIsi(o: YapistirmaGirdisi & { yapistir: NonNullable
 
 export function yeniGeriAlIsi(o: YapistirmaGirdisi & { yapistirGeriAl: NonNullable<SayfaIsi['yapistirGeriAl']> }, simdi = new Date()): SayfaIsi {
   return { ...o, tur: 'yapistirGeriAl', adimlar: sadecePdf(), zaman: simdi.toISOString() };
+}
+
+type IsGirdisi = Omit<SayfaIsi, 'tur' | 'adimlar' | 'zaman' | 'ekle' | 'kaldir' | 'indeks' | 'yapistir' | 'yapistirGeriAl' | 'sil' | 'geriKoy' | 'ayniIzVar' | 'sonaEklendi'>;
+const hepsi = () => ({ pdf: false, kitapJson: false, ocr: false });
+
+export function yeniSilmeIsi(o: IsGirdisi & { sil: NonNullable<SayfaIsi['sil']> }, simdi = new Date()): SayfaIsi {
+  return { ...o, tur: 'sil', adimlar: hepsi(), zaman: simdi.toISOString() };
+}
+
+export function yeniGeriKoymaIsi(o: IsGirdisi & { geriKoy: NonNullable<SayfaIsi['geriKoy']> }, simdi = new Date()): SayfaIsi {
+  return { ...o, tur: 'geriKoy', adimlar: hepsi(), zaman: simdi.toISOString() };
 }
 
 export interface SayfaIsiOrtami {
@@ -83,9 +102,11 @@ export async function sayfaIsiCalistir(is: SayfaIsi, o: SayfaIsiOrtami): Promise
   if (!is.adimlar.pdf) {
     pdf = await o.pdf(is);
     // removed already by an earlier try whose answer was lost: the index the user saw
-    is.indeks = pdf.indeks ?? is.kaldir?.indeks ?? is.yapistirGeriAl?.indeks
+    is.indeks = pdf.indeks ?? is.kaldir?.indeks ?? is.sil?.indeks ?? is.yapistirGeriAl?.indeks
       ?? (Array.isArray(is.yapistir?.indeksler) ? is.yapistir.indeksler[0] : undefined);
     if (is.indeks === undefined) throw new Error('Sayfanın yeri bilinmiyor.');
+    if (pdf.ayniIzVar !== undefined) is.ayniIzVar = pdf.ayniIzVar;
+    if (pdf.sonaEklendi !== undefined) is.sonaEklendi = pdf.sonaEklendi;
     is.adimlar.pdf = true;
     await o.kaydet(is).catch(e => console.warn('Sayfa işi cihaza yazılamadı.', e));
   }

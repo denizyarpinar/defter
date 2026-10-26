@@ -1,4 +1,4 @@
-import type { OcrKayit, OcrSayfa } from './sema';
+import type { OcrKayit, OcrSayfa, OcrSilinen } from './sema';
 
 // Task 6.4c-1: merging page entries. The key is only parmakIzi (Deniz's decision): an older entry with
 // the same page number but another fingerprint stays (eslestir calls it "eski"; nothing is lost).
@@ -12,6 +12,17 @@ export function sayfaBirlestir(kayit: OcrKayit, yeni: OcrSayfa): OcrKayit {
   return { ...kayit, sayfalar: sirala([...kayit.sayfalar.filter(s => s.parmakIzi !== yeni.parmakIzi), yeni]) };
 }
 
+// Task 6.S-4d: the deleted pages' entries of two copies: per removal (islemId) and page, the later reading wins
+function silinenBirlestir(a: readonly OcrSilinen[], b: readonly OcrSilinen[]): OcrSilinen[] {
+  const out = [...a];
+  for (const x of b) {
+    const i = out.findIndex(y => y.islemId === x.islemId && y.sayfa.parmakIzi === x.sayfa.parmakIzi);
+    if (i < 0) out.push(x);
+    else if (zaman(x.sayfa) > zaman(out[i].sayfa)) out[i] = x;
+  }
+  return out;
+}
+
 // Two copies of one record (two files for the same PDF): per fingerprint the later reading wins
 export function kayitBirlestir(asil: OcrKayit, diger: OcrKayit): OcrKayit {
   const sayfalar = [...asil.sayfalar];
@@ -20,5 +31,8 @@ export function kayitBirlestir(asil: OcrKayit, diger: OcrKayit): OcrKayit {
     if (i < 0) sayfalar.push(s);
     else if (zaman(s) > zaman(sayfalar[i])) sayfalar[i] = s;
   }
-  return { ...asil, sayfalar: sirala(sayfalar) };
+  const out: OcrKayit = { ...asil, sayfalar: sirala(sayfalar) };
+  const silinenler = silinenBirlestir(asil.silinenler ?? [], diger.silinenler ?? []);
+  if (silinenler.length) out.silinenler = silinenler;
+  return out;
 }

@@ -4,7 +4,7 @@ import type { Stroke } from '../kalem/cizgi';
 import { PdfYazilamaz, readDefterStrokes, writeDefterStrokes } from '../kalem/pdfNotlari';
 import { sayfaParmakIzleri } from '../ocr/kayit/parmakIzi';
 import {
-  BOS_DESEN, BOS_ID, bosSayfaBilgisi, dikeyBoyut, sayfaIziAl, bosSayfaEkle, bosSayfaKaldir, BosSayfaDegil, desenCizgileri, SayfaYeriDegisti, type BosEklendi
+  BOS_DESEN, BOS_ID, bosSayfaBilgisi, dikeyBoyut, sayfaIziAl, bosSayfaEkle, desenCizgileri, SayfaYeriDegisti, type BosEklendi
 } from './bosSayfa';
 
 // Task 6.S-4: blank note pages inside a PDF. The PDFs are made here (3 A4 pages with text, a Defter stroke on
@@ -147,36 +147,13 @@ describe('bosSayfaEkle', () => {
   });
 });
 
-describe('bosSayfaKaldir', () => {
-  it('işaretli sayfa gider, notları ile; diğerleri aynen', async () => {
+describe('bosSayfaBilgisi', () => {
+  it('boş sayfalar islemId ve parmak iziyle', async () => {
     const b = bytesOf(await bosSayfaEkle(pdf, { komsu: 0, yon: 'sonra', desen: 'kareli', islemId: 'k' }));
     const b2 = await writeDefterStrokes(b, new Map([[1, [stroke('bos')]]]));
     const bilgi = await bosSayfaBilgisi(b2);
     expect(bilgi.yazilabilir && [bilgi.sayfa, [...bilgi.bos].map(([i, x]) => [i, x.islemId])]).toEqual([4, [[1, 'k']]]);
     expect(bilgi.yazilabilir && bilgi.bos.get(1)!.iz).toBe((await sayfaParmakIzleri(b2))[1]);
     expect(await sayfaIziAl(b2, 1)).toBe((await sayfaParmakIzleri(b2))[1]);
-    const r = await bosSayfaKaldir(b2, { indeks: 1, islemId: 'k' });
-    if ('zatenYok' in r) throw new Error('zatenYok');
-    expect(r).toMatchObject({ indeks: 1, eskiSayfa: 4, yeniSayfa: 3 });
-    const s = await readDefterStrokes(r.bytes);
-    expect([...s.values()].flat().map(x => x.id).sort()).toEqual(['a', 't']);
-    expect(await sayfaParmakIzleri(r.bytes)).toEqual(await sayfaParmakIzleri(pdf));
-    // again: already gone
-    expect(await bosSayfaKaldir(r.bytes, { indeks: 1, islemId: 'k' })).toEqual({ zatenYok: true, sayfa: 3 });
-  });
-
-  it('işaretsiz (kullanıcının) sayfa: BosSayfaDegil; bilinmeyen islemId: zatenYok, değişiklik yok', async () => {
-    await expect(bosSayfaKaldir(pdf, { indeks: 1 })).rejects.toBeInstanceOf(BosSayfaDegil);
-    expect(await bosSayfaKaldir(pdf, { indeks: 1, islemId: 'yok' })).toEqual({ zatenYok: true, sayfa: 3 });
-    const b = bytesOf(await bosSayfaEkle(pdf, { komsu: 0, yon: 'sonra', desen: 'duz', islemId: 'q' }));
-    const r = await bosSayfaKaldir(b, { indeks: 1 });
-    expect('zatenYok' in r ? null : r.islemId).toBe('q');
-  });
-
-  it('kayan sayfa islemId ile bulunur', async () => {
-    const b = bytesOf(await bosSayfaEkle(pdf, { komsu: 2, yon: 'sonra', desen: 'duz', islemId: 'z' }));
-    const b2 = bytesOf(await bosSayfaEkle(b, { komsu: 0, yon: 'once', desen: 'duz', islemId: 'w' }));
-    const r = await bosSayfaKaldir(b2, { indeks: 3, islemId: 'z' });
-    expect('zatenYok' in r ? -1 : r.indeks).toBe(4);
   });
 });

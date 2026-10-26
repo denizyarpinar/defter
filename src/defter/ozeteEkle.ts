@@ -6,7 +6,8 @@ import type { UploadDeps } from '../kalem/pdfKayit';
 import type { PDFDocument } from 'pdf-lib';
 import { pdfLib, SAVE_OPTIONS, yazilabilirAc } from '../kalem/pdfNotlari';
 import { isSampleId } from '../okuma/ornekKaynak';
-import { bosSayfaEkle, bosSayfaKaldir, type BosSayfaIstek } from './bosSayfa';
+import { bosSayfaEkle, type BosSayfaIstek } from './bosSayfa';
+import { sayfaGeriKoy, sayfaSil, type Capa, type GeriKoyIstek, type SilIstek } from './sayfaSil';
 import { yapistir, yapistirGeriAl, type GeriAlIstek, type YapistirIstek } from './yapistir';
 import { MESAJLAR, sayfalariEkle, type Jpeg } from './sayfaEkle';
 import { mb, olc, zamanliDrive, type Olcum, type PdfKaynakBilgisi } from './sureOlcum';
@@ -22,8 +23,10 @@ import { mb, olc, zamanliDrive, type Olcum, type PdfKaynakBilgisi } from './sure
 // - Existing pages, their notes (Defter's and others') and ribbons stay: pages are only added after them.
 // - Only with the Drive library open.
 // Task 6.S-3: the same way for the pages of a whole PDF ("Dosya ekle" → Özet, EkKaynak { pdf }).
-// Task 6.S-4: the same way for a blank page between pages (EkKaynak { bosSayfa }) and its removal ({ bosKaldir }):
-//   bosSayfa.ts; the mark is /DefterBosSayfa (islemId), found again on a retry.
+// Task 6.S-4: the same way for a blank page between pages (EkKaynak { bosSayfa }): bosSayfa.ts; the mark is
+//   /DefterBosSayfa (islemId), found again on a retry.
+// Task 6.S-4d: any page out ({ sayfaSil }) and back in ({ sayfaGeriKoy }) the same way: sayfaSil.ts. The page that
+//   goes is handed to secenek.yedekle BEFORE the upload (the device's backup for "Geri al").
 // Task 6.S-4c: "Deftere yapıştır" ({ yapistir }) and its undo ({ yapistirGeriAl }) the same way: yapistir.ts; the
 //   page count stays, indeks = the (first) page changed.
 // Task 6.2e-1: secenek.olcum (only with ?olcum=1) times each step and each Drive request; without it nothing changes.
@@ -44,7 +47,12 @@ export interface EklenenSayfalar {
   bytes: Uint8Array;        // the file as it is in Drive now
   zatenVardi: boolean;      // an earlier try had added them already: nothing was uploaded this time
   indeks?: number;          // task 6.S-4: where the blank page went in / came out (0-based)
+  ayniIzVar?: boolean;      // task 6.S-4d, sayfaSil: another page has the deleted page's fingerprint
+  sonaEklendi?: boolean;    // task 6.S-4d, sayfaGeriKoy: its place wasn't found, it went to the end
 }
+
+// Task 6.S-4d: the deleted page, for the device's backup (written before the upload)
+export interface SilinenYedek extends Capa { indeks: number; sayfaBytes: Uint8Array; eskiSayfa: number; ayniIzVar: boolean }
 
 // ---- errors (Turkish, say what to do) ----
 
@@ -83,10 +91,12 @@ const EK_MESAJLAR = {
 // What goes at the end: photos (5.6) or the pages of a PDF (6.S-3, "Dosya ekle" → Özet)
 // task 6.S-4: or a blank page between pages / its removal (the islemId is the one of the adding)
 export type EkKaynak = { jpegler: readonly Jpeg[] } | { pdf: Uint8Array }
-  | { bosSayfa: Omit<BosSayfaIstek, 'islemId'> } | { bosKaldir: { indeks: number } }   // bosKaldir: islemId = the blank page's id
+  | { bosSayfa: Omit<BosSayfaIstek, 'islemId'> }
+  | { sayfaSil: Omit<SilIstek, 'islemId'> } | { sayfaGeriKoy: Omit<GeriKoyIstek, 'islemId'> }   // 6.S-4d: geri koy's islemId = the removal's
   | { yapistir: Omit<YapistirIstek, 'islemId'> } | { yapistirGeriAl: Omit<GeriAlIstek, 'islemId'> };   // geri al: islemId = the paste's
 
-type Hazir = { bytes: Uint8Array; eskiSayfa: number; yeniSayfa: number; indeks?: number } | { zatenVar: true; sayfa: number; eskiSayfa: number; indeks?: number };
+type Hazir = { bytes: Uint8Array; eskiSayfa: number; yeniSayfa: number; indeks?: number; silinen?: SilinenYedek; sonaEklendi?: boolean }
+  | { zatenVar: true; sayfa: number; eskiSayfa: number; indeks?: number };
 
 // Pages already marked with islemId (an earlier try of this adding)
 function isaretliSay(L: Lib, doc: PDFDocument, islemId: string): number {
@@ -172,8 +182,15 @@ async function hazirla(bytes: Uint8Array, ek: EkKaynak, islemId: string): Promis
     const r = await yapistirGeriAl(bytes, { ...ek.yapistirGeriAl, islemId });
     return 'zatenYok' in r ? { zatenVar: true, sayfa: r.sayfa, eskiSayfa: r.sayfa } : { bytes: r.bytes, eskiSayfa: r.sayfa, yeniSayfa: r.sayfa, indeks: r.indeks };
   }
-  const r = await bosSayfaKaldir(bytes, { indeks: ek.bosKaldir.indeks, islemId });
-  return 'zatenYok' in r ? { zatenVar: true, sayfa: r.sayfa, eskiSayfa: r.sayfa + 1 } : r;
+  if ('sayfaGeriKoy' in ek) {
+    const r = await sayfaGeriKoy(bytes, { ...ek.sayfaGeriKoy, islemId });
+    return 'zatenVar' in r ? { zatenVar: true, sayfa: r.sayfa, eskiSayfa: r.sayfa - 1, indeks: r.indeks }
+      : { bytes: r.bytes, eskiSayfa: r.eskiSayfa, yeniSayfa: r.yeniSayfa, indeks: r.indeks, sonaEklendi: r.sonaEklendi };
+  }
+  const r = await sayfaSil(bytes, { ...ek.sayfaSil, islemId });
+  if ('zatenYok' in r) return { zatenVar: true, sayfa: r.sayfa, eskiSayfa: r.sayfa + 1 };
+  const silinen: SilinenYedek = { indeks: r.indeks, sayfaBytes: r.silinenSayfaBytes, eskiSayfa: r.eskiSayfa, ayniIzVar: r.ayniIzVar, komsuIz: r.komsuIz, komsuYon: r.komsuYon };
+  return { bytes: r.bytes, eskiSayfa: r.eskiSayfa, yeniSayfa: r.yeniSayfa, indeks: r.indeks, silinen };
 }
 
 // ---- one adding, with its tries (runs inside the queue) ----
@@ -182,11 +199,12 @@ const bekle = (ms: number) => new Promise(r => setTimeout(r, ms));
 
 export async function ekleVeYukle(
   deps: UploadDeps, fileId: string, ek: EkKaynak, islemId: string,
-  secenek: { bekleMs?: number; deneme?: number; olcum?: Olcum; yukleme?: YuklemeDinleyici } = {}
+  secenek: { bekleMs?: number; deneme?: number; olcum?: Olcum; yukleme?: YuklemeDinleyici; yedekle?: (y: SilinenYedek) => Promise<void> } = {}
 ): Promise<EklenenSayfalar> {
   const max = secenek.deneme ?? MAX_DENEME;
   const om = secenek.olcum;
   const drive = om ? zamanliDrive(deps.drive, om) : deps.drive;
+  let yedeklendi: SilinenYedek | null = null;   // 6.S-4d: a try made the backup (its upload may have arrived)
   for (let deneme = 1; ; deneme++) {
     try {
       if (om) om.bilgi.deneme = deneme;
@@ -196,18 +214,24 @@ export async function ekleVeYukle(
         grup: () => bilgi.kaynak === 'indirme' ? 'aktarim' : 'cihaz',
         ek: b => ({ boyut: mb(b.byteLength), kaynak: bilgi.kaynak ?? '?' }),
       });
-      const h = await olc(om, 'pdf-lib: aç + sayfa ekle + kaydet', () => hazirla(bytes, ek, islemId), {
+      const bu: EkKaynak = yedeklendi && 'sayfaSil' in ek ? { sayfaSil: { ...ek.sayfaSil, yedekVar: true, oncekiSayfa: yedeklendi.eskiSayfa } } : ek;
+      const h: Hazir = await olc(om, 'pdf-lib: aç + sayfa ekle + kaydet', () => hazirla(bytes, bu, islemId), {
         grup: 'pdf',
         ek: x => 'zatenVar' in x ? { zatenVardi: true } : { once: mb(bytes.byteLength), sonra: mb(x.bytes.byteLength), sayfa: `${x.eskiSayfa}→${x.yeniSayfa}` },
       });
       if ('zatenVar' in h) {
         // an earlier try arrived: done, nothing uploaded (no second copy of the pages)
         return { fileId, islemId, eskiSayfa: h.eskiSayfa, yeniSayfa: h.sayfa, modifiedTime: mt,
-          headRevisionId: await drive.headRevisionId(fileId), bytes, zatenVardi: true, ...(h.indeks !== undefined ? { indeks: h.indeks } : {}) };
+          headRevisionId: await drive.headRevisionId(fileId), bytes, zatenVardi: true,
+          ...(h.indeks !== undefined ? { indeks: h.indeks } : yedeklendi ? { indeks: yedeklendi.indeks } : {}),
+          ...(yedeklendi ? { ayniIzVar: yedeklendi.ayniIzVar } : {}) };
       }
+      // 6.S-4d: the deleted page is on the device before Drive changes (its failure stops the deleting)
+      if (h.silinen) { await secenek.yedekle?.(h.silinen); yedeklendi = h.silinen; }
       const r = await olc(om, '= uploadPdf (kontroller + yükleme)', () => uploadPdf(drive, fileId, h.bytes, mt, secenek.yukleme), { grup: 'toplam' });
       return { fileId, islemId, eskiSayfa: h.eskiSayfa, yeniSayfa: h.yeniSayfa, modifiedTime: r.modifiedTime,
-        headRevisionId: r.headRevisionId, bytes: h.bytes, zatenVardi: false, ...(h.indeks !== undefined ? { indeks: h.indeks } : {}) };
+        headRevisionId: r.headRevisionId, bytes: h.bytes, zatenVardi: false, ...(h.indeks !== undefined ? { indeks: h.indeks } : {}),
+        ...(h.silinen ? { ayniIzVar: h.silinen.ayniIzVar } : {}), ...(h.sonaEklendi !== undefined ? { sonaEklendi: h.sonaEklendi } : {}) };
     } catch (e) {
       if (e instanceof DriveError && e.status === 404) throw new DosyaBulunamadi();
       const cakisma = e instanceof PdfConflict, ag = tekrarlanabilir(e);
@@ -235,6 +259,7 @@ export interface SayfaEklemeSecenek {
   olcum?: Olcum;                // task 6.2e-1: only with ?olcum=1
   yukleme?: YuklemeDinleyici;   // task 6.2e-2: the upload started / its progress (the status strip)
   kuyrukOncesi?: () => Promise<void>;   // task 6.S-4: inside the queue, after the file's strokes, before the PDF is read (may refuse)
+  yedekle?: (y: SilinenYedek) => Promise<void>;   // task 6.S-4d: the deleted page to the device, before the upload
 }
 
 // The PDF must be in Drive, not in the trash, inside Kitaplık/kitaplar/<kitap>/ (or a subfolder).

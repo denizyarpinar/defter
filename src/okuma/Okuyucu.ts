@@ -14,16 +14,17 @@ import { PenInput } from '../kalem/kalemModu';
 import type { PenViewport } from '../kalem/koordinat';
 import { DriveUploader, type UploadDeps, type UploadStatus, type Uploaded } from '../kalem/pdfKayit';
 import { OZET_ADI, type KonuEklemeOrtami, type KonuyaEklendi } from '../defter/konuyaEkle';
-import { ozeteSayfaEkle, SayfaEklemeAgHatasi, SayfaEklemeCakisma, SayfaYazmaYok, type EklenenSayfalar, type EkKaynak } from '../defter/ozeteEkle';
+import { ozeteSayfaEkle, SayfaEklemeAgHatasi, SayfaEklemeCakisma, SayfaYazmaYok, type EklenenSayfalar, type EkKaynak, type SilinenYedek } from '../defter/ozeteEkle';
 import { bosSayfaBilgisi, sayfaIziAl, type BosSayfaBilgisi, type Desen, type Yon } from '../defter/bosSayfa';
-import { KalemKaydiBekliyor, sayfaIsiCalistir, SayfaIsiYarim, yeniEklemeIsi, yeniGeriAlIsi, yeniKaldirmaIsi, yeniYapistirmaIsi, type SayfaIsi, type SayfaIsiOrtami } from '../defter/bosSayfaIsi';
+import { KalemKaydiBekliyor, sayfaIsiCalistir, SayfaIsiYarim, yeniEklemeIsi, yeniGeriAlIsi, yeniGeriKoymaIsi, yeniSilmeIsi, yeniYapistirmaIsi, type SayfaIsi, type SayfaIsiOrtami } from '../defter/bosSayfaIsi';
 import { bantNotlari } from '../defter/yapistir';
-import { kurdeleKaydir, kurdeleKaydirYerinde, ocrKaydir } from '../kitap/sayfaKaydir';
+import { kurdeleGeriKoy, kurdeleGeriKoyYerinde, kurdeleKaydir, kurdeleKaydirYerinde, ocrGeriKoy, ocrKaydir, ocrSil, silinenKurdeleler, type TasinanKurdele } from '../kitap/sayfaKaydir';
 import { jsonDegistir, type JsonDrive } from '../drive/jsonDegistir';
 import { topicKey } from '../model/okumaYamasi';
 import { SayfaEkleBalon, type BalonBilgisi } from '../ui/sayfaEkleBalon';
-import { eklemeEngeli, eklemeHedefi, eklemeSonrasiOkunan, isSonrasiSayfa, KALDIR_ONAY, kaldirmaHedefleri, kaldirmaSonrasiOkunan, kitapCiftiSonrasi, okunanTaraflar, sayfaEkleGorunur, varsayilanTaraf, YAPISTIR_GERI_AL_ONAY, yapistirHedefleri, type GorunenSayfa, type KaldirmaHedefi, type OkunanSonrasi, type Taraf, type YapistirBilgisi, type YapistirHedefi } from '../ui/sayfaEkleDurumu';
+import { eklemeEngeli, eklemeHedefi, eklemeSonrasiOkunan, geriGetirGorunur, isSonrasiSayfa, kitapCiftiSonrasi, okunanTaraflar, sayfaEkleGorunur, silmeEngeli, silmeHedefi, silmeSonrasiOkunan, silOnay, varsayilanTaraf, YAPISTIR_GERI_AL_ONAY, yapistirHedefleri, type GorunenSayfa, type OkunanSonrasi, type SilmeHedefi, type Taraf, type YapistirBilgisi, type YapistirHedefi } from '../ui/sayfaEkleDurumu';
 import { isKaydet, isler, isleriTemizle, isSil } from './sayfaIsiDepo';
+import { yedekAl, yedekBuda, yedekleriTemizle, yedekSil, yedekYaz } from './silinenSayfaDepo';
 import { bekleyenFotoDepo } from '../defter/bekleyenFoto';
 import type { BekleyenFoto, BekleyenJpeg } from '../defter/bekleyenFotoKayit';
 import { FotoEkleyici } from '../defter/fotoEkleme';
@@ -516,7 +517,8 @@ export function initOkuyucu(yer: () => DriveLocation | null): void {
   sayfaEkleBalon = new SayfaEkleBalon({
     bilgi: sayfaBalonBilgisi,
     ekle: (y, d, t) => { void bosSayfaEkleBasla(y, d, t); },
-    kaldir: h => { void bosSayfaKaldirBasla(h); },
+    sil: h => { void sayfaSilBasla(h); },
+    geriGetir: () => { if (sonSilinen) void silineniGeriGetir(sonSilinen.islemId); },
     yapistir: (h, d, hepsi) => { void yapistirBasla(h, d, hepsi); },
     geriAl: h => { void yapistirGeriAlBasla(h); },
   });
@@ -859,6 +861,7 @@ export async function openOkuyucu(b: Book, folderId: string, unit: number, topic
   const my = ++session;
   book = b; folder = folderId; onClosed = closed;
   void sayfaIsleriniSurdur();   // task 6.S-4: a job left half done (its PDF step worked)
+  void yedekBuda();             // task 6.S-4d: deleted pages' backups older than 7 days / beyond the newest 5
   current = { unit, topic: topicIndex };
   content = new PageContent();
   metin = new MetinOnbellek(content);
@@ -1220,6 +1223,8 @@ export function okuyucuOturumKapandi(): void {
   void import('./temizDepo').then(m => m.depoTemizle());   // task 6.4e-2b: the device copies of records and atlas
   bosBilgi.clear();
   void isleriTemizle();   // task 6.S-4: another account must not run them
+  void yedekleriTemizle();   // task 6.S-4d: nor see its deleted pages
+  sonSilinen = null;
 }
 
 function renderBar(): void {
@@ -1732,6 +1737,7 @@ let sayfaIsiYuzde: string | null = null;
 let sayfaEkleBalon: SayfaEkleBalon;
 let dokunulanSayfa: number | null = null;   // task 6.S-4b: book mode, the page last touched (list index)
 let kitapSonrasi: (OkunanSonrasi & { islemId: string }) | null = null;   // 6.S-4b: where the page read goes after the job
+let sonSilinen: { islemId: string; fileId: string } | null = null;   // 6.S-4d: this session's last deleted page (its backup is done)
 const bosBilgi = new Map<string, Promise<BosSayfaBilgisi>>();   // file key → can it be written, its blank pages (pdf-lib)
 
 function sayfaEkleDugmesi(): void {
@@ -1778,8 +1784,19 @@ async function sayfaBalonBilgisi(): Promise<BalonBilgisi> {
     isSuruyor: sayfaIsiDosyalari.size > 0, kalemYazamaz: yazamaz && !yazamaz.yazilabilir ? yazamaz.mesaj : null,
     okumaSuruyor: ocrPaneliAcik(), hedefYok: !eklemeHedefi(g, 'once') && !eklemeHedefi(g, 'sonra')
   });
-  const kaldir = kaldirmaHedefleri(g, (id, i) => { const b = bilgiler.get(id); return b?.yazilabilir ? b.bos.get(i) ?? null : null; });
   const ikiSayfa = mode === 'kitap' && g.length > 1;   // 6.S-4b: the page read can be chosen
+  // 6.S-4d: "Bu sayfayı sil" per side (the page read), grey with its reason
+  const sil: BalonBilgisi['sil'] = {};
+  for (const taraf of ikiSayfa ? ['sol', 'sag'] as const : ['sol'] as const) {
+    const h = silmeHedefi(g, taraf), b = h && bilgiler.get(h.dosyaId);
+    if (!h || !b) continue;
+    sil[taraf] = { hedef: h, engel: silmeEngeli({
+      isSuruyor: sayfaIsiDosyalari.size > 0, kalemYazamaz: b.yazilabilir ? null : b.mesaj, okumaSuruyor: ocrPaneliAcik(),
+      sonSayfa: b.yazilabilir && b.sayfa < 2, hedefYok: false
+    }) };
+  }
+  const geriGetir = sonSilinen && geriGetirGorunur(sonSilinen.fileId, pages.map(p => p.dosyaId ?? null))
+    ? { engel: sayfaIsiDosyalari.size ? 'Bir sayfa işi sürüyor; bitince tekrar dene.' : ocrPaneliAcik() ? 'El yazısı okunuyor; bitince tekrar dene.' : null } : null;
   // 6.S-4c: a file the pen can't write still shows "Deftere yapıştır" (grey, engel) for its landscape pages on screen
   const yapistirBilgi = (id: string): YapistirBilgisi | null => {
     const b = bilgiler.get(id);
@@ -1787,8 +1804,7 @@ async function sayfaBalonBilgisi(): Promise<BalonBilgisi> {
     if (b.yazilabilir) return b;
     return { yatay: new Set(g.filter(x => x.dosyaId === id && x.pdfSayfa && (ratios[x.liste] ?? 2) <= 1).map(x => x.pdfSayfa! - 1)), yapistirilmis: new Map() };
   };
-  return { engel, kaldir: sayfaIsiDosyalari.size || ocrPaneliAcik() ? [] : kaldir,
-    taraflar: ikiSayfa ? okunanTaraflar(g) : {}, varsayilan: varsayilanTaraf(g, dokunulanSayfa), yapistir: yapistirHedefleri(g, yapistirBilgi) };
+  return { engel, taraflar: ikiSayfa ? okunanTaraflar(g) : {}, varsayilan: varsayilanTaraf(g, dokunulanSayfa), yapistir: yapistirHedefleri(g, yapistirBilgi), sil, geriGetir };
 }
 
 async function bosSayfaEkleBasla(yon: Yon, desen: Desen, taraf: Taraf): Promise<void> {
@@ -1808,15 +1824,37 @@ async function bosSayfaEkleBasla(yon: Yon, desen: Desen, taraf: Taraf): Promise<
   await sayfaIsiYurut(is, t);
 }
 
-async function bosSayfaKaldirBasla(h: KaldirmaHedefi): Promise<void> {
+// Task 6.S-4d: any page out, confirmed; the page beside it stays on its side (6.S-4b). Its backup goes to the device
+// before the upload; "Geri al" (toast, popover) puts it back.
+async function sayfaSilBasla(h: SilmeHedefi): Promise<void> {
   const t = topic, b = book;
-  if (!t || !b || !open || sayfaIsiDosyalari.size) return;
-  if (!confirm(KALDIR_ONAY)) return;
-  const p = pages[h.liste], k = mode === 'kitap' ? kaldirmaSonrasiOkunan(gorunenSayfalar(), h) : null;
-  kitapSonrasi = k ? { islemId: h.kayit.islemId, ...k } : null;   // 6.S-4b: the other page stays on its side
-  const is = yeniKaldirmaIsi({
-    islemId: h.kayit.islemId, fileId: h.dosyaId, dosyaAdi: p?.ad ?? h.ad, klasorId: p?.klasorId ?? null, kitapId: b.id,
-    konu: topicKey(t.klasor, t.title), kaldir: { indeks: h.indeks, iz: h.kayit.iz }
+  if (!t || !b || !open || sayfaIsiDosyalari.size || ocrPaneliAcik()) return;
+  if (!confirm(silOnay(h.liste + 1))) return;
+  const p = pages[h.liste], islemId = crypto.randomUUID();
+  const g = gorunenSayfalar(), i = g.findIndex(x => x.liste === h.liste);
+  const k = mode === 'kitap' ? silmeSonrasiOkunan(g, h) : null;
+  kitapSonrasi = k ? { islemId, ...k } : null;
+  let iz: string | undefined;   // the page's anchor when Drive has a newer version
+  try { iz = await sayfaIziAl(new Uint8Array(await getPdf(p.dosyaId!, p.modifiedTime!)), h.indeks); } catch (e) { console.warn('Sayfa sil: sayfanın izi alınamadı.', e); }
+  const taraf = mode === 'kitap' && g.length > 1 && i >= 0 ? (i === 0 ? 'sol' : 'sag') : undefined;
+  const is = yeniSilmeIsi({
+    islemId, fileId: h.dosyaId, dosyaAdi: p.ad ?? h.ad, klasorId: p.klasorId ?? null, kitapId: b.id, konu: topicKey(t.klasor, t.title),
+    sil: { indeks: h.indeks, ...(iz ? { iz } : {}), ...(taraf ? { taraf } : {}) }
+  });
+  await sayfaIsiYurut(is, t);
+}
+
+// "Geri al" of a removal (toast or popover): the page from the device's backup, back where it was
+async function silineniGeriGetir(islemId: string): Promise<void> {
+  const y = await yedekAl(islemId);
+  if (!y || !y.tamam) { toast('Silinen sayfanın yedeği bu cihazda bulunamadı; geri getirilemiyor.'); return; }
+  if (sayfaIsiDosyalari.size) { toast('Bir sayfa işi sürüyor; bitince tekrar dene.'); return; }
+  if (ocrPaneliAcik()) { toast('El yazısı okunuyor; bitince tekrar dene.'); return; }
+  const t = topic && open && pages.some(p => p.dosyaId === y.fileId) ? topic : null;
+  kitapSonrasi = t && y.taraf ? { islemId, dosya: y.dosyaAdi, sayfa: y.indeks + 1, taraf: y.taraf } : null;
+  const is = yeniGeriKoymaIsi({
+    islemId, fileId: y.fileId, dosyaAdi: y.dosyaAdi, klasorId: y.klasorId, kitapId: y.kitapId, konu: y.konu,
+    geriKoy: { indeks: y.indeks, komsuIz: y.komsuIz, komsuYon: y.komsuYon }
   });
   await sayfaIsiYurut(is, t);
 }
@@ -1872,23 +1910,81 @@ async function kalemBosMu(fileId: string): Promise<void> {
   if ((key && penModel.isDirty(key)) || (rec && !isEmptyDiff(rec))) throw new KalemKaydiBekliyor();
 }
 
-const isKaynagi = (is: SayfaIsi): EkKaynak =>
-  is.tur === 'ekle' ? { bosSayfa: is.ekle! } : is.tur === 'kaldir' ? { bosKaldir: { indeks: is.kaldir!.indeks } }
-    : is.tur === 'yapistir' ? { yapistir: is.yapistir! } : { yapistirGeriAl: is.yapistirGeriAl! };
+async function isKaynagi(is: SayfaIsi): Promise<EkKaynak> {
+  if (is.tur === 'ekle') return { bosSayfa: is.ekle! };
+  if (is.tur === 'yapistir') return { yapistir: is.yapistir! };
+  if (is.tur === 'yapistirGeriAl') return { yapistirGeriAl: is.yapistirGeriAl! };
+  if (is.tur === 'sil') {
+    // a backup of this removal on the device: an earlier try made it (its upload may have arrived)
+    const y = await yedekAl(is.islemId);
+    return { sayfaSil: { indeks: is.sil!.indeks, ...(is.sil!.iz ? { iz: is.sil!.iz } : {}), ...(y ? { yedekVar: true, oncekiSayfa: y.eskiSayfa } : {}) } };
+  }
+  if (is.tur === 'geriKoy') {
+    const y = await yedekAl(is.islemId);
+    if (!y) throw new Error('Silinen sayfanın yedeği bu cihazda bulunamadı; geri getirilemiyor.');
+    return { sayfaGeriKoy: { sayfaBytes: y.sayfaBytes, indeks: is.geriKoy!.indeks, komsuIz: is.geriKoy!.komsuIz, komsuYon: is.geriKoy!.komsuYon } };
+  }
+  throw new Error('Bu sayfa işinin PDF adımı artık yapılmıyor.');   // 6.S-4's 'kaldir': only its later steps are left
+}
+
+// 6.S-4d: the deleted page's backup, before the upload (its failure stops the deleting)
+const yedekle = (is: SayfaIsi) => is.tur !== 'sil' ? undefined : async (y: SilinenYedek) => {
+  await yedekYaz({
+    islemId: is.islemId, fileId: is.fileId, dosyaAdi: is.dosyaAdi, kitapId: is.kitapId, konu: is.konu, klasorId: is.klasorId,
+    indeks: y.indeks, komsuIz: y.komsuIz, komsuYon: y.komsuYon, sayfaBytes: y.sayfaBytes, eskiSayfa: y.eskiSayfa, ayniIzVar: y.ayniIzVar,
+    ...(is.sil?.taraf ? { taraf: is.sil.taraf } : {}), tamam: false, zaman: new Date().toISOString()
+  });
+};
+
+// A record of the backup changes (done, the ribbons that were on the page); a failure only warns
+async function yedekGuncelle(islemId: string, f: (y: NonNullable<Awaited<ReturnType<typeof yedekAl>>>) => void): Promise<void> {
+  try {
+    const y = await yedekAl(islemId);
+    if (!y) return;
+    f(y);
+    await yedekYaz(y);
+  } catch (e) { console.warn('Sayfa yedeği güncellenemedi.', e); }
+}
+
+const nesneMi = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
 function sayfaIsiOrtami(loc: DriveLocation, ctx: SayfaIsiBaglami): SayfaIsiOrtami {
   return {
-    pdf: is => ozeteSayfaEkle(is.fileId, isKaynagi(is), {
-      yer: loc, deps: uploadDeps, dosyaDrive: bosSahte?.dosyaDrive ?? drivePdfOlusturApi, sirada: (id, job) => uploader.sirada(id, job), degisti: sayfaSurumuGeldi
-    }, {
-      islemId: is.islemId, kuyrukOncesi: () => kalemBosMu(is.fileId),
-      yukleme: { basladi: () => sayfaIsiYuzdesi('%0'), ilerleme: (g, n) => sayfaIsiYuzdesi(`%${n ? Math.round(100 * g / n) : 0}`) }
-    }),
+    pdf: async is => {
+      const s = await ozeteSayfaEkle(is.fileId, await isKaynagi(is), {
+        yer: loc, deps: uploadDeps, dosyaDrive: bosSahte?.dosyaDrive ?? drivePdfOlusturApi, sirada: (id, job) => uploader.sirada(id, job), degisti: sayfaSurumuGeldi
+      }, {
+        islemId: is.islemId, kuyrukOncesi: () => kalemBosMu(is.fileId), yedekle: yedekle(is),
+        yukleme: { basladi: () => sayfaIsiYuzdesi('%0'), ilerleme: (g, n) => sayfaIsiYuzdesi(`%${n ? Math.round(100 * g / n) : 0}`) }
+      });
+      if (is.tur === 'sil') {   // 6.S-4d: the page is gone: its backup can be put back now
+        await yedekGuncelle(is.islemId, y => { y.tamam = true; });
+        sonSilinen = { islemId: is.islemId, fileId: is.fileId };
+        void yedekBuda();
+      }
+      return s;
+    },
     kitapJson: async (is, h) => {
       const id = ctx.kitapJsonId(is.kitapId);
       if (!id) throw new Error('Kitabın kitap.json\'u bulunamadı.');
-      await jsonDegistir(ctx.jsonDrive, id, latest => kurdeleKaydir(latest, h), () => new Error('kitap.json bu arada başka bir cihazda değişti.'));
       const kb = ctx.kitap(is.kitapId);   // the book in memory (the same object the reader uses)
+      const yer = { konu: h.konu, dosya: h.dosya, indeks: h.indeks };
+      const cakisma = () => new Error('kitap.json bu arada başka bir cihazda değişti.');
+      if (is.tur === 'sil') {   // 6.S-4d: the ribbons on the page are kept for "Geri al"
+        let tasinan: TasinanKurdele | undefined;
+        await jsonDegistir(ctx.jsonDrive, id, latest => { tasinan = nesneMi(latest) ? silinenKurdeleler(latest, yer) : undefined; return kurdeleKaydir(latest, h); }, cakisma);
+        if (tasinan && (tasinan.kitap || tasinan.materyaller.length)) await yedekGuncelle(is.islemId, y => { y.kurdeleler = tasinan; });
+        if (kb) kurdeleKaydirYerinde(kb, h);
+        return;
+      }
+      if (is.tur === 'geriKoy') {
+        const kurdeleler = (await yedekAl(is.islemId))?.kurdeleler;
+        const yerinde = !is.sonaEklendi && h.indeks === is.geriKoy?.indeks;
+        await jsonDegistir(ctx.jsonDrive, id, latest => kurdeleGeriKoy(latest, yer, kurdeleler, yerinde), cakisma);
+        if (kb) kurdeleGeriKoyYerinde(kb, yer, kurdeleler, yerinde);
+        return;
+      }
+      await jsonDegistir(ctx.jsonDrive, id, latest => kurdeleKaydir(latest, h), cakisma);
       if (kb) kurdeleKaydirYerinde(kb, h);
     },
     ocr: async (is, indeks, delta) => {
@@ -1896,7 +1992,11 @@ function sayfaIsiOrtami(loc: DriveLocation, ctx: SayfaIsiBaglami): SayfaIsiOrtam
       const klasorId = is.klasorId ?? (await (bosSahte?.dosyaDrive ?? drivePdfOlusturApi).klasorBilgisi(is.fileId)).parents[0];
       if (!klasorId) throw new Error('PDF\'in klasörü bulunamadı.');
       is.klasorId = klasorId;
-      const r = await kaydirmaYaz(bosSahte?.ocrDrive ?? driveOcrApi(loc), { id: is.fileId, ad: is.dosyaAdi, klasorId }, k => ocrKaydir(k, indeks, delta, is.kaldir?.iz).kayit);
+      // 6.S-4d: a deleted page's entries wait in `silinenler` for "Geri al"
+      const degistir = is.tur === 'sil' ? (k: OcrKayit) => ocrSil(k, { islemId: is.islemId, indeks, ...(is.sil?.iz ? { iz: is.sil.iz } : {}), ayniIzVar: !!is.ayniIzVar }).kayit
+        : is.tur === 'geriKoy' ? (k: OcrKayit) => ocrGeriKoy(k, { islemId: is.islemId, indeks }).kayit
+        : (k: OcrKayit) => ocrKaydir(k, indeks, delta, is.kaldir?.iz).kayit;
+      const r = await kaydirmaYaz(bosSahte?.ocrDrive ?? driveOcrApi(loc), { id: is.fileId, ad: is.dosyaAdi, klasorId }, degistir);
       if (r) await ocrKaynak?.then(k => k.guncelle(is.fileId, r.kayit), () => {});
     },
     kaydet: isKaydet,
@@ -1946,20 +2046,37 @@ async function sayfaIsiSonrasi(t: OpenTopic | null, is: SayfaIsi): Promise<void>
   if (arama.acik) arama.kapat();   // its matches are on the old page numbers
   // 6.S-4b: book mode, two pages: the page read stays on screen, the blank page (or the removed one's neighbour) beside it
   const k = kitapSonrasi?.islemId === is.islemId && mode === 'kitap' && bookView && !bookView.single ? kitapSonrasi : null;
-  if (k) await showMaterial({ dosya: k.dosya, sayfa: k.sayfa }, k.taraf);
+  if (k) await showMaterial({ dosya: k.dosya, sayfa: is.tur === 'geriKoy' ? is.indeks + 1 : k.sayfa }, k.taraf);
   else await showMaterial({ dosya: is.dosyaAdi, sayfa: isSonrasiSayfa(is.tur, is.indeks) });
 }
 
 const tekrarDenenebilir = (e: unknown) => e instanceof SayfaIsiYarim || e instanceof SayfaEklemeAgHatasi || e instanceof SayfaEklemeCakisma || e instanceof TypeError;
 
 const IS_BITTI: Record<SayfaIsi['tur'], string> = {
-  ekle: 'Boş sayfa eklendi.', kaldir: 'Boş sayfa kaldırıldı.', yapistir: 'Deftere yapıştırıldı.', yapistirGeriAl: 'Deftere yapıştırma geri alındı.'
+  ekle: 'Boş sayfa eklendi.', kaldir: 'Boş sayfa kaldırıldı.', yapistir: 'Deftere yapıştırıldı.', yapistirGeriAl: 'Deftere yapıştırma geri alındı.',
+  sil: 'Sayfa silindi.', geriKoy: 'Sayfa geri getirildi.'
 };
+
+// The job is done: its toast (6.S-4d: "Geri al" for 10 s after deleting; the backup goes after putting back)
+function isBitti(is: SayfaIsi): void {
+  if (is.tur === 'sil') { toast(IS_BITTI.sil, { etiket: 'Geri al', calistir: () => { void silineniGeriGetir(is.islemId); } }, 10000, true); return; }
+  if (is.tur === 'geriKoy') {
+    void yedekSil(is.islemId);
+    if (sonSilinen?.islemId === is.islemId) sonSilinen = null;
+    toast(is.sonaEklendi ? 'Sayfa eski yerine konamadı (dosya bu arada değişmiş); dosyanın sonuna eklendi.' : IS_BITTI.geriKoy);
+    return;
+  }
+  toast(IS_BITTI[is.tur]);
+}
 
 function isHataMetni(is: SayfaIsi, e: unknown): string {
   if (is.tur.startsWith('yapistir') && e instanceof SayfaEklemeAgHatasi) return 'Sayfa Drive\'a yazılamadı (bağlantı ya da Drive sorunu). İnternet bağlantını kontrol edip tekrar dene.';
   if (is.tur.startsWith('yapistir') && e instanceof SayfaEklemeCakisma) return 'PDF başka bir cihazda değişip duruyor; sayfa değişmedi. Biraz sonra tekrar dene.';
   if (is.tur === 'kaldir' && e instanceof SayfaEklemeAgHatasi) return 'Boş sayfa kaldırılamadı (bağlantı ya da Drive sorunu). İnternet bağlantını kontrol edip tekrar dene.';
+  if (is.tur === 'sil' && e instanceof SayfaEklemeAgHatasi) return 'Sayfa silinemedi (bağlantı ya da Drive sorunu). İnternet bağlantını kontrol edip tekrar dene; sayfa iki kez silinmez.';
+  if (is.tur === 'sil' && e instanceof SayfaEklemeCakisma) return 'PDF başka bir cihazda değişip duruyor; sayfa silinmedi. Biraz sonra tekrar dene.';
+  if (is.tur === 'geriKoy' && e instanceof SayfaEklemeAgHatasi) return 'Sayfa geri getirilemedi (bağlantı ya da Drive sorunu). İnternet bağlantını kontrol edip tekrar dene; sayfa iki kez eklenmez.';
+  if (is.tur === 'geriKoy' && e instanceof SayfaEklemeCakisma) return 'PDF başka bir cihazda değişip duruyor; sayfa geri getirilmedi. Biraz sonra tekrar dene.';
   if (is.tur === 'kaldir' && e instanceof SayfaEklemeCakisma) return 'PDF başka bir cihazda değişip duruyor; boş sayfa kaldırılmadı. Biraz sonra tekrar dene.';
   return e instanceof Error && e.message ? e.message : 'Bilinmeyen bir hata oldu.';
 }
@@ -1973,7 +2090,7 @@ async function sayfaIsiYurut(is: SayfaIsi, t: OpenTopic | null): Promise<void> {
   try {
     await ctx.oncesi();       // reading state / cover with the old page numbers go first
     await sayfaIsiCalistir(is, sayfaIsiOrtami(loc, ctx));
-    toast(IS_BITTI[is.tur]);
+    isBitti(is);
     await sayfaIsiSonrasi(t, is);
   } catch (e) {
     if (e instanceof SessionExpired) return;

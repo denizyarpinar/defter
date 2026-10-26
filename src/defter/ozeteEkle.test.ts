@@ -11,7 +11,7 @@ import { DriveUploader, uploadRecord } from '../kalem/pdfKayit';
 import { PdfYazilamaz, readDefterStrokes, writeDefterStrokes } from '../kalem/pdfNotlari';
 import {
   DosyaBulunamadi, EK_ID, EkPdfYazilamaz, isaretliPdfEkle, ozeteSayfaEkle, PdfDosyasiDegil, SayfaEklemeAgHatasi, SayfaEklemeCakisma,
-  SayfaYazmaYok, type EklenenSayfalar, type SayfaEklemeOrtami, type SayfaEklemeSecenek
+  SayfaYazmaYok, type EklenenSayfalar, type SayfaEklemeOrtami, type SayfaEklemeSecenek, type SilinenYedek
 } from './ozeteEkle';
 import type { Jpeg } from './sayfaEkle';
 
@@ -436,13 +436,13 @@ describe('pages at the end and the pen', () => {
 });
 
 // Task 6.S-4: a blank page between pages and its removal, the same way (queue, tries, conflict)
-describe('ozeteSayfaEkle: { bosSayfa } / { bosKaldir }', () => {
+describe('ozeteSayfaEkle: { bosSayfa } / { sayfaSil } / { sayfaGeriKoy }', () => {
   const bosIdleri = async (b: Uint8Array) => {
     const doc = await PDFDocument.load(b);
     return doc.getPages().map(p => (doc.context.lookup(p.node.get(N('DefterBosSayfa'))) as PDFString | undefined)?.decodeText() ?? null);
   };
 
-  it('araya girer (indeks döner); cevap kaybolursa ikinci sayfa yok; kaldırma aynı yoldan', async () => {
+  it('araya girer (indeks döner); cevap kaybolursa ikinci sayfa yok; silme ve geri koyma aynı yoldan', async () => {
     const d = fakeDrive(baslangic);
     d.file.kayip = 1;
     const s = await ozeteSayfaEkle('P', { bosSayfa: { komsu: 0, yon: 'sonra', desen: 'kareli' } }, d.ortam, { ...HIZLI, islemId: 'b1' });
@@ -451,9 +451,25 @@ describe('ozeteSayfaEkle: { bosSayfa } / { bosKaldir }', () => {
     expect(d.log.filter(l => l === 'upload')).toHaveLength(1);
     // the stroke on page 0 stays there; the other note's page moved to 2
     expect([...(await readDefterStrokes(d.file.bytes)).keys()]).toEqual([0]);
-    const k = await ozeteSayfaEkle('P', { bosKaldir: { indeks: 1 } }, d.ortam, { ...HIZLI, islemId: 'b1' });
-    expect([k.indeks, k.yeniSayfa]).toEqual([1, 3]);
+    // 6.S-4d: the backup goes to the device before the upload; the answer lost → the retry doesn't delete a second page
+    const yedekler: SilinenYedek[] = [];
+    d.file.kayip = 1;
+    const k = await ozeteSayfaEkle('P', { sayfaSil: { indeks: 1 } }, d.ortam, { ...HIZLI, islemId: 's1', yedekle: async y => { yedekler.push(y); } });
+    expect([k.indeks, k.yeniSayfa, k.zatenVardi]).toEqual([1, 3, true]);
+    expect(yedekler.map(y => [y.indeks, y.eskiSayfa, y.komsuYon])).toEqual([[1, 4, 'sonra']]);
+    expect(d.log.filter(l => l === 'upload')).toHaveLength(2);
     expect(await eskiSayfalar(d.file.bytes, 3)).toEqual(await eskiSayfalar(baslangic, 3));
+    const y = yedekler[0];
+    const g = await ozeteSayfaEkle('P', { sayfaGeriKoy: { sayfaBytes: y.sayfaBytes, indeks: y.indeks, komsuIz: y.komsuIz, komsuYon: y.komsuYon } }, d.ortam, { ...HIZLI, islemId: 's1' });
+    expect([g.indeks, g.yeniSayfa, g.sonaEklendi]).toEqual([1, 4, false]);
+    expect(await bosIdleri(d.file.bytes)).toEqual([null, 'b1', null, null]);
+  });
+
+  it('yedek yazılamazsa Drive\'a hiçbir şey yüklenmez', async () => {
+    const d = fakeDrive(baslangic);
+    const red = ozeteSayfaEkle('P', { sayfaSil: { indeks: 1 } }, d.ortam, { ...HIZLI, yedekle: async () => { throw new Error('IndexedDB yok'); } });
+    await expect(red).rejects.toThrow('IndexedDB yok');
+    expect(d.log.filter(l => l === 'upload')).toEqual([]);
   });
 
   it('kuyrukOncesi reddederse hiçbir şey okunmaz, yazılmaz', async () => {

@@ -6,18 +6,24 @@
 // with a kitap.json (ribbons on pages 2 and 3) and a reading record (page 2): the real code runs (bosSayfa.ts,
 // ekleVeYukle, the pen's queue, sayfaKaydir.ts), nothing goes to Google or Drive.
 // Each size: book mode Önüne kareli, Arkasına çizgili, Önüne düz; PDF mode Arkasına düz, Önüne çizgili, Arkasına kareli;
-// then pen on: Arkasına kareli, a stroke on the new blank page → Kaydet → "Bu sayfayı kaldır" (confirmed).
+// then pen on: Arkasına kareli, a stroke on the new blank page → Kaydet → "Bu sayfayı sil" (6.S-4d, confirmed).
 // Checks after each step: the page count, the blank pages, the new page on screen, the ribbons / reading record
 // shifted, the stroke saved on the blank page and gone with it (the other pages' strokes stay). Exit code 1 if anything fails.
 // Task 6.S-4b (1180×820, two pages, a new reader): the page read stays on screen, the blank page beside it, in the four
-// cases (left / right × Önüne / Arkasına), with turns on a shifted spread and "Soldaki boş sayfayı kaldır";
-// screenshots with "-4b-".
+// cases (left / right × Önüne / Arkasına), with turns on a shifted spread and the left page deleted (Sol + "Bu sayfayı
+// sil"); screenshots with "-4b-".
 // Task 6.S-4c (1180×820 and 820×1180): a PDF with a 16:9 slide, an upright A4 page, an A4 landscape page whose
 // MediaBox is not at (0,0) and an upright page turned 90 (seen landscape). The blank page beside the slide is A4
 // upright; "Deftere yapıştır" (kareli) on the slide → a stroke in its top band (pen, PDF mode) → Kaydet → drawn again
 // (mode change) at the same place → "Dosyadaki tüm yatay sayfalar" (the upright pages stay) → "Deftere yapıştırmayı
 // geri al" on the slide (the dialog about the band's writing is accepted) → its boxes back, the band stroke gone.
 // Screenshots with "-4c-". `--4c`: only this part.
+// Task 6.S-4d (1180×820): a PDF of 5 A4 pages with a pen stroke on page 3, a reading record for pages 3 and 4 (their
+// real fingerprints), ribbons on pages 3 (topic) and 5 (book). Book mode: the left page 3 of the spread 3–4 deleted →
+// 4 pages, ribbons 3→2 and 5→4, reading entry of 3 in `silinenler`, 4→3, the right page stays right (2–3); "Geri al"
+// in the toast → 5 pages, the stroke back on page 3 with its id, the reading record as it was (JSON), ribbons 3 and 5,
+// spread 3–4. PDF mode: page 3 deleted → page 2 on screen; "Son silineni geri getir" in the popover → all as before.
+// A one-page PDF: "Bu sayfayı sil" grey, "Son sayfa silinemez". Screenshots with "-4d-". `--4d`: only this part.
 import { spawn } from 'node:child_process';
 import { mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -36,10 +42,10 @@ const SIZES = [[1180, 820], [820, 1180], [390, 844]];
 
 const wait = (ms) => new Promise(r => setTimeout(r, ms));
 
-async function testPdf() {
+async function testPdf(n = 3) {
   const doc = await PDFDocument.create();
   const font = await doc.embedFont(StandardFonts.HelveticaBold);
-  for (let i = 1; i <= 3; i++) {
+  for (let i = 1; i <= n; i++) {
     const p = doc.addPage([595.28, 841.89]);
     p.drawRectangle({ x: 1, y: 1, width: 593.28, height: 839.89, borderColor: rgb(0.2, 0.3, 0.6), borderWidth: 2 });
     p.drawText(`Sayfa ${i}`, { x: 220, y: 420, size: 40, font, color: rgb(0.1, 0.2, 0.5) });
@@ -120,7 +126,7 @@ async function bekleBitti(page, onceSurum) {
 }
 
 // A new browser page with the reader open on the test PDF (book mode) and the fake Drive
-async function okuyucuAc(w, h, ad, govde = pdfBytes) {
+async function okuyucuAc(w, h, ad, govde = pdfBytes, sahte = (page) => page.evaluate(([k, o]) => window.defterBosSayfaSahte({ kitapJson: k, ocr: o }), [KITAP_JSON, OCR])) {
   const ctx = await browser.newContext({ viewport: { width: w, height: h }, hasTouch: true, deviceScaleFactor: 2 });
   const page = await ctx.newPage();
   page.on('pageerror', e => { bad++; console.error(`${ad} sayfa hatası:`, e.message); });
@@ -152,7 +158,7 @@ async function okuyucuAc(w, h, ad, govde = pdfBytes) {
   await wait(2000);
 
   // the fake writable Drive for the file on screen
-  await page.evaluate(([k, o]) => window.defterBosSayfaSahte({ kitapJson: k, ocr: o }), [KITAP_JSON, OCR]);
+  await sahte(page);
   await wait(2000);
   kontrol(ad, 'Sayfa ekle düğmesi görünür', await page.locator('#oSayfaEkle').isVisible());
   return { ctx, page };
@@ -172,6 +178,7 @@ let bad = 0;
 const kontrol = (ad, adim, kosul, not = '') => { rows.push([ad, adim, kosul, not]); if (!kosul) bad++; };
 const diyaloglar = [];
 const sadece4c = process.argv.includes('--4c');
+const sadece4d = process.argv.includes('--4d');
 const pdf4cPath = join(pdfDir, 'yapistir-4c.pdf');
 writeFileSync(pdf4cPath, await testPdf4c());
 const pdf4c = readFileSync(pdf4cPath);
@@ -199,8 +206,52 @@ const sayfayaGit = async (page, no) => {
   await wait(1200);
 };
 
+// 6.S-4d: the test PDF with a Defter stroke on page 3 (written by the app's own writer, in a page of the dev server)
+async function kalemliPdf(bytes) {
+  const page = await browser.newPage();
+  await page.goto(URL);
+  const out = await page.evaluate(async (arr) => {
+    const m = await import('/src/kalem/pdfNotlari.ts');
+    const stroke = { id: 'orta', arac: 'kalem', renk: '#c0392b', kalinlik: 3, opaklik: 1, noktalar: [150, 500, 250, 530, 350, 480, 450, 540] };
+    return [...await m.writeDefterStrokes(new Uint8Array(arr), new Map([[2, [stroke]]]))];
+  }, [...bytes]);
+  await page.close();
+  return Buffer.from(out);
+}
+
+// 6.S-4d: the fake Drive with ribbons on pages 3 (topic) and 5 (book), a reading record for pages 3 and 4 with
+// the PDF's real fingerprints
+const sahte4d = (page) => page.evaluate(async ([konu, topic]) => {
+  const b = new Uint8Array(await (await fetch('/demo/__bos.pdf')).arrayBuffer());
+  const { sayfaParmakIzleri } = await import('/src/ocr/kayit/parmakIzi.ts');
+  const iz = await sayfaParmakIzleri(b);
+  const sayfa = (n) => ({ sayfa: n, parmakIzi: iz[n - 1], model: 'deneme', okunma: '2026-10-26T10:00:00.000Z', dondurme: 0,
+    satirlar: [{ girinti: 0, parcalar: [{ metin: `Okunan sayfa ${n}`, renk: 'siyah' }] }] });
+  const kitapJson = {
+    surum: 2, baslik: 'Programlamaya giriş', bilinmeyen: { kalsin: true },
+    kurdele: { konu, materyal: 'ozet', dosya: 'ozet.pdf', sayfa: 5 },
+    uniteler: [{ baslik: 'Temeller', konular: [{ baslik: topic, klasor: konu, durum: 'okunuyor', kurdeleler: { ozet: { dosya: 'ozet.pdf', sayfa: 3 } } }] }],
+  };
+  return window.defterBosSayfaSahte({ kitapJson, ocr: { tur: 'defter-ocr', surum: 1, kaynak: { id: 'sahte-pdf', ad: 'ozet.pdf' }, sayfalar: [sayfa(3), sayfa(4)] } });
+}, [KONU, TOPIC]);
+
+// 6.S-4d: the fake Drive in detail: strokes by id, the reading record as JSON, the page fingerprints
+const ozet4d = (page) => page.evaluate(async () => {
+  const d = await window.defterBosSayfaSahte();
+  const [n, z] = await Promise.all([import('/src/kalem/pdfNotlari.ts'), import('/src/ocr/kayit/parmakIzi.ts')]);
+  const s = await n.readDefterStrokes(d.bytes);
+  const izler = await z.sayfaParmakIzleri(d.bytes);
+  const k = d.kitapJson;
+  return {
+    surum: d.surum, sayfa: izler.length, izler,
+    cizgi: [...s].filter(([, l]) => l.length).map(([i, l]) => [i, l.map(x => x.id)]),
+    kurdele: k.kurdele?.sayfa, konuKurdele: k.uniteler?.[0]?.konular?.[0]?.kurdeleler?.ozet?.sayfa,
+    ocr: d.ocr?.sayfalar.map(x => x.sayfa) ?? [], silinenler: (d.ocr?.silinenler ?? []).map(x => x.sayfa.sayfa), ocrJson: JSON.stringify(d.ocr),
+  };
+});
+
 try {
-  for (const [w, h] of sadece4c ? [] : SIZES) {
+  for (const [w, h] of sadece4c || sadece4d ? [] : SIZES) {
     const ad = `${w}×${h}`, dosya = `${w}x${h}`;
     const { ctx, page } = await okuyucuAc(w, h, ad);
 
@@ -293,25 +344,27 @@ try {
     kontrol(ad, 'çizgi boş sayfaya kaydedildi', s.cizgi.some(([i]) => i === yeniIndeks), JSON.stringify(s.cizgi));
 
     await balonAc(page);
-    const kaldirVar = await page.locator('#oSayfaEkleBalon .o-sekle-kaldir').count();
-    kontrol(ad, '"Bu sayfayı kaldır" boş sayfada görünür', kaldirVar === 1);
-    await page.screenshot({ path: join(OUT, `${dosya}-10-balon-kaldir.png`) });
+    const silVar = await page.locator('#oSayfaEkleBalon [data-sil]:not([disabled])').count();
+    kontrol(ad, '"Bu sayfayı sil" boş sayfada görünür', silVar === 1);
+    await page.screenshot({ path: join(OUT, `${dosya}-10-balon-sil.png`) });
     s0 = s;
     const kurdeleOnce = s.kurdele, ocrOnce = s.ocr[0];
-    await page.locator('#oSayfaEkleBalon .o-sekle-kaldir').first().click();
+    const d0 = diyaloglar.length;
+    await page.locator('#oSayfaEkleBalon [data-sil]').click();
     await bekleBitti(page, s0.surum);
     s = await ozet(page);
-    kontrol(ad, 'kaldırıldı: bir sayfa eksik, o boş sayfa gitti, çizgisi ile', s.sayfa === s0.sayfa - 1 && s.bos.length === s0.bos.length - 1 && !s.cizgi.length, `${s.sayfa}, çizgi ${JSON.stringify(s.cizgi)}`);
-    kontrol(ad, 'kaldırınca kurdele / okuma kaydı geri kaydı (sonraysa −1)', (kurdeleOnce - 1 > yeniIndeks ? s.kurdele === kurdeleOnce - 1 : s.kurdele === kurdeleOnce) && (ocrOnce - 1 > yeniIndeks ? s.ocr[0] === ocrOnce - 1 : s.ocr[0] === ocrOnce), `kurdele ${kurdeleOnce}→${s.kurdele}, ocr ${ocrOnce}→${s.ocr[0]}`);
-    await page.screenshot({ path: join(OUT, `${dosya}-11-kaldirildi.png`) });
+    kontrol(ad, 'onay: "s. N silinecek…"', diyaloglar.slice(d0).some(m => /^s\. \d+ silinecek\./.test(m)), diyaloglar.slice(d0).join(' | '));
+    kontrol(ad, 'silindi: bir sayfa eksik, o boş sayfa gitti, çizgisi ile', s.sayfa === s0.sayfa - 1 && s.bos.length === s0.bos.length - 1 && !s.cizgi.length, `${s.sayfa}, çizgi ${JSON.stringify(s.cizgi)}`);
+    kontrol(ad, 'silince kurdele / okuma kaydı geri kaydı (sonraysa −1)', (kurdeleOnce - 1 > yeniIndeks ? s.kurdele === kurdeleOnce - 1 : s.kurdele === kurdeleOnce) && (ocrOnce - 1 > yeniIndeks ? s.ocr[0] === ocrOnce - 1 : s.ocr[0] === ocrOnce), `kurdele ${kurdeleOnce}→${s.kurdele}, ocr ${ocrOnce}→${s.ocr[0]}`);
+    await page.screenshot({ path: join(OUT, `${dosya}-11-silindi.png`) });
 
-    // the user's own page: no "kaldır"
+    // 6.S-4d: the user's own page can go too
     await page.locator('#oPenBtn').click(); await wait(500);
     await page.evaluate(() => { const sl = document.querySelector('#oSlider'); sl.value = String(Number(sl.max)); sl.dispatchEvent(new Event('input', { bubbles: true })); sl.dispatchEvent(new Event('change', { bubbles: true })); });
     await wait(1200);
     const sonBos = s.bos.includes(s.sayfa - 1);
     await balonAc(page);
-    kontrol(ad, 'son sayfada kaldır düğmesi sadece boş sayfaysa', (await page.locator('#oSayfaEkleBalon .o-sekle-kaldir').count()) === (sonBos ? 1 : 0));
+    kontrol(ad, `son sayfada (${sonBos ? 'boş' : 'kullanıcının'}) "Bu sayfayı sil" var`, (await page.locator('#oSayfaEkleBalon [data-sil]:not([disabled])').count()) === 1);
     await page.keyboard.press('Escape');
     // the bar on one row, nothing outside the screen
     const tasma = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth);
@@ -321,7 +374,7 @@ try {
   }
 
   // ---- 6.S-4b: the page read stays on screen (two pages) ----
-  if (!sadece4c) {
+  if (!sadece4c && !sadece4d) {
     const [w, h] = SIZES[0], ad = `${w}×${h} 4b`, dosya = `${w}x${h}-4b`;
     const { ctx, page } = await okuyucuAc(w, h, ad);
     // tap the middle of the left / right page (not its outer edge: that turns the page)
@@ -371,19 +424,20 @@ try {
     await page.evaluate(() => { const sl = document.querySelector('#oSlider'); sl.value = '1'; sl.dispatchEvent(new Event('input', { bubbles: true })); sl.dispatchEvent(new Event('change', { bubbles: true })); });
     await wait(900);
     kontrol(ad, 'kaydırıcı: sayfa 1 → 1–2 (ofset 0)', (await pno()) === '1–2 / 7', await pno());
-    // remove: spread (3 | 4) = indexes 2, 3, both blank → "Soldaki" → the right page (index 3, now 2) stays right: (2 | 3)
+    // delete: spread (3 | 4) = indexes 2, 3 → Sol + "Bu sayfayı sil" → the right page (index 3, now 2) stays right: (2 | 3)
     await page.keyboard.press('ArrowRight'); await wait(700);
     s = await ozet(page);
     const sol = await pno();
     await balonAc(page);
-    const soldaki = page.locator('#oSayfaEkleBalon .o-sekle-kaldir', { hasText: 'Soldaki' });
-    kontrol(ad, `kaldır: ${sol} iki boş sayfa → "Soldaki" var`, (await soldaki.count()) === 1, `${await page.locator('#oSayfaEkleBalon .o-sekle-kaldir').count()} düğme`);
+    await page.locator('#oSayfaEkleBalon [data-taraf="sol"]').click();
+    const silDugmesi = page.locator('#oSayfaEkleBalon [data-sil]:not([disabled])');
+    kontrol(ad, `sil: ${sol} → Sol seçili, "Bu sayfayı sil" var`, (await silDugmesi.count()) === 1);
     const s0 = s;
-    await soldaki.click();
+    await silDugmesi.click();
     await bekleBitti(page, s0.surum);
     s = await ozet(page);
-    kontrol(ad, `kaldır soldaki: sağdaki ekranda sağda kaldı (${sol} → 2–3 / 6)`, (await pno()) === '2–3 / 6' && s.sayfa === 6, `${await pno()}, boş ${s.bos.join()}`);
-    await page.screenshot({ path: join(OUT, `${dosya}-06-kaldir-soldaki.png`) });
+    kontrol(ad, `sil soldaki: sağdaki ekranda sağda kaldı (${sol} → 2–3 / 6)`, (await pno()) === '2–3 / 6' && s.sayfa === 6, `${await pno()}, boş ${s.bos.join()}`);
+    await page.screenshot({ path: join(OUT, `${dosya}-06-sil-soldaki.png`) });
     // PDF mode and back: the ofset is gone (spreads 0–1, 2–3, …)
     await page.locator('#oMode [data-m="pdf"]').click(); await wait(900);
     await page.locator('#oMode [data-m="kitap"]').click(); await wait(1200);
@@ -392,7 +446,7 @@ try {
     await ctx.close();
   }
   // ---- 6.S-4c: a blank page beside a slide is upright; "Deftere yapıştır" ----
-  for (const [w, h] of [SIZES[0], SIZES[1]]) {
+  for (const [w, h] of sadece4d ? [] : [SIZES[0], SIZES[1]]) {
     const ad = `${w}×${h} 4c`, dosya = `${w}x${h}-4c`;
     const { ctx, page } = await okuyucuAc(w, h, ad, pdf4c);
     const solSec = async () => { const t = page.locator('#oSayfaEkleBalon [data-taraf="sol"]'); if (await t.count()) await t.click(); };
@@ -496,6 +550,86 @@ try {
     const tasma = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth);
     kontrol(ad, 'yatay taşma yok', tasma <= 0, `${tasma}px`);
     await ctx.close();
+  }
+
+  // ---- 6.S-4d: any page deleted, and back with "Geri al" ----
+  if (!sadece4c) {
+    const [w, h] = SIZES[0], ad = `${w}×${h} 4d`, dosya = `${w}x${h}-4d`;
+    const govde = await kalemliPdf(await testPdf(5));
+    const { ctx, page } = await okuyucuAc(w, h, ad, govde, sahte4d);
+    const pno = () => ekranda(page);
+    let s = await ozet4d(page);
+    const bas = s;
+    kontrol(ad, 'başta: 5 sayfa, çizgi 3. sayfada, okuma 3 ve 4, kurdeleler 3 ve 5', s.sayfa === 5 && JSON.stringify(s.cizgi) === '[[2,["orta"]]]' && s.ocr.join() === '3,4' && s.konuKurdele === 3 && s.kurdele === 5, JSON.stringify({ c: s.cizgi, o: s.ocr, k: [s.konuKurdele, s.kurdele] }));
+    const ayni = (x) => x.sayfa === 5 && JSON.stringify(x.cizgi) === JSON.stringify(bas.cizgi) && x.ocrJson === bas.ocrJson && x.konuKurdele === 3 && x.kurdele === 5 && x.izler.join() === bas.izler.join();
+
+    // book mode: spread 3–4, delete the left page (3)
+    await sayfayaGit(page, 3);
+    kontrol(ad, 'kitap: çift 3–4', (await pno()) === '3–4 / 5', await pno());
+    await balonAc(page);
+    await page.locator('#oSayfaEkleBalon [data-taraf="sol"]').click();
+    await page.screenshot({ path: join(OUT, `${dosya}-01-balon-sil.png`) });
+    const d0 = diyaloglar.length;
+    let s0 = s;
+    await page.locator('#oSayfaEkleBalon [data-sil]').click();
+    await bekleBitti(page, s0.surum);
+    s = await ozet4d(page);
+    kontrol(ad, 'onay metni (s. 3)', diyaloglar.slice(d0).includes('s. 3 silinecek. Sayfadaki kalem yazısı ve okunmuş el yazısı da gider. Geri al ile hemen geri getirebilirsin.'), diyaloglar.slice(d0).join(' | '));
+    kontrol(ad, 'kitap · sil: 4 sayfa, çizgi gitti, 3. sayfanın izi yok', s.sayfa === 4 && !s.cizgi.length && !s.izler.includes(bas.izler[2]), `${s.sayfa}, ${JSON.stringify(s.cizgi)}`);
+    kontrol(ad, 'kitap · sil: kurdeleler 3→2, 5→4', s.konuKurdele === 2 && s.kurdele === 4, `${s.konuKurdele}, ${s.kurdele}`);
+    kontrol(ad, 'kitap · sil: okuma 4→3, 3. sayfanın kaydı silinenler alanında', s.ocr.join() === '3' && s.silinenler.join() === '3', `ocr ${s.ocr}, silinenler ${s.silinenler}`);
+    kontrol(ad, 'kitap · sil: sağdaki sayfa (eski 4) sağda kaldı → 2–3 / 4', (await pno()) === '2–3 / 4', await pno());
+    const toastGeri = page.locator('#toast.show button', { hasText: 'Geri al' });
+    kontrol(ad, 'toast "Sayfa silindi · Geri al"', (await toastGeri.count()) === 1 && (await page.locator('#toast').textContent()).includes('Sayfa silindi'), await page.locator('#toast').textContent());
+    await page.screenshot({ path: join(OUT, `${dosya}-02-kitap-silindi.png`) });
+    s0 = s;
+    await toastGeri.click();
+    await bekleBitti(page, s0.surum);
+    s = await ozet4d(page);
+    kontrol(ad, 'kitap · geri al (toast): her şey eski haliyle (sayfa, çizgi id, okuma JSON, kurdeleler, izler)', ayni(s), JSON.stringify({ sayfa: s.sayfa, c: s.cizgi, o: s.ocr, sil: s.silinenler, k: [s.konuKurdele, s.kurdele] }));
+    kontrol(ad, 'kitap · geri al: çift 3–4 (geri gelen solda)', (await pno()) === '3–4 / 5', await pno());
+    await page.screenshot({ path: join(OUT, `${dosya}-03-kitap-geri-alindi.png`) });
+
+    // PDF mode: page 3 deleted, back from the popover
+    await page.locator('#oMode [data-m="pdf"]').click();
+    await wait(1500);
+    await sayfayaGit(page, 3);
+    await balonAc(page);
+    s0 = s;
+    await page.locator('#oSayfaEkleBalon [data-sil]').click();
+    await bekleBitti(page, s0.surum);
+    s = await ozet4d(page);
+    kontrol(ad, 'pdf · sil: 4 sayfa, kurdeleler 2 / 4, okuma 3, silinenler 3', s.sayfa === 4 && s.konuKurdele === 2 && s.kurdele === 4 && s.ocr.join() === '3' && s.silinenler.join() === '3', JSON.stringify({ o: s.ocr, k: [s.konuKurdele, s.kurdele] }));
+    kontrol(ad, 'pdf · sil: okuyucu bir önceki sayfada (2)', (await pno()).startsWith('2'), await pno());
+    await page.screenshot({ path: join(OUT, `${dosya}-04-pdf-silindi.png`) });
+    await page.evaluate(() => document.querySelector('#toast')?.classList.remove('show'));
+    await balonAc(page);
+    const geriGetir = page.locator('#oSayfaEkleBalon [data-geri-getir]:not([disabled])');
+    kontrol(ad, 'balonda "Son silineni geri getir"', (await geriGetir.count()) === 1);
+    await page.screenshot({ path: join(OUT, `${dosya}-05-balon-geri-getir.png`) });
+    s0 = s;
+    await geriGetir.click();
+    await bekleBitti(page, s0.surum);
+    s = await ozet4d(page);
+    kontrol(ad, 'pdf · geri getir: her şey eski haliyle', ayni(s), JSON.stringify({ sayfa: s.sayfa, c: s.cizgi, o: s.ocr, k: [s.konuKurdele, s.kurdele] }));
+    kontrol(ad, 'pdf · geri getir: okuyucu geri gelen sayfada (3)', (await pno()).startsWith('3'), await pno());
+    await balonAc(page);
+    kontrol(ad, 'geri getirince "Son silineni geri getir" gitti', (await page.locator('#oSayfaEkleBalon [data-geri-getir]').count()) === 0);
+    await page.screenshot({ path: join(OUT, `${dosya}-06-pdf-geri-getirildi.png`) });
+    await page.keyboard.press('Escape');
+    const tasma = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth);
+    kontrol(ad, 'yatay taşma yok', tasma <= 0, `${tasma}px`);
+    await ctx.close();
+
+    // a one-page PDF: the last page can't go
+    const t = await okuyucuAc(w, h, `${ad} tek`, Buffer.from(await testPdf(1)));
+    await t.page.locator('#oSayfaEkle').click();
+    await t.page.waitForSelector('#oSayfaEkleBalon:not([hidden]) [data-sil]', { timeout: 15_000 });
+    const silGri = await t.page.locator('#oSayfaEkleBalon [data-sil][disabled]').count();
+    const not = await t.page.locator('#oSayfaEkleBalon .o-sekle-silnot').textContent().catch(() => '');
+    kontrol(`${ad} tek`, 'tek sayfalık PDF: "Bu sayfayı sil" gri, "Son sayfa silinemez"', silGri === 1 && /Son sayfa silinemez/.test(not ?? ''), not ?? '');
+    await t.page.screenshot({ path: join(OUT, `${dosya}-07-son-sayfa.png`) });
+    await t.ctx.close();
   }
 } finally {
   await browser.close();

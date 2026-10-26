@@ -10,8 +10,8 @@ import { sayfaDurumlari, type YapistirKaydi } from './yapistir';
 export { CIZGI_MM, DESENLER, desenCizgileri, KARE_MM, SayfaYeriDegisti, type Cizgi, type Desen } from './sayfaOrtak';
 
 // Task 6.S-4: a blank note page INSIDE a PDF, before or after a page (CLAUDE.md → 6.S-4). Pure: no Drive, no DOM.
-// - The only page Defter puts between pages, and the only page it ever removes: marked /DefterBosSayfa (islemId)
-//   and /DefterBosDesen. A page without the mark is never removed (BosSayfaDegil).
+// - The only page Defter puts between pages: marked /DefterBosSayfa (islemId) and /DefterBosDesen. Task 6.S-4d:
+//   it goes out like any other page (sayfaSil.ts, with a backup and "Geri al").
 // - Size: the neighbour's visible box (CropBox, else MediaBox), its /Rotate applied: the new page is not rotated
 //   but has the same visible width and height; MediaBox [0 0 w h]. 6.S-4c: a landscape or square neighbour (a slide)
 //   gets an upright A4 page beside it instead (dikeyBoyut).
@@ -27,10 +27,6 @@ export const BOS_DESEN = 'DefterBosDesen';
 export type Yon = 'once' | 'sonra';
 
 type Lib = typeof import('pdf-lib');
-
-export class BosSayfaDegil extends Error {
-  constructor() { super('Bu sayfa Defter\'in boş sayfası değil; kaldırılmaz. Sadece "Sayfa ekle" ile eklenen boş sayfalar kaldırılabilir.'); }
-}
 
 // ---- geometry ----
 
@@ -102,7 +98,7 @@ export async function sayfaIziAl(bytes: Uint8Array, i: number): Promise<string> 
   return sayfaIzi(L, doc, doc.getPage(i));
 }
 
-// ---- insert / remove ----
+// ---- insert ----
 
 export interface BosSayfaIstek {
   komsu: number;          // 0-based: the page the user was on (in the reader's version)
@@ -128,30 +124,4 @@ export async function bosSayfaEkle(pdfBytes: Uint8Array, r: BosSayfaIstek): Prom
   page.node.set(L.PDFName.of(BOS_ID), L.PDFString.of(r.islemId));
   page.node.set(L.PDFName.of(BOS_DESEN), L.PDFName.of(r.desen));
   return { bytes: await doc.save(SAVE_OPTIONS), indeks, eskiSayfa: n, yeniSayfa: n + 1 };
-}
-
-export interface BosKaldirIstek { indeks: number; islemId?: string }
-
-export type BosKaldirildi =
-  | { bytes: Uint8Array; indeks: number; islemId: string; eskiSayfa: number; yeniSayfa: number }
-  | { zatenYok: true; sayfa: number };
-
-// With islemId: the blank page with that id goes (its notes with it); not found → zatenYok (an earlier try removed
-// it, whatever page is at `indeks` now). Without: the page at `indeks`, only if it carries the mark, else
-// BosSayfaDegil. A user's page never goes.
-export async function bosSayfaKaldir(pdfBytes: Uint8Array, r: BosKaldirIstek): Promise<BosKaldirildi> {
-  const { L, doc } = await yazilabilirAc(pdfBytes, MESAJLAR);
-  const n = doc.getPageCount();
-  const bos = isaretliSayfalar(L, doc);
-  let i: number | undefined;
-  if (r.islemId !== undefined) {
-    i = [...bos].find(([, id]) => id === r.islemId)?.[0];
-    if (i === undefined) return { zatenYok: true, sayfa: n };
-  } else {
-    if (!bos.has(r.indeks)) throw new BosSayfaDegil();
-    i = r.indeks;
-  }
-  if (n < 2) throw new PdfYazilamaz('PDF\'in tek sayfası bu; kaldırılırsa dosyada sayfa kalmaz.');
-  doc.removePage(i);
-  return { bytes: await doc.save(SAVE_OPTIONS), indeks: i, islemId: bos.get(i)!, eskiSayfa: n, yeniSayfa: n - 1 };
 }
