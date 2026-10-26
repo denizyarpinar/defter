@@ -9,6 +9,8 @@ import {
   AdCozumGibi, AdGecersiz, dosyaAdiHazirla, EklemeSuruyor, HedefBulunamadi, KlasorYok, konuyaDosyaEkle, OzetZatenVar, PdfHazirlanamadi,
   type DosyaEklemeOrtami, type DosyaHedefi
 } from './konuyaDosyaEkle';
+import { HedefOzetDegil } from './konuyaEkle';
+import type { EklenenSayfalar } from './ozeteEkle';
 
 // Task 5.10c: a ready PDF into one topic. A fake Drive in memory:
 //   R "Kitaplık" → K "kitaplar" → B (book) → C (topic) → UE "Uebungen", OE "Oedevler";  C2: a topic without subfolders
@@ -184,7 +186,7 @@ describe('konuyaDosyaEkle: where it goes', () => {
     }
     const d = fakeDrive({ 'C/brifing.pdf': 'b', 'C/sorular.pdf': 's' });
     expect((await ekle(d, 'ozet').catch(x => x)).message)
-      .toBe('Bu konunun zaten bir özeti var (brifing.pdf, sorular.pdf); yeni ozet.pdf eklenmedi. Özete sayfa eklemek için fotoğraf eklemeyi kullan.');
+      .toBe("Bu konuda özet zaten var. Dosya ekle'de 'Özetin sonuna ekle' seç.");
     await expect(ekle(fakeDrive({ 'C/OZET.pdf': 'z', 'C/brifing.pdf': 'b' }), 'ozet')).rejects.toThrow(AyniIsimVar);
   });
 
@@ -424,5 +426,66 @@ describe('konuyaDosyaEkle: task 6.K6a, Uebungen / Oedevler made with the first f
     await expect(ekleAc(u, 'uebungen', 'Blatt 1.pdf', 'is-1')).rejects.toThrow(AltKlasorAdiFarkli);
     expect(klasorler(u).map(k => k.name)).toEqual(['Übungen']);
     expect(u.yazmalar()).toEqual([]);
+  });
+});
+
+describe('task 6.S-3: { ozetSonu } → the pages at the end of the summary', () => {
+  // ozeteEkle (the reader gives ozeteSayfaEkle): recorded here; its own tests are in ozeteEkle.test.ts
+  const sonaEkleyen = (d: ReturnType<typeof fakeDrive>) => {
+    const cagri: { fileId: string; bytes: Uint8Array; islemId: string }[] = [];
+    let bekle: Promise<void> | null = null;
+    d.ortam.ozeteEkle = async (fileId, bytes, islemId) => {
+      d.log.push(`ozeteEkle:${fileId}`);
+      cagri.push({ fileId, bytes, islemId });
+      if (bekle) await bekle;
+      return { fileId, islemId, eskiSayfa: 3, yeniSayfa: 5, modifiedTime: 't2', headRevisionId: 'r2', bytes: new Uint8Array([1]), zatenVardi: false } satisfies EklenenSayfalar;
+    };
+    return { cagri, durdur: (p: Promise<void>) => { bekle = p; } };
+  };
+
+  it('one summary: its pages via ozeteEkle (same islemId); no new file, the topic\'s list stays', async () => {
+    const d = fakeDrive({ 'C/ozet.pdf': 'Z' });
+    const s = sonaEkleyen(d);
+    const r = await ekle(d, { ozetSonu: d.file('Z') }, 'Blatt.pdf', { islemId: 'is-9' });
+    expect(r).toMatchObject({ kind: 'sonaEklendi', fileId: 'Z', ad: 'ozet.pdf', eskiSayfa: 3, yeniSayfa: 5 });
+    expect(s.cagri).toEqual([{ fileId: 'Z', bytes: pdf, islemId: 'is-9' }]);
+    expect(d.yazmalar()).toEqual([]);
+    expect(d.olaylar).toEqual([]);   // no konuDegisti / yeniDosya: the topic has the same files
+  });
+
+  it('brifing + sorular: the chosen file gets the pages; bytes before %PDF- cleaned first', async () => {
+    const d = fakeDrive({ 'C/brifing.pdf': 'BR', 'C/sorular.pdf': 'SO' });
+    const s = sonaEkleyen(d);
+    await ekle(d, { ozetSonu: d.file('SO') }, 'x.pdf', { bytes: onEk(pdf) });
+    expect(s.cagri.map(c => c.fileId)).toEqual(['SO']);
+    expect(bas(s.cagri[0].bytes)).toBe('%PDF-');
+  });
+
+  it('the file is no summary of this topic (gone, or another file): HedefOzetDegil, nothing written', async () => {
+    const d = fakeDrive({ 'C/orijinal.pdf': 'O', 'C/ozet.pdf': 'Z' });
+    const s = sonaEkleyen(d);
+    await expect(ekle(d, { ozetSonu: d.file('O') })).rejects.toThrow(HedefOzetDegil);
+    d.items.delete('Z');
+    await expect(ekle(d, { ozetSonu: { id: 'Z', name: 'ozet.pdf', mimeType: 'application/pdf', modifiedTime: 't' } })).rejects.toThrow(HedefOzetDegil);
+    expect(s.cagri).toEqual([]);
+  });
+
+  it('no ozeteEkle (no Drive context) / sample file: no request at all', async () => {
+    const d = fakeDrive({ 'C/ozet.pdf': 'Z' });
+    await expect(ekle(d, { ozetSonu: d.file('Z') })).rejects.toThrow(DosyaYazmaYok);
+    await expect(ekle(d, { ozetSonu: { id: 'ornek:k#x/ozet.pdf', name: 'ozet.pdf', mimeType: 'application/pdf', modifiedTime: 't' } })).rejects.toThrow(PdfSampleNoWrite);
+    expect(d.log).toEqual([]);
+  });
+
+  it('the same summary twice at the same time: EklemeSuruyor (one adding per file)', async () => {
+    const d = fakeDrive({ 'C/ozet.pdf': 'Z' });
+    const s = sonaEkleyen(d);
+    let birak!: () => void;
+    s.durdur(new Promise<void>(r => { birak = r; }));
+    const ilk = ekle(d, { ozetSonu: d.file('Z') }, 'a.pdf', { islemId: 'a' });
+    await expect(ekle(d, { ozetSonu: d.file('Z') }, 'b.pdf', { islemId: 'b' })).rejects.toThrow(EklemeSuruyor);
+    birak();
+    await ilk;
+    expect(s.cagri.map(c => c.islemId)).toEqual(['a']);
   });
 });

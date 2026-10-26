@@ -101,6 +101,9 @@ describe('eklenenMateryal', () => {
     expect(eklenenMateryal({ cozumOf: f('O1') }, r, m)).toEqual({ kind: 'oedevler', fileId: 'N', ad: 'yeni.pdf', cozumOf: 'O1' });
     expect(eklenenMateryal({ cozumOf: f('U1') }, r, m).kind).toBe('uebungen');
   });
+  it('task 6.S-3: pages at the end of a summary file: Özet', () => {
+    expect(eklenenMateryal({ ozetSonu: f('Z') }, { fileId: 'Z', ad: 'ozet.pdf' }, konu())).toEqual({ kind: 'ozet', fileId: 'Z', ad: 'ozet.pdf', cozumOf: null });
+  });
   it('X not in the topic: kind null', () => {
     expect(eklenenMateryal({ cozumOf: f('X') }, r, konu()).kind).toBeNull();
   });

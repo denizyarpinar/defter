@@ -1,9 +1,10 @@
 import type { DriveFile } from '../drive/drive';
+import type { YuklemeDinleyici } from '../drive/pdfYazici';
 import { ofisHataMetni, type OfisHataMetni } from '../defter/dosyaEklemeMetin';
 import { pdfAdi, type HazirDosya } from '../defter/dosyaHazirla';
 import {
-  adDurumu, cozumAdaylari, dosyaHedefi, ekleDurumu, hataMetni, hedefSecenekleri, islemAnahtari, kaynakEtiketi, ofisBilgi, sayfaYazi,
-  varsayilanHedef, type CeviriDurumu, type KlasorBilgisi, type OfisCeviriAlt, type PanelHedef
+  adDurumu, cozumAdaylari, dosyaHedefi, ekleDurumu, hataMetni, hedefSecenekleri, islemAnahtari, kaynakEtiketi, ofisBilgi, ozetHedefi,
+  ozetSecimiGerekli, sayfaYazi, varsayilanHedef, type CeviriDurumu, type KlasorBilgisi, type OfisCeviriAlt, type PanelHedef
 } from '../defter/dosyaPanelDurumu';
 import { boyutYazi, cikar, tasi } from '../defter/fotoPanelDurumu';
 import { hazirlaGorsel } from '../defter/gorsel';
@@ -28,15 +29,18 @@ import { toast } from './toast';
 // trashes its temporary file). A tap outside closes this panel only after a conversion error (6.1e): not while
 // converting, not with the PDF ready (iPad). The PDF stays in memory, so "Tekrar dene" after a failed adding sends
 // the same bytes; "Tekrar çevir" only after a conversion error a new try can fix (not the Google permission).
+// Task 6.S-3: the topic has a summary → "Özetin sonuna ekle (<ad>)": the pages go at its end (no name box; two summary
+// files: the one on screen, else a choice here); the upload's progress on the button ("Ekleniyor… %42").
 
 export interface DosyaPanelBaglam {
   konuAdi: string;
   materials: TopicMaterials;          // the open topic as the reader knows it
   acikSekme: MaterialKind | null;
+  odakDosyaId?: string | null;        // task 6.S-3: the file of the page on screen (which summary file)
   ornek: boolean;
   klasorler(): Promise<KlasorBilgisi | null>;   // Uebungen / Oedevler there? (one Drive listing; null: not known)
   klasorAcabilir?: boolean;   // task 6.K6a: a missing Uebungen / Oedevler is made with the first file in a validated Drive context
-  ekle(hedef: DosyaHedefi, ad: string, islemId: string, bytes: Uint8Array): Promise<DosyaEklendi>;   // rejects on any error
+  ekle(hedef: DosyaHedefi, ad: string, islemId: string, bytes: Uint8Array, yukleme?: YuklemeDinleyici): Promise<DosyaEklendi>;   // rejects on any error
   bitti(r: DosyaEklendi, hedef: DosyaHedefi): void;   // after the panel closed; hedef: what was chosen
   cevir(dosya: File, signal: AbortSignal): Promise<Uint8Array>;   // task 6.1c: Word / PowerPoint → PDF bytes
   kapanis?: AbortSignal;   // the reader closed: a conversion is cancelled, the panel closes
@@ -85,7 +89,10 @@ export function acDosyaPanel(b: DosyaPanelBaglam, kaynak: DosyaPanelKaynak): voi
   const ofis = kaynak.tur === 'ofis' ? kaynak : null;
   let klasor: KlasorBilgisi | null = null;
   let sayfa: number | null | undefined;   // undefined: being counted
-  let hedef: PanelHedef | null = varsayilanHedef(hedefSecenekleri(b.materials, null, b.klasorAcabilir), b.acikSekme);
+  let ozetSecilen: string | null = null;   // 6.S-3: the summary file chosen here (two files, none on screen)
+  let yuzde: number | null = null;          // 6.S-3: the upload's progress
+  const ozetSonu = () => ozetHedefi(b.materials, b.odakDosyaId ?? null, ozetSecilen);
+  let hedef: PanelHedef | null = varsayilanHedef(hedefSecenekleri(b.materials, null, b.klasorAcabilir, ozetSonu()), b.acikSekme);
   let girilen = hazir?.ad ?? (ofis ? pdfAdi(ofis.dosya.name) : '');
   let cozumOf: DriveFile | null = null;
   let ekleniyor = false;
@@ -129,8 +136,8 @@ export function acDosyaPanel(b: DosyaPanelBaglam, kaynak: DosyaPanelKaynak): voi
 
   const hedefler = el('fieldset', 'dp-hedefler');
   hedefler.append(el('legend', 'dp-baslik2', 'Nereye?'));
-  const radyolar = new Map<PanelHedef, { input: HTMLInputElement; satir: HTMLLabelElement; neden: HTMLElement }>();
-  for (const s of hedefSecenekleri(b.materials, null, b.klasorAcabilir)) {
+  const radyolar = new Map<PanelHedef, { input: HTMLInputElement; satir: HTMLLabelElement; etiket: HTMLElement; neden: HTMLElement }>();
+  for (const s of hedefSecenekleri(b.materials, null, b.klasorAcabilir, ozetSonu())) {
     const satir = el('label', 'dp-hedef');
     const input = el('input');
     input.type = 'radio';
@@ -138,9 +145,10 @@ export function acDosyaPanel(b: DosyaPanelBaglam, kaynak: DosyaPanelKaynak): voi
     input.value = s.hedef;
     input.onchange = () => { if (input.checked) secHedef(s.hedef); };
     const neden = el('small', 'dp-neden');
-    satir.append(input, el('span', '', s.etiket), neden);
+    const etiket = el('span', '', s.etiket);
+    satir.append(input, etiket, neden);
     hedefler.append(satir);
-    radyolar.set(s.hedef, { input, satir, neden });
+    radyolar.set(s.hedef, { input, satir, etiket, neden });
   }
 
   const cozumSatir = el('label', 'fp-seclbl dp-cozum', 'Hangi dosyanın çözümü?');
@@ -148,6 +156,13 @@ export function acDosyaPanel(b: DosyaPanelBaglam, kaynak: DosyaPanelKaynak): voi
   cozumSec.append(new Option('Dosya seç…', ''), ...adaylar.map(a => new Option(a.etiket, a.file.id)));
   cozumSec.onchange = () => { cozumOf = adaylar.find(a => a.file.id === cozumSec.value)?.file ?? null; ciz(); };
   cozumSatir.append(cozumSec);
+
+  // 6.S-3: brifing + sorular and neither on screen: which one gets the pages
+  const ozetSatir = el('label', 'fp-seclbl dp-cozum', 'Hangi özet dosyasının sonuna?');
+  const ozetSec = el('select', 'fp-sec');
+  ozetSec.append(new Option('Dosya seç…', ''), ...b.materials.ozet.map(x => new Option(x.file.name, x.file.id)));
+  ozetSec.onchange = () => { ozetSecilen = ozetSec.value || null; hata = null; ciz(); };
+  ozetSatir.append(ozetSec);
 
   const adSatir = el('label', 'dp-ad', 'Ad');
   const adKutu = el('input');
@@ -166,8 +181,8 @@ export function acDosyaPanel(b: DosyaPanelBaglam, kaynak: DosyaPanelKaynak): voi
   tekrarCevir.hidden = true;
   const alt = el('div', 'fp-alt');
   alt.append(vazgec, tekrarCevir, ekle);
-  if (hazir || ofis) kart.append(baslik, bilgi, hedefler, cozumSatir, adSatir, uyari, not, alt);
-  else kart.append(baslik, bilgi, liste, arti, input, hedefler, cozumSatir, adSatir, uyari, not, alt);
+  if (hazir || ofis) kart.append(baslik, bilgi, hedefler, cozumSatir, ozetSatir, adSatir, uyari, not, alt);
+  else kart.append(baslik, bilgi, liste, arti, input, hedefler, cozumSatir, ozetSatir, adSatir, uyari, not, alt);
   kok.append(kart);
   document.body.append(kok);
   // iPad: the panel stays in the visible part while the keyboard is open; the page is put back after it
@@ -228,12 +243,13 @@ export function acDosyaPanel(b: DosyaPanelBaglam, kaynak: DosyaPanelKaynak): voi
       girilen = listeAdi(gorseller[0]?.ad, girilen, adElle);
       cizListe();
     }
-    const secenekler = hedefSecenekleri(b.materials, klasor, b.klasorAcabilir);
+    const secenekler = hedefSecenekleri(b.materials, klasor, b.klasorAcabilir, ozetSonu());
     // the chosen one went grey (the folder listing came): the default again
     if (!secenekler.find(s => s.hedef === hedef)?.secilebilir) hedef = varsayilanHedef(secenekler, b.acikSekme);
     for (const s of secenekler) {
       const r = radyolar.get(s.hedef)!;
       r.input.checked = s.hedef === hedef;
+      r.etiket.textContent = s.etiket;
       r.input.disabled = !s.secilebilir || ekleniyor;
       r.satir.classList.toggle('dp-pasif', !s.secilebilir);
       r.neden.textContent = s.neden ?? '';
@@ -241,8 +257,10 @@ export function acDosyaPanel(b: DosyaPanelBaglam, kaynak: DosyaPanelKaynak): voi
     }
     cozumSatir.hidden = hedef !== 'cozum';
     cozumSec.disabled = ekleniyor;
-    const ad = hedef ? adDurumu(b.materials, hedef, girilen, cozumOf) : null;
-    adSatir.hidden = !ad;
+    ozetSatir.hidden = !(hedef === 'ozet' && ozetSecimiGerekli(b.materials, b.odakDosyaId ?? null));
+    ozetSec.disabled = ekleniyor;
+    const ad = hedef ? adDurumu(b.materials, hedef, girilen, cozumOf, ozetSonu()) : null;
+    adSatir.hidden = !ad || !!ad.gizli;
     if (ad) {
       adKutu.readOnly = !ad.duzenlenebilir;
       adKutu.disabled = ekleniyor;
@@ -254,7 +272,7 @@ export function acDosyaPanel(b: DosyaPanelBaglam, kaynak: DosyaPanelKaynak): voi
     uyari.hidden = !ad?.hata;
     const secenek = secenekler.find(s => s.hedef === hedef) ?? null;
     const hazirDegil = ofis ? !hazir : !hazir && (calisiyor || !gorseller.length);
-    const e = ekleDurumu({ ornek: b.ornek, secenek, ad: ad ?? { duzenlenebilir: false, ad: '', hata: null }, ekleniyor, hataVar: !!hata, hazirDegil });
+    const e = ekleDurumu({ ornek: b.ornek, secenek, ad: ad ?? { duzenlenebilir: false, ad: '', hata: null }, ekleniyor, hataVar: !!hata, hazirDegil, yuzde });
     ekle.disabled = !e.aktif;
     ekle.textContent = e.metin;
     vazgec.disabled = ekleniyor;
@@ -380,11 +398,13 @@ export function acDosyaPanel(b: DosyaPanelBaglam, kaynak: DosyaPanelKaynak): voi
   ekle.onclick = async () => {
     if (ekleniyor || ekle.disabled || !hedef) return;
     adKutu.blur();   // the iPad keyboard goes away now, not after the panel
-    const h = dosyaHedefi(hedef, cozumOf);
-    const ad = adDurumu(b.materials, hedef, girilen, cozumOf);
+    const sonu = ozetSonu();
+    const h = dosyaHedefi(hedef, cozumOf, b.materials, sonu);
+    const ad = adDurumu(b.materials, hedef, girilen, cozumOf, sonu);
     if (!h || !ad.ad || ad.hata) return;
-    // the same target + name (+ the same image list) as the failed try: the same islemId (konuyaDosyaEkle finds "its" file)
-    const anahtar = islemAnahtari(hedef, ad.ad, cozumOf) + (hazir ? '' : `|${surum}`);
+    // the same target + name (+ the same image list) as the failed try: the same islemId (konuyaDosyaEkle finds "its" file;
+    // 6.S-3: the summary's pages marked with it, none added twice)
+    const anahtar = islemAnahtari(hedef, ad.ad, cozumOf, sonu) + (hazir ? '' : `|${surum}`);
     if (islem?.anahtar !== anahtar) islem = { anahtar, id: crypto.randomUUID() };
     ekleniyor = true;
     ciz();
@@ -398,15 +418,19 @@ export function acDosyaPanel(b: DosyaPanelBaglam, kaynak: DosyaPanelKaynak): voi
         if (!kapandi) ciz();
         return;
       }
-      r = await b.ekle(h, ad.ad, islem.id, bytes);
+      r = await b.ekle(h, ad.ad, islem.id, bytes, {
+        ilerleme: (gonderilen, tum) => { yuzde = tum > 0 ? Math.min(100, Math.round(gonderilen / tum * 100)) : null; if (!kapandi) ciz(); },
+      });
     } catch (e) {
       ekleniyor = false;
+      yuzde = null;
       hata = hataMetni(e);
       console.warn('Dosya eklenemedi.', e);
       if (!kapandi) ciz();
       return;
     }
     ekleniyor = false;
+    yuzde = null;
     kapat();
     b.bitti(r, h);
   };

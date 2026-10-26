@@ -84,6 +84,7 @@ export interface EklenenDosya { kind: MaterialKind | null; fileId: string; ad: s
 
 export function eklenenMateryal(hedef: DosyaHedefi, r: Pick<DosyaEklendi, 'fileId' | 'ad'>, m: TopicMaterials): EklenenDosya {
   if (typeof hedef !== 'object') return { kind: hedef, fileId: r.fileId, ad: r.ad, cozumOf: null };
+  if ('ozetSonu' in hedef) return { kind: 'ozet', fileId: r.fileId, ad: r.ad, cozumOf: null };   // task 6.S-3
   const x = hedef.cozumOf.id;
   const kind = MATERIAL_KINDS.find(k => m[k].some(it => it.file.id === x)) ?? null;
   return { kind, fileId: r.fileId, ad: r.ad, cozumOf: x };

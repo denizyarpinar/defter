@@ -1,11 +1,12 @@
 import { FOLDER_MIME, listChildren, type DriveFile } from '../drive/drive';
 import type { DriveLocation } from '../drive/driveLibrary';
 import { AyniIsimVar, createPdf, DosyaYazmaYok, PdfDegil, type CreatePdfSecenek, type PdfOlusturDrive } from '../drive/pdfOlustur';
-import { PdfSampleNoWrite } from '../drive/pdfYazici';
+import { PdfSampleNoWrite, type YuklemeDinleyici } from '../drive/pdfYazici';
 import { PdfYazilamaz, SAVE_OPTIONS, yazilabilirAc } from '../kalem/pdfNotlari';
 import { isSampleId } from '../okuma/ornekKaynak';
 import { dosyaTuru, ILK_BAYT_SAYISI } from './dosyaTuru';
-import { ozetKarari } from './konuyaEkle';
+import { HedefOzetDegil, ozetKarari } from './konuyaEkle';
+import type { EklenenSayfalar } from './ozeteEkle';
 import { mb, olc, zamanliDrive, type Olcum } from './sureOlcum';
 
 // Task 5.10c: "Dosya ekle" without UI: a ready PDF into the right place of one topic (CLAUDE.md → Faz 5 → Yeni dosya).
@@ -17,8 +18,14 @@ import { mb, olc, zamanliDrive, type Olcum } from './sureOlcum';
 // - The bytes go as they are. Only a PDF with bytes before %PDF- is saved again with pdf-lib (a clean file).
 //   Encrypted / signed / unreadable PDFs are added, but the pen can't write them later: uyari 'kalemYazamaz'.
 // - islemId goes into appProperties.defterIslem: a later try with the same id that finds "its" file counts as done.
+// - Task 6.S-3: { ozetSonu: X } → the pages at the END of the summary file X (no new file): ozeteEkle.ts's way
+//   (the pen's queue, /DefterEkId with islemId: a retry adds no page twice). An encrypted / broken / empty
+//   extra PDF → EkPdfYazilamaz, nothing written (a signed one is fine: only its pages are copied).
 
-export type DosyaHedefi = 'orijinal' | 'ozet' | 'uebungen' | 'oedevler' | { cozumOf: DriveFile };
+export type DosyaHedefi = 'orijinal' | 'ozet' | 'uebungen' | 'oedevler' | { cozumOf: DriveFile } | { ozetSonu: DriveFile };
+
+// The Drive file an object target is about (the solution's X, or the summary file)
+export const hedefDosyasi = (h: Exclude<DosyaHedefi, string>): DriveFile => 'cozumOf' in h ? h.cozumOf : h.ozetSonu;
 export type AltKlasor = 'Uebungen' | 'Oedevler';
 
 const key = (name: string) => name.trim().toLowerCase();   // as konuKesfi.ts
@@ -43,8 +50,10 @@ export class KlasorYok extends Error {
 }
 
 export class OzetZatenVar extends Error {
+  readonly dosyalar: readonly DriveFile[];
   constructor(dosyalar: readonly DriveFile[]) {
-    super(`Bu konunun zaten bir özeti var (${dosyalar.map(f => f.name).join(', ')}); yeni ozet.pdf eklenmedi. Özete sayfa eklemek için fotoğraf eklemeyi kullan.`);
+    super("Bu konuda özet zaten var. Dosya ekle'de 'Özetin sonuna ekle' seç.");
+    this.dosyalar = dosyalar;
   }
 }
 
@@ -84,7 +93,7 @@ export type HedefYeri = { klasor: 'kok'; ad: string } | { klasor: AltKlasor; ad:
 
 // kok: the topic folder's children. Fixed names for orijinal / ozet; ad (already prepared) for the subfolders.
 // The solution's place needs the subfolder listings: see konuyaDosyaEkle.
-export function hedefYeri(hedef: Exclude<DosyaHedefi, { cozumOf: DriveFile }>, ad: string, kok: readonly DriveFile[]): HedefYeri {
+export function hedefYeri(hedef: Exclude<DosyaHedefi, object>, ad: string, kok: readonly DriveFile[]): HedefYeri {
   if (hedef === 'orijinal') return { klasor: 'kok', ad: 'orijinal.pdf' };
   if (hedef === 'ozet') {
     // ozet.pdf there: the same-name path (AyniIsimVar, or our own earlier try); brifing / sorular: no new ozet.pdf
@@ -128,6 +137,8 @@ export interface DosyaEklemeOrtami {
   liste?(parentId: string): Promise<DriveFile[]>;   // default: listChildren
   yeniDosya?(f: { id: string; modifiedTime: string; bytes: Uint8Array }): void | Promise<void>;
   konuDegisti?(): void;
+  // task 6.S-3: the PDF's pages at the end of a summary file (ozeteSayfaEkle with the reader's queue and caches); missing → DosyaYazmaYok
+  ozeteEkle?(fileId: string, bytes: Uint8Array, islemId: string, yukleme?: YuklemeDinleyici): Promise<EklenenSayfalar>;
   // task 6.K6a: makes the missing subfolder (or finds it) and gives its id; missing → KlasorYok
   altKlasorAc?(konuId: string, klasor: AltKlasor, islemId: string): Promise<string>;
 }
@@ -141,22 +152,26 @@ export interface DosyaEkleIstek {
 }
 
 export interface DosyaEklendi {
-  kind: 'yeni' | 'zatenVardi';   // zatenVardi: an earlier try with this islemId had created it
+  // zatenVardi: an earlier try with this islemId had created it; sonaEklendi (6.S-3): pages at the end of fileId
+  kind: 'yeni' | 'zatenVardi' | 'sonaEklendi';
   fileId: string;
   ad: string;
-  bytes: Uint8Array;             // what is in Drive (the clean file for a PDF with bytes before %PDF-)
+  bytes: Uint8Array;             // what is in Drive (the clean file for a PDF with bytes before %PDF-; sonaEklendi: the whole summary)
   uyari?: 'kalemYazamaz';
+  eskiSayfa?: number;            // sonaEklendi: the summary's pages before and after
+  yeniSayfa?: number;
 }
 
 // secenek.olcum: task 6.2e-1, only with ?olcum=1 (each step and Drive request timed); never passed to createPdf
-export type DosyaEkleSecenek = Omit<CreatePdfSecenek, 'defterIslem'> & { olcum?: Olcum };
+// secenek.yukleme: task 6.S-3, the upload's progress when pages go at the end of a summary
+export type DosyaEkleSecenek = Omit<CreatePdfSecenek, 'defterIslem'> & { olcum?: Olcum; yukleme?: YuklemeDinleyici };
 
 export async function konuyaDosyaEkle(
   istek: DosyaEkleIstek, o: DosyaEklemeOrtami, secenek: DosyaEkleSecenek = {}
 ): Promise<DosyaEklendi> {
   const { konu, hedef } = istek;
   // checks without any request
-  if (isSampleId(konu) || (typeof hedef === 'object' && isSampleId(hedef.cozumOf.id))) throw new PdfSampleNoWrite();
+  if (isSampleId(konu) || (typeof hedef === 'object' && isSampleId(hedefDosyasi(hedef).id))) throw new PdfSampleNoWrite();
   const yer = o.yer;
   if (!yer) throw new DosyaYazmaYok();
   // the name first: a wrong one costs no request
@@ -168,7 +183,9 @@ export async function konuyaDosyaEkle(
   if (surenler.has(kilit)) throw new EklemeSuruyor();
   surenler.add(kilit);
   try {
-    return await ekle(istek, { ...o, yer }, secenek, altAd);
+    return typeof hedef === 'object' && 'ozetSonu' in hedef
+      ? await sonaEkle(istek, hedef.ozetSonu, o, secenek)
+      : await ekle(istek, { ...o, yer }, secenek, altAd);
   } finally {
     surenler.delete(kilit);
   }
@@ -181,22 +198,35 @@ const surenler = new Set<string>();
 // Known without any request: one topic has one Uebungen / Oedevler folder and X has one solution name,
 // so this means the same as "target folder id + name".
 export function kilitAnahtari(konu: string, hedef: DosyaHedefi, altAd: string): string {
-  if (typeof hedef === 'object') return `${konu}/cozum/${hedef.cozumOf.id}`;
+  if (typeof hedef === 'object') return 'cozumOf' in hedef ? `${konu}/cozum/${hedef.cozumOf.id}` : `${konu}/ozetSonu/${hedef.ozetSonu.id}`;
   if (hedef === 'orijinal' || hedef === 'ozet') return `${konu}/kok/${hedef}.pdf`;
   return `${konu}/${hedef}/${key(altAd)}`;
+}
+
+// Task 6.S-3: the file's pages at the end of the summary file x. Still one of the topic's summaries (another device
+// may have trashed it) → HedefOzetDegil. Nothing new is created; the topic's file list doesn't change.
+async function sonaEkle(istek: DosyaEkleIstek, x: DriveFile, o: DosyaEklemeOrtami, secenek: DosyaEkleSecenek): Promise<DosyaEklendi> {
+  const om = secenek.olcum;
+  const ozeteEkle = o.ozeteEkle;
+  if (!ozeteEkle) throw new DosyaYazmaYok();
+  const hazir = await olc(om, 'pdfHazirla (PDF kontrolü)', () => pdfHazirla(istek.ad, istek.bytes), { grup: 'pdf', ek: h => ({ boyut: mb(h.bytes.byteLength) }) });
+  const kok = await olc(om, 'drive klasör listesi', () => (o.liste ?? listChildren)(istek.konu), { grup: 'istek' });
+  if (!ozetKarari(kok).dosyalar.some(f => f.id === x.id)) throw new HedefOzetDegil();
+  const s = await ozeteEkle(x.id, hazir.bytes, istek.islemId, secenek.yukleme);
+  return { kind: 'sonaEklendi', fileId: x.id, ad: x.name, bytes: s.bytes, eskiSayfa: s.eskiSayfa, yeniSayfa: s.yeniSayfa };
 }
 
 async function ekle(
   istek: DosyaEkleIstek, o: DosyaEklemeOrtami & { yer: DriveLocation }, tumSecenek: DosyaEkleSecenek, altAd: string
 ): Promise<DosyaEklendi> {
-  const { olcum: om, ...secenek } = tumSecenek;
+  const { olcum: om, yukleme: _y, ...secenek } = tumSecenek;
   const { konu, hedef, islemId } = istek;
   const liste = (id: string) => olc(om, 'drive klasör listesi', () => (o.liste ?? listChildren)(id), { grup: 'istek' });
   const hazir = await olc(om, 'pdfHazirla (PDF kontrolü)', () => pdfHazirla(istek.ad, istek.bytes), { grup: 'pdf', ek: h => ({ boyut: mb(h.bytes.byteLength) }) });
 
   const kok = await liste(konu);
   let parentId: string, ad: string;
-  if (typeof hedef === 'object') {
+  if (typeof hedef === 'object' && 'cozumOf' in hedef) {
     // the solution goes next to X: the topic folder, Uebungen or Oedevler
     const x = hedef.cozumOf;
     if (key(x.name).endsWith(COZUM) || !key(x.name).endsWith('.pdf')) throw new HedefBulunamadi(x.name);
@@ -208,6 +238,7 @@ async function ekle(
       parentId = altId;
     }
   } else {
+    if (typeof hedef === 'object') throw new HedefBulunamadi(hedefDosyasi(hedef).name);   // ozetSonu: sonaEkle's way, never here
     const y = hedefYeri(hedef, altAd, kok);
     ad = y.ad;
     if (y.klasor === 'kok') parentId = konu;

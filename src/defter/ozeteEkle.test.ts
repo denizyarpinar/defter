@@ -10,8 +10,8 @@ import type { Stroke } from '../kalem/cizgi';
 import { DriveUploader, uploadRecord } from '../kalem/pdfKayit';
 import { PdfYazilamaz, readDefterStrokes, writeDefterStrokes } from '../kalem/pdfNotlari';
 import {
-  DosyaBulunamadi, EK_ID, ozeteSayfaEkle, PdfDosyasiDegil, SayfaEklemeAgHatasi, SayfaEklemeCakisma, SayfaYazmaYok,
-  type EklenenSayfalar, type SayfaEklemeOrtami, type SayfaEklemeSecenek
+  DosyaBulunamadi, EK_ID, EkPdfYazilamaz, isaretliPdfEkle, ozeteSayfaEkle, PdfDosyasiDegil, SayfaEklemeAgHatasi, SayfaEklemeCakisma,
+  SayfaYazmaYok, type EklenenSayfalar, type SayfaEklemeOrtami, type SayfaEklemeSecenek
 } from './ozeteEkle';
 import type { Jpeg } from './sayfaEkle';
 
@@ -22,7 +22,23 @@ const N = (s: string) => PDFName.of(s);
 const stroke = (id: string): Stroke => ({ id, arac: 'kalem', renk: '#222222', kalinlik: 2.2, opaklik: 1, noktalar: [100, 100, 200, 150] });
 
 let dik: Jpeg, yatay: Jpeg, baslangic: Uint8Array;
+// task 6.S-3: an extra PDF (2 pages): another program's note on page 1, a Defter stroke 'e' on page 2
+let ekPdf: Uint8Array, sifreliEk: Uint8Array, imzaliEk: Uint8Array;
 beforeAll(async () => {
+  const ek = await PDFDocument.create();
+  ek.addPage([842, 595]).drawText('Ek 1', { x: 50, y: 500 });
+  ek.addPage([595.28, 841.89]).drawText('Ek 2', { x: 50, y: 780 });
+  ek.getPage(0).node.set(N('Annots'), ek.context.obj([ek.context.register(ek.context.obj({
+    Type: 'Annot', Subtype: 'Text', Rect: [50, 400, 70, 420], Contents: PDFString.of('Ek notu'), T: PDFString.of('Ayse')
+  }))]));
+  ekPdf = await writeDefterStrokes(await ek.save(), new Map([[1, [stroke('e')]]]));
+  const enc = await PDFDocument.load(ekPdf);
+  enc.context.trailerInfo.Encrypt = enc.context.register(enc.context.obj({ Filter: 'Standard', V: 2, R: 3, Length: 128, P: -4 }));
+  sifreliEk = await enc.save({ useObjectStreams: false });
+  const sig = await PDFDocument.load(ekPdf);
+  sig.catalog.set(N('AcroForm'), sig.context.register(sig.context.obj({ Fields: [sig.context.register(sig.context.obj({ FT: 'Sig', T: PDFString.of('Imza') }))] })));
+  imzaliEk = await sig.save();
+
   const jpeg = async (w: number, h: number) =>
     ({ bytes: new Uint8Array(await sharp({ create: { width: w, height: h, channels: 3, background: '#d8c9a3' } }).jpeg({ quality: 85 }).toBuffer()) });
   [dik, yatay] = await Promise.all([jpeg(600, 800), jpeg(800, 600)]);
@@ -257,6 +273,118 @@ describe('ozeteSayfaEkle', () => {
     await expect(ozeteSayfaEkle('X', [dik], c.ortam, HIZLI)).rejects.toThrow(YerDisi);
     await expect(ozeteSayfaEkle('yok', [dik], c.ortam, HIZLI)).rejects.toThrow(DosyaBulunamadi);
     for (const d of [a, b, c]) expect(d.log).not.toContain('upload');
+  });
+});
+
+describe('task 6.S-3: a PDF\'s pages at the end (isaretliPdfEkle)', () => {
+  const notlar = async (b: Uint8Array, i: number) => {
+    const doc = await PDFDocument.load(b);
+    return (doc.getPage(i).node.Annots()?.asArray() ?? []).map(r => doc.context.lookup(r) as PDFDict);
+  };
+
+  it('all pages at the end, marked; old pages the same; other notes and Defter strokes kept (Defter ones with new ids)', async () => {
+    const h = await isaretliPdfEkle(baslangic, ekPdf, 'is-1');
+    if ('zatenVar' in h) throw new Error('zatenVar');
+    expect([h.eskiSayfa, h.yeniSayfa]).toEqual([3, 5]);
+    expect(await sayfaSayisi(h.bytes)).toBe(5);
+    expect(await ekIdleri(h.bytes)).toEqual([null, null, null, 'is-1', 'is-1']);
+    expect(await eskiSayfalar(h.bytes, 3)).toEqual(await eskiSayfalar(baslangic, 3));
+    // the page sizes of the extra file (landscape stays landscape)
+    const doc = await PDFDocument.load(h.bytes);
+    expect([doc.getPage(3).getSize(), doc.getPage(4).getSize()]).toEqual([{ width: 842, height: 595 }, { width: 595.28, height: 841.89 }]);
+    // another program's note: as it was
+    const diger = (await notlar(h.bytes, 3)).find(a => a.get(N('Subtype')) === N('Text'))!;
+    expect((diger.get(N('Contents')) as PDFString).decodeText()).toBe('Ek notu');
+    // the Defter stroke: the same line, a new id
+    const eski = (await readDefterStrokes(ekPdf)).get(1)![0];
+    const yeni = await readDefterStrokes(h.bytes);
+    expect([...yeni.keys()]).toEqual([0, 4]);
+    expect(yeni.get(0)!.map(x => x.id)).toEqual(['o']);
+    expect(yeni.get(4)).toEqual([{ ...eski, id: 'is-1-1' }]);
+  });
+
+  it('the same islemId again: zatenVar, nothing changes; another adding of the same file: no id twice', async () => {
+    const h = await isaretliPdfEkle(baslangic, ekPdf, 'is-1');
+    if ('zatenVar' in h) throw new Error('zatenVar');
+    expect(await isaretliPdfEkle(h.bytes, ekPdf, 'is-1')).toEqual({ zatenVar: true, sayfa: 5, eskiSayfa: 3 });
+    const h2 = await isaretliPdfEkle(h.bytes, ekPdf, 'is-2');
+    if ('zatenVar' in h2) throw new Error('zatenVar');
+    const ids = [...(await readDefterStrokes(h2.bytes)).values()].flat().map(x => x.id);
+    expect(ids).toEqual(['o', 'is-1-1', 'is-2-1']);
+  });
+
+  it('encrypted / broken / empty extra PDF → EkPdfYazilamaz (not the summary\'s PdfYazilamaz)', async () => {
+    const e = await isaretliPdfEkle(baslangic, sifreliEk, 'x').catch(x => x);
+    expect(e).toBeInstanceOf(EkPdfYazilamaz);
+    expect(e).not.toBeInstanceOf(PdfYazilamaz);
+    expect(e.message).toContain('Bu PDF şifreli, özete eklenemiyor');
+    await expect(isaretliPdfEkle(baslangic, new TextEncoder().encode('%PDF-1.7 bozuk'), 'x')).rejects.toThrow(EkPdfYazilamaz);
+    const bos = await (await PDFDocument.create()).save({ addDefaultPage: false });
+    await expect(isaretliPdfEkle(baslangic, bos, 'x')).rejects.toThrow(/sayfa yok/);
+  });
+
+  it('a signed extra PDF is accepted: it is only read, its pages are added', async () => {
+    const h = await isaretliPdfEkle(baslangic, imzaliEk, 'is-s');
+    if ('zatenVar' in h) throw new Error('zatenVar');
+    expect([h.eskiSayfa, h.yeniSayfa]).toEqual([3, 5]);
+    expect(await ekIdleri(h.bytes)).toEqual([null, null, null, 'is-s', 'is-s']);
+    const d = fakeDrive(baslangic);
+    expect((await ozeteSayfaEkle('P', { pdf: imzaliEk }, d.ortam, HIZLI)).yeniSayfa).toBe(5);
+  });
+
+  it('the summary itself encrypted or signed → PdfYazilamaz with the summary wording (as today)', async () => {
+    const sig = await PDFDocument.load(baslangic);
+    sig.catalog.set(N('AcroForm'), sig.context.register(sig.context.obj({ Fields: [sig.context.register(sig.context.obj({ FT: 'Sig', T: PDFString.of('Imza') }))] })));
+    const imzaliOzet = await isaretliPdfEkle(await sig.save(), ekPdf, 'x').catch(x => x);
+    expect(imzaliOzet).toBeInstanceOf(PdfYazilamaz);
+    expect(imzaliOzet.message).toContain('dijital imzalı');
+    const e = await isaretliPdfEkle(sifreliEk, ekPdf, 'x').catch(x => x);
+    expect(e).toBeInstanceOf(PdfYazilamaz);
+    expect(e.message).toContain('sayfa eklenemiyor');
+  });
+});
+
+describe('task 6.S-3: ozeteSayfaEkle with a PDF', () => {
+  it('the pages at the end; one upload; the caches follow', async () => {
+    const d = fakeDrive(baslangic);
+    const s = await ozeteSayfaEkle('P', { pdf: ekPdf }, d.ortam, { ...HIZLI, islemId: 'is-1' });
+    expect([s.eskiSayfa, s.yeniSayfa, s.zatenVardi]).toEqual([3, 5, false]);
+    expect(await ekIdleri(d.file.bytes)).toEqual([null, null, null, 'is-1', 'is-1']);
+    expect(d.degisenler).toEqual([s]);
+    expect(d.log.filter(l => l === 'upload')).toHaveLength(1);
+  });
+
+  it('conflict: on top of the newest file; answer lost: no double pages (Tekrar dene with the same islemId)', async () => {
+    const a = fakeDrive(baslangic);
+    a.file.cakisma = 2;
+    expect((await ozeteSayfaEkle('P', { pdf: ekPdf }, a.ortam, HIZLI)).yeniSayfa).toBe(5);
+    expect([...(await readDefterStrokes(a.file.bytes)).keys()]).toEqual([0, 2, 4]);
+    const b = fakeDrive(baslangic);
+    b.file.kayip = 1;
+    const s = await ozeteSayfaEkle('P', { pdf: ekPdf }, b.ortam, { ...HIZLI, islemId: 'ayni' });
+    expect(s.zatenVardi).toBe(true);
+    const tekrar = await ozeteSayfaEkle('P', { pdf: ekPdf }, b.ortam, { ...HIZLI, islemId: 'ayni' });
+    expect(tekrar.zatenVardi).toBe(true);
+    expect(await sayfaSayisi(b.file.bytes)).toBe(5);
+    expect(b.log.filter(l => l === 'upload')).toHaveLength(1);
+  });
+
+  it('offline: tried again; always offline → SayfaEklemeAgHatasi, nothing uploaded; the upload is heard', async () => {
+    const a = fakeDrive(baslangic);
+    a.file.offline = 1;
+    const olay: string[] = [];
+    expect((await ozeteSayfaEkle('P', { pdf: ekPdf }, a.ortam, { ...HIZLI, yukleme: { basladi: () => olay.push('basladi') } })).yeniSayfa).toBe(5);
+    expect(olay).toEqual(['basladi']);
+    const b = fakeDrive(baslangic);
+    b.file.offline = 10;
+    await expect(ozeteSayfaEkle('P', { pdf: ekPdf }, b.ortam, HIZLI)).rejects.toThrow(SayfaEklemeAgHatasi);
+    expect(b.log).not.toContain('upload');
+  });
+
+  it('an encrypted extra PDF: refused before any request', async () => {
+    const d = fakeDrive(baslangic);
+    await expect(ozeteSayfaEkle('P', { pdf: sifreliEk }, d.ortam, HIZLI)).rejects.toThrow(EkPdfYazilamaz);
+    expect(d.log).toEqual([]);
   });
 });
 

@@ -1,6 +1,6 @@
 import { agacGecersiz } from '../arama/kitaplikAgaci';
 import { listChildren, SessionExpired } from '../drive/drive';
-import { drivePdfApi } from '../drive/pdfYazici';
+import { drivePdfApi, type YuklemeDinleyici } from '../drive/pdfYazici';
 import { penLayerSvg } from '../kalem/cizimKatmani';
 import { IdbPendingStore } from '../kalem/bekleyenDepo';
 import { remainingDiff, type PendingRecord } from '../kalem/bekleyenFark';
@@ -14,7 +14,7 @@ import { PenInput } from '../kalem/kalemModu';
 import type { PenViewport } from '../kalem/koordinat';
 import { DriveUploader, type UploadDeps, type UploadStatus, type Uploaded } from '../kalem/pdfKayit';
 import { OZET_ADI, type KonuEklemeOrtami, type KonuyaEklendi } from '../defter/konuyaEkle';
-import { SayfaYazmaYok, type EklenenSayfalar } from '../defter/ozeteEkle';
+import { ozeteSayfaEkle, SayfaYazmaYok, type EklenenSayfalar } from '../defter/ozeteEkle';
 import { bekleyenFotoDepo } from '../defter/bekleyenFoto';
 import type { BekleyenFoto, BekleyenJpeg } from '../defter/bekleyenFotoKayit';
 import { FotoEkleyici } from '../defter/fotoEkleme';
@@ -51,7 +51,7 @@ import { getPdf, putPdf } from './pdfOnbellek';
 import { SourceResolver } from './kaynakCoz';
 import {
   acikIndeks, dosyaEklemeKarari, dosyaGosterHedefi, eklenenMateryal, GOSTER_OTOMATIK, gosterIndeksi, konuBirlestir, sayfaListesiniGenislet,
-  yeniIndeks, yenilemeKarari, type EklenenDosya, type GosterHedefi
+  yeniIndeks, yenilemeKarari, type EklemeSonucu, type EklenenDosya, type GosterHedefi
 } from './eklemeYenileme';
 import { visiblePages, yenidenDuzenGerekir } from './kitapDuzen';
 import { BookView } from './kitapModu';
@@ -1337,6 +1337,7 @@ function openFilePanel(t: OpenTopic, kaynak: DosyaPanelKaynak): void {
     konuAdi: t.title,
     materials: t.materials,
     acikSekme: t.kind,
+    odakDosyaId: pages.length ? pages[focusPage()]?.dosyaId ?? null : null,   // task 6.S-3: which summary file
     ornek: isSampleId(folder),
     klasorAcabilir: !isSampleId(folder) && !!driveLocation() && !!klasorAcma(),
     klasorler: async () => {
@@ -1349,7 +1350,7 @@ function openFilePanel(t: OpenTopic, kaynak: DosyaPanelKaynak): void {
         return null;
       }
     },
-    ekle: async (hedef: DosyaHedefi, ad: string, islemId: string, bytes: Uint8Array) => {
+    ekle: async (hedef: DosyaHedefi, ad: string, islemId: string, bytes: Uint8Array, yukleme?: YuklemeDinleyici) => {
       // task 6.2e-1: ?olcum=1 → measured until the toast (afterFileAdded)
       const om = olcumAcik() ? olcumBaslat(islemId, 'Dosya ekle') : undefined;
       if (om) { om.bilgi.ad = ad; om.bilgi.boyut = mb(bytes.byteLength); om.adimlar.push(...hazirlikAl()); fileMeasureId = islemId; }
@@ -1358,8 +1359,11 @@ function openFilePanel(t: OpenTopic, kaynak: DosyaPanelKaynak): void {
         const ortam: DosyaEklemeOrtami = {
           yer: driveLocation(), olusturDrive: drivePdfOlusturApi, yeniDosya: sayfaEklemeOrtami().yeniDosya, konuDegisti: sayfaEklemeOrtami().konuDegisti,
           altKlasorAc: (konuId, klasor, islemId) => altKlasoruAc(t, konuId, klasor, islemId),
+          // task 6.S-3: pages at the end of a summary: the photos' way (the pen's queue, caches, the open reader's version)
+          ozeteEkle: (fileId, pdf, islemId, y) => ozeteSayfaEkle(fileId, { pdf },
+            { yer: driveLocation(), dosyaDrive: drivePdfOlusturApi, ...sayfaEklemeOrtami() }, { islemId, yukleme: y, ...(om && { olcum: om }) }),
         };
-        return await (om ? konuyaDosyaEkle({ konu, hedef, ad, bytes, islemId }, ortam, { olcum: om }) : konuyaDosyaEkle({ konu, hedef, ad, bytes, islemId }, ortam));
+        return await konuyaDosyaEkle({ konu, hedef, ad, bytes, islemId }, ortam, { ...(om && { olcum: om }), ...(yukleme && { yukleme }) });
       } catch (e) {
         if (om) { om.bilgi.hata = e instanceof Error ? e.message.slice(0, 80) : 'hata'; olcumBitir(islemId); }
         throw e;
@@ -1459,6 +1463,12 @@ async function afterAdding(k: BekleyenFoto, metin: string, r: KonuyaEklendi): Pr
   if (t && open) {
     try { same = await topicFolderId(t) === k.konuKlasorId; } catch { same = false; }
   }
+  pagesShown(t, same, r, metin, k.islemId);
+}
+
+// Pages went at the end of a file (photos 5.8g, "Dosya ekle" → Özet 6.S-3): the list on screen grows, the reader
+// stays where it is; the toast's "Göster" goes to the first new page. t: the topic open when the adding started.
+function pagesShown(t: OpenTopic | null, same: boolean, r: EklemeSonucu, metin: string, olcumId: string): void {
   const live = !!t && open && topic === t;
   const karar = yenilemeKarari(r, {
     acik: live, ayniKonu: same,
@@ -1472,7 +1482,7 @@ async function afterAdding(k: BekleyenFoto, metin: string, r: KonuyaEklendi): Pr
     if (e instanceof SessionExpired) return;
     console.warn('Okuyucu yeni sayfalarla yenilenemedi; konuyu kapatıp açınca görünür.', e);
   });
-  measureToast(k.islemId, ready);
+  measureToast(olcumId, ready);
   const g = karar.goster;
   if (!g) { toast(metin); return; }
   const go = () => { void ready.then(() => showAdded(t!, g)); };
@@ -1672,6 +1682,7 @@ async function dosyaGeldi(t: OpenTopic, b: Book, gelen: readonly string[]): Prom
 // The file was added: toast (+ "Göster"); the open topic's tabs and lists follow at once.
 // Reader closed / another topic open: only the toast.
 async function afterFileAdded(t: OpenTopic, hedef: DosyaHedefi, r: DosyaEklendi): Promise<void> {
+  if (r.kind === 'sonaEklendi') { await afterPagesAdded(t, r); return; }
   let metin = `Eklendi: ${r.ad}`;
   try { metin = (await import('../defter/dosyaPanelDurumu')).eklendiMetni(r.ad, r.uyari); } catch (e) { console.warn(e); }
   const e = eklenenMateryal(hedef, r, t.materials);
@@ -1688,6 +1699,16 @@ async function afterFileAdded(t: OpenTopic, hedef: DosyaHedefi, r: DosyaEklendi)
   if (!karar.goster || bosKonu) { toast(metin); return; }
   const go = () => { void ready.then(() => showAddedFile(t, e)); };
   if (GOSTER_OTOMATIK) { toast(metin); go(); } else toast(metin, { etiket: 'Göster', calistir: go });
+}
+
+// Task 6.S-3: a file's pages went at the end of a summary: the photos' refresh (pagesShown)
+async function afterPagesAdded(t: OpenTopic, r: DosyaEklendi): Promise<void> {
+  const eski = r.eskiSayfa ?? 0, yeni = r.yeniSayfa ?? 0;
+  let metin = `Eklendi: ${r.ad}`;
+  try { metin = (await import('../defter/dosyaPanelDurumu')).sonaEklendiMetni(yeni - eski, r.ad); } catch (e) { console.warn(e); }
+  const olcumId = fileMeasureId ?? '';
+  fileMeasureId = null;
+  pagesShown(t, open && topic === t, { tur: 'eklendi', fileId: r.fileId, ad: r.ad, eskiSayfa: eski, yeniSayfa: yeni }, metin, olcumId);
 }
 
 // Task 6.2e-1 (?olcum=1): the toast comes now (what the user waited for); the reader's refresh is timed
