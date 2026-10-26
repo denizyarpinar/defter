@@ -1,3 +1,4 @@
+import { t } from '../dil';
 import { FOLDER_MIME, ok, qv } from './drive';
 import { saltOkunurFetch } from './saltOkunur';
 
@@ -29,8 +30,8 @@ export type KokSonucu =
   | { tur: 'yarim'; kok: KokAday; kaynak: KokKaynagi; eksik: KokEksik[]; uyari?: string };
 
 // the warning loadDriveLibrary gave before for two "Kitaplık" folders (kept word for word)
-const adUyarisi = (n: number) => `Drive'ın ana dizininde ${n} tane "${ROOT_NAME}" klasörü var; ilki kullanılıyor. Karışmaması için birini yeniden adlandır.`;
-const kokUyarisi = (n: number) => `Drive'da uygulamanın oluşturduğu ${n} tane "${KOK_ADI}" klasörü var; en eskisi kullanılıyor. Karışmaması için fazlasını Drive'da yeniden adlandır.`;
+const adUyarisi = (n: number) => t('hata.kok.cokAd', { n, ad: ROOT_NAME });
+const kokUyarisi = (n: number) => t('hata.kok.cokKok', { n, ad: KOK_ADI });
 
 // Oldest first (no createdTime: last); the same time → by id, so the choice is stable.
 const eskiOnce = (a: KokAday, b: KokAday) =>
@@ -72,7 +73,7 @@ export interface KokDrive {
   kokCocuklari(id: string): Promise<KokCocuk[]>;
 }
 
-const WHAT = 'Kitaplık klasörü aranırken';
+const WHAT = t('hata.kok.ne');
 
 async function liste(q: string, fields: string, orderBy?: string): Promise<Array<KokAday & { mimeType: string }>> {
   const out: Array<KokAday & { mimeType: string }> = [];

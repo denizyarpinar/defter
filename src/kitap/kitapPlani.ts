@@ -1,3 +1,4 @@
+import { t } from '../dil';
 import { SINIR, type ListeUnite } from './kitapListesi';
 import { kitapKlasorAdi, klasorAdi } from './klasorAdi';
 
@@ -62,9 +63,9 @@ export function kitapPlani(g: KitapGirdisi): KitapPlani {
   };
 
   const mevcut = new Set([...g.mevcutIdler].map(id => id.toLowerCase()));
-  const engel = !baslik ? 'Kitap adı gerekli.'
-    : [...baslik].length > SINIR.ad ? `Kitap adı en fazla ${SINIR.ad} karakter olabilir.`
-    : mevcut.has(kitapId) ? `Bu adla bir kitap zaten var (klasör: ${kitapId}). Başka bir ad seçilmeli.`
+  const engel = !baslik ? t('sihirbaz.adGerekli')
+    : [...baslik].length > SINIR.ad ? t('sihirbaz.kitapAdiUzun', { n: SINIR.ad })
+    : mevcut.has(kitapId) ? t('sihirbaz.kitapVar', { klasor: kitapId })
     : null;
   return { kitapId, ogeler, kitapJson, engel };
 }

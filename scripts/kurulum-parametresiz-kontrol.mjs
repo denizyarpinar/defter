@@ -55,6 +55,8 @@ try {
       // Also assert the actual main.ts chooses narrow permission, without scope/owner test switches.
       await context.addInitScript(() => {
         window.__requestedScopes = [];
+        // 6.5-2a: Turkish without ?lang (the URL must stay parameter-free; the texts below are Turkish)
+        try { localStorage.setItem('defter-dil', 'tr'); } catch { /* the page then opens in English */ }
       });
       const page = await context.newPage();
       page.on('pageerror', e => errors.push(e.message));

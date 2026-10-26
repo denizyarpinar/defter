@@ -1,7 +1,8 @@
 import { autoStatus, nextStatus, topicKey, type ReadingPatch } from '../model/okumaYamasi';
 import type { Book, ChapterStatus, PageMark, RibbonV2 } from '../model/types';
 import { usesUnits } from '../model/units';
-import { MATERIAL_LABEL, type MaterialKind } from './konuKesfi';
+import { t } from '../dil';
+import { MATERIAL_KINDS, MATERIAL_LABEL, type MaterialKind } from './konuKesfi';
 
 // Reading state of the book in memory (status, ribbon, last opened) + the patch for Drive (task 3.5).
 // The sink is the Drive writer; with the sample library there is none, so nothing is written.
@@ -82,7 +83,7 @@ export interface Resume {
   label: string;             // "<konu>, <materyal>, s. 12"
 }
 
-const isKind = (k: string): k is MaterialKind => k in MATERIAL_LABEL;
+const isKind = (k: string): k is MaterialKind => (MATERIAL_KINDS as readonly string[]).includes(k);
 
 // null: no ribbon, the old format (only a page number), or its topic is not in the book any more.
 export function resumeOf(b: Book): Resume | null {
@@ -93,11 +94,11 @@ export function resumeOf(b: Book): Resume | null {
     const v2 = r as RibbonV2;
     for (const [ui, u] of b.uniteler.entries()) {
       const ti = u.konular.findIndex(t => topicKey(t.klasor, t.baslik) === v2.konu);
-      if (ti >= 0) return { unit: ui, topic: ti, materyal: r.materyal, dosya: v2.dosya, sayfa: v2.sayfa, label: `${u.konular[ti].baslik}, ${MATERIAL_LABEL[r.materyal]}, s. ${v2.sayfa}` };
+      if (ti >= 0) return { unit: ui, topic: ti, materyal: r.materyal, dosya: v2.dosya, sayfa: v2.sayfa, label: `${u.konular[ti].baslik}, ${MATERIAL_LABEL[r.materyal]}, ${t('masa.sayfaKisa', { n: v2.sayfa })}` };
     }
     return null;
   }
   if (!('bolum' in r)) return null;
   const c = b.bolumler[r.bolum];
-  return c ? { unit: 0, topic: r.bolum, sayfa: r.sayfa, label: `${c.baslik}, s. ${r.sayfa}` } : null;
+  return c ? { unit: 0, topic: r.bolum, sayfa: r.sayfa, label: `${c.baslik}, ${t('masa.sayfaKisa', { n: r.sayfa })}` } : null;
 }

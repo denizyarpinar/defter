@@ -127,3 +127,20 @@ describe('reader OCR (Claude engine)', () => {
     expect(search.pages).toEqual([]); expect(read).not.toHaveBeenCalled();
   });
 });
+
+describe('6.5-2a: folding keeps the excerpt in place', () => {
+  it('"INFO" finds "info", "istanbul" finds "İSTANBUL"; the excerpt starts at the match', async () => {
+    const { search } = fixture(['İSTANBUL ve info sayfası']);
+    await search.prepare([{ number: 1, index: 0 }]);
+    const [a] = await search.matches('INFO');
+    expect(a.excerpt).toBe('İSTANBUL ve info sayfası');
+    const [b] = await search.matches('istanbul');
+    expect(b.excerpt.startsWith('İSTANBUL')).toBe(true);
+    const long = 'x'.repeat(60) + 'İSTANBUL INFO';
+    const f2 = fixture([long]);
+    await f2.search.prepare([{ number: 1, index: 0 }]);
+    const [c] = await f2.search.matches('info');
+    expect(c.excerpt.startsWith('x'.repeat(55 - 9) )).toBe(true);
+    expect(c.excerpt.endsWith('INFO')).toBe(true);
+  });
+});

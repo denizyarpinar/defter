@@ -1,4 +1,5 @@
 import { FOLDER_MIME, listChildren, type DriveFile } from '../drive/drive';
+import { t } from '../dil';
 import type { SourceResolver } from './kaynakCoz';
 
 // A surum 2 topic folder → its materials (see CLAUDE.md → Veri modeli (kitap.json surum 2)).
@@ -8,7 +9,13 @@ import type { SourceResolver } from './kaynakCoz';
 export type MaterialKind = 'orijinal' | 'ozet' | 'uebungen' | 'oedevler';
 
 export const MATERIAL_KINDS: readonly MaterialKind[] = ['orijinal', 'ozet', 'uebungen', 'oedevler'];
-export const MATERIAL_LABEL: Record<MaterialKind, string> = { orijinal: 'Orijinal', ozet: 'Özet', uebungen: 'Übungen', oedevler: 'Ödevler' };
+// 6.5-2a: the label in the chosen language (getters; only shown, never compared: the logic uses the kind)
+export const MATERIAL_LABEL: Record<MaterialKind, string> = {
+  get orijinal() { return t('materyal.orijinal'); },
+  get ozet() { return t('materyal.ozet'); },
+  get uebungen() { return t('materyal.uebungen'); },
+  get oedevler() { return t('materyal.oedevler'); }
+};
 
 export interface Material {
   file: DriveFile;

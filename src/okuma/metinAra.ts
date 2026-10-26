@@ -1,3 +1,5 @@
+import { harfKatla } from '../dil/katla';
+
 // Task 6.3b: searching the text of the open PDF (no UI yet). Pure: no pdf.js, no DOM.
 // A page's text items (pdf.js getTextContent) → one normalized string; every character of it remembers
 // where it came from (item, character). A match → the items it covers and its rectangles in PDF user space.
@@ -42,8 +44,8 @@ function cevir(ch: string): string {
   if (BOSLUK.test(ch)) return ' ';
   let out = '';
   for (const c of ch.normalize('NFKC')) {
-    if (c === 'I' || c === 'İ' || c === 'ı') { out += 'i'; continue; }
-    for (const l of c.toLowerCase()) if (!ISARET.test(l)) out += OZEL[l] ?? l;
+    const l = harfKatla(c);   // one character: I/İ/ı → i (6.5-2a, the same in both languages)
+    if (!ISARET.test(l)) out += OZEL[l] ?? l;
   }
   return out;
 }

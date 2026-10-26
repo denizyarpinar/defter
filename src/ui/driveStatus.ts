@@ -1,3 +1,4 @@
+import { t } from '../dil';
 import type { KitaplikGorunumu } from './kitaplikDurumu';
 
 // Small Drive status elements: "Kitaplığın yükleniyor…", save state, "Kitaplığını kur" and error cards.
@@ -26,11 +27,11 @@ function show(text: string, kind: 'info' | 'error'): void {
 }
 
 export function showSaving(): void {
-  show('Kaydediliyor…', 'info');
+  show(t('kayit.kaydediliyor'), 'info');
 }
 
 export function showSaved(): void {
-  show('Kaydedildi ✓', 'info');
+  show(t('kayit.kaydedildi'), 'info');
   fadeTimer = window.setTimeout(() => {
     $('#saveState').classList.add('fade');
     fadeTimer = window.setTimeout(() => { $('#saveState').hidden = true; }, 300);
@@ -58,15 +59,11 @@ export function initKurulum(h: { onSetup: () => void; onSignIn: () => void; onSa
 // Task 6.K3: the box "Örnek bir kitap da koy" (checked by default), read when the button is tapped
 export const ornekIstendi = (): boolean => $<HTMLInputElement>('#kuOrnek').checked;
 
-const KURULUM_METNI = {
-  kur: "Drive'ında “Defter Library” adlı bir klasör açılacak. Kitapların orada durur; Drive'ındaki başka dosyalara dokunulmaz.",
-  tamamla: '“Defter Library” klasörün var ama kurulum yarım kalmış. Eksik parçalar eklenecek; başka dosyalarına dokunulmaz.'
-};
 
 export function setKurulum(k: KitaplikGorunumu['kurulum']): void {
   $('#kurulum').hidden = k === null;
   if (!k) return;
-  $('#kuText').textContent = KURULUM_METNI[k.dugme];
+  $('#kuText').textContent = t(k.dugme === 'kur' ? 'kurulum.metinKur' : 'kurulum.metinTamamla');
   $('#kuKilit').hidden = !k.kilitli;
   $('#kuError').textContent = k.hata ?? '';
   $('#kuError').hidden = k.hata === null;
@@ -79,9 +76,9 @@ export function setKurulum(k: KitaplikGorunumu['kurulum']): void {
     const spin = document.createElement('span');
     spin.className = 'spin';
     spin.setAttribute('aria-hidden', 'true');
-    b.append(spin, k.ilerleme ? `Kuruluyor… (örnek kitap ${k.ilerleme.i}/${k.ilerleme.n})` : 'Kuruluyor…');
+    b.append(spin, k.ilerleme ? t('kurulum.kuruluyorN', { i: k.ilerleme.i, n: k.ilerleme.n }) : t('kurulum.kuruluyor'));
   } else {
-    b.textContent = giris ? 'Tekrar giriş yap' : k.hata !== null ? 'Tekrar dene' : k.dugme === 'kur' ? 'Kitaplığı kur' : 'Kurulumu tamamla';
+    b.textContent = giris ? t('genel.tekrarGiris') : k.hata !== null ? t('genel.tekrarDene') : k.dugme === 'kur' ? t('kurulum.kur') : t('kurulum.tamamla');
   }
   $<HTMLButtonElement>('#kuSample').disabled = k.mesgul;
   $<HTMLInputElement>('#kuOrnek').disabled = k.mesgul;
@@ -97,7 +94,7 @@ export function setFullAccess(show: boolean, busy: boolean, error: string | null
   $('#fullAccess').hidden = !show;
   const b = $<HTMLButtonElement>('#faOpen');
   b.disabled = busy;
-  b.textContent = busy ? 'Bağlanıyor…' : 'Tam erişimi aç';
+  b.textContent = busy ? t('genel.baglaniyor') : t('tamErisim.ac');
   $('#faError').textContent = error ?? '';
   $('#faError').hidden = error === null;
 }

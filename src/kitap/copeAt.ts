@@ -1,3 +1,4 @@
+import { katla } from '../dil/katla';
 import { topicKey } from '../model/okumaYamasi';
 import { IcindekilerUyusmuyor, uniteAnahtarlari, uniteKlasoru } from './icindekiler';
 
@@ -195,7 +196,7 @@ export function bekleyenSay(g: { kalemIdleri: readonly string[]; fotoKonulari: r
 
 // The book's name typed in the dialog: no spaces around, any case; İ/I/ı/i count as one letter (a Turkish or an
 // English keyboard gives either)
-const adAnahtari = (s: string) => s.trim().toLocaleLowerCase('tr').replace(/ı/g, 'i').normalize('NFD').replace(/\u0307/g, '');
+const adAnahtari = (s: string) => katla(s.trim());
 
 export function adEsitMi(yazilan: string, ad: string): boolean {
   const a = adAnahtari(yazilan);

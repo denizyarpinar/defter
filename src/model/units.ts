@@ -1,3 +1,4 @@
+import { t } from '../dil';
 import type { Book, ChapterStatus, Source } from './types';
 
 // One view of a book's contents for both data versions (see CLAUDE.md → Veri modeli (kitap.json surum 2)):
@@ -22,7 +23,7 @@ export function bookUnits(b: Book): UnitView[] {
     return b.uniteler.map(u => ({ baslik: u.baslik, konular: u.konular.map(t => ({ baslik: t.baslik, durum: t.durum, klasor: t.klasor })) }));
   }
   if (!b.bolumler.length) return [];
-  return [{ baslik: 'Genel', konular: b.bolumler.map(c => ({ baslik: c.baslik, durum: c.durum, kaynaklar: c.kaynaklar })) }];
+  return [{ baslik: t('varsayilan.genel'), konular: b.bolumler.map(c => ({ baslik: c.baslik, durum: c.durum, kaynaklar: c.kaynaklar })) }];
 }
 
 export function topicCount(b: Book): number {

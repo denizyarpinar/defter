@@ -1,3 +1,4 @@
+import { t } from '../dil';
 import type { DriveFile } from '../drive/drive';
 import { AyniIsimVar, PdfDegil } from '../drive/pdfOlustur';
 import { MATERIAL_LABEL, type MaterialKind, type TopicMaterials } from '../okuma/konuKesfi';
@@ -23,7 +24,11 @@ import {
 
 export type PanelHedef = 'uebungen' | 'oedevler' | 'cozum' | 'orijinal' | 'ozet';
 export const PANEL_HEDEFLERI: readonly PanelHedef[] = ['uebungen', 'oedevler', 'cozum', 'orijinal', 'ozet'];
-export const HEDEF_ETIKETI: Record<PanelHedef, string> = { ...MATERIAL_LABEL, cozum: 'Çözüm' };
+export const HEDEF_ETIKETI: Record<PanelHedef, string> = {
+  get orijinal() { return MATERIAL_LABEL.orijinal; }, get ozet() { return MATERIAL_LABEL.ozet; },
+  get uebungen() { return MATERIAL_LABEL.uebungen; }, get oedevler() { return MATERIAL_LABEL.oedevler; },
+  get cozum() { return t('materyal.cozum'); }
+};
 
 // Does the topic folder have Uebungen / Oedevler? null: not known (yet, or the listing failed)
 export interface KlasorBilgisi { Uebungen: boolean; Oedevler: boolean }

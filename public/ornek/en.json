@@ -1,0 +1,372 @@
+{
+  "aciklama": "Görev 6.5-2a: örnek kitaplığın İngilizce adları (arayüz dili en iken). Raf id → ad, kitap id → başlık, sırt, ders, dil ve sırayla ünite/konu/bölüm adları. Klasörler ve id'ler değişmez. Drive formatının parçası değil.",
+  "raflar": {
+    "ai": "AI",
+    "dersler": "Courses",
+    "java": "Java",
+    "r4": "Systems",
+    "r5": "Software"
+  },
+  "kitaplar": {
+    "algorithms": {
+      "baslik": "Algorithms",
+      "sirt": "Algorithms",
+      "ders": "Java",
+      "uniteler": [
+        {
+          "baslik": "Foundations",
+          "konular": [
+            "Complexity",
+            "Divide and conquer"
+          ]
+        },
+        {
+          "baslik": "Graphs",
+          "konular": [
+            "Graph algorithms",
+            "Dynamic programming"
+          ]
+        }
+      ]
+    },
+    "artificial-intelligence": {
+      "baslik": "Introduction to Artificial Intelligence",
+      "sirt": "Intro to AI",
+      "ders": "Artificial Intelligence",
+      "bolumler": [
+        "Search",
+        "Knowledge and reasoning",
+        "Planning",
+        "Learning agents"
+      ]
+    },
+    "calculus-1": {
+      "baslik": "Calculus I",
+      "sirt": "Calculus",
+      "ders": "Mathematics",
+      "bolumler": [
+        "Limits and continuity",
+        "Derivatives",
+        "Integrals",
+        "Sequences and series"
+      ]
+    },
+    "claude-code-otomasyonlari": {
+      "baslik": "Claude Code Automations",
+      "sirt": "Claude Code",
+      "ders": "Artificial Intelligence",
+      "dil": "en",
+      "bolumler": [
+        "A summary system for Java books"
+      ]
+    },
+    "compilers": {
+      "baslik": "Compiler Construction",
+      "sirt": "Compilers",
+      "ders": "Software Engineering",
+      "bolumler": [
+        "Lexical analysis",
+        "Parsing",
+        "Semantic analysis",
+        "Code generation"
+      ]
+    },
+    "computer-architecture": {
+      "baslik": "Computer Architecture",
+      "sirt": "Architecture",
+      "ders": "Computer Systems",
+      "bolumler": [
+        "Number systems",
+        "Logic gates and circuits",
+        "The processor",
+        "Memory hierarchy"
+      ]
+    },
+    "computer-networks": {
+      "baslik": "Computer Networks",
+      "sirt": "Networks",
+      "ders": "Computer Systems",
+      "bolumler": [
+        "The layered model",
+        "IP and routing",
+        "TCP and UDP"
+      ]
+    },
+    "computer-vision": {
+      "baslik": "Computer Vision",
+      "sirt": "Computer Vision",
+      "ders": "Artificial Intelligence",
+      "bolumler": [
+        "Images and filters",
+        "Feature detection",
+        "Convolutional networks",
+        "Object detection"
+      ]
+    },
+    "concurrency": {
+      "baslik": "Concurrent Programming in Java",
+      "sirt": "Concurrency",
+      "ders": "Java",
+      "bolumler": [
+        "Threads",
+        "Locks and synchronization",
+        "Thread pools",
+        "Deadlocks"
+      ]
+    },
+    "cryptography": {
+      "baslik": "Introduction to Cryptography",
+      "sirt": "Cryptography",
+      "ders": "Computer Systems",
+      "bolumler": [
+        "Classical ciphers",
+        "Symmetric encryption",
+        "Public-key cryptography",
+        "Hash functions"
+      ]
+    },
+    "data-structures": {
+      "baslik": "Data Structures in Java",
+      "sirt": "Data Structures",
+      "ders": "Java",
+      "bolumler": [
+        "Arrays and lists",
+        "Stacks and queues",
+        "Trees",
+        "Hash tables",
+        "Sorting algorithms"
+      ]
+    },
+    "databases": {
+      "baslik": "Database Systems",
+      "sirt": "Databases",
+      "ders": "Computer Systems",
+      "bolumler": [
+        "The relational model",
+        "SQL",
+        "Normalization",
+        "Transactions"
+      ]
+    },
+    "discrete-mathematics": {
+      "baslik": "Discrete Mathematics",
+      "sirt": "Discrete Math",
+      "ders": "Mathematics",
+      "bolumler": [
+        "Logic and proofs",
+        "Sets, relations and functions",
+        "Induction",
+        "Combinatorics",
+        "Graph theory"
+      ]
+    },
+    "distributed-systems": {
+      "baslik": "Distributed Systems",
+      "sirt": "Distributed Systems",
+      "ders": "Computer Systems",
+      "bolumler": [
+        "Communication",
+        "Time and clocks",
+        "Replication",
+        "Consensus"
+      ]
+    },
+    "functional-programming": {
+      "baslik": "Functional Programming",
+      "sirt": "Functional Prog.",
+      "ders": "Software Engineering",
+      "bolumler": [
+        "Pure functions",
+        "Recursion",
+        "Higher-order functions",
+        "Types"
+      ]
+    },
+    "human-computer-interaction": {
+      "baslik": "Human-Computer Interaction",
+      "sirt": "Human-Computer Int.",
+      "ders": "Software Engineering",
+      "bolumler": [
+        "Users and tasks",
+        "Prototyping",
+        "Usability testing",
+        "Visual design"
+      ]
+    },
+    "java-collections": {
+      "baslik": "Java Collections and Streams",
+      "sirt": "Collections & Streams",
+      "ders": "Java",
+      "bolumler": [
+        "Lists, sets and maps",
+        "Generics",
+        "Lambdas",
+        "Streams"
+      ]
+    },
+    "java-habelitz": {
+      "baslik": "Java – Habelitz",
+      "sirt": "Habelitz",
+      "ders": "Java",
+      "dil": "en",
+      "bolumler": [
+        "Kapitel 1 · Einstieg"
+      ]
+    },
+    "lineer-cebir": {
+      "baslik": "Linear Algebra",
+      "sirt": "Linear Algebra",
+      "ders": "Mathematics",
+      "dil": "en",
+      "uniteler": [
+        {
+          "baslik": "Vectors and matrices",
+          "konular": [
+            "Vectors and matrices",
+            "Systems of linear equations"
+          ]
+        },
+        {
+          "baslik": "Transformations",
+          "konular": [
+            "Determinants",
+            "Eigenvalues"
+          ]
+        }
+      ]
+    },
+    "machine-learning-basics": {
+      "baslik": "Machine Learning Basics",
+      "sirt": "Machine Learning",
+      "ders": "Artificial Intelligence",
+      "bolumler": [
+        "Linear regression",
+        "Classification and logistic regression",
+        "Decision trees",
+        "Neural networks",
+        "Model evaluation"
+      ]
+    },
+    "natural-language-processing": {
+      "baslik": "Natural Language Processing",
+      "sirt": "Language Processing",
+      "ders": "Artificial Intelligence",
+      "bolumler": [
+        "Text and tokens",
+        "Language models",
+        "Embeddings",
+        "Transformers"
+      ]
+    },
+    "number-theory": {
+      "baslik": "Elementary Number Theory",
+      "sirt": "Number Theory",
+      "ders": "Mathematics",
+      "bolumler": [
+        "Divisibility",
+        "Prime numbers",
+        "Congruences",
+        "Euler's theorem"
+      ]
+    },
+    "numerical-methods": {
+      "baslik": "Numerical Methods",
+      "sirt": "Numerical Methods",
+      "ders": "Mathematics",
+      "bolumler": [
+        "Floating point arithmetic",
+        "Root finding",
+        "Interpolation",
+        "Numerical integration"
+      ]
+    },
+    "object-oriented-programming": {
+      "baslik": "Object-Oriented Programming",
+      "sirt": "Object-Oriented Prog.",
+      "ders": "Java",
+      "bolumler": [
+        "Classes and objects",
+        "Inheritance",
+        "Interfaces",
+        "Exceptions"
+      ]
+    },
+    "operating-systems": {
+      "baslik": "Operating Systems",
+      "sirt": "Operating Systems",
+      "ders": "Computer Systems",
+      "bolumler": [
+        "Processes and threads",
+        "Scheduling",
+        "Memory management",
+        "File systems"
+      ]
+    },
+    "probability-statistics": {
+      "baslik": "Probability and Statistics",
+      "sirt": "Probability",
+      "ders": "Mathematics",
+      "bolumler": [
+        "Probability spaces",
+        "Random variables",
+        "Distributions",
+        "Hypothesis testing"
+      ]
+    },
+    "programlamaya-giris": {
+      "baslik": "Introduction to Programming",
+      "sirt": "Programming",
+      "ders": "Computer Science",
+      "dil": "en",
+      "uniteler": [
+        {
+          "baslik": "Basics",
+          "konular": [
+            "Variables and data types",
+            "Conditions and loops"
+          ]
+        },
+        {
+          "baslik": "Methods and objects",
+          "konular": [
+            "Methods",
+            "Classes and objects"
+          ]
+        }
+      ]
+    },
+    "software-engineering": {
+      "baslik": "Software Engineering",
+      "sirt": "Software Eng.",
+      "ders": "Software Engineering",
+      "bolumler": [
+        "Requirements",
+        "Version control with Git",
+        "Testing",
+        "Design patterns"
+      ]
+    },
+    "software-testing": {
+      "baslik": "Software Testing",
+      "sirt": "Software Testing",
+      "ders": "Software Engineering",
+      "bolumler": [
+        "Unit tests",
+        "Test design",
+        "Integration tests",
+        "Coverage"
+      ]
+    },
+    "web-development": {
+      "baslik": "Web Development",
+      "sirt": "Web Development",
+      "ders": "Software Engineering",
+      "bolumler": [
+        "HTML and CSS",
+        "JavaScript",
+        "HTTP and APIs",
+        "Accessibility"
+      ]
+    }
+  }
+}

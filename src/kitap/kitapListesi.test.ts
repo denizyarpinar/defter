@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { adTemizle, GENEL, konuEkle, konuTasi, listeAyristir, listeYaz, SINIR, uniteEkle, uniteTasi, yazilmisSatir, type ListeUnite } from './kitapListesi';
+import { adTemizle, genelAdi, konuEkle, konuTasi, listeAyristir, listeYaz, SINIR, uniteEkle, uniteTasi, yazilmisSatir, type ListeUnite } from './kitapListesi';
 
 const turler = (metin: string) => listeAyristir(metin).uyarilar.map(u => `${u.satir}:${u.tur}${u.engel ? '!' : ''}`);
 
@@ -31,7 +31,7 @@ describe('listeAyristir', () => {
 
   it('topics before the first "#" → "Genel" + a warning', () => {
     const r = listeAyristir('\nerste\nzweite\n# B\nc');
-    expect(r.uniteler).toEqual([{ ad: GENEL, konular: ['erste', 'zweite'] }, { ad: 'B', konular: ['c'] }]);
+    expect(r.uniteler).toEqual([{ ad: genelAdi(), konular: ['erste', 'zweite'] }, { ad: 'B', konular: ['c'] }]);
     expect(r.satirlar.unite).toEqual([2, 4]);
     expect(turler('\nerste\nzweite\n# B\nc')).toEqual(['2:genel']);
   });

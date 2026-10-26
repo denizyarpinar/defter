@@ -1,3 +1,4 @@
+import { t } from '../dil';
 // Task 6.3c: the search bar's state, pure (no DOM, no pdf.js). Which match is the current one, moving
 // between matches, keeping the current one when the list changes, the counter text.
 
@@ -49,7 +50,7 @@ export function listeDegisti(eskiSayfa: number | null, eslesmeler: { sayfa: numb
 export function sayacMetni(d: AramaDurumu, sorguVar: boolean): string {
   if (!sorguVar) return '';
   if (d.hazirlaniyor) return '…';
-  if (!d.eslesmeler.length) return d.okunamadi ? 'metin okunamadı' : 'bulunamadı';
+  if (!d.eslesmeler.length) return d.okunamadi ? t('arama.okuyucu.okunamadi') : t('arama.okuyucu.bulunamadi');
   return `${Math.max(0, d.gecerli) + 1}/${d.eslesmeler.length}`;
 }
 
@@ -63,7 +64,7 @@ export function okunmamisSayisi(aranamayan: number, okunan: number | null, okuma
 // 6.4c-3: the handwriting searched too → only the pages not read yet (all read: no note).
 export function aranamayanNotu(d: AramaDurumu, sorguVar: boolean): { uzun: string; kisa: string } | null {
   if (!sorguVar || d.hazirlaniyor) return null;
-  if (d.okunmamis !== null) return d.okunmamis > 0 ? { uzun: `${d.okunmamis} sayfa henüz okunmadı`, kisa: `${d.okunmamis} okunmadı` } : null;
+  if (d.okunmamis !== null) return d.okunmamis > 0 ? { uzun: t('arama.okuyucu.okunmamis', { n: d.okunmamis }), kisa: t('arama.okuyucu.okunmamisKisa', { n: d.okunmamis }) } : null;
   if (!d.aranamayan) return null;
-  return { uzun: `${d.aranamayan} sayfa fotoğraf, aranamadı`, kisa: `${d.aranamayan} foto` };
+  return { uzun: t('arama.okuyucu.fotograf', { n: d.aranamayan }), kisa: t('arama.okuyucu.fotografKisa', { n: d.aranamayan }) };
 }

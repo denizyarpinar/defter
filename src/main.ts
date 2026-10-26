@@ -189,7 +189,7 @@ function yeniKitapAc(): void {
       kilit: sihirbazKilidi(), olustur: kitapOlusturDugmesi, girisYap: () => googleSignIn(),
       yarimCopeAt: (ad, klasorId) => copAkisi.yarimCopeAt(ad, klasorId)
     }))
-    .catch(e => toast(`Kitap sihirbazı açılamadı: ${e}`));
+    .catch(e => toast(t('kitaplik.sihirbazAcilamadi', { hata: String(e) })));
 }
 
 const OLCUM = new URLSearchParams(location.search).get('olcum') === '1';
@@ -216,7 +216,7 @@ function yapayHata(): number | undefined {
 // Errors go back to the wizard (it stays open); success: the library again, then the toast
 async function kitapOlusturDugmesi(islem: KitapIslemi, ilerleme: (i: number, n: number) => void): Promise<void> {
   // a shelf change not written yet would write the old shelves over the new entry
-  if (saver?.hasUnsaved) throw new Error('Raf değişiklikleri kaydediliyor; birkaç saniye sonra tekrar dene.');
+  if (saver?.hasUnsaved) throw new Error(t('kitaplik.rafKaydediliyor'));
   const loc = driveLoc;
   const { driveKitapOlusturApi, kitapOlustur, KitapOlusturYazmaYok } = await import('./drive/kitapOlustur');
   if (!loc || durum.tur !== 'drive') throw new KitapOlusturYazmaYok();
@@ -227,10 +227,10 @@ async function kitapOlusturDugmesi(islem: KitapIslemi, ilerleme: (i: number, n: 
   const baslik = String(islem.plan.kitapJson.baslik);
   try {
     await kitaplikYenile();
-    toast(sonuc.kitaplikYok ? `Kitap oluşturuldu: ${baslik}. kitaplik.json yok; kitap "Yeni gelenler"de.` : `Kitap oluşturuldu: ${baslik}`);
+    toast(sonuc.kitaplikYok ? t('kitaplik.olusturulduRafsiz', { ad: baslik }) : t('kitaplik.olusturuldu', { ad: baslik }));
   } catch (e) {
     console.warn('Kitaplık yenilenemedi.', e);
-    toast(`Kitap oluşturuldu: ${baslik}. Kitaplık yenilenemedi; sayfayı yenile.`);
+    toast(t('kitaplik.olusturulduYenilenemedi', { ad: baslik }));
   }
 }
 
@@ -260,8 +260,7 @@ initTopBar({
 
 // ---- library source: sample (public/ornek) or Drive ----
 
-const offline = "Drive'a bağlanılamadı. İnternet bağlantını kontrol et ve tekrar dene.";
-const errorText = (e: unknown) => e instanceof TypeError || !(e instanceof Error) ? offline : e.message;
+const errorText = (e: unknown) => e instanceof TypeError || !(e instanceof Error) ? t('genel.agHatasi') : e.message;
 
 let dataSeq = 0;
 
@@ -386,7 +385,7 @@ const copAkisi = copAkisiKur({
   bekleyenKalem: bekleyenKalemIdleri,
   bekleyenFoto: async () => (await bekleyenFotoDepo.hepsi()).map(k => k.konuKlasorId),
   oncesi: async () => { await reading?.flush(); await saver?.bekleyenleriYaz(); },
-  mesgul: () => icKuyruk?.hasUnsaved ? 'İçindekiler kaydediliyor; bitince tekrar dene.' : null,
+  mesgul: () => icKuyruk?.hasUnsaved ? t('kitaplik.icindekilerKaydediliyor') : null,
   kitaplikYenile,
   girisYap: () => googleSignIn()
 });
@@ -433,7 +432,7 @@ function kitaplikKurDugmesi(): void {
       if (r.ornekHata) console.warn('Örnek kitap eklenemedi:', r.ornekHata);
       olay({ tur: 'kurulumBitti' });
       await loadFromDrive();
-      if (durum.tur === 'drive') toast(r.ornekHata ? 'Kitaplığın hazır. Örnek kitap eklenemedi.' : 'Kitaplığın hazır.');
+      if (durum.tur === 'drive') toast(r.ornekHata ? t('kitaplik.hazirOrneksiz') : t('kitaplik.hazir'));
     }, (e: unknown) => {
       kurulum.bitti();
       olay({ tur: 'kurulumHata', mesaj: errorText(e), izinYok: e instanceof KurulumIzinYok });
@@ -462,7 +461,7 @@ async function useSample(): Promise<void> {
   olay({ tur: 'demoSecildi' });
   if (durum.tur !== 'demo') return;
   updateUserBox({ kind: 'sample' });
-  try { if (await useData(await loadLocalLibrary(), null, null)) donusUygula('demo'); } catch { olay({ tur: 'demoHata', mesaj: 'Örnek kitaplık yüklenemedi. Sayfayı yenile.' }); }
+  try { if (await useData(await loadLocalLibrary(), null, null)) donusUygula('demo'); } catch { olay({ tur: 'demoHata', mesaj: t('kitaplik.ornekYuklenemedi') }); }
 }
 
 initKurulum({ onSetup: kitaplikKurDugmesi, onSignIn: () => void googleSignIn(), onSample: () => void useSample() });
@@ -521,7 +520,7 @@ function openFullAccess(): void {
   olay({ tur: 'tamErisimBasladi' });
   signIn({ kapsam: 'tam', hint: girisEposta, includeGranted: true }).then(async () => {
     if (aktifKapsam() !== 'tam') {
-      olay({ tur: 'tamErisimHata', mesaj: 'Drive\'a tam erişim izni verilmedi. Tekrar dokun ve Google penceresinde Drive iznini onayla.' });
+      olay({ tur: 'tamErisimHata', mesaj: t('tamErisim.verilmedi') });
       return;
     }
     olay({ tur: 'tamErisimVerildi' });
@@ -552,7 +551,7 @@ initUserBox({
 });
 setSessionExpiredHandler(() => {
   updateUserBox({ kind: 'none' });
-  olay({ tur: 'oturumDoldu', mesaj: 'Oturumun süresi doldu. Devam etmek için tekrar Google ile giriş yap.' });
+  olay({ tur: 'oturumDoldu', mesaj: t('kitaplik.oturumDoldu') });
 });
 
 // The card is shown over the room: first visit "Google ile giriş yap", after a reload "<ad> olarak devam et".
@@ -585,7 +584,7 @@ function konuAc(unit: number, topic: number, resume?: Resume): void {
   const b = deskBook ? data?.books.get(deskBook) : undefined;
   if (!b) return;
   const folderId = bookFolder(b);
-  if (!folderId) { toast('Sayfaları görmek için Google ile giriş yap. Örnek kitaplıkta bu kitabın dosyası yok.'); return; }
+  if (!folderId) { toast(t('kitaplik.ornekteDosyaYok')); return; }
   // the room is behind the reader: don't draw it (it stays paused under the contents page too)
   scene?.setPaused(true);
   void openOkuyucu(b, folderId, unit, topic, okuyucuClosed, resume);
@@ -674,7 +673,7 @@ function aramaKaynagi(): AramaKaynagi | null {
       if (ornekAgaci?.books !== d.books) ornekAgaci = { books: d.books, agac: ornekAgac(d.library, d.books, sampleFolders()) };
       return ornekAgaci.agac;
     },
-    metin: () => Promise.reject(new Error('Örnek kitaplıkta metin araması yok.')),
+    metin: () => Promise.reject(new Error(t('arama.ornekteMetinYok'))),
   };
 }
 
@@ -683,14 +682,14 @@ function aramaKaynagi(): AramaKaynagi | null {
 function aramaSonucunaGit(s: KitaplikSonucu, q: string): void {
   const b = data?.books.get(s.kitapId);
   const p = b ? gidisPlani(s, b) : null;
-  if (!b || !p) { toast('Bu sonuç açılamadı. Kitaplığı yenileyip tekrar ara.'); return; }
+  if (!b || !p) { toast(t('arama.sonucAcilamadi')); return; }
   if (p.tur === 'kitap') {
     if (deskBook === b.id) return;
-    if (!scene?.openBook(b.id)) toast('Kitap şu an açılamıyor. Biraz sonra tekrar dene.');
+    if (!scene?.openBook(b.id)) toast(t('arama.kitapAcilamiyor'));
     return;
   }
   const folderId = bookFolder(b);
-  if (!folderId) { toast('Sayfaları görmek için Google ile giriş yap. Örnek kitaplıkta bu kitabın dosyası yok.'); return; }
+  if (!folderId) { toast(t('kitaplik.ornekteDosyaYok')); return; }
   scene?.setPaused(true);
   readerShell(true);
   const resume = p.dosya ? { unit: p.unit, topic: p.topic, materyal: p.dosya.materyal, dosya: p.dosya.ad, sayfa: 1, label: '' } : undefined;
@@ -699,7 +698,7 @@ function aramaSonucunaGit(s: KitaplikSonucu, q: string): void {
   if (p.uyari) toast(p.uyari);
   if (p.metinAra) {
     void okuyucuAra(q, { ilkEslesmeyeGit: true }).then(n => {
-      if (n === 0 && isOkuyucuOpen()) toast('Drive bu dosyada buldu ama sayfada işaretlenemedi (fotoğraf/taranmış sayfa olabilir).');
+      if (n === 0 && isOkuyucuOpen()) toast(t('arama.isaretlenemedi'));
     });
   }
 }

@@ -155,3 +155,24 @@ describe('rectangles', () => {
     expect(r.y).toBeCloseTo(200); expect(r.h).toBeCloseTo(10);
   });
 });
+
+describe('6.5-2a: folding in both languages, indexes kept', () => {
+  it('"INFO" and "info" find each other; the rectangle is over the right word', () => {
+    const it0 = parca('Mehr İstanbul INFO hier', 100, 700);
+    for (const q of ['info', 'INFO', 'Info']) {
+      const [m] = ara(q, it0);
+      expect(m.baslangic).toEqual({ parca: 0, harf: 14 });
+      expect(m.bitis).toEqual({ parca: 0, harf: 18 });
+      expect(m.dikdortgenler[0].x).toBeCloseTo(100 + 14 * 5); expect(m.dikdortgenler[0].w).toBeCloseTo(4 * 5);
+    }
+  });
+  it('"İstanbul" / "istanbul" / "ISTANBUL" / "ıstanbul" all match the same word', () => {
+    const it0 = parca('Mehr İstanbul INFO hier', 100, 700);
+    for (const q of ['İstanbul', 'istanbul', 'ISTANBUL', 'ıstanbul']) {
+      const [m] = ara(q, it0);
+      expect(m.baslangic).toEqual({ parca: 0, harf: 5 });
+      expect(m.bitis).toEqual({ parca: 0, harf: 13 });
+      expect(m.dikdortgenler[0].x).toBeCloseTo(100 + 5 * 5); expect(m.dikdortgenler[0].w).toBeCloseTo(8 * 5);
+    }
+  });
+});

@@ -3,7 +3,7 @@ import { listeAyristir } from '../kitap/kitapListesi';
 import { AyniKitapVar, KitapOlusturAgHatasi, KitapOlusturIzinYok, YarimKitapVar } from '../drive/kitapOlustur';
 import { kitapPlani } from '../kitap/kitapPlani';
 import {
-  agacIslemi, KILIT_METNI, OlusturAkisi, olusturHatasi, satirAraligi, sihirbazDurumu, type SihirbazGirdisi
+  agacIslemi, kilitMetni, OlusturAkisi, olusturHatasi, satirAraligi, sihirbazDurumu, type SihirbazGirdisi
 } from './kitapSihirbaziDurumu';
 
 const g = (metin: string, ad = 'Mathe 2'): SihirbazGirdisi => ({ ad, rafId: 'raf-1', renk: '#24476b', metin });
@@ -31,8 +31,8 @@ describe('sihirbazDurumu', () => {
   });
 
   it('Oluştur is closed without the lock (the default), with the reason', () => {
-    expect(sihirbazDurumu(g('# A\nx'), [])).toMatchObject({ olusturAcik: false, neden: KILIT_METNI });
-    expect(sihirbazDurumu(g('# A\nx'), [], 'kilitli')).toMatchObject({ olusturAcik: false, neden: KILIT_METNI });
+    expect(sihirbazDurumu(g('# A\nx'), [])).toMatchObject({ olusturAcik: false, neden: kilitMetni() });
+    expect(sihirbazDurumu(g('# A\nx'), [], 'kilitli')).toMatchObject({ olusturAcik: false, neden: kilitMetni() });
     // a blocking warning says more than the lock
     expect(sihirbazDurumu(g('# A\nx', ''), [], 'kilitli').neden).toBe('Kitap adı gerekli.');
   });

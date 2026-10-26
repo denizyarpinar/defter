@@ -1,3 +1,4 @@
+import { t } from '../dil';
 import { currentToken, dropToken, signIn } from './auth';
 
 // Drive REST API v3 with fetch. Every request goes through driveFetch.
@@ -8,7 +9,7 @@ export const FOLDER_MIME = 'application/vnd.google-apps.folder';
 
 // Thrown when a new token could not be obtained: the app shows the sign-in card again.
 export class SessionExpired extends Error {
-  constructor() { super('Oturumun süresi doldu. Devam etmek için tekrar Google ile giriş yap.'); }
+  constructor() { super(t('kitaplik.oturumDoldu')); }
 }
 
 let onExpired: () => void = () => {};
@@ -73,7 +74,7 @@ function xhrFetch(url: string, init: RequestInit, ilerleme?: (gonderilen: number
       if (x.status < 200 || x.status > 599) { reject(new TypeError(`Beklenmeyen cevap (${x.status}).`)); return; }
       resolve(new Response(NULL_BODY.has(x.status) ? null : x.response as Blob, { status: x.status, headers }));
     };
-    x.onerror = x.ontimeout = x.onabort = () => reject(new TypeError('Bağlantı kesildi.'));
+    x.onerror = x.ontimeout = x.onabort = () => reject(new TypeError(t('hata.drive.baglantiKesildi')));
     x.send((init.body ?? null) as XMLHttpRequestBodyInit | null);
   });
 }
@@ -81,11 +82,11 @@ function xhrFetch(url: string, init: RequestInit, ilerleme?: (gonderilen: number
 // Name and e-mail of the signed-in user (no extra permission needed).
 export async function getUser(): Promise<{ name: string; email: string }> {
   const res = await driveFetch('about?fields=user(displayName,emailAddress)');
-  if (res.status === 403) throw new Error('Drive erişimi reddedildi. Google Drive API projede açık olmayabilir: Google Cloud → APIs & Services → Library → Google Drive API → Enable.');
-  if (!res.ok) throw new Error(`Drive'dan bilgi alınamadı (hata ${res.status}). Biraz sonra tekrar dene.`);
+  if (res.status === 403) throw new Error(t('hata.drive.apiKapali'));
+  if (!res.ok) throw new Error(t('hata.drive.bilgiYok', { kod: res.status }));
   const j = await res.json() as { user?: { displayName?: string; emailAddress?: string } };
   const email = j.user?.emailAddress ?? '';
-  return { name: j.user?.displayName || email || 'Google hesabı', email };
+  return { name: j.user?.displayName || email || t('hata.drive.googleHesabi'), email };
 }
 
 // ---- files ----
@@ -95,10 +96,10 @@ export class DriveError extends Error {
   readonly status: number;
   constructor(status: number, what: string) {
     super(
-      status === 403 ? `${what}: Drive izin vermedi. Dosyanın sahibi sen misin, Drive API açık mı? Kontrol edip tekrar dene.`
-      : status === 404 ? `${what}: dosya Drive'da bulunamadı. Silinmiş ya da taşınmış olabilir; sayfayı yenile.`
-      : status === 429 || status >= 500 ? `${what}: Drive şu an meşgul. Biraz bekleyip tekrar dene.`
-      : `${what}: Drive hatası (${status}). Tekrar dene.`
+      status === 403 ? t('hata.drive.403', { ne: what })
+      : status === 404 ? t('hata.drive.404', { ne: what })
+      : status === 429 || status >= 500 ? t('hata.drive.mesgul', { ne: what })
+      : t('hata.drive.diger', { ne: what, kod: status })
     );
     this.status = status;
   }
@@ -137,7 +138,7 @@ async function list(q: string, what: string): Promise<DriveFile[]> {
 
 // Folders with this name directly in My Drive (not in the trash).
 export function findRootFolders(name: string): Promise<DriveFile[]> {
-  return list(`'root' in parents and name = '${qv(name)}' and mimeType = '${FOLDER_MIME}' and trashed = false`, 'Kitaplık klasörü aranırken');
+  return list(`'root' in parents and name = '${qv(name)}' and mimeType = '${FOLDER_MIME}' and trashed = false`, t('hata.kok.ne'));
 }
 
 // Children of a folder (not in the trash); optionally only folders or only one name.
@@ -145,7 +146,7 @@ export function listChildren(parentId: string, opts: { foldersOnly?: boolean; na
   let q = `'${qv(parentId)}' in parents and trashed = false`;
   if (opts.foldersOnly) q += ` and mimeType = '${FOLDER_MIME}'`;
   if (opts.name) q += ` and name = '${qv(opts.name)}'`;
-  return list(q, 'Klasör listelenirken').then(f => f.map(x => ({ ...x, klasorId: parentId })));
+  return list(q, t('hata.drive.klasorListelenirken')).then(f => f.map(x => ({ ...x, klasorId: parentId })));
 }
 
 // File content as JSON. Broken JSON → {} (the parser then uses default values).
@@ -162,7 +163,7 @@ export async function readJsonStrict(fileId: string, what: string): Promise<unkn
 }
 
 export class BrokenJson extends Error {
-  constructor(what: string) { super(`${what}: dosyanın içi bozuk (geçerli JSON değil). Drive'da dosyayı düzelt; o zamana kadar okuma yerin kaydedilmiyor.`); }
+  constructor(what: string) { super(t('hata.drive.bozukJson', { ne: what })); }
 }
 
 // The file's version time (changes when its content changes; another device may have written it).

@@ -11,7 +11,14 @@ import { chromium } from 'playwright-core';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = 4181;
-const URL = `http://localhost:${PORT}/?demo&lang=tr`;
+// 6.5-2a: DIL=en node scripts/arama-paneli-kontrol.mjs → the English interface (default Turkish)
+const DIL = process.env.DIL === 'en' ? 'en' : 'tr';
+const URL = `http://localhost:${PORT}/?demo&lang=${DIL}`;
+// the texts the checks expect, in the chosen language (the rest is checked by id, role and data-*)
+const B = {
+  tr: { ornekDurum: /Örnek kitaplıkta metin araması yok/, konuSorgu: 'koşul', konu: 'Koşullar ve döngüler', kitapSorgu: 'lineer', kitap: 'Lineer Cebir' },
+  en: { ornekDurum: /No text search in the sample library/, konuSorgu: 'condition', konu: 'Conditions and loops', kitapSorgu: 'linear', kitap: 'Linear Algebra' }
+}[DIL];
 const OUT = process.argv[2] ?? 'C:\\Users\\yarpi\\iCloudDrive\\uni_plan_claude_code\\Claude outputs\\arama-6.3e';
 const QUERY = 'or';            // sample library: books, topics and files (orijinal.pdf)
 const WIDTHS = [1440, 1280, 1024, 820, 768, 600, 430, 390, 360];
@@ -84,7 +91,7 @@ try {
   await page.waitForTimeout(400);
   const gruplar = await page.locator('.ap-grup').allTextContents();
   kontrol('gruplar', gruplar.length >= 3, gruplar.join(' · '));
-  kontrol('durum satırı (örnek)', /Örnek kitaplıkta metin araması yok/.test(await page.locator('.ap-durum').innerText()), await page.locator('.ap-durum').innerText());
+  kontrol('durum satırı (örnek)', B.ornekDurum.test(await page.locator('.ap-durum').innerText()), await page.locator('.ap-durum').innerText());
   kontrol('kalın eşleşme', (await page.locator('.ap-ad b').count()) > 0);
   await shot(page, 'arama-paneli-1280.png');
 
@@ -116,15 +123,15 @@ try {
   await page.waitForSelector('#okuyucu:not([hidden])', { timeout: 10_000 });
   await page.waitForSelector('#oTabs [aria-selected="true"]', { timeout: 15_000 }).catch(() => {});
   await page.waitForTimeout(2500);
-  const sekme = await page.locator('#oTabs [aria-selected="true"]').textContent();
+  const sekme = await page.locator('#oTabs [aria-selected="true"]').getAttribute('data-kind');
   const dosya = await page.locator('#oFile').evaluate(s => s.options[s.selectedIndex]?.text);
   const cozum = await page.locator('#oSol').getAttribute('aria-pressed');
-  kontrol('sonuç → doğru sekme/dosya/çözüm', sekme === 'Übungen' && dosya === 'blatt-01' && cozum === 'true', `${sekme} / ${dosya} / çözüm ${cozum}`);
+  kontrol('sonuç → doğru sekme/dosya/çözüm', sekme === 'uebungen' && dosya === 'blatt-01' && cozum === 'true', `${sekme} / ${dosya} / çözüm ${cozum}`);
   kontrol('masada kitap yok (kabuk)', await page.evaluate(() => document.querySelector('#reader').classList.contains('kabuk')));
   // the reader's own search in that file: the highlights (the sample library has no Drive text results)
   await page.locator('#oAraBtn').click();
   await page.keyboard.type('logic');
-  await page.waitForFunction(() => /\d+\/\d+|bulunamadı/.test(document.querySelector('#oAraSayac')?.textContent ?? ''), null, { timeout: 30_000 });
+  await page.waitForFunction(() => /\d+\/\d+|bulunamadı|not found/.test(document.querySelector('#oAraSayac')?.textContent ?? ''), null, { timeout: 30_000 });
   await page.waitForTimeout(1500);
   kontrol('okuyucuda vurgu', (await page.locator('svg.o-ara rect').count()) > 0, await page.locator('#oAraSayac').textContent());
   await shot(page, 'arama-sonuc-okuyucu-1024.png');
@@ -138,12 +145,12 @@ try {
   kontrol('son sorgu kutuda', (await page.locator('.ap-kutu').inputValue()) === 'blatt');
 
   // a topic result with the keyboard: ↓ to "Koşullar ve döngüler", Enter → reader on that topic
-  await ara(page, 'koşul');
+  await ara(page, B.konuSorgu);
   await page.keyboard.press('ArrowDown');
   await page.keyboard.press('Enter');
   await page.waitForSelector('#okuyucu:not([hidden])', { timeout: 10_000 });
   await page.waitForTimeout(1500);
-  kontrol('konu sonucu (↓ + Enter)', (await page.locator('#oChap').textContent()) === 'Koşullar ve döngüler', await page.locator('#oChap').textContent());
+  kontrol('konu sonucu (↓ + Enter)', (await page.locator('#oChap').textContent()) === B.konu, await page.locator('#oChap').textContent());
   await page.locator('#oClose').click();
   await page.waitForTimeout(800);
 
@@ -165,11 +172,11 @@ try {
   // 5. a book result: as a tap on the book (flies to the desk)
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.waitForTimeout(800);
-  await ara(page, 'lineer');
-  await page.locator('.ap-satir', { hasText: 'Lineer Cebir' }).first().click();
+  await ara(page, B.kitapSorgu);
+  await page.locator('.ap-satir', { hasText: B.kitap }).first().click();
   await page.waitForSelector('#reader:not([hidden])', { timeout: 10_000 });
   await page.waitForTimeout(2000);
-  kontrol('kitap sonucu masada', (await page.locator('#rBook').textContent()) === 'Lineer Cebir' && !(await page.evaluate(() => document.querySelector('#reader').classList.contains('kabuk'))));
+  kontrol('kitap sonucu masada', (await page.locator('#rBook').textContent()) === B.kitap && !(await page.evaluate(() => document.querySelector('#reader').classList.contains('kabuk'))));
   await shot(page, 'arama-kitap-masada-1280.png');
   await page.keyboard.press('/');
   kontrol('masadayken "/" açmaz', !(await panelAcik(page)));

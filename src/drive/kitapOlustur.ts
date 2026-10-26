@@ -1,3 +1,4 @@
+import { t } from '../dil';
 import type { KitapPlani, PlanOgesi } from '../kitap/kitapPlani';
 import { DriveError, driveFetch, FOLDER_MIME, getModifiedTime, ok, qv, readJsonStrict, updateJson } from './drive';
 import type { KokKaynagi } from './kok';
@@ -31,48 +32,48 @@ export interface KitapOlusturDrive extends KurulumDrive {
   jsonYaz(id: string, obj: unknown): Promise<void>;                         // PATCH, the same id
 }
 
-// ---- errors (Turkish, say what to do) ----
+// ---- errors (in the chosen language, say what to do) ----
 
 export class KitapOlusturKilitli extends Error {
-  constructor() { super('Kitap oluşturulamıyor: hiçbir şey yazılmadı. Google ile giriş yap ve kitaplığı yeniden aç.'); }
+  constructor() { super(t('hata.kitap.kilitli')); }
 }
 
 export class KitaplikYapisiBeklenmedik extends Error {
-  constructor() { super('Kitaplık yapısı beklenmedik: kökte "kitaplar" klasörü yok. Hiçbir şey yazılmadı; klasör oluşturulmaz. Drive\'da kitaplığın içine "kitaplar" klasörü açıp tekrar dene.'); }
+  constructor() { super(t('hata.kitap.yapi')); }
 }
 
 export class KitapOlusturYazmaYok extends Error {
-  constructor() { super('Kitap oluşturulamaz: Google ile giriş yapılmamış ya da örnek kitaplık açık. Google ile giriş yapıp tekrar dene.'); }
+  constructor() { super(t('hata.kitap.yazmaYok')); }
 }
 
 export class AyniKitapVar extends Error {
-  constructor(ad: string) { super(`"kitaplar" içinde "${ad}" adında bir klasör zaten var; hiçbir şey yazılmadı. Kitap için başka bir ad seç.`); }
+  constructor(ad: string) { super(t('hata.kitap.ayniVar', { ad })); }
 }
 
 export class YarimKitapVar extends Error {
   // 6.K5b: the folder's id for "Yarım kitabı çöpe at"
-  constructor(readonly ad: string, readonly klasorId?: string) { super(`Yarım kalmış bir kitap var: ${ad}. Hiçbir şey yazılmadı. Başka bir ad seç; yarım klasör daha sonra çöpe atılabilir.`); }
+  constructor(readonly ad: string, readonly klasorId?: string) { super(t('hata.kitap.yarimVar', { ad })); }
 }
 
 export class KitapOlusturIzinYok extends Error {
-  constructor() { super('Drive yazmaya izin vermedi. Tekrar giriş yapıp Drive iznini onayla.'); }
+  constructor() { super(t('hata.kitap.izinYok')); }
 }
 
 export class KitapOlusturAgHatasi extends Error {
-  constructor() { super('Kitap oluşturma bitmedi: Drive\'a bağlanılamadı ya da Drive meşgul. İnternet bağlantını kontrol edip tekrar dene; tekrar denemede çift klasör oluşmaz.'); }
+  constructor() { super(t('hata.kitap.ag')); }
 }
 
 export class RafKaydiCakisma extends Error {
-  constructor() { super('Klasörler hazır ama raf kaydedilemedi: kitaplik.json bu sırada başka bir yerde değişti. Tekrar dene.'); }
+  constructor() { super(t('hata.kitap.rafCakisma')); }
 }
 
 export class KitapOlusturBeklenmedik extends Error {
-  constructor(ne: string) { super(`Kitap oluşturma durdu: ${ne}. Drive'da "kitaplar" klasörüne bakıp tekrar dene.`); }
+  constructor(ne: string) { super(t('hata.kitap.beklenmedik', { ne })); }
 }
 
 // ---- the real Drive ----
 
-const WHAT = 'Kitap oluşturulurken';
+const WHAT = t('hata.kitap.ne');
 const ID_GRUBU = 1000;   // generateIds gives at most 1000 at a time
 
 export const driveKitapOlusturApi: KitapOlusturDrive = {
@@ -225,7 +226,7 @@ export async function kitapOlustur(drive: KitapOlusturDrive, islem: KitapIslemi,
     const kitaplikId = cocuklar.find(c => c.name === 'kitaplik.json' && c.mimeType !== FOLDER_MIME)?.id;
     if (!kitaplarId) throw new KitaplikYapisiBeklenmedik();
     // the owner's root may have no kitaplik.json yet: it is not created here (the saver makes it on a shelf change)
-    if (!kitaplikId && s.kokKaynagi !== 'ad') throw new KitapOlusturBeklenmedik('kitaplik.json bulunamadı');
+    if (!kitaplikId && s.kokKaynagi !== 'ad') throw new KitapOlusturBeklenmedik(t('hata.ayrinti.kitaplikJsonYok'));
 
     // a folder with the book's name that this operation didn't make: nothing is written
     const ayni = await drive.cocukAra(kitaplarId, plan.kitapId);
@@ -237,7 +238,7 @@ export async function kitapOlustur(drive: KitapOlusturDrive, islem: KitapIslemi,
 
     islem.idler ??= await drive.yeniIdler(yazilacak.length);
     const idler = islem.idler;
-    if (idler.length !== yazilacak.length) throw new KitapOlusturBeklenmedik('kimlik sayısı plana uymuyor');
+    if (idler.length !== yazilacak.length) throw new KitapOlusturBeklenmedik(t('hata.ayrinti.kimlikSayisi'));
     // what an earlier try (this islemId) made
     const bulunan = new Set((await drive.islemAra(islem.islemId)).map(f => f.id));
 
@@ -249,8 +250,8 @@ export async function kitapOlustur(drive: KitapOlusturDrive, islem: KitapIslemi,
       const id = idler[i];
       const ad = sonAd(o.yol);
       const ebeveynId = klasorId.get(ebeveyn(o.yol));
-      if (!ebeveynId) throw new KitapOlusturBeklenmedik(`"${ad}" için üst klasör yok`);
-      if (!ebeveynGecerliMi(ebeveynId, kitaplarId, izinli)) throw new KitapOlusturBeklenmedik(`"${ad}" için üst klasör doğrulanamadı`);
+      if (!ebeveynId) throw new KitapOlusturBeklenmedik(t('hata.ayrinti.ustYok', { ad }));
+      if (!ebeveynGecerliMi(ebeveynId, kitaplarId, izinli)) throw new KitapOlusturBeklenmedik(t('hata.ayrinti.ustDogrulanamadi', { ad }));
       let vardi = islem.tamam.has(i) || bulunan.has(id);
       if (!vardi && islem.denenen.has(i)) {
         const f = await drive.oge(id);
@@ -294,8 +295,8 @@ export async function kitapOlustur(drive: KitapOlusturDrive, islem: KitapIslemi,
 
 // An item Drive has with our id: ours only with our name and islemId, not in the trash
 function bizimMi(f: KurulumOgesi & { trashed?: boolean }, ad: string, islemId: string): void {
-  if (f.name !== ad || f.appProperties?.defterIslem !== islemId) throw new KitapOlusturBeklenmedik(`"${ad}" için alınan kimlik başka bir dosyada`);
-  if (f.trashed) throw new KitapOlusturBeklenmedik(`"${ad}" Drive'da çöpe atılmış`);
+  if (f.name !== ad || f.appProperties?.defterIslem !== islemId) throw new KitapOlusturBeklenmedik(t('hata.ayrinti.kimlikBaskasinda', { ad }));
+  if (f.trashed) throw new KitapOlusturBeklenmedik(t('hata.ayrinti.copte', { ad }));
 }
 
 async function olusturIdIle(drive: KitapOlusturDrive, meta: YeniOgeMeta, icerik: string | undefined, islemId: string, s: KitapOlusturSecenek): Promise<void> {
@@ -307,7 +308,7 @@ async function olusturIdIle(drive: KitapOlusturDrive, meta: YeniOgeMeta, icerik:
     } catch (e) {
       if (e instanceof IdZatenVar) {
         const f = await drive.oge(meta.id!);
-        if (!f) throw new KitapOlusturBeklenmedik(`"${meta.name}" için Drive "zaten var" dedi ama bulunamadı`);
+        if (!f) throw new KitapOlusturBeklenmedik(t('hata.ayrinti.zatenVarYok', { ad: meta.name }));
         bizimMi(f, meta.name, islemId);
         return;
       }

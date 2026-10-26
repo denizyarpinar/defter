@@ -1,3 +1,4 @@
+import { t } from '../dil';
 import { CHAPTER_STATUSES, MIN_SHELVES, type Book, type Chapter, type ChapterStatus, type Cover, type CoverStyle, type Extra, type FloorKey, type Library, type ModeKey, type PageMark, type Ribbon, type Room, type Shelf, type Source, type SourceType, type Topic, type Unit } from './types';
 
 // Reading + validation. Missing or broken fields get a default; unknown fields go to `extra`.
@@ -37,7 +38,7 @@ function parseShelf(v: unknown, i: number, usedIds: Set<string>, placed: Set<str
   const books: string[] = [];
   // a book can stand on one shelf only: the first one wins
   if (Array.isArray(o.kitaplar)) for (const b of o.kitaplar) if (typeof b === 'string' && !placed.has(b)) { placed.add(b); books.push(b); }
-  return { id, ad: str(o.ad, `Raf ${i + 1}`), kitaplar: books, extra: rest(o, ['id', 'ad', 'kitaplar']) };
+  return { id, ad: str(o.ad, t('raf.varsayilan', { n: i + 1 })), kitaplar: books, extra: rest(o, ['id', 'ad', 'kitaplar']) };
 }
 
 export function emptyShelf(i: number, usedIds: Set<string>): Shelf {
@@ -67,7 +68,7 @@ function parseSource(v: unknown): Source | null {
 function parseChapter(v: unknown, i: number): Chapter {
   const o = isObj(v) ? v : {};
   return {
-    baslik: str(o.baslik, `Bölüm ${i + 1}`),
+    baslik: str(o.baslik, t('varsayilan.bolum', { n: i + 1 })),
     durum: oneOf<ChapterStatus>(o.durum, CHAPTER_STATUSES, 'okunmadi'),
     kaynaklar: Array.isArray(o.kaynaklar) ? o.kaynaklar.map(parseSource).filter((s): s is Source => s !== null) : [],
     extra: rest(o, ['baslik', 'durum', 'kaynaklar'])
@@ -110,7 +111,7 @@ function parseTopic(v: unknown, i: number): Topic {
 function parseUnit(v: unknown, i: number): Unit {
   const o = isObj(v) ? v : {};
   return {
-    baslik: str(o.baslik, `Ünite ${i + 1}`),
+    baslik: str(o.baslik, t('varsayilan.unite', { n: i + 1 })),
     ...(typeof o.klasor === 'string' && o.klasor.trim() ? { klasor: o.klasor.trim() } : {}),
     konular: Array.isArray(o.konular) ? o.konular.map(parseTopic) : [],
     extra: rest(o, ['baslik', 'klasor', 'konular'])

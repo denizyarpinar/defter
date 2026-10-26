@@ -1,5 +1,6 @@
 import { CanvasTexture, RepeatWrapping, SRGBColorSpace, type Texture } from 'three';
 import { mixHex, mulberry } from './units';
+import { dil } from '../dil';
 
 type Draw = (g: CanvasRenderingContext2D, w: number, h: number) => void;
 
@@ -299,7 +300,7 @@ export const PLATE_W = 1.12, PLATE_H = 0.18;
 export function plateTex(text: string): PlateMaps {
   // sharp up close: 1024 px per device pixel (pixel ratio max 2), and at least 256 px high
   const W = Math.max(1600, Math.round(1024 * Math.min(devicePixelRatio || 1, 2)));
-  const label = text.toLocaleUpperCase('tr-TR');
+  const label = text.toLocaleUpperCase(dil() === 'en' ? 'en-US' : 'tr-TR');   // 6.5-2a: the interface language's rule
 
   // Layout in "plate pixels" of a 1024-wide plate, scaled by k for each canvas.
   const draw = (g: CanvasRenderingContext2D, w: number, h: number, face: boolean) => {

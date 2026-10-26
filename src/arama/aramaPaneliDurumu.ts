@@ -1,3 +1,4 @@
+import { t } from '../dil';
 import type { Book } from '../model/types';
 import { bookUnits, usesUnits } from '../model/units';
 import { MATERIAL_LABEL, type MaterialKind } from '../okuma/konuKesfi';
@@ -71,7 +72,10 @@ export function hataGeldi(d: PanelDurumu, istek: number, mesaj: string): PanelDu
 // ---- groups ----
 
 export type GrupAdi = 'kitap' | 'konu' | 'ad' | 'metin';
-export const GRUP_BASLIGI: Record<GrupAdi, string> = { kitap: 'Kitaplar', konu: 'Konular', ad: 'Dosya adında', metin: 'Dosyanın metninde' };
+export const GRUP_BASLIGI: Record<GrupAdi, string> = {
+  get kitap() { return t('arama.grup.kitap'); }, get konu() { return t('arama.grup.konu'); },
+  get ad() { return t('arama.grup.ad'); }, get metin() { return t('arama.grup.metin'); }
+};
 const GRUP_SIRASI: readonly GrupAdi[] = ['kitap', 'konu', 'ad', 'metin'];
 
 export const grupOf = (s: KitaplikSonucu): GrupAdi => s.eslesme === 'ikisi' ? 'ad' : s.eslesme;
@@ -128,17 +132,17 @@ export function durumMetni(d: PanelDurumu): DurumSatiri | null {
   const bilgi = (metin: string): DurumSatiri => ({ metin, hata: false, tekrar: false });
   switch (d.asama) {
     case 'bos': return null;
-    case 'kisa': return bilgi('En az 2 harf yaz.');
-    case 'agac': return bilgi('Kitaplık taranıyor…');
-    case 'hata': return { metin: d.hata ?? 'Arama yapılamadı.', hata: true, tekrar: true };
-    case 'metin': return bilgi('Metinde aranıyor…');
+    case 'kisa': return bilgi(t('arama.kisa'));
+    case 'agac': return bilgi(t('arama.taraniyor'));
+    case 'hata': return { metin: d.hata ?? t('arama.yapilamadi'), hata: true, tekrar: true };
+    case 'metin': return bilgi(t('arama.metindeAraniyor'));
     case 'ad': return null;
     case 'bitti': {
       const parcalar: string[] = [];
-      if (!d.sonuclar.length) parcalar.push('Sonuç yok');
-      if (d.ornek) parcalar.push('Örnek kitaplıkta metin araması yok');
+      if (!d.sonuclar.length) parcalar.push(t('arama.sonucYok'));
+      if (d.ornek) parcalar.push(t('arama.ornekteMetinYokKisa'));
       if (d.hata) return { metin: [...parcalar, d.hata].join(' · '), hata: true, tekrar: true };
-      if (d.eksik) parcalar.push('Daha çok sonuç var, aramayı daralt');
+      if (d.eksik) parcalar.push(t('arama.dahaCok'));
       return parcalar.length ? bilgi(parcalar.join(' · ')) : null;
     }
   }
@@ -146,25 +150,33 @@ export function durumMetni(d: PanelDurumu): DurumSatiri | null {
 
 // ---- one row ----
 
-const ESLESME_ROZETI: Record<KitaplikSonucu['eslesme'], string> = { ad: 'Ad', metin: 'Metin', ikisi: 'Ad + Metin', konu: 'Konu', kitap: 'Kitap' };
+const ESLESME_ROZETI: Record<KitaplikSonucu['eslesme'], () => string> = {
+  ad: () => t('arama.rozet.ad'), metin: () => t('arama.rozet.metin'), ikisi: () => t('arama.rozet.ikisi'),
+  konu: () => t('arama.rozet.konu'), kitap: () => t('arama.rozet.kitap')
+};
 
 export interface SatirBilgisi {
   yol: string;           // small grey line above: "Kitap › Konu"
   ad: string;            // file name without .pdf / topic / book title
   rozetler: string[];    // "Ad", "Özet", "Çözüm", "konu dışı", …
+  siniflar: RozetSinifi[];   // 6.5-2a: each badge's style by its kind (the text depends on the language)
 }
+
+export type RozetSinifi = '' | 'cozum' | 'disi';
 
 export const dosyaAdi = (ad: string) => ad.trim().replace(/\.pdf$/i, '');
 
 export function satirBilgisi(s: KitaplikSonucu): SatirBilgisi {
-  const rozetler = [ESLESME_ROZETI[s.eslesme]];
-  if (s.materyal) rozetler.push(MATERIAL_LABEL[s.materyal as MaterialKind]);
-  if (s.cozumMu) rozetler.push('Çözüm');
-  if (s.konuDisi) rozetler.push('konu dışı');
-  if (s.elYazisi) rozetler.push('el yazısı');   // 6.4c-3
-  if (s.eslesme === 'kitap') return { yol: '', ad: s.ad, rozetler };
-  if (s.eslesme === 'konu') return { yol: [s.kitapBaslik, s.uniteBaslik].filter(Boolean).join(' › '), ad: s.ad, rozetler };
-  return { yol: [s.kitapBaslik, s.konuBaslik].filter(Boolean).join(' › '), ad: dosyaAdi(s.ad), rozetler };
+  const rozetler = [ESLESME_ROZETI[s.eslesme]()];
+  const siniflar: RozetSinifi[] = [''];
+  const ekle = (metin: string, sinif: RozetSinifi = '') => { rozetler.push(metin); siniflar.push(sinif); };
+  if (s.materyal) ekle(MATERIAL_LABEL[s.materyal as MaterialKind]);
+  if (s.cozumMu) ekle(t('materyal.cozum'), 'cozum');
+  if (s.konuDisi) ekle(t('arama.rozet.konuDisi'), 'disi');
+  if (s.elYazisi) ekle(t('arama.rozet.elYazisi'));   // 6.4c-3
+  if (s.eslesme === 'kitap') return { yol: '', ad: s.ad, rozetler, siniflar };
+  if (s.eslesme === 'konu') return { yol: [s.kitapBaslik, s.uniteBaslik].filter(Boolean).join(' › '), ad: s.ad, rozetler, siniflar };
+  return { yol: [s.kitapBaslik, s.konuBaslik].filter(Boolean).join(' › '), ad: dosyaAdi(s.ad), rozetler, siniflar };
 }
 
 // Where q is inside a shown name: [start, end) in the name's characters, null: not in it. The same search form
@@ -198,7 +210,7 @@ export function konuKonumu(b: Book, sira: number): { unit: number; topic: number
   return null;
 }
 
-export const SEKMEDE_YOK = 'Bu dosya konunun sekmelerinde yok; konu açıldı.';
+export const sekmedeYok = (): string => t('arama.sekmedeYok');
 
 export type GidisPlani =
   | { tur: 'kitap'; kitapId: string }
@@ -220,5 +232,5 @@ export function gidisPlani(s: KitaplikSonucu, b: Book): GidisPlani | null {
   const metin = s.eslesme === 'metin' || s.eslesme === 'ikisi';
   if (s.materyal) return { ...base, dosya: { materyal: s.materyal, ad: s.ad }, metinAra: metin };
   // surum 1: the chapter (its pages are the file's); surum 2: a file in the topic folder, not one of its tabs
-  return usesUnits(b) ? { ...base, metinAra: false, uyari: SEKMEDE_YOK } : { ...base, metinAra: metin };
+  return usesUnits(b) ? { ...base, metinAra: false, uyari: sekmedeYok() } : { ...base, metinAra: metin };
 }

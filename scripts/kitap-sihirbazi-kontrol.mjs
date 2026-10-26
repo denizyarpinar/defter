@@ -18,7 +18,9 @@ import { chromium } from 'playwright-core';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = 4183;
-const URL = `http://localhost:${PORT}/?lang=tr`;
+// 6.5-2a: DIL=en node scripts/kitap-sihirbazi-kontrol.mjs → the English interface (default Turkish)
+const DIL = process.env.DIL === 'en' ? 'en' : 'tr';
+const URL = `http://localhost:${PORT}/?lang=${DIL}`;
 const OUT = process.argv[2] ?? 'C:\\Users\\yarpi\\iCloudDrive\\uni_plan_claude_code\\Claude outputs\\kitap-6.K4b';
 
 const wait = (ms) => new Promise(r => setTimeout(r, ms));
@@ -163,7 +165,7 @@ try {
     });
     await wait(80);
     await page.evaluate(() => {
-      const yeni = [...document.querySelectorAll('.ks-konu')].find(s => s.textContent.includes('Yeni konu'));
+      const yeni = document.querySelector('.ks-konu.ks-yeni');   // the row just added (lit up), in any language
       yeni.querySelector('[data-yon="1"]').click();
     });
     await wait(150);

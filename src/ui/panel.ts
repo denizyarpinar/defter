@@ -67,7 +67,7 @@ export function initPanel(data: { library: Library; books: Map<string, Book> }, 
     if (nb) nb.onclick = () => { setOpen(false); hooks.yeniKitap?.ac(); };
     panel.querySelectorAll<HTMLInputElement>('input[data-i]').forEach(inp => inp.addEventListener('input', () => {
       const i = +inp.dataset.i!;
-      lib.raflar[i].ad = inp.value.trim() || `Raf ${i + 1}`;
+      lib.raflar[i].ad = inp.value.trim() || t('raf.varsayilan', { n: i + 1 });
       hooks.shelvesChanged();
     }));
     panel.querySelectorAll<HTMLButtonElement>('[data-del]').forEach(b => b.onclick = () => {

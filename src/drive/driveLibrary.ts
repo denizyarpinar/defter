@@ -1,3 +1,4 @@
+import { t } from '../dil';
 import type { LoadedLibrary } from '../model/localSource';
 import { parseBook, parseLibrary } from '../model/parse';
 import type { Book } from '../model/types';
@@ -26,7 +27,7 @@ export interface DriveLocation {
 }
 
 export class LibraryNotFound extends Error {
-  constructor(readonly kok: KokSonucu, readonly dugme: KurulumDugmesi) { super(`Drive'da "${ROOT_NAME}" klasörü bulunamadı.`); }
+  constructor(readonly kok: KokSonucu, readonly dugme: KurulumDugmesi) { super(t('hata.kitaplik.kokYok', { ad: ROOT_NAME })); }
 }
 
 // The last root kokBul found (the ?olcum=1 box); null: not looked up yet
@@ -67,20 +68,20 @@ export async function loadDriveLibrary(mod: KokModu, kokDrive: KokDrive = driveK
   const kitaplar = children.find(f => f.name === 'kitaplar' && f.mimeType.endsWith('.folder'));
 
   // no kitaplik.json yet: 5 empty shelves, the file is created on the first save
-  const library = parseLibrary(libFile ? await readJson(libFile.id, 'kitaplik.json okunurken') : { raflar: [{}, {}, {}, {}, {}] });
+  const library = parseLibrary(libFile ? await readJson(libFile.id, t('hata.kitaplik.jsonOkunurken')) : { raflar: [{}, {}, {}, {}, {}] });
 
   const loc: DriveLocation = { rootId, libraryFileId: libFile?.id ?? null, bookFolderIds: new Map(), bookFileIds: new Map() };
   const books = new Map<string, Book>();
   const yarimlar: YarimKitap[] = sonAtlanan = [];
   if (!kitaplar) {
-    warnings.push(`"${rootName}" klasöründe "kitaplar" klasörü yok. Kitapları göstermek için içine "kitaplar" adlı bir klasör aç.`);
+    warnings.push(t('hata.kitaplik.kitaplarYok', { ad: rootName }));
     return { library, books, loc, warnings, yarimlar };
   }
 
   const folders: DriveFile[] = [];
   for (const f of await listChildren(kitaplar.id, { foldersOnly: true })) {
     if (gizliKlasorMu(f.name)) continue;
-    if (loc.bookFolderIds.has(f.name)) { warnings.push(`"kitaplar" içinde iki tane "${f.name}" klasörü var; ilki kullanılıyor.`); continue; }
+    if (loc.bookFolderIds.has(f.name)) { warnings.push(t('hata.kitaplik.ikiKlasor', { ad: f.name })); continue; }
     loc.bookFolderIds.set(f.name, f.id);
     folders.push(f);
   }

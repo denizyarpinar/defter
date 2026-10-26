@@ -1,5 +1,6 @@
+import { t } from '../dil';
 import {
-  konuEkle, konuTasi, listeAyristir, listeYaz, SINIR, uniteEkle, uniteTasi, yazilmisSatir,
+  genelAdi, konuEkle, konuTasi, listeAyristir, listeYaz, SINIR, uniteEkle, uniteTasi, yazilmisSatir,
   type AgacKonumu, type ListeSonucu, type ListeUnite, type ListeUyari, type UyariTuru
 } from '../kitap/kitapListesi';
 import { kitapPlani, type KitapPlani } from '../kitap/kitapPlani';
@@ -16,7 +17,7 @@ import {
 // Task 6.K4c: the owner's "Kitaplık" too (no note of its own any more).
 
 export type SihirbazKilidi = 'acik' | 'kilitli';
-export const KILIT_METNI = 'Kitap oluşturmak için Google ile giriş yap ve kitaplığı aç.';
+export const kilitMetni = (): string => t('sihirbaz.kilit');
 
 export interface SihirbazGirdisi { ad: string; rafId: string; renk: string; metin: string }
 
@@ -44,17 +45,17 @@ export interface SihirbazDurumu {
   adHatali: boolean;             // the name itself is the problem (too long, a book already there): red frame (6.K4b-3)
 }
 
-const METIN: Record<UyariTuru, string> = {
-  genel: `İlk “#” satırından önceki konular “Genel” ünitesine konuldu.`,
-  cokUnite: `En fazla ${SINIR.unite} ünite olabilir.`,
-  cokKonu: `Bir ünitede en fazla ${SINIR.konu} konu olabilir.`,
-  uzunAd: `Ad en fazla ${SINIR.ad} karakter olabilir.`,
-  ayniKonu: 'Bu ünitede aynı adlı bir konu daha var.',
-  konusuzUnite: 'Bu ünitede henüz konu yok.',
-  bosListe: 'En az bir ünite gerekli (“# Ünite adı” satırı).'
+const METIN: Record<UyariTuru, () => string> = {
+  genel: () => t('sihirbaz.uyari.genel', { genel: genelAdi() }),
+  cokUnite: () => t('sihirbaz.uyari.cokUnite', { n: SINIR.unite }),
+  cokKonu: () => t('sihirbaz.uyari.cokKonu', { n: SINIR.konu }),
+  uzunAd: () => t('sihirbaz.uzunAd', { n: SINIR.ad }),
+  ayniKonu: () => t('sihirbaz.uyari.ayniKonu'),
+  konusuzUnite: () => t('sihirbaz.uyari.konusuzUnite'),
+  bosListe: () => t('sihirbaz.uyari.bosListe')
 };
 
-export const uyariMetni = (u: ListeUyari): SihirbazUyarisi => ({ satir: u.satir, metin: METIN[u.tur], engel: u.engel });
+export const uyariMetni = (u: ListeUyari): SihirbazUyarisi => ({ satir: u.satir, metin: METIN[u.tur](), engel: u.engel });
 
 const sonParca = (yol: string) => yol.slice(yol.lastIndexOf('/') + 1);
 
@@ -90,7 +91,7 @@ export function sihirbazDurumu(g: SihirbazGirdisi, mevcutIdler: readonly string[
   });
 
   const engel = plan.engel ?? uyarilar.find(x => x.engel)?.metin ?? null;
-  const kilitNedeni = kilit === 'kilitli' ? KILIT_METNI : '';
+  const kilitNedeni = kilit === 'kilitli' ? kilitMetni() : '';
   const adHatali = !!g.ad.trim() && plan.engel !== null;
   return { liste, plan, agac, uyarilar, olusturAcik: !kilitNedeni && !engel, neden: engel ?? kilitNedeni, adHatali };
 }
@@ -132,10 +133,8 @@ export interface OlusturHatasi {
   yarim?: { ad: string; klasorId: string };   // 6.K5b: a half-made book in the way: "Yarım kitabı çöpe at"
 }
 
-const AG_METNI = "Drive'a bağlanılamadı. İnternet bağlantını kontrol et ve tekrar dene.";
-
 export function olusturHatasi(e: unknown, islem: KitapIslemi | null): OlusturHatasi {
-  const mesaj = e instanceof TypeError || !(e instanceof Error) ? AG_METNI : e.message;
+  const mesaj = e instanceof TypeError || !(e instanceof Error) ? t('genel.agHatasi') : e.message;
   if (e instanceof KitapOlusturIzinYok) return { mesaj, tekrarDene: false, girisYap: true, duzenlenebilir: false, adHatasi: false };
   const bos = !islem || hicYazilmadi(islem);
   if (e instanceof AyniKitapVar || e instanceof YarimKitapVar || e instanceof KitapOlusturKilitli || e instanceof KitapOlusturYazmaYok) {

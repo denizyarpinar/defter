@@ -4,17 +4,24 @@
 //     file:line list + count. Never fails (the count goes to zero in 6.5-4).
 // (b) ?lang=en and ?lang=tr at 390 / 820 / 1280: the sign-in card, the library (?demo), Özelleştir open → PNGs,
 //     and every visible element whose content is wider than its box (scrollWidth > clientWidth + 1), plus the top bar's rows.
+//     Task 6.5-2a: also the search panel ("or"), a book on the desk (Linear Algebra, opened from the search), and —
+//     from a dev server, as kitap-sihirbazi-kontrol / kurulum-karti-kontrol do it, no Drive — the book wizard
+//     (filled) and the set-up card.
+// (c) Task 6.5-2a: public/ornek/en.json covers every name of the sample library (shelves; each book's title, spine,
+//     course and its units / topics / chapters by their order). A missing one is listed (stays Turkish). Never fails.
 import { spawn } from 'node:child_process';
-import { mkdirSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = 4181;
 const ORIGIN = `http://localhost:${PORT}`;
+const DEV_PORT = 4184;
+const DEV = `http://localhost:${DEV_PORT}`;
 const args = process.argv.slice(2);
 const SADECE_SAYIM = args.includes('--sadece-sayim');
-const OUT = args.find(a => !a.startsWith('--')) ?? 'C:\\Users\\yarpi\\iCloudDrive\\uni_plan_claude_code\\Claude outputs\\dil-6.5-1';
+const OUT = args.find(a => !a.startsWith('--')) ?? 'C:\\Users\\yarpi\\iCloudDrive\\uni_plan_claude_code\\Claude outputs\\dil-6.5-2a';
 const TR_HARF = /[çğıöşüÇĞİÖŞÜ]/;
 
 // ---- (a) Turkish string literals ----
@@ -116,6 +123,33 @@ for (const d of dizeler) console.log(`  ${d.yer}  ${d.metin}`);
 console.log('\n  Dosya başına (çoktan aza):');
 for (const [f, n] of [...dosyaSayisi].sort((a, b) => b[1] - a[1])) console.log(`  ${String(n).padStart(4)}  ${f}`);
 console.log(`\n  TOPLAM: ${dizeler.length} dize, ${dosyaSayisi.size} dosya\n`);
+
+// ---- (c) the sample library's English layer ----
+
+function katmanKontrolu() {
+  const ornek = join(ROOT, 'public', 'ornek');
+  const oku = (p) => JSON.parse(readFileSync(join(ornek, p), 'utf8'));
+  const en = existsSync(join(ornek, 'en.json')) ? oku('en.json') : {};
+  const eksik = [];
+  let sayi = 0;
+  const bak = (yer, var_) => { sayi++; if (!var_) eksik.push(yer); };
+  for (const r of oku('kitaplik.json').raflar ?? []) bak(`raf ${r.id} (${r.ad})`, !!en.raflar?.[r.id]);
+  for (const id of oku('index.json').kitaplar ?? []) {
+    const yol = join('kitaplar', id, 'kitap.json');
+    if (!existsSync(join(ornek, yol))) { console.log(`  not: ${id} kitap.json'suz; ekranda klasör adı (id) görünür`); continue; }
+    const k = oku(yol), c = en.kitaplar?.[id] ?? {};
+    for (const a of ['baslik', 'sirt', 'ders']) if (k[a]) bak(`${id}.${a} (${k[a]})`, !!c[a]);
+    (k.uniteler ?? []).forEach((u, i) => {
+      bak(`${id} ünite ${i + 1} (${u.baslik})`, !!c.uniteler?.[i]?.baslik);
+      (u.konular ?? []).forEach((t, j) => bak(`${id} ünite ${i + 1} konu ${j + 1} (${t.baslik})`, !!c.uniteler?.[i]?.konular?.[j]));
+    });
+    (k.bolumler ?? []).forEach((b, i) => bak(`${id} bölüm ${i + 1} (${b.baslik})`, !!c.bolumler?.[i]));
+  }
+  console.log(`(c) Örnek kitaplık en.json: ${sayi} ad, ${eksik.length} eksik`);
+  for (const e of eksik) console.log(`  UYARI eksik: ${e}`);
+  console.log('');
+}
+katmanKontrolu();
 if (SADECE_SAYIM) process.exit(0);
 
 // ---- (b) screenshots + overflow ----
@@ -134,9 +168,49 @@ async function startPreview() {
   throw new Error(`vite preview ${PORT} portunda başlamadı. Önce "npm run build" çalıştı mı?`);
 }
 
+// a dev server (the wizard and the set-up card are opened through the app's own modules, as their scripts do)
+async function startDev() {
+  const vite = join(ROOT, 'node_modules', 'vite', 'bin', 'vite.js');
+  const child = spawn(process.execPath, [vite, '--port', String(DEV_PORT), '--strictPort'], { cwd: ROOT, stdio: 'ignore' });
+  for (let i = 0; i < 100; i++) {
+    try { if ((await fetch(DEV)).ok) return child; } catch { /* not up yet */ }
+    await wait(200);
+  }
+  child.kill();
+  throw new Error(`vite ${DEV_PORT} portunda başlamadı.`);
+}
+
+const SIHIRBAZ = {
+  en: { ad: 'Calculus 1', metin: 'Course info\n\n# Limits\n- Sequences\n- Series\n- Series\n\n# Derivatives\n1. Rules\n2. Applications\n\n# Practice exam' },
+  tr: { ad: 'Analiz 1', metin: 'Ders bilgisi\n\n# Limitler\n- Diziler\n- Seriler\n- Seriler\n\n# Türevler\n1. Kurallar\n2. Uygulamalar\n\n# Deneme sınavı' }
+};
+
+async function sihirbazAc(page, d) {
+  await page.evaluate(async (d) => {
+    const [{ kitapSihirbaziAc }, { hideLogin }] = await Promise.all([import('/src/ui/kitapSihirbazi.ts'), import('/src/ui/login.ts')]);
+    hideLogin();
+    kitapSihirbaziAc({ raflar: [{ id: 'r1', ad: 'Courses' }, { id: 'r2', ad: 'Math' }], mevcutIdler: [], olcum: false, kilit: 'acik', olustur: async () => {} });
+    const ad = document.querySelector('#kitapSihirbazi input[type=text]');
+    ad.value = d.ad; ad.dispatchEvent(new Event('input'));
+    const m = document.querySelector('#kitapSihirbazi textarea');
+    m.value = d.metin; m.dispatchEvent(new Event('input'));
+    document.activeElement?.blur();
+  }, d);
+  await wait(400);
+}
+
+async function kurulumAc(page) {
+  await page.evaluate(async () => {
+    const [{ setKurulum }, { hideLogin }] = await Promise.all([import('/src/ui/driveStatus.ts'), import('/src/ui/login.ts')]);
+    hideLogin();
+    setKurulum({ dugme: 'kur', kilitli: false, mesgul: false, hata: null, izinYok: false, ilerleme: null });
+  });
+  await wait(400);
+}
+
 // visible elements wider inside than their box (the canvas, the 3D stage and intended scrollers left out)
-const tasanlar = () => [...document.querySelectorAll('body *')].filter(e => {
-  if (e.closest('#stage, svg, canvas, noscript, #reader')) return false;
+const tasanlar = (okuyucuDahil = false) => [...document.querySelectorAll('body *')].filter(e => {
+  if (e.closest(okuyucuDahil ? '#stage, svg, canvas, noscript' : '#stage, svg, canvas, noscript, #reader')) return false;
   const st = getComputedStyle(e);
   if (st.display === 'none' || st.visibility === 'hidden' || e.getClientRects().length === 0) return false;
   if (/(auto|scroll)/.test(st.overflowX)) return false;
@@ -158,6 +232,7 @@ const cubuk = () => {
 const BOYUT = { 390: 844, 820: 1180, 1280: 800 };
 mkdirSync(OUT, { recursive: true });
 const server = await startPreview();
+const dev = await startDev();
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 const tablo = [];
 try {
@@ -186,18 +261,55 @@ try {
       await page.waitForTimeout(700);
       await page.screenshot({ path: join(OUT, `ozellestir-${lang}-${w}.png`) });
       tablo.push({ ekran: `özelleştir ${lang} ${w}`, tasan: await page.evaluate(tasanlar), cubuk: await page.evaluate(cubuk) });
+
+      // 6.5-2a: the search panel ("or": books, topics, file names with badges)
+      await page.locator('#pClose').click();
+      await page.waitForTimeout(400);
+      await page.locator('#araBtn').click();
+      await page.locator('#aramaPaneli input').fill('or');
+      await page.waitForSelector('#aramaPaneli .ap-satir', { timeout: 10_000 });
+      await page.waitForTimeout(500);
+      await page.screenshot({ path: join(OUT, `arama-${lang}-${w}.png`) });
+      tablo.push({ ekran: `arama ${lang} ${w}`, tasan: await page.evaluate(tasanlar) });
+
+      // a book on the desk: Linear Algebra / Lineer Cebir (both have "line"), the first row (books come first)
+      await page.locator('#aramaPaneli input').fill('line');
+      await page.waitForSelector('#aramaPaneli .ap-satir', { timeout: 10_000 });
+      await page.waitForTimeout(300);
+      await page.locator('#aramaPaneli .ap-satir').first().click();
+      await page.waitForSelector('#reader:not([hidden])', { timeout: 15_000 });
+      await page.waitForTimeout(2200);
+      await page.screenshot({ path: join(OUT, `masa-${lang}-${w}.png`) });
+      tablo.push({ ekran: `masa ${lang} ${w}`, tasan: await page.evaluate(tasanlar, true), kitap: await page.locator('#rBook').textContent() });
       await page.close();
+
+      // the wizard and the set-up card (dev server)
+      const p2 = await browser.newPage({ viewport: { width: w, height: BOYUT[w] }, deviceScaleFactor: 2, hasTouch: w < 1280 });
+      p2.on('pageerror', e => console.error('Sayfa hatası:', e.message));
+      await p2.goto(`${DEV}/?lang=${lang}`);
+      await p2.waitForFunction(() => getComputedStyle(document.querySelector('#loading')).display === 'none', null, { timeout: 60_000 });
+      await p2.waitForTimeout(800);
+      await sihirbazAc(p2, SIHIRBAZ[lang]);
+      await p2.screenshot({ path: join(OUT, `sihirbaz-${lang}-${w}.png`) });
+      tablo.push({ ekran: `sihirbaz ${lang} ${w}`, tasan: await p2.evaluate(tasanlar) });
+      await p2.evaluate(() => document.getElementById('kitapSihirbazi')?.remove());
+      await kurulumAc(p2);
+      await p2.screenshot({ path: join(OUT, `kurulum-${lang}-${w}.png`) });
+      tablo.push({ ekran: `kurulum ${lang} ${w}`, tasan: await p2.evaluate(tasanlar) });
+      await p2.close();
     }
   }
 } finally {
   await browser.close();
   server.kill();
+  dev.kill();
 }
 
 console.log('(b) Ekranlar → ' + OUT);
 for (const r of tablo) {
   const c = r.cubuk ? `  çubuk: ${r.cubuk.rows} satır, ${r.cubuk.dil}` : '';
   const h = r.html ? `  <html lang="${r.html}">` : '';
-  console.log(`  ${r.ekran.padEnd(18)} taşan: ${r.tasan.length}${c}${h}`);
+  const k = r.kitap ? `  kitap: ${r.kitap}` : '';
+  console.log(`  ${r.ekran.padEnd(18)} taşan: ${r.tasan.length}${c}${h}${k}`);
   for (const t of r.tasan) console.log(`      ${t}`);
 }

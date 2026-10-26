@@ -1,3 +1,4 @@
+import { t } from '../dil';
 import {
   adlarGeldi, bosPanel, durumMetni, gruplar, hataGeldi, kaynakDegisti, metinBasladi, metinGeldi, satirBilgisi, secilebilir,
   secimAdim, tekrarSorgu, vurguAraligi, yeniSorgu, type PanelDurumu,
@@ -36,9 +37,7 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: 
   return e;
 }
 
-const hataMetni = (e: unknown) => e instanceof TypeError || !(e instanceof Error)
-  ? "Drive'a bağlanılamadı. İnternet bağlantını kontrol et ve tekrar dene."
-  : e.message;
+const hataMetni = (e: unknown) => e instanceof TypeError || !(e instanceof Error) ? t('genel.agHatasi') : e.message;
 
 export function initAramaPaneli(b: AramaPaneliBaglam): { ac(): void; acikMi(): boolean } {
   const kok = el('div', 'ap');
@@ -46,32 +45,32 @@ export function initAramaPaneli(b: AramaPaneliBaglam): { ac(): void; acikMi(): b
   kok.hidden = true;
   const kart = el('div', 'ap-kart');
   kart.setAttribute('role', 'dialog');
-  kart.setAttribute('aria-label', 'Kitaplıkta ara');
+  kart.setAttribute('aria-label', t('ustCubuk.araEtiket'));
   const ust = el('div', 'ap-ust');
   const ikon = el('span', 'ap-ikon');
   ikon.innerHTML = BUYUTEC;
   const kutu = el('input', 'ap-kutu');
   kutu.type = 'search';
-  kutu.placeholder = 'Kitap, konu, dosya adı ya da metin';
+  kutu.placeholder = t('arama.yerTutucu');
   kutu.autocomplete = 'off';
   kutu.spellcheck = false;
   kutu.enterKeyHint = 'search';
-  kutu.setAttribute('aria-label', 'Kitaplıkta ara');
+  kutu.setAttribute('aria-label', t('ustCubuk.araEtiket'));
   kutu.setAttribute('aria-controls', 'apListe');
   const kapatBtn = el('button', 'ap-kapat', '×');
   kapatBtn.type = 'button';
-  kapatBtn.setAttribute('aria-label', 'Aramayı kapat');
+  kapatBtn.setAttribute('aria-label', t('okuyucu.aramaKapat'));
   ust.append(ikon, kutu, kapatBtn);
   const durum = el('div', 'ap-durum');
   durum.setAttribute('aria-live', 'polite');
   const durumYazi = el('span');
-  const tekrarBtn = el('button', 'ap-tekrar', 'Tekrar dene');
+  const tekrarBtn = el('button', 'ap-tekrar', t('genel.tekrarDene'));
   tekrarBtn.type = 'button';
   durum.append(durumYazi, tekrarBtn);
   const liste = el('ul', 'ap-liste');
   liste.id = 'apListe';
   liste.setAttribute('role', 'listbox');
-  liste.setAttribute('aria-label', 'Sonuçlar');
+  liste.setAttribute('aria-label', t('arama.sonuclar'));
   kart.append(ust, durum, liste);
   kok.append(kart);
   document.body.append(kok);
@@ -218,12 +217,11 @@ export function initAramaPaneli(b: AramaPaneliBaglam): { ac(): void; acikMi(): b
         if (bilgi.yol) li.append(el('span', 'ap-yol', bilgi.yol));
         const alt = el('span', 'ap-alt');
         adHtml(alt, bilgi.ad);
-        for (const z of bilgi.rozetler) {
+        bilgi.rozetler.forEach((z, k) => {
           const rz = el('span', 'ap-rozet', z);
-          if (z === 'Çözüm') rz.classList.add('cozum');
-          if (z === 'konu dışı') rz.classList.add('disi');
+          if (bilgi.siniflar[k]) rz.classList.add(bilgi.siniflar[k]);   // 6.5-2a: by kind, not by the text
           alt.append(rz);
-        }
+        });
         li.append(alt);
         ogeler.push(li);
       }

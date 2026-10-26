@@ -1,3 +1,4 @@
+import { t } from '../dil';
 import { Raycaster, Vector2, type Scene } from 'three';
 import type { Room } from '../model/types';
 import { CameraRig, type View } from './camera';
@@ -64,7 +65,7 @@ async function chooseRoom(scene: Scene, room: Room, onToast: (msg: string) => vo
     } catch (e) {
       console.warn('Defter: yeni oda yüklenemedi, eski oda açılıyor.', e);
       ctl.abort();
-      onToast('Yeni oda yüklenemedi, eski oda gösteriliyor. Sayfayı yenileyince tekrar denenir.');
+      onToast(t('oda.eskiOda'));
     } finally {
       clearTimeout(timer);
     }
@@ -140,7 +141,7 @@ export async function createRoomScene(host: HTMLElement, opts: RoomSceneOptions)
       const pileBefore = lib3d.hasPile;
       const moved = lib3d.endDrag();
       if (moved) {
-        if (moved.changedShelf) opts.onToast(`“${moved.title}” → ${moved.shelf} rafına taşındı`);
+        if (moved.changedShelf) opts.onToast(t('oda.rafaTasindi', { kitap: moved.title, raf: moved.shelf }));
         opts.onLibraryChanged();
       }
       if (pileBefore !== lib3d.hasPile) setView('shelf');   // pile appeared/disappeared: refit

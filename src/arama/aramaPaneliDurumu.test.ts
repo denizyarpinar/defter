@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { parseBook } from '../model/parse';
 import {
   adlarGeldi, bosPanel, durumMetni, gidisPlani, gosterimSirasi, gruplar, hataGeldi, konuKonumu, metinBasladi, metinGeldi,
-  satirBilgisi, secimAdim, SEKMEDE_YOK, tekrarSorgu, vurguAraligi, yeniSorgu, type PanelDurumu,
+  satirBilgisi, secimAdim, sekmedeYok, tekrarSorgu, vurguAraligi, yeniSorgu, type PanelDurumu,
 } from './aramaPaneliDurumu';
 import type { KitaplikSonucu } from './kitaplikAra';
 
@@ -128,13 +128,13 @@ describe('groups and choosing', () => {
 
 describe('a row', () => {
   it('path, name without .pdf, badges', () => {
-    expect(satirBilgisi(cozum)).toEqual({ yol: 'Mathe 1 › Aussagenlogik', ad: 'Uebung_Beweis_cozum', rozetler: ['Ad', 'Übungen', 'Çözüm'] });
+    expect(satirBilgisi(cozum)).toEqual({ yol: 'Mathe 1 › Aussagenlogik', ad: 'Uebung_Beweis_cozum', rozetler: ['Ad', 'Übungen', 'Çözüm'], siniflar: ['', '', 'cozum'] });
     expect(satirBilgisi(metin).rozetler).toEqual(['Metin', 'Özet']);
     expect(satirBilgisi({ ...metin, elYazisi: true }).rozetler).toEqual(['Metin', 'Özet', 'el yazısı']);   // 6.4c-3
     expect(satirBilgisi(ikisi).rozetler).toEqual(['Ad + Metin', 'Özet']);
-    expect(satirBilgisi(disi)).toMatchObject({ yol: 'Mathe 1', rozetler: ['Ad', 'konu dışı'] });
-    expect(satirBilgisi(konu)).toEqual({ yol: 'Mathe 1 › Logik', ad: 'Beweisen', rozetler: ['Konu'] });
-    expect(satirBilgisi(kitap)).toEqual({ yol: '', ad: 'Mathe 1', rozetler: ['Kitap'] });
+    expect(satirBilgisi(disi)).toMatchObject({ yol: 'Mathe 1', rozetler: ['Ad', 'konu dışı'], siniflar: ['', 'disi'] });
+    expect(satirBilgisi(konu)).toEqual({ yol: 'Mathe 1 › Logik', ad: 'Beweisen', rozetler: ['Konu'], siniflar: [''] });
+    expect(satirBilgisi(kitap)).toEqual({ yol: '', ad: 'Mathe 1', rozetler: ['Kitap'], siniflar: [''] });
   });
 
   it('the matching part of the name, with the search form (ä = ae, ı = i, case)', () => {
@@ -176,7 +176,7 @@ describe('where a result goes', () => {
   it('a file in no topic: nothing; in the topic folder but not a tab: the topic + a note; surum 1: the chapter', () => {
     expect(gidisPlani(disi, v2)).toBeNull();
     const baska = r({ eslesme: 'metin', dosyaId: 'b', ad: 'eski.pdf', konuSira: 1 });
-    expect(gidisPlani(baska, v2)).toEqual({ tur: 'okuyucu', kitapId: 'mathe', unit: 0, topic: 1, metinAra: false, uyari: SEKMEDE_YOK });
+    expect(gidisPlani(baska, v2)).toEqual({ tur: 'okuyucu', kitapId: 'mathe', unit: 0, topic: 1, metinAra: false, uyari: sekmedeYok() });
     expect(gidisPlani({ ...baska, kitapId: 'alt' }, v1)).toEqual({ tur: 'okuyucu', kitapId: 'alt', unit: 0, topic: 1, metinAra: true });
   });
 });

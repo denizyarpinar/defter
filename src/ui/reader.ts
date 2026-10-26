@@ -1,9 +1,12 @@
+import { t } from '../dil';
+import { gunOnce } from '../dil/bicim';
 import type { Book, ChapterStatus, SourceType } from '../model/types';
 import { bookUnits, topicCount, usesUnits } from '../model/units';
 import { cycleStatus, resumeOf, type Resume } from '../okuma/okumaDurumu';
 import { icindekilerDugmesi, isOkuyucuOpen } from '../okuma/Okuyucu';
 import { isDark } from '../scene/units';
 import { esc } from './dom';
+import { kitapligindan } from './sahip';
 import { viewSize } from './ekran';
 import { measureContents } from './icindekilerOlcum';
 import type { ContentsPage } from './icindekilerSayfalama';
@@ -19,26 +22,20 @@ const ICON: Record<SourceType, string> = {
   claude: '<svg viewBox="0 0 16 16"><path d="M8 1.5v13M1.5 8h13M3.4 3.4l9.2 9.2M12.6 3.4l-9.2 9.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
   link: '<svg viewBox="0 0 16 16"><path d="M6.5 9.5l3-3M7 4.5l1.5-1.5a2.8 2.8 0 0 1 4 4L11 8.5M9 11.5L7.5 13a2.8 2.8 0 0 1-4-4L5 7.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>'
 };
-const SRC_LABEL: Record<SourceType, string> = { pdf: 'PDF', defter: 'Defter', claude: 'Claude', link: 'Link' };
+const SRC_LABEL: Record<SourceType, string> = { pdf: 'PDF', get defter() { return t('kaynak.defter'); }, claude: 'Claude', link: 'Link' };
+// 6.5-2a: the label in the chosen language (getters: read when shown; the reader uses it too)
 export const ST: Record<ChapterStatus, [cls: string, label: string]> = {
-  okunmadi: ['todo', 'Okunmadı'], okunuyor: ['reading', 'Okunuyor'], okundu: ['read', 'Okundu'],
-  calisildi: ['done', 'Çalışıldı'], tekrar: ['review', 'Tekrar']
+  get okunmadi(): [string, string] { return ['todo', t('durum.okunmadi')]; },
+  get okunuyor(): [string, string] { return ['reading', t('durum.okunuyor')]; },
+  get okundu(): [string, string] { return ['read', t('durum.okundu')]; },
+  get calisildi(): [string, string] { return ['done', t('durum.calisildi')]; },
+  get tekrar(): [string, string] { return ['review', t('durum.tekrar')]; }
 };
 
 export interface ReaderContext {
   shelfName: string | null;     // null = "Yeni gelenler"
   daysSinceOpened: number | null;
   owner: string | null;         // null = sample library
-}
-
-// Turkish genitive with apostrophe: Deniz'in, Ayşe'nin, Umut'un, Gül'ün.
-function genitive(name: string): string {
-  const first = name.trim().split(/\s+/)[0] || name;
-  const lower = first.toLocaleLowerCase('tr-TR');
-  const vowels = [...lower].filter(c => 'aeıioöuü'.includes(c));
-  const last = vowels.at(-1) ?? 'e';
-  const v = 'aı'.includes(last) ? 'ı' : 'ei'.includes(last) ? 'i' : 'ou'.includes(last) ? 'u' : 'ü';
-  return `${first}'${'aeıioöuü'.includes(lower.at(-1)!) ? 'n' : ''}${v}n`;
 }
 
 const $ = <T extends HTMLElement>(s: string) => document.querySelector<T>(s)!;
@@ -224,8 +221,10 @@ function drawSlots(): void {
 function updateChrome(): void {
   const n = pageCount(), b = book!;
   const a = idx + 1, z = Math.min(n, idx + (single ? 1 : 2));
-  $('#pno').textContent = single || a === z ? `s. ${a} / ${n}` : `s. ${a}–${z} / ${n}`;
-  const size = usesUnits(b) ? `${b.uniteler.length} ünite · ${topicCount(b)} konu` : `${b.bolumler.length} bölüm`;
+  $('#pno').textContent = single || a === z ? t('masa.sayfaNo', { a, n }) : t('masa.sayfaAraligi', { a, z, n });
+  const size = usesUnits(b)
+    ? `${t('masa.uniteSayisi', { n: b.uniteler.length })} · ${t('masa.konuSayisi', { n: topicCount(b) })}`
+    : t('masa.bolumSayisi', { n: b.bolumler.length });
   $('#rChap').textContent = [b.ders, size].filter(Boolean).join(' · ');
   ($('#prev') as HTMLButtonElement).disabled = idx === 0;
   ($('#next') as HTMLButtonElement).disabled = idx + (single ? 1 : 2) >= n;
@@ -238,36 +237,36 @@ function updateChrome(): void {
 // ---- pages ----
 
 function lastOpenedText(d: number | null): string {
-  if (d === null) return 'ilk kez';
-  return d === 0 ? 'bugün' : `${d} gün önce`;
+  if (d === null) return t('masa.ilkKez');
+  return gunOnce(d);
 }
 
 function contentsHtml(parts: ContentsPage, continuation: boolean): string {
   const b = book!;
   const resume = resumeOf(b);
   const duzenle = icindekilerDugmesi(b).goster
-    ? '<button type="button" class="tocedit" data-duzenle><span aria-hidden="true">✎</span> İçindekileri düzenle</button>' : '';
+    ? `<button type="button" class="tocedit" data-duzenle><span aria-hidden="true">✎</span> ${t('masa.icindekileriDuzenle')}</button>` : '';
   let html = continuation
-    ? '<div class="tochead continued"><h2>İçindekiler (devam)</h2></div>'
-    : `<div class="src">Kitap · içindekiler</div><div class="tochead"><h2>İçindekiler</h2>${duzenle}</div>`;
-  if (!continuation && resume) html += `<button class="resume" data-ribbon><span class="rib" aria-hidden="true"></span><span>Kaldığın yerden devam: <b>${esc(resume.label)}</b></span></button>`;
+    ? `<div class="tochead continued"><h2>${t('masa.icindekilerDevam')}</h2></div>`
+    : `<div class="src">${t('masa.kitapIcindekiler')}</div><div class="tochead"><h2>${t('okuyucu.icindekiler')}</h2>${duzenle}</div>`;
+  if (!continuation && resume) html += `<button class="resume" data-ribbon><span class="rib" aria-hidden="true"></span><span>${t('masa.devamEt', { yer: `<b>${esc(resume.label)}</b>` })}</span></button>`;
   const units = bookUnits(b);
   if (!units.some(u => u.konular.length)) {
-    return html + `<p class="empty">${b.hasJson ? 'Bu kitapta henüz konu yok.' : 'Bu klasörde kitap.json yok. Drive\'da klasöre bir kitap.json ekleyince bölümler burada görünür.'}</p>`;
+    return html + `<p class="empty">${b.hasJson ? t('masa.konuYok') : t('masa.jsonYok')}</p>`;
   }
   for (const part of parts) {
     const u = units[part.unit];
-    html += `<h3 class="unit">${esc(u.baslik)}${part.continued ? ' (devam)' : ''}</h3><ol>`;
+    html += `<h3 class="unit">${part.continued ? t('masa.devami', { ad: esc(u.baslik) }) : esc(u.baslik)}</h3><ol>`;
     for (let ti = part.start; ti < part.end; ti++) {
-      const t = u.konular[ti];
-      const kinds = [...new Set((t.kaynaklar ?? []).map(s => s.tur))];
-      const [cls, label] = ST[t.durum];
-      html += `<li><button data-u="${part.unit}" data-t="${ti}"><span class="num">${ti + 1}</span><span><span class="tt">${esc(t.baslik)}</span>
-        <span class="icons">${kinds.map(k => `<span class="ic">${ICON[k]}${SRC_LABEL[k]}</span>`).join('')}<span class="st ${cls}" data-st title="Durumu değiştirmek için dokun">${label}</span></span></span></button></li>`;
+      const k = u.konular[ti];
+      const kinds = [...new Set((k.kaynaklar ?? []).map(s => s.tur))];
+      const [cls, label] = ST[k.durum];
+      html += `<li><button data-u="${part.unit}" data-t="${ti}"><span class="num">${ti + 1}</span><span><span class="tt">${esc(k.baslik)}</span>
+        <span class="icons">${kinds.map(s => `<span class="ic">${ICON[s]}${SRC_LABEL[s]}</span>`).join('')}<span class="st ${cls}" data-st title="${t('masa.durumIpucu')}">${label}</span></span></span></button></li>`;
     }
     html += '</ol>';
   }
-  return html + '<div class="legend">Konuya dokun: oraya git · Duruma dokun: değiştir</div>';
+  return html + `<div class="legend">${t('masa.lejant')}</div>`;
 }
 
 function renderPage(i: number, side: 'l' | 'r', measuredParts?: ContentsPage): HTMLElement {
@@ -286,14 +285,14 @@ function renderPage(i: number, side: 'l' | 'r', measuredParts?: ContentsPage): H
   if (kind === 'title') {
     const total = b.bolumler.reduce((a, c) => a + c.kaynaklar.length, 0);
     const size = usesUnits(b)
-      ? `<dt>Ünite</dt><dd>${b.uniteler.length}</dd><dt>Konu</dt><dd>${topicCount(b)}</dd>`
-      : `<dt>Bölüm</dt><dd>${b.bolumler.length}</dd><dt>Kaynak</dt><dd>${total} dosya</dd>`;
-    inn.innerHTML = `<div class="shelf">${ctx.shelfName ? esc(ctx.shelfName) + ' rafı' : 'Yeni gelenler'}</div>
+      ? `<dt>${t('masa.unite')}</dt><dd>${b.uniteler.length}</dd><dt>${t('masa.konu')}</dt><dd>${topicCount(b)}</dd>`
+      : `<dt>${t('masa.bolum')}</dt><dd>${b.bolumler.length}</dd><dt>${t('masa.kaynak')}</dt><dd>${t('masa.dosyaSayisi', { n: total })}</dd>`;
+    inn.innerHTML = `<div class="shelf">${ctx.shelfName ? t('masa.raf', { ad: esc(ctx.shelfName) }) : t('panel.yeniGelenler')}</div>
       <h1>${esc(b.baslik)}</h1>
-      <dl class="meta"><dt>Ders / alan</dt><dd>${esc(b.ders || '—')}</dd>${size}
-      <dt>Son açılış</dt><dd>${lastOpenedText(ctx.daysSinceOpened)}</dd></dl>
-      ${resume ? `<button class="go" data-ribbon>Kaldığın yer: ${esc(resume.label)} →</button>` : ''}
-      <div class="exl">${ctx.owner ? esc(genitive(ctx.owner)) + ' kitaplığından' : 'Örnek kitaplıktan'}</div>`;
+      <dl class="meta"><dt>${t('masa.ders')}</dt><dd>${esc(b.ders || '—')}</dd>${size}
+      <dt>${t('masa.sonAcilis')}</dt><dd>${lastOpenedText(ctx.daysSinceOpened)}</dd></dl>
+      ${resume ? `<button class="go" data-ribbon>${t('masa.kaldiginYer', { yer: esc(resume.label) })} →</button>` : ''}
+      <div class="exl">${esc(kitapligindan(ctx.owner))}</div>`;
   } else {
     inn.innerHTML = contentsHtml(measuredParts ?? contents[i - 1], i > 1);
   }

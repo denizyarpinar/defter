@@ -6,6 +6,9 @@
 //   The same topic twice in a unit and a unit without topics: a warning only.
 // listeYaz writes a tree back (topics with "- ", so any topic name comes back the same): ayristir(yaz(x)) = x.
 
+import { t } from '../dil';
+import { katla } from '../dil/katla';
+
 export interface ListeUnite { ad: string; konular: string[] }
 
 export type UyariTuru = 'genel' | 'cokUnite' | 'cokKonu' | 'uzunAd' | 'ayniKonu' | 'konusuzUnite' | 'bosListe';
@@ -20,12 +23,13 @@ export interface ListeSonucu {
 }
 
 export const SINIR = { unite: 30, konu: 50, ad: 80 } as const;
-export const GENEL = 'Genel';
+// 6.5-2a: written into kitap.json in the language chosen at that moment (never translated later)
+export const genelAdi = (): string => t('varsayilan.genel');
 
 const UNITE = /^#+\s*(.*)$/;
 const ONEK = /^(?:[-*•]|\d+[.)])(?=\s|$)/;
 
-const ayniAd = (a: string, b: string) => a.toLocaleLowerCase('tr') === b.toLocaleLowerCase('tr');
+const ayniAd = (a: string, b: string) => katla(a) === katla(b);
 
 export function listeAyristir(metin: string): ListeSonucu {
   const uniteler: ListeUnite[] = [];
@@ -46,7 +50,7 @@ export function listeAyristir(metin: string): ListeSonucu {
     if (!s) return;
     const u = UNITE.exec(s);
     if (u) {
-      const ad = u[1].trim() || `Ünite ${uniteler.length + 1}`;
+      const ad = u[1].trim() || t('varsayilan.unite', { n: uniteler.length + 1 });
       yeniUnite(ad, satir);
       uzunMu(ad, satir);
       return;
@@ -54,7 +58,7 @@ export function listeAyristir(metin: string): ListeSonucu {
     const ad = onekSil(s);
     if (!ad) return;
     if (!uniteler.length) {
-      yeniUnite(GENEL, satir);
+      yeniUnite(genelAdi(), satir);
       uyar(satir, 'genel');
     }
     const un = uniteler[uniteler.length - 1];
@@ -78,8 +82,8 @@ const onekSil = (s: string) => s.trim().replace(ONEK, '').trim();
 // a unit its "#"; empty or longer than SINIR.ad → an error (Turkish, says what to do).
 export function adTemizle(ham: string, tur: 'unite' | 'konu'): { ad: string; hata: string | null } {
   const ad = tur === 'unite' ? ham.trim().replace(/^#+\s*/, '').trim() : onekSil(ham);
-  if (!ad) return { ad, hata: 'Ad boş olamaz.' };
-  if ([...ad].length > SINIR.ad) return { ad, hata: `Ad en fazla ${SINIR.ad} karakter olabilir.` };
+  if (!ad) return { ad, hata: t('sihirbaz.adBos') };
+  if ([...ad].length > SINIR.ad) return { ad, hata: t('sihirbaz.uzunAd', { n: SINIR.ad }) };
   return { ad, hata: null };
 }
 
@@ -100,14 +104,14 @@ const kopya = (a: readonly ListeUnite[]): ListeUnite[] => a.map(u => ({ ad: u.ad
 
 export interface AgacKonumu { u: number; k: number | null }   // k = null: the unit itself
 
-export function konuEkle(a: readonly ListeUnite[], u: number, ad = 'Yeni konu'): { agac: ListeUnite[]; konum: AgacKonumu } {
+export function konuEkle(a: readonly ListeUnite[], u: number, ad = t('varsayilan.yeniKonu')): { agac: ListeUnite[]; konum: AgacKonumu } {
   const agac = kopya(a);
   if (!agac[u]) return { agac, konum: { u, k: null } };
   agac[u].konular.push(ad);
   return { agac, konum: { u, k: agac[u].konular.length - 1 } };
 }
 
-export function uniteEkle(a: readonly ListeUnite[], ad = 'Yeni ünite'): { agac: ListeUnite[]; konum: AgacKonumu } {
+export function uniteEkle(a: readonly ListeUnite[], ad = t('varsayilan.yeniUnite')): { agac: ListeUnite[]; konum: AgacKonumu } {
   const agac = kopya(a);
   agac.push({ ad, konular: [] });
   return { agac, konum: { u: agac.length - 1, k: null } };

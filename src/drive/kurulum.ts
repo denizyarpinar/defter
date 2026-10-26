@@ -1,4 +1,7 @@
+import { t } from '../dil';
 import { libraryToJson } from '../model/serialize';
+import { ornekKatmani } from '../model/localSource';
+import { kitapCevir } from '../model/ornekCeviri';
 import { parseLibrary } from '../model/parse';
 import { DriveError, driveFetch, FOLDER_MIME, ok, qv } from './drive';
 import { driveKokApi, KOK_ADI, kokBul, type KokDrive, type KokEksik, type KokKaynagi, type KokModu } from './kok';
@@ -38,39 +41,39 @@ export interface KurulumDrive extends KokDrive {
   ogeBilgisi(id: string): Promise<KurulumOgesi>;
 }
 
-// ---- errors (Turkish, say what to do) ----
+// ---- errors (in the chosen language, say what to do) ----
 
 export class KurulumKilitli extends Error {
-  constructor() { super('Kurulum kullanılamıyor: hiçbir şey oluşturulmadı. Google ile giriş yap ve tekrar dene.'); }
+  constructor() { super(t('hata.kurulum.kilitli')); }
 }
 
 export class KurulumYazmaYok extends Error {
-  constructor() { super('Kurulum yapılamaz: Google ile giriş yapılmamış ya da örnek kitaplık açık. Google ile giriş yap ve tekrar dene.'); }
+  constructor() { super(t('hata.kurulum.yazmaYok')); }
 }
 
 export class KurulumIzinYok extends Error {
-  constructor() { super('Drive klasör oluşturmaya izin vermedi. Google girişinde Drive iznini onayladığından emin ol, sonra tekrar dene.'); }
+  constructor() { super(t('hata.kurulum.izinYok')); }
 }
 
 export class KurulumAgHatasi extends Error {
-  constructor() { super('Kurulum bitmedi: Drive\'a bağlanılamadı ya da Drive meşgul. İnternet bağlantını kontrol edip tekrar dene; tekrar denemede çift klasör oluşmaz.'); }
+  constructor() { super(t('hata.kurulum.ag')); }
 }
 
 export class KurulumBeklenmedik extends Error {
-  constructor(ne: string) { super(`Kurulum durdu: ${ne}. Drive'da "${KOK_ADI}" klasörüne bakıp tekrar dene.`); }
+  constructor(ne: string) { super(t('hata.kurulum.beklenmedik', { ne, kok: KOK_ADI })); }
 }
 
 export class OrnekAdDolu extends Error {
-  constructor(ad: string) { super(`Örnek kitap eklenmedi: "${ad}" adında başka bir dosya ya da klasör var, ona dokunulmadı.`); }
+  constructor(ad: string) { super(t('hata.kurulum.ornekAdDolu', { ad })); }
 }
 
 export class OrnekKaynakYok extends Error {
-  constructor(ne: string) { super(`Örnek kitabın dosyaları yüklenemedi (${ne}). Sayfayı yenileyip tekrar dene.`); }
+  constructor(ne: string) { super(t('hata.kurulum.ornekKaynakYok', { ne })); }
 }
 
 // ---- the real Drive ----
 
-const WHAT = 'Kitaplık kurulurken';
+const WHAT = t('hata.kurulum.ne');
 
 // Create answers: "already exists" (409, or the text in the error) → IdZatenVar, other errors → DriveError.
 async function olusturmaYaniti(res: Response): Promise<Response> {
@@ -153,7 +156,7 @@ const ornekMi = (f: KurulumOgesi) => f.appProperties?.defterOrnek === '1';
 // An item with the id Drive says exists: ours only if it has our name and islemId (a sample item: defterOrnek).
 async function bizimMi(drive: KurulumDrive, id: string, o: OgeIstegi): Promise<string> {
   const f = await drive.ogeBilgisi(id);
-  if (f.name !== o.ad || (o.ornek ? !ornekMi(f) : f.appProperties?.defterIslem !== o.islemId)) throw new KurulumBeklenmedik(`"${o.ad}" için alınan kimlik başka bir dosyada`);
+  if (f.name !== o.ad || (o.ornek ? !ornekMi(f) : f.appProperties?.defterIslem !== o.islemId)) throw new KurulumBeklenmedik(t('hata.ayrinti.kimlikBaskasinda', { ad: o.ad }));
   return f.id;
 }
 
@@ -220,7 +223,12 @@ async function getir(yol: string): Promise<Response> {
 export function webOrnekKaynak(): OrnekKaynak {
   const pdfler = new Map<string, Promise<Uint8Array>>();
   return {
-    kitapJson: async () => (await getir(`ornek/kitaplar/${ORNEK_KITAP}/kitap.json`)).json(),
+    // 6.5-2a: in English the sample book is written with its English names (ids and folders the same)
+    kitapJson: async () => {
+      const json: unknown = await (await getir(`ornek/kitaplar/${ORNEK_KITAP}/kitap.json`)).json();
+      const katman = await ornekKatmani();
+      return katman ? kitapCevir(ORNEK_KITAP, json, katman) : json;
+    },
     klasorler: async () => {
       const j = await (await getir('ornek/index.json')).json() as { klasorler?: Record<string, Record<string, Record<string, string>>> };
       const k = j.klasorler?.[ORNEK_KITAP];
@@ -376,7 +384,7 @@ export async function kitaplikKur(drive: KurulumDrive, s: KitaplikKurSecenek): P
     if (s.ornek) {
       try {
         kitaplarId ??= (await drive.kokCocuklari(kokId)).find(c => c.name === 'kitaplar' && c.mimeType === FOLDER_MIME)?.id;
-        if (!kitaplarId) throw new KurulumBeklenmedik('"kitaplar" klasörü bulunamadı');
+        if (!kitaplarId) throw new KurulumBeklenmedik(t('hata.ayrinti.kitaplarYok'));
         ornek = await ornekKitapKur(drive, { ...s, kitaplarId, kaynak: s.ornek.kaynak, ilerleme: s.ornek.ilerleme });
       } catch (e) {
         ornekHata = e instanceof Error ? e.message : String(e);

@@ -1,3 +1,4 @@
+import { katlaUzunlukKoru } from '../dil/katla';
 import { duzeltilmisMetin, hamMetin, type OcrSayfa } from './kayit/sema';
 
 // Task 6.4c-2: a page is 'metin' (it has PDF text: never sent), 'okundu' (the record has it) or 'okunacak'.
@@ -78,10 +79,10 @@ export class ReaderOcrSearch {
   }
   async matches(query: string): Promise<{ page: SearchPage; excerpt: string; ocr: boolean }[]> {
     this.check(this.generation); await this.io.verify(); this.check(this.generation);
-    const q = query.trim().toLocaleLowerCase('tr');
+    const q = katlaUzunlukKoru(query.trim());   // 6.5-2a: same length, so `at` points into the original text
     if (q.length < 2) return [];
     return this.pages.flatMap(page => {
-      const at = page.text?.toLocaleLowerCase('tr').indexOf(q) ?? -1;
+      const at = page.text === undefined ? -1 : katlaUzunlukKoru(page.text).indexOf(q);
       return at < 0 ? [] : [{ page, excerpt: page.text!.slice(Math.max(0, at - 55), at + q.length + 85), ocr: !!page.ocr }];
     });
   }

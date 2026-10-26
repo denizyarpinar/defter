@@ -1,3 +1,4 @@
+import { t } from '../dil';
 import type { KitapIslemi } from '../drive/kitapOlustur';
 import { islemOzeti } from '../drive/kitapOlustur';
 import { planMetni } from '../kitap/kitapPlani';
@@ -34,7 +35,6 @@ export interface SihirbazBaglam {
   yarimCopeAt?: (ad: string, klasorId: string) => Promise<boolean>;   // 6.K5b: the dialog; true: in the trash now
 }
 
-const ORNEK_LISTE = '# Logik\nAussagenlogik\nBeweisen\n\n# Mengen\nRelationen\nAbbildungen';
 
 const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: string) => {
   const e = document.createElement(tag);
@@ -66,31 +66,31 @@ export function kitapSihirbaziAc(b: SihirbazBaglam): void {
   kart.setAttribute('role', 'dialog');
   kart.setAttribute('aria-modal', 'true');
   kart.setAttribute('aria-labelledby', 'ksBaslik');
-  const baslik = el('h2', 'fp-baslik', 'Yeni kitap');
+  const baslik = el('h2', 'fp-baslik', t('sihirbaz.baslik'));
   baslik.id = 'ksBaslik';
 
   // name, shelf, colour
   const ust = el('div', 'ks-ust');
-  const adEt = el('label', 'dp-ad ks-adalan', 'Kitap adı');
+  const adEt = el('label', 'dp-ad ks-adalan', t('sihirbaz.kitapAdi'));
   const adKutu = el('input');
   adKutu.type = 'text';
-  adKutu.placeholder = 'ör. Mathe 1';
+  adKutu.placeholder = t('sihirbaz.adOrnek');
   adKutu.autocomplete = 'off';
   adKutu.enterKeyHint = 'next';
   adKutu.spellcheck = false;
   const adUyari = el('p', 'dp-uyari');
   adEt.append(adKutu);
-  const rafEt = el('label', 'dp-ad ks-rafalan', 'Raf');
+  const rafEt = el('label', 'dp-ad ks-rafalan', t('sihirbaz.raf'));
   const rafSec = el('select', 'fp-sec');
   for (const r of b.raflar) rafSec.append(new Option(r.ad, r.id, false, r.id === rafId));
   rafEt.append(rafSec);
   const renkAlan = el('div', 'ks-renkalan');
-  renkAlan.append(el('span', 'ks-etiket', 'Renk'));
+  renkAlan.append(el('span', 'ks-etiket', t('sihirbaz.renk')));
   const renkler = el('div', 'ks-renkler');
   renkler.setAttribute('role', 'radiogroup');
-  renkler.setAttribute('aria-label', 'Kapak rengi');
+  renkler.setAttribute('aria-label', t('sihirbaz.kapakRengi'));
   for (const c of COVER_SWATCHES) {
-    const r = dugme('ks-renk', '', `Renk ${c}`);
+    const r = dugme('ks-renk', '', t('panel.renk', { renk: c }));
     r.style.background = c;
     r.dataset.c = c;
     r.setAttribute('role', 'radio');
@@ -102,19 +102,19 @@ export function kitapSihirbaziAc(b: SihirbazBaglam): void {
   // the list and the tree
   const govde = el('div', 'ks-govde');
   const sol = el('div', 'ks-sol');
-  const metinEt = el('label', 'dp-ad', 'Üniteler ve konular');
+  const metinEt = el('label', 'dp-ad', t('sihirbaz.liste'));
   const metin = el('textarea', 'ks-metin');
-  metin.placeholder = ORNEK_LISTE;
+  metin.placeholder = t('sihirbaz.listeOrnek');
   metin.spellcheck = false;
   metin.setAttribute('autocapitalize', 'sentences');
   metinEt.append(metin);
-  const yardim = el('p', 'fp-not', '“# Ünite adı” bir ünite başlatır; altındaki her satır bir konudur. Boş satırlar sayılmaz; “- ”, “* ”, “1.” gibi başlar silinir.');
+  const yardim = el('p', 'fp-not', t('sihirbaz.yardim'));
   const uyariListe = el('ul', 'ks-uyarilar');
   sol.append(metinEt, yardim, uyariListe);
   const sag = el('div', 'ks-sag');
-  sag.append(el('span', 'ks-etiket', 'Önizleme'));
+  sag.append(el('span', 'ks-etiket', t('sihirbaz.onizleme')));
   const agac = el('ul', 'ks-agac');
-  const uniteArti = dugme('ks-uniteekle', '+ Ünite');
+  const uniteArti = dugme('ks-uniteekle', t('sihirbaz.uniteEkle'));
   sag.append(agac, uniteArti);
   govde.append(sol, sag);
 
@@ -124,14 +124,14 @@ export function kitapSihirbaziAc(b: SihirbazBaglam): void {
   neden.setAttribute('aria-live', 'polite');
   const olcumKutu = el('div', 'ks-olcum');
   const olcumPre = el('pre');
-  const kopyala = dugme('ks-kopyala', 'Kopyala');
+  const kopyala = dugme('ks-kopyala', t('sihirbaz.kopyala'));
   olcumKutu.append(olcumPre, kopyala);
   olcumKutu.hidden = !b.olcum;
   const alt = el('div', 'fp-alt');
-  const vazgec = dugme('fp-vazgec', 'Vazgeç');
-  const olustur = dugme('fp-ekle', 'Oluştur');
+  const vazgec = dugme('fp-vazgec', t('genel.vazgec'));
+  const olustur = dugme('fp-ekle', t('sihirbaz.olustur'));
   // 6.K5b: a half-made book with this name: it can go to the trash from here (then "Oluştur" with the same name)
-  const yarimCop = dugme('fp-vazgec ks-yarimcop', 'Yarım kitabı çöpe at');
+  const yarimCop = dugme('fp-vazgec ks-yarimcop', t('sihirbaz.yarimCop'));
   yarimCop.hidden = true;
   alt.append(neden, yarimCop, vazgec, olustur);
 
@@ -150,21 +150,22 @@ export function kitapSihirbaziAc(b: SihirbazBaglam): void {
       r.setAttribute('aria-checked', String(on));
     }
     uyariListe.innerHTML = d.uyarilar.map(u =>
-      `<li class="${u.engel ? 'ks-engel' : ''}">${u.satir ? `Satır ${u.satir}: ` : ''}${esc(u.metin)}</li>`).join('');
+      `<li class="${u.engel ? 'ks-engel' : ''}">${u.satir ? t('sihirbaz.satir', { n: u.satir, metin: esc(u.metin) }) : esc(u.metin)}</li>`).join('');
     uyariListe.hidden = !d.uyarilar.length;
     agac.innerHTML = d.agac.length ? d.agac.map(s => {
       const islem = (tur: string, yon?: number) => `data-islem="${tur}" data-u="${s.u}"${s.k !== null ? ` data-k="${s.k}"` : ''}${yon ? ` data-yon="${yon}"` : ''}`;
       const tasi = s.tur === 'unite' ? 'uniteTasi' : 'konuTasi';
-      const ne = s.tur === 'unite' ? 'Üniteyi' : 'Konuyu';
+      const yukariEt = t(s.tur === 'unite' ? 'sihirbaz.uniteYukari' : 'sihirbaz.konuYukari');
+      const asagiEt = t(s.tur === 'unite' ? 'sihirbaz.uniteAsagi' : 'sihirbaz.konuAsagi');
       return `<li class="ks-satir ks-${s.tur}${s.satir === vurgu ? ' ks-yeni' : ''}" data-satir="${s.satir}">
         <button type="button" class="ks-yazi" data-git="${s.satir}"><span class="ks-ad">${esc(s.ad)}</span><span class="ks-klasor">${esc(s.klasor)}</span>
         ${s.rozetler.map(r => `<span class="ks-rozet${r.engel ? ' ks-engel' : ''}">${esc(r.metin)}</span>`).join('')}</button>
         <span class="ks-dugmeler">
-          ${s.tur === 'unite' ? `<button type="button" class="ks-yuvarlak" ${islem('konuEkle')} aria-label="Bu üniteye konu ekle">+</button>` : ''}
-          <button type="button" class="ks-yuvarlak" ${islem(tasi, -1)} ${s.yukari ? '' : 'disabled'} aria-label="${ne} yukarı taşı">↑</button>
-          <button type="button" class="ks-yuvarlak" ${islem(tasi, 1)} ${s.asagi ? '' : 'disabled'} aria-label="${ne} aşağı taşı">↓</button>
+          ${s.tur === 'unite' ? `<button type="button" class="ks-yuvarlak" ${islem('konuEkle')} aria-label="${t('sihirbaz.konuEkle')}">+</button>` : ''}
+          <button type="button" class="ks-yuvarlak" ${islem(tasi, -1)} ${s.yukari ? '' : 'disabled'} aria-label="${yukariEt}">↑</button>
+          <button type="button" class="ks-yuvarlak" ${islem(tasi, 1)} ${s.asagi ? '' : 'disabled'} aria-label="${asagiEt}">↓</button>
         </span></li>`;
-    }).join('') : '<li class="ks-bos">Yazdıkça üniteler ve konular burada görünür.</li>';
+    }).join('') : `<li class="ks-bos">${t('sihirbaz.agacBos')}</li>`;
     // the operation (6.K4b): running, failed, or not started
     const kilitli = akis.alanlarKilitli;
     adKutu.disabled = rafSec.disabled = metin.readOnly = uniteArti.disabled = kilitli;
@@ -174,13 +175,13 @@ export function kitapSihirbaziAc(b: SihirbazBaglam): void {
     vazgec.disabled = akis.mesgul;
     if (akis.mesgul) {
       olustur.disabled = true;
-      olustur.textContent = ilerleme ? `Oluşturuluyor… ${ilerleme.i}/${ilerleme.n}` : 'Oluşturuluyor…';
+      olustur.textContent = ilerleme ? t('sihirbaz.olusturuluyorN', { i: ilerleme.i, n: ilerleme.n }) : t('sihirbaz.olusturuluyor');
     } else if (hata && !hata.duzenlenebilir) {
       olustur.disabled = !hata.tekrarDene && !hata.girisYap;
-      olustur.textContent = hata.girisYap ? 'Tekrar giriş yap' : 'Tekrar dene';
+      olustur.textContent = hata.girisYap ? t('genel.tekrarGiris') : t('genel.tekrarDene');
     } else {
       olustur.disabled = !d.olusturAcik;
-      olustur.textContent = 'Oluştur';
+      olustur.textContent = t('sihirbaz.olustur');
     }
     const not = hata?.mesaj ?? d.neden;
     if (neden.textContent !== not) neden.textContent = not;   // the same text is not read out again on each key
@@ -197,7 +198,7 @@ export function kitapSihirbaziAc(b: SihirbazBaglam): void {
     if (akis.mesgul) return;
     if (hata?.girisYap) {
       try { await b.girisYap?.(); } catch { /* the sign-in card says why */ }
-      hata = { ...hata, mesaj: 'Giriş yapıldıysa Tekrar dene.', tekrarDene: true, girisYap: false };
+      hata = { ...hata, mesaj: t('sihirbaz.girisSonrasi'), tekrarDene: true, girisYap: false };
       ciz();
       return;
     }
@@ -262,7 +263,7 @@ export function kitapSihirbaziAc(b: SihirbazBaglam): void {
   metin.addEventListener('input', () => { hata = null; ciz(); });
   for (const k of [adKutu, metin]) k.addEventListener('blur', klavye.sifirla);
   kopyala.onclick = () => {
-    navigator.clipboard?.writeText(olcumPre.textContent ?? '').then(() => toast('Plan kopyalandı.'), () => toast('Kopyalanamadı.'));
+    navigator.clipboard?.writeText(olcumPre.textContent ?? '').then(() => toast(t('sihirbaz.kopyalandi')), () => toast(t('sihirbaz.kopyalanamadi')));
   };
 
   function kapat(): void {
