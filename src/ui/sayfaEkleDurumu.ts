@@ -2,8 +2,9 @@ import type { BosSayfaKaydi, Yon } from '../defter/bosSayfa';
 
 // Task 6.S-4: the "Sayfa ekle" button and its popover, without DOM (tested). ui/sayfaEkleBalon.ts draws it.
 // - Shown: a Drive library (not the sample one), surum 2 with kitap.json, a material open. With the pen on too.
-// - The target page: PDF mode the page on screen; book mode (25 Oct decision) Önüne = before the LEFT page of the
-//   spread, Arkasına = after the RIGHT page (one page shown, or the right side empty / not a PDF page: that page).
+// - The target page: PDF mode the page on screen; book mode (6.S-4b) the page being read (the side last touched,
+//   else the left; chosen in the popover), Önüne / Arkasına that page. After the job that page stays on screen,
+//   the blank page beside it (kitapCiftiSonrasi; the spread may start one page later, BookView.ofset).
 // - "Bu sayfayı kaldır" only on pages carrying /DefterBosSayfa; two on screen → Soldaki / Sağdaki.
 
 export interface GorunenSayfa {
@@ -20,10 +21,13 @@ const pdfMi = (p: GorunenSayfa | undefined): p is GorunenSayfa & { dosyaId: stri
 
 export interface EklemeHedefi { liste: number; dosyaId: string; ad: string; komsu: number; yon: Yon }   // komsu: 0-based in the PDF
 
-// gorunen: the pages on screen in order (PDF mode one, book mode one or two)
-export function eklemeHedefi(gorunen: readonly GorunenSayfa[], yon: Yon): EklemeHedefi | null {
+export type Taraf = 'sol' | 'sag';
+
+// gorunen: the pages on screen in order (PDF mode one, book mode one or two); taraf: the page being read
+// (book mode; not a PDF page → the other one)
+export function eklemeHedefi(gorunen: readonly GorunenSayfa[], yon: Yon, taraf: Taraf = 'sol'): EklemeHedefi | null {
   const sol = gorunen[0], sag = gorunen[1];
-  const p = yon === 'once' ? sol : pdfMi(sag) ? sag : sol;
+  const p = taraf === 'sag' ? (pdfMi(sag) ? sag : sol) : pdfMi(sol) ? sol : sag;
   if (!pdfMi(p)) return null;
   return { liste: p.liste, dosyaId: p.dosyaId, ad: p.ad ?? '', komsu: p.pdfSayfa - 1, yon };
 }
@@ -63,3 +67,44 @@ export function eklemeEngeli(g: EngelGirdisi): string | null {
 
 // After the job: the PDF page (1-based) the reader opens at. ekle: the new page; kaldir: the page before it (or 1)
 export const isSonrasiSayfa = (tur: 'ekle' | 'kaldir', indeks: number): number => tur === 'ekle' ? indeks + 1 : Math.max(1, indeks);
+
+// ---- task 6.S-4b: book mode, two pages: the page being read stays on screen ----
+
+// The sides that can be chosen in the popover (PDF pages only); n: the reader's page number (1-based)
+export function okunanTaraflar(gorunen: readonly GorunenSayfa[]): Partial<Record<Taraf, number>> {
+  if (gorunen.length < 2) return {};
+  const out: Partial<Record<Taraf, number>> = {};
+  if (pdfMi(gorunen[0])) out.sol = gorunen[0].liste + 1;
+  if (pdfMi(gorunen[1])) out.sag = gorunen[1].liste + 1;
+  return out;
+}
+
+// The side shown first: the page last touched if it is on screen and a PDF page, else the left (else the right)
+export function varsayilanTaraf(gorunen: readonly GorunenSayfa[], dokunulan: number | null): Taraf {
+  const t = okunanTaraflar(gorunen);
+  if (dokunulan !== null && gorunen[1]?.liste === dokunulan && t.sag) return 'sag';
+  return t.sol || !t.sag ? 'sol' : 'sag';
+}
+
+export interface OkunanSonrasi { dosya: string; sayfa: number; taraf: Taraf }   // sayfa: 1-based in its PDF, after the job
+
+// Adding: the page read (komsu) after the job and the side it stays on: Önüne → right (B | R), Arkasına → left (L | B)
+export const eklemeSonrasiOkunan = (h: EklemeHedefi): OkunanSonrasi =>
+  h.yon === 'once' ? { dosya: h.ad, sayfa: h.komsu + 2, taraf: 'sag' } : { dosya: h.ad, sayfa: h.komsu + 1, taraf: 'sol' };
+
+// Removing: the other page on screen stays on its side (a page after the removed one in the same file moves up one).
+// null: no other PDF page on screen (the reader goes on as in 6.S-4)
+export function kaldirmaSonrasiOkunan(gorunen: readonly GorunenSayfa[], h: KaldirmaHedefi): OkunanSonrasi | null {
+  if (gorunen.length < 2) return null;
+  const i = gorunen.findIndex(x => x.liste !== h.liste), k = gorunen[i];
+  if (i < 0 || !pdfMi(k)) return null;
+  const sayfa = k.dosyaId === h.dosyaId && k.pdfSayfa - 1 > h.indeks ? k.pdfSayfa - 1 : k.pdfSayfa;
+  return { dosya: k.ad ?? '', sayfa, taraf: i === 0 ? 'sol' : 'sag' };
+}
+
+// The spread after the job: okunanIndeks = the page read in the NEW list, on its side. The start may be −1
+// (an empty paper left of the first page); ofset = the start's parity (BookView.show).
+export function kitapCiftiSonrasi(g: { okunanIndeks: number; taraf: Taraf; sayfaSayisi: number }): { ciftBaslangic: number; ofset: 0 | 1 } {
+  const bas = Math.max(-1, Math.min(g.sayfaSayisi - 1, g.taraf === 'sol' ? g.okunanIndeks : g.okunanIndeks - 1));
+  return { ciftBaslangic: bas, ofset: (((bas % 2) + 2) % 2) as 0 | 1 };
+}

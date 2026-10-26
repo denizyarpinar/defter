@@ -351,6 +351,8 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 .o-balon.o-sekle-balon { flex-direction: column; align-items: stretch; gap: 8px; padding: 10px; width: min(300px, calc(100vw - 32px)); box-sizing: border-box }
 .o-sekle-yon { display: flex; gap: 4px }
 .o-sekle-yon button { flex: 1 }
+.o-sekle-taraf { flex-wrap: wrap }   /* task 6.S-4b: "Okuduğun sayfa: Sol / Sağ" in book mode */
+.o-sekle-taraf span { flex-basis: 100%; font: 12px var(--ui); color: rgba(245, 236, 223, .75); padding: 0 2px }
 .o-sekle-desenler { display: flex; gap: 6px }
 .o-balon .o-sekle-desen { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 84px; padding: 6px 4px }
 .o-sekle-desen svg { width: 30px; height: 42px }

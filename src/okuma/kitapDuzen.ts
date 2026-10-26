@@ -29,8 +29,17 @@ export function fitPage(ratio: number, slotW: number, slotH: number, pay = 0): {
   return { x: Math.round((slotW - w) / 2), y: Math.round((slotH - h) / 2), w, h };
 }
 
-// Two pages: the left page is always an even index (0–1, 2–3, …).
-export const spreadStart = (i: number, single: boolean) => single ? i : i - (i % 2);
+const mod2 = (i: number) => ((i % 2) + 2) % 2;
+
+// Two pages: the left page is an even index (0–1, 2–3, …); task 6.S-4b: with ofset 1 an odd one (−1–0, 1–2, …),
+// −1 being an empty paper on the left of the first page.
+export const spreadStart = (i: number, single: boolean, ofset: 0 | 1 = 0) => single ? i : i - mod2(i - ofset);
+
+// The first spread's start (the lowest idx a turn back may reach)
+export const ilkCift = (ofset: 0 | 1) => ofset ? -1 : 0;
+
+// Which side a page is on in a two-page spread with this ofset
+export const sagdaMi = (i: number, ofset: 0 | 1) => mod2(i - ofset) === 1;
 
 export const pageStep = (single: boolean) => single ? 1 : 2;
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { KITAP_KAGIT_PAYI, PAGE_AR, fitPage, isSingle, keepRange, slotSize, spreadStart, visiblePages, yenidenDuzenGerekir } from './kitapDuzen';
+import { KITAP_KAGIT_PAYI, ilkCift, sagdaMi, PAGE_AR, fitPage, isSingle, keepRange, slotSize, spreadStart, visiblePages, yenidenDuzenGerekir } from './kitapDuzen';
 
 describe('isSingle', () => {
   it('is one page on a portrait screen', () => {
@@ -91,5 +91,19 @@ describe('yenidenDuzenGerekir', () => {
     expect(yenidenDuzenGerekir(null, { w: 1180, h: 700 })).toBe(false);
     expect(yenidenDuzenGerekir({ w: 1180, h: 700 }, { w: 0, h: 0 })).toBe(false);
     expect(yenidenDuzenGerekir({ w: 1180, h: 700 }, { w: 1180, h: 0 })).toBe(false);
+  });
+});
+
+describe('spreadStart ofset (6.S-4b)', () => {
+  it('ofset 0: çift indeks solda; ofset 1: tek indeks solda, ilk çift −1', () => {
+    expect([0, 1, 2, 3].map(i => spreadStart(i, false))).toEqual([0, 0, 2, 2]);
+    expect([0, 1, 2, 3, 4].map(i => spreadStart(i, false, 1))).toEqual([-1, 1, 1, 3, 3]);
+    expect(spreadStart(3, true, 1)).toBe(3);
+    expect(ilkCift(0)).toBe(0);
+    expect(ilkCift(1)).toBe(-1);
+  });
+  it('sağ / sol taraf', () => {
+    expect([0, 1, 2].map(i => sagdaMi(i, 0))).toEqual([false, true, false]);
+    expect([-1, 0, 1, 2].map(i => sagdaMi(i, 1))).toEqual([false, true, false, true]);
   });
 });

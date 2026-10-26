@@ -1,9 +1,10 @@
 import { DESENLER, type Desen, type Yon } from '../defter/bosSayfa';
-import { KALDIR_METNI, type KaldirmaHedefi } from './sayfaEkleDurumu';
+import { KALDIR_METNI, type KaldirmaHedefi, type Taraf } from './sayfaEkleDurumu';
 
 // Task 6.S-4: "Sayfa ekle" (+) in the reader's material bar (index.html #oSayfaEkle) and its popover (6.H1b's o-balon,
 // as TemizDugme): Önüne / Arkasına, three patterns with a small preview (a tap starts the adding), "Bu sayfayı
 // kaldır" on a blank page. The progress "%NN" on the button and in the popover. Works with the pen on too.
+// Task 6.S-4b: book mode, two PDF pages: "Okuduğun sayfa: Sol / Sağ" (the side last touched first).
 // Decisions: ui/sayfaEkleDurumu.ts.
 
 const DESEN_ADI: Record<Desen, string> = { duz: 'Düz', kareli: 'Kareli', cizgili: 'Çizgili' };
@@ -21,11 +22,12 @@ function onizleme(d: Desen): string {
     + (cizgi.length ? `<path d="${cizgi.join('')}" stroke="#bdb6aa" stroke-width=".5" fill="none"/>` : '') + '</svg>';
 }
 
-export interface BalonBilgisi { engel: string | null; kaldir: KaldirmaHedefi[] }
+// taraflar (6.S-4b): book mode, the PDF pages on screen (their reader page number); varsayilan: the side shown first
+export interface BalonBilgisi { engel: string | null; kaldir: KaldirmaHedefi[]; taraflar?: Partial<Record<Taraf, number>>; varsayilan?: Taraf }
 
 export interface SayfaEkleOlay {
   bilgi(): Promise<BalonBilgisi>;   // asked when the popover opens (the PDF is checked with pdf-lib)
-  ekle(yon: Yon, desen: Desen): void;
+  ekle(yon: Yon, desen: Desen, taraf: Taraf): void;
   kaldir(h: KaldirmaHedefi): void;
 }
 
@@ -34,6 +36,7 @@ export class SayfaEkleBalon {
   private pop = document.createElement('div');
   private cover = document.createElement('div');
   private yon: Yon = 'sonra';
+  private taraf: Taraf = 'sol';   // 6.S-4b: the page read (book mode)
   private bilgi: BalonBilgisi | null = null;
   private yuzde: string | null = null;
   private acilis = 0;
@@ -53,7 +56,8 @@ export class SayfaEkleBalon {
       const b = (e.target as HTMLElement).closest<HTMLButtonElement>('button');
       if (!b || b.disabled) return;
       if (b.dataset.yon) { this.yon = b.dataset.yon as Yon; this.ciz(); return; }
-      if (b.dataset.desen) { this.olay.ekle(this.yon, b.dataset.desen as Desen); this.ciz(); return; }
+      if (b.dataset.taraf) { this.taraf = b.dataset.taraf as Taraf; this.ciz(); return; }
+      if (b.dataset.desen) { this.olay.ekle(this.yon, b.dataset.desen as Desen, this.taraf); this.ciz(); return; }
       if (b.dataset.kaldir !== undefined) {
         const h = this.bilgi?.kaldir[Number(b.dataset.kaldir)];
         if (h) { this.balonKapat(); this.olay.kaldir(h); }
@@ -101,6 +105,7 @@ export class SayfaEkleBalon {
     }
     if (my !== this.acilis) return;
     this.bilgi = b;
+    this.taraf = b.varsayilan ?? 'sol';
     this.ciz();
     this.yerlestir();
     this.pop.querySelector<HTMLElement>('[data-desen]:not(:disabled)')?.focus({ preventScroll: true });
@@ -111,12 +116,16 @@ export class SayfaEkleBalon {
     const kapali = bekliyor || !!engel;
     const yonlar = (['once', 'sonra'] as const).map(y =>
       `<button type="button" data-yon="${y}" class="${y === this.yon ? 'on' : ''}" aria-pressed="${y === this.yon}">${YON_ADI[y]}</button>`).join('');
+    const t = b?.taraflar ?? {};
+    const taraflar = t.sol && t.sag ? '<div class="o-sekle-yon o-sekle-taraf" role="group" aria-label="Okuduğun sayfa"><span>Okuduğun sayfa:</span>'
+      + (['sol', 'sag'] as const).map(x => `<button type="button" data-taraf="${x}" class="${x === this.taraf ? 'on' : ''}" aria-pressed="${x === this.taraf}">${x === 'sol' ? 'Sol' : 'Sağ'} (s. ${t[x]})</button>`).join('')
+      + '</div>' : '';
     const desenler = DESENLER.map(d =>
       `<button type="button" class="o-sekle-desen" data-desen="${d}" ${kapali ? 'disabled' : ''} aria-label="${DESEN_ADI[d]} sayfa ekle (${YON_ADI[this.yon].toLowerCase()})">${onizleme(d)}<span>${DESEN_ADI[d]}</span></button>`).join('');
     const not = this.yuzde !== null ? `Yükleniyor… ${this.yuzde}` : bekliyor ? 'PDF kontrol ediliyor…' : engel ?? 'Desene dokununca boş sayfa eklenir.';
     const kaldir = (b?.kaldir ?? []).map((h, i) =>
       `<button type="button" class="o-sekle-kaldir" data-kaldir="${i}" ${this.yuzde !== null ? 'disabled' : ''}>${KALDIR_METNI[h.taraf]}</button>`).join('');
-    this.pop.innerHTML = `<div class="o-sekle-yon" role="group" aria-label="Nereye">${yonlar}</div>`
+    this.pop.innerHTML = taraflar + `<div class="o-sekle-yon" role="group" aria-label="Nereye">${yonlar}</div>`
       + `<div class="o-sekle-desenler">${desenler}</div>`
       + `<div class="o-sekle-not" aria-live="polite">${not}</div>` + kaldir;
   }

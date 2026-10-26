@@ -1,4 +1,4 @@
-import { FLIP_MS, KITAP_KAGIT_PAYI, fitPage, isSingle, keepRange, pageStep, slotSize, spreadStart } from './kitapDuzen';
+import { FLIP_MS, KITAP_KAGIT_PAYI, fitPage, ilkCift, isSingle, keepRange, pageStep, sagdaMi, slotSize, spreadStart, visiblePages } from './kitapDuzen';
 
 // Reader, book mode (task 3.3): two pages side by side with a spine shadow, one page on a portrait screen.
 // Pages turn with CSS 3D (prototype flipTo). Every page is one "sheet" element that lives in one
@@ -28,6 +28,9 @@ function div(cls: string, parent?: HTMLElement): HTMLElement {
 export class BookView {
   idx = 0;
   single = false;
+  // task 6.S-4b: 1 = the spreads start one page later (−1–0, 1–2, …), so a blank page can sit left of the page read.
+  // Kept by turns, jumps and new layouts; show() sets it (a new list, a mode change: 0).
+  ofset: 0 | 1 = 0;
   private busy = false;
   private timer: number | undefined;
   private slotW = 0;
@@ -44,11 +47,15 @@ export class BookView {
   constructor(private area: HTMLElement, private spread: HTMLElement, private host: BookHost) {}
 
   // Show the book from page `start` (the spread that contains it).
-  show(start: number, color: string): void {
+  show(start: number, color: string, ofset: 0 | 1 = 0): void {
     this.spread.style.setProperty('--bookc', color);
+    this.ofset = ofset;
     this.idx = start;
     this.layout();
   }
+
+  // The pages on screen (idx may be −1: the empty paper isn't one)
+  gorunen(): number[] { return visiblePages(this.idx, this.single, this.host.count()); }
 
   // The area's size the book was laid out for (null: not laid out).
   get olcu(): { w: number; h: number } | null { return this.alan; }
@@ -68,7 +75,7 @@ export class BookView {
     this.right = this.single ? null : this.slot(s.w);
     this.spread.replaceChildren(...[this.left, this.right].filter(Boolean) as HTMLElement[]);
     const n = this.host.count();
-    this.idx = spreadStart(Math.max(0, Math.min(this.idx, n - 1)), this.single);
+    this.idx = spreadStart(Math.max(0, Math.min(this.idx, n - 1)), this.single, this.ofset);
     this.ensure();
     this.place();
     this.host.changed();
@@ -80,6 +87,7 @@ export class BookView {
     this.spread.replaceChildren();
     this.left = this.right = null;
     this.idx = 0;
+    this.ofset = 0;
     this.alan = null;
   }
 
@@ -95,7 +103,7 @@ export class BookView {
     this.stop();
     this.spread.querySelectorAll('.o-leaf, .o-turn').forEach(e => e.remove());
     const n = this.host.count();
-    this.idx = spreadStart(Math.max(0, Math.min(i, n - 1)), this.single);
+    this.idx = spreadStart(Math.max(0, Math.min(i, n - 1)), this.single, this.ofset);
     this.ensure();
     this.place();
     this.host.changed();
@@ -106,7 +114,7 @@ export class BookView {
     if (this.busy || !this.left) return;
     const n = this.host.count();
     const cur = this.idx, target = cur + dir * pageStep(this.single);
-    if (target < 0 || target > n - 1) return;
+    if (target < (this.single ? 0 : ilkCift(this.ofset)) || target > n - 1) return;
     this.idx = target;
     this.ensure();
     this.host.changed();
@@ -189,7 +197,8 @@ export class BookView {
   }
 
   private make(i: number): void {
-    const el = div(`o-sheet ${this.single ? '' : i % 2 ? 'rightp' : 'leftp'}`);
+    const el = div(`o-sheet ${this.single ? '' : this.yan(i)}`);
+    el.dataset.i = String(i);   // task 6.S-4b: the page last touched (Okuyucu)
     const page = div('o-page', el);
     page.dataset.kind = this.host.kind(i);
     const f = this.fit(i, page);
@@ -207,10 +216,12 @@ export class BookView {
   private sheetOrEnd(i: number): HTMLElement {
     const s = this.sheets.get(i);
     if (s) return s.el;
-    const end = div(`o-sheet o-end ${i % 2 ? 'rightp' : 'leftp'}`);
+    const end = div(`o-sheet o-end ${this.yan(i)}`);
     if (i >= this.host.count()) div('o-endtext', end).textContent = 'Son sayfa';
     return end;
   }
+
+  private yan(i: number): string { return sagdaMi(i, this.ofset) ? 'rightp' : 'leftp'; }
 
   private releaseSheets(): void {
     for (const [i, s] of this.sheets) { this.host.release(i); s.el.remove(); }

@@ -21,7 +21,7 @@ import { kurdeleKaydir, kurdeleKaydirYerinde, ocrKaydir } from '../kitap/sayfaKa
 import { jsonDegistir, type JsonDrive } from '../drive/jsonDegistir';
 import { topicKey } from '../model/okumaYamasi';
 import { SayfaEkleBalon, type BalonBilgisi } from '../ui/sayfaEkleBalon';
-import { eklemeEngeli, eklemeHedefi, isSonrasiSayfa, KALDIR_ONAY, kaldirmaHedefleri, sayfaEkleGorunur, type GorunenSayfa, type KaldirmaHedefi } from '../ui/sayfaEkleDurumu';
+import { eklemeEngeli, eklemeHedefi, eklemeSonrasiOkunan, isSonrasiSayfa, KALDIR_ONAY, kaldirmaHedefleri, kaldirmaSonrasiOkunan, kitapCiftiSonrasi, okunanTaraflar, sayfaEkleGorunur, varsayilanTaraf, type GorunenSayfa, type KaldirmaHedefi, type OkunanSonrasi, type Taraf } from '../ui/sayfaEkleDurumu';
 import { isKaydet, isler, isleriTemizle, isSil } from './sayfaIsiDepo';
 import { bekleyenFotoDepo } from '../defter/bekleyenFoto';
 import type { BekleyenFoto, BekleyenJpeg } from '../defter/bekleyenFotoKayit';
@@ -474,6 +474,11 @@ export function initOkuyucu(yer: () => DriveLocation | null): void {
 
   // Zoom + book mode taps: a tap on the side turns the page, a swipe too (only at 100 %)
   const area = $('#oKitap');
+  // task 6.S-4b: the page being read in book mode = the side last touched (a tap, the pen); only read here
+  area.addEventListener('pointerdown', e => {
+    const s = (e.target as HTMLElement).closest<HTMLElement>('.o-sheet[data-i]');
+    if (s) dokunulanSayfa = Number(s.dataset.i);
+  }, { capture: true, passive: true });
   zoom = new ZoomController($('#okuyucu'), area, $('#oZoom'), scroller, $('#oPages'), {
     mode: () => mode,
     hasPages: () => open && pages.length > 0,
@@ -509,7 +514,7 @@ export function initOkuyucu(yer: () => DriveLocation | null): void {
   // task 6.S-4: a blank page before / after the page on screen
   sayfaEkleBalon = new SayfaEkleBalon({
     bilgi: sayfaBalonBilgisi,
-    ekle: (y, d) => { void bosSayfaEkleBasla(y, d); },
+    ekle: (y, d, t) => { void bosSayfaEkleBasla(y, d, t); },
     kaldir: h => { void bosSayfaKaldirBasla(h); },
   });
   addEventListener('online', () => { void sayfaIsleriniSurdur(); });
@@ -631,8 +636,8 @@ function showView(): void {
   $('#okuyucu').classList.toggle('mod-kitap', mode === 'kitap');
 }
 
-// Build the current mode's view of `pages`, starting at page `start`.
-function enterMode(start: number): void {
+// Build the current mode's view of `pages`, starting at page `start` (book mode: the spread's ofset, 6.S-4b).
+function enterMode(start: number, ofset: 0 | 1 = 0): void {
   showView();
   if (mode === 'pdf') {
     bookView?.clear();
@@ -643,13 +648,14 @@ function enterMode(start: number): void {
     $('#oPages').replaceChildren();
     $('#oPages').style.height = '0';
     boxes = [];
-    bookView?.show(start, book?.kapak.renk ?? '#24476b');
+    bookView?.show(start, book?.kapak.renk ?? '#24476b', ofset);
   }
 }
 
-// The page the reader is on (PDF: the one crossing the top third; book: the left / only page).
+// The page the reader is on (PDF: the one crossing the top third; book: the left / only page; 6.S-4b: the
+// spread may start at -1, an empty paper: then the right page).
 function focusPage(): number {
-  if (mode === 'kitap') return bookView?.idx ?? 0;
+  if (mode === 'kitap') return bookView?.gorunen()[0] ?? 0;
   const s = $('#oScroll');
   return currentPage(layout, s.scrollTop, s.clientHeight);
 }
@@ -659,7 +665,7 @@ function showPageNumber(): void {
   const cur = focusPage(), n = pages.length;
   // surum 1: the chapter of the current page; surum 2: the topic's title stays
   if (!topic) $('#oChap').textContent = book!.bolumler[pages[cur].bolumIndex]?.baslik ?? '';
-  const v = mode === 'kitap' ? visiblePages(cur, bookView?.single ?? true, n) : [cur];
+  const v = mode === 'kitap' && bookView ? bookView.gorunen() : [cur];
   $('#oPno').textContent = v.length > 1 ? `${v[0] + 1}–${v[1] + 1} / ${n}` : `${cur + 1} / ${n}`;
   $('#oFoot').hidden = n < 2;
   const slider = $<HTMLInputElement>('#oSlider');
@@ -1016,7 +1022,8 @@ function useMark(t: OpenTopic, mark: PageMark): PageMark | null {
 
 // The chosen material of the open topic (+ its solution below it, when "Çözümü göster" is on).
 // start: open at this page (a ribbon); otherwise at the start (or at the solution).
-async function showMaterial(start?: PageMark | null): Promise<void> {
+// kitapTaraf (6.S-4b): book mode, two pages: `start` is the page read, kept on that side of the spread
+async function showMaterial(start?: PageMark | null, kitapTaraf?: Taraf): Promise<void> {
   if (!topic || !content || topic.kind === null) return;
   const t = topic, kind = topic.kind, my = ++session;
   materyalsizMod(null);
@@ -1036,15 +1043,16 @@ async function showMaterial(start?: PageMark | null): Promise<void> {
     const i = start ? list.findIndex(p => p.ad === start.dosya && p.pdfSayfa === start.sayfa) : -1;
     return i >= 0 ? i : def;
   };
+  const taraf = (list: BookPage[]) => kitapTaraf && start && list.some(p => p.ad === start.dosya && p.pdfSayfa === start.sayfa) ? kitapTaraf : undefined;
   try {
     const main = await cached(key(files), () => buildTopicPages(t.materials, kind, t.fileIndex), my);
     if (my !== session) return;
     mainCount = main.pages.length;
-    if (!cozum) { showPages(main.pages, main.ratios, at(main.pages, 0), 'Bu materyalde gösterilecek sayfa yok.'); return; }
+    if (!cozum) { showPages(main.pages, main.ratios, at(main.pages, 0), 'Bu materyalde gösterilecek sayfa yok.', taraf(main.pages)); return; }
     const sol = await cached(key([cozum]), () => buildSolutionPages(cozum), my);
     if (my !== session) return;
     const all = [...main.pages, ...sol.pages];
-    showPages(all, [...main.ratios, ...sol.ratios], at(all, main.pages.length), 'Bu materyalde gösterilecek sayfa yok.');
+    showPages(all, [...main.ratios, ...sol.ratios], at(all, main.pages.length), 'Bu materyalde gösterilecek sayfa yok.', taraf(all));
   } catch (e) {
     if (my === session) loadFailed(e);
   }
@@ -1583,7 +1591,7 @@ function applyGrowth(next: BookPage[], at: number, extra: number[], atEnd: boole
   } else {
     // the spread on screen changes (its empty side gets a page, or pages moved)
     releaseAll();
-    bookView?.show(yeniIndeks(cur, g), book?.kapak.renk ?? '#24476b');
+    bookView?.show(yeniIndeks(cur, g), book?.kapak.renk ?? '#24476b', bookView.ofset);   // 6.S-4b: the spreads don't move
   }
   arama.listeDegisti(old => yeniIndeks(old, g));   // task 6.3c: the current match stays where its page went
   temizDegerlendir();   // task 6.4e-2: the new pages (a new version of the file)
@@ -1719,6 +1727,8 @@ export function setSayfaIsi(b: SayfaIsiBaglami | null): void { sayfaIsiBaglami =
 const sayfaIsiDosyalari = new Set<string>();   // files with a job going
 let sayfaIsiYuzde: string | null = null;
 let sayfaEkleBalon: SayfaEkleBalon;
+let dokunulanSayfa: number | null = null;   // task 6.S-4b: book mode, the page last touched (list index)
+let kitapSonrasi: (OkunanSonrasi & { islemId: string }) | null = null;   // 6.S-4b: where the page read goes after the job
 const bosBilgi = new Map<string, Promise<BosSayfaBilgisi>>();   // file key → can it be written, its blank pages (pdf-lib)
 
 function sayfaEkleDugmesi(): void {
@@ -1766,20 +1776,23 @@ async function sayfaBalonBilgisi(): Promise<BalonBilgisi> {
     okumaSuruyor: ocrPaneliAcik(), hedefYok: !eklemeHedefi(g, 'once') && !eklemeHedefi(g, 'sonra')
   });
   const kaldir = kaldirmaHedefleri(g, (id, i) => { const b = bilgiler.get(id); return b?.yazilabilir ? b.bos.get(i) ?? null : null; });
-  return { engel, kaldir: sayfaIsiDosyalari.size || ocrPaneliAcik() ? [] : kaldir };
+  const ikiSayfa = mode === 'kitap' && g.length > 1;   // 6.S-4b: the page read can be chosen
+  return { engel, kaldir: sayfaIsiDosyalari.size || ocrPaneliAcik() ? [] : kaldir,
+    taraflar: ikiSayfa ? okunanTaraflar(g) : {}, varsayilan: varsayilanTaraf(g, dokunulanSayfa) };
 }
 
-async function bosSayfaEkleBasla(yon: Yon, desen: Desen): Promise<void> {
+async function bosSayfaEkleBasla(yon: Yon, desen: Desen, taraf: Taraf): Promise<void> {
   const t = topic, b = book;
   if (!t || !b || !open || sayfaIsiDosyalari.size || ocrPaneliAcik()) return;
-  const h = eklemeHedefi(gorunenSayfalar(), yon);
+  const g = gorunenSayfalar(), h = eklemeHedefi(g, yon, taraf);
   if (!h) return;
-  const p = pages[h.liste];
+  const p = pages[h.liste], islemId = crypto.randomUUID();
+  kitapSonrasi = mode === 'kitap' && g.length > 1 ? { islemId, ...eklemeSonrasiOkunan({ ...h, ad: p.ad ?? h.ad }) } : null;
   // the neighbour's fingerprint in the version on screen: its anchor when Drive has a newer one
   let komsuIzi: string | undefined;
   try { komsuIzi = await sayfaIziAl(new Uint8Array(await getPdf(p.dosyaId!, p.modifiedTime!)), h.komsu); } catch (e) { console.warn('Sayfa ekle: komşu sayfanın izi alınamadı.', e); }
   const is = yeniEklemeIsi({
-    islemId: crypto.randomUUID(), fileId: h.dosyaId, dosyaAdi: p.ad ?? h.ad, klasorId: p.klasorId ?? null, kitapId: b.id,
+    islemId, fileId: h.dosyaId, dosyaAdi: p.ad ?? h.ad, klasorId: p.klasorId ?? null, kitapId: b.id,
     konu: topicKey(t.klasor, t.title), ekle: { komsu: h.komsu, yon, desen, ...(komsuIzi ? { komsuIzi } : {}) }
   });
   await sayfaIsiYurut(is, t);
@@ -1789,7 +1802,8 @@ async function bosSayfaKaldirBasla(h: KaldirmaHedefi): Promise<void> {
   const t = topic, b = book;
   if (!t || !b || !open || sayfaIsiDosyalari.size) return;
   if (!confirm(KALDIR_ONAY)) return;
-  const p = pages[h.liste];
+  const p = pages[h.liste], k = mode === 'kitap' ? kaldirmaSonrasiOkunan(gorunenSayfalar(), h) : null;
+  kitapSonrasi = k ? { islemId: h.kayit.islemId, ...k } : null;   // 6.S-4b: the other page stays on its side
   const is = yeniKaldirmaIsi({
     islemId: h.kayit.islemId, fileId: h.dosyaId, dosyaAdi: p?.ad ?? h.ad, klasorId: p?.klasorId ?? null, kitapId: b.id,
     konu: topicKey(t.klasor, t.title), kaldir: { indeks: h.indeks, iz: h.kayit.iz }
@@ -1877,7 +1891,10 @@ async function sayfaIsiSonrasi(t: OpenTopic | null, is: SayfaIsi): Promise<void>
   content.newVersion(is.fileId, mt);
   for (const list of Object.values(t.materials)) for (const it of list) for (const f of [it.file, it.cozum]) if (f?.id === is.fileId) f.modifiedTime = mt;
   if (arama.acik) arama.kapat();   // its matches are on the old page numbers
-  await showMaterial({ dosya: is.dosyaAdi, sayfa: isSonrasiSayfa(is.tur, is.indeks) });
+  // 6.S-4b: book mode, two pages: the page read stays on screen, the blank page (or the removed one's neighbour) beside it
+  const k = kitapSonrasi?.islemId === is.islemId && mode === 'kitap' && bookView && !bookView.single ? kitapSonrasi : null;
+  if (k) await showMaterial({ dosya: k.dosya, sayfa: k.sayfa }, k.taraf);
+  else await showMaterial({ dosya: is.dosyaAdi, sayfa: isSonrasiSayfa(is.tur, is.indeks) });
 }
 
 const tekrarDenenebilir = (e: unknown) => e instanceof SayfaIsiYarim || e instanceof SayfaEklemeAgHatasi || e instanceof SayfaEklemeCakisma || e instanceof TypeError;
@@ -2039,13 +2056,18 @@ function clearPages(): void {
   arama?.bosalt();   // task 6.3c: the query stays for the next list
 }
 
-function showPages(p: BookPage[], r: number[], scrollTo: number, emptyText: string): void {
+// kitapTaraf (6.S-4b): book mode, two pages: page scrollTo stays on that side (the spread may start one page later)
+function showPages(p: BookPage[], r: number[], scrollTo: number, emptyText: string, kitapTaraf?: Taraf): void {
   pages = p;
   ratios = [...r];
+  dokunulanSayfa = null;
   temiz?.bosalt();   // task 6.4e-2: drawn as the original until this list's read pages are known
   if (!pages.length) { setMessage(emptyText); temizDugmesi(); return; }
   setMessage(null);
-  enterMode(scrollTo);
+  if (kitapTaraf && mode === 'kitap' && bookView && !bookView.single) {
+    const c = kitapCiftiSonrasi({ okunanIndeks: scrollTo, taraf: kitapTaraf, sayfaSayisi: pages.length });
+    enterMode(c.ciftBaslangic, c.ofset);
+  } else enterMode(scrollTo);
   arama.listeDegisti();   // task 6.3c: the same query in the new list
   temizDegerlendir();
 }

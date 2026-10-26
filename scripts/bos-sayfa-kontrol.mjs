@@ -9,6 +9,9 @@
 // then pen on: Arkasına kareli, a stroke on the new blank page → Kaydet → "Bu sayfayı kaldır" (confirmed).
 // Checks after each step: the page count, the blank pages, the new page on screen, the ribbons / reading record
 // shifted, the stroke saved on the blank page and gone with it (the other pages' strokes stay). Exit code 1 if anything fails.
+// Task 6.S-4b (1180×820, two pages, a new reader): the page read stays on screen, the blank page beside it, in the four
+// cases (left / right × Önüne / Arkasına), with turns on a shifted spread and "Soldaki boş sayfayı kaldır";
+// screenshots with "-4b-".
 import { spawn } from 'node:child_process';
 import { mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -90,6 +93,45 @@ async function bekleBitti(page, onceSurum) {
   await wait(1500);
 }
 
+// A new browser page with the reader open on the test PDF (book mode) and the fake Drive
+async function okuyucuAc(w, h, ad) {
+  const ctx = await browser.newContext({ viewport: { width: w, height: h }, hasTouch: true, deviceScaleFactor: 2 });
+  const page = await ctx.newPage();
+  page.on('pageerror', e => { bad++; console.error(`${ad} sayfa hatası:`, e.message); });
+  page.on('dialog', d => { void d.accept(); });
+  await page.route('**/ornek/index.json', async route => {
+    const json = await (await route.fetch()).json();
+    json.klasorler['programlamaya-giris'][KONU] = { 'ozet.pdf': 'demo/__bos.pdf' };
+    await route.fulfill({ json });
+  });
+  await page.route('**/ornek/kitaplar/programlamaya-giris/kitap.json', async route => {
+    const json = await (await route.fetch()).json();
+    await route.fulfill({ json: { ...json, kurdele: null } });
+  });
+  await page.route('**/demo/__bos.pdf', route => route.fulfill({ contentType: 'application/pdf', body: pdfBytes }));
+  await page.goto(URL);
+  await page.waitForFunction(() => document.querySelector('#loading')?.hidden, null, { timeout: 30_000 });
+  await wait(1500);
+  await page.evaluate(() => { try { localStorage.setItem('defter.okumaModu', 'kitap'); } catch { /* */ } });
+
+  await page.keyboard.press('/');
+  await page.locator('#aramaPaneli .ap-kutu').fill('programlamaya');
+  await page.waitForFunction(() => document.querySelectorAll('#aramaPaneli .ap-satir').length > 0, null, { timeout: 10_000 });
+  await page.locator('#aramaPaneli .ap-satir').first().click();
+  await page.waitForSelector('#reader.show', { timeout: 15_000 });
+  await wait(2500);
+  if (!await page.locator('#reader [data-t]', { hasText: TOPIC }).first().isVisible() && await page.locator('#next').isEnabled()) { await page.click('#next'); await wait(700); }
+  await page.locator('#reader [data-t]', { hasText: TOPIC }).first().click();
+  await page.waitForSelector('#okuyucu.show #oKitap:not([hidden]) #oSpread .o-page', { timeout: 15_000 });
+  await wait(2000);
+
+  // the fake writable Drive for the file on screen
+  await page.evaluate(([k, o]) => window.defterBosSayfaSahte({ kitapJson: k, ocr: o }), [KITAP_JSON, OCR]);
+  await wait(2000);
+  kontrol(ad, 'Sayfa ekle düğmesi görünür', await page.locator('#oSayfaEkle').isVisible());
+  return { ctx, page };
+}
+
 mkdirSync(OUT, { recursive: true });
 const pdfDir = join(tmpdir(), 'bos-sayfa-6S');
 mkdirSync(pdfDir, { recursive: true });
@@ -106,40 +148,7 @@ const kontrol = (ad, adim, kosul, not = '') => { rows.push([ad, adim, kosul, not
 try {
   for (const [w, h] of SIZES) {
     const ad = `${w}×${h}`, dosya = `${w}x${h}`;
-    const ctx = await browser.newContext({ viewport: { width: w, height: h }, hasTouch: true, deviceScaleFactor: 2 });
-    const page = await ctx.newPage();
-    page.on('pageerror', e => { bad++; console.error(`${ad} sayfa hatası:`, e.message); });
-    page.on('dialog', d => { void d.accept(); });
-    await page.route('**/ornek/index.json', async route => {
-      const json = await (await route.fetch()).json();
-      json.klasorler['programlamaya-giris'][KONU] = { 'ozet.pdf': 'demo/__bos.pdf' };
-      await route.fulfill({ json });
-    });
-    await page.route('**/ornek/kitaplar/programlamaya-giris/kitap.json', async route => {
-      const json = await (await route.fetch()).json();
-      await route.fulfill({ json: { ...json, kurdele: null } });
-    });
-    await page.route('**/demo/__bos.pdf', route => route.fulfill({ contentType: 'application/pdf', body: pdfBytes }));
-    await page.goto(URL);
-    await page.waitForFunction(() => document.querySelector('#loading')?.hidden, null, { timeout: 30_000 });
-    await wait(1500);
-    await page.evaluate(() => { try { localStorage.setItem('defter.okumaModu', 'kitap'); } catch { /* */ } });
-
-    await page.keyboard.press('/');
-    await page.locator('#aramaPaneli .ap-kutu').fill('programlamaya');
-    await page.waitForFunction(() => document.querySelectorAll('#aramaPaneli .ap-satir').length > 0, null, { timeout: 10_000 });
-    await page.locator('#aramaPaneli .ap-satir').first().click();
-    await page.waitForSelector('#reader.show', { timeout: 15_000 });
-    await wait(2500);
-    if (!await page.locator('#reader [data-t]', { hasText: TOPIC }).first().isVisible() && await page.locator('#next').isEnabled()) { await page.click('#next'); await wait(700); }
-    await page.locator('#reader [data-t]', { hasText: TOPIC }).first().click();
-    await page.waitForSelector('#okuyucu.show #oKitap:not([hidden]) #oSpread .o-page', { timeout: 15_000 });
-    await wait(2000);
-
-    // the fake writable Drive for the file on screen
-    await page.evaluate(([k, o]) => window.defterBosSayfaSahte({ kitapJson: k, ocr: o }), [KITAP_JSON, OCR]);
-    await wait(2000);
-    kontrol(ad, 'Sayfa ekle düğmesi görünür', await page.locator('#oSayfaEkle').isVisible());
+    const { ctx, page } = await okuyucuAc(w, h, ad);
 
     // ---- book mode ----
     await balonAc(page);
@@ -162,9 +171,9 @@ try {
     await bekleBitti(page, s0.surum);
     s = await ozet(page);
     const single = await page.evaluate(() => document.querySelector('#oSpread').classList.contains('single'));
-    // spread 1–2 (two pages: after the RIGHT page = index 2), one page: after page 1 (index 1)
-    const beklenen = single ? '0,1' : '0,2';
-    kontrol(ad, `kitap · arkasına çizgili: boş sayfalar ${beklenen}`, s.sayfa === 5 && s.bos.join() === beklenen, JSON.stringify(s.bos));
+    // 6.S-4b: two pages (B | 1.) after the page read (the left one = index 0), one page: after page 1 (the blank, index 0)
+    const beklenen = '0,1';
+    kontrol(ad, `kitap · arkasına çizgili (${single ? 'tek' : 'iki'} sayfa): boş sayfalar ${beklenen}`, s.sayfa === 5 && s.bos.join() === beklenen, JSON.stringify(s.bos));
     await page.screenshot({ path: join(OUT, `${dosya}-03-kitap-arkasina-cizgili.png`) });
 
     await balonAc(page);
@@ -254,6 +263,78 @@ try {
     const tasma = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth);
     kontrol(ad, 'yatay taşma yok', tasma <= 0, `${tasma}px`);
     kontrol(ad, 'işlem günlüğü (pdf, kitap.json, ocr.json)', s.log.includes('kitap.json') && s.log.includes('ocr.json'), s.log.join(' · '));
+    await ctx.close();
+  }
+
+  // ---- 6.S-4b: the page read stays on screen (two pages) ----
+  {
+    const [w, h] = SIZES[0], ad = `${w}×${h} 4b`, dosya = `${w}x${h}-4b`;
+    const { ctx, page } = await okuyucuAc(w, h, ad);
+    // tap the middle of the left / right page (not its outer edge: that turns the page)
+    const dokun = async (taraf) => {
+      const r = await page.locator('#oSpread').boundingBox();
+      await page.mouse.click(r.x + r.width * (taraf === 'sag' ? 0.7 : 0.3), r.y + r.height * 0.5);
+      await wait(300);
+    };
+    const pno = () => ekranda(page);
+    let s = await ozet(page), n = 0;
+    // one case: the side read, the direction; expected: the spread's first page index and the blank page's index
+    const durum = async (adim, taraf, yon, bas, bos, etiket) => {
+      const once = await pno();
+      await dokun(taraf);
+      await balonAc(page);
+      const secili = await page.locator('#oSayfaEkleBalon [data-taraf][aria-pressed="true"]').getAttribute('data-taraf');
+      kontrol(ad, `${adim}: dokunulan taraf balonda seçili (${taraf})`, secili === taraf, `${secili}`);
+      if (adim === 'L arkasına') await page.screenshot({ path: join(OUT, `${dosya}-00-balon-taraf.png`) });
+      const s0 = s;
+      await page.locator(`#oSayfaEkleBalon [data-yon="${yon}"]`).click();
+      await page.locator('#oSayfaEkleBalon [data-desen="kareli"]').click();
+      await bekleBitti(page, s0.surum);
+      s = await ozet(page);
+      const beklenen = `${bas + 1}–${bas + 2} / ${s.sayfa}`, simdi = await pno();
+      kontrol(ad, `${adim}: ${once} → ekranda ${etiket} (${beklenen})`, simdi === beklenen && s.bos.includes(bos) && s.sayfa === s0.sayfa + 1, `${simdi}, boş ${s.bos.join()}`);
+      await page.screenshot({ path: join(OUT, `${dosya}-0${++n}-${adim.replace(/ /g, '-').replace('ı', 'i')}.png`) });
+    };
+    kontrol(ad, 'başta 1–2', (await pno()) === '1–2 / 3', await pno());
+    // (1 | 2) → L Arkasına → (1 | B)
+    await durum('L arkasına', 'sol', 'sonra', 0, 1, 'L | B');
+    // (1 | B) → R Önüne (R = the blank index 1) → (B | R): the spread starts at index 1 (ofset 1)
+    await durum('R önüne', 'sag', 'once', 1, 1, 'B | R');
+    // turns keep the ofset: forward (4–5), back (2–3), back (only page 1, empty paper on the left), forward (2–3)
+    const ofsetKaldi = [];
+    for (const [tus, bek] of [['ArrowRight', '4–5 / 5'], ['ArrowLeft', '2–3 / 5'], ['ArrowLeft', '1 / 5'], ['ArrowRight', '2–3 / 5']]) {
+      await page.keyboard.press(tus); await wait(700);
+      ofsetKaldi.push(`${await pno()}${(await pno()) === bek ? '' : ' ≠ ' + bek}`);
+      if (bek === '1 / 5') await page.screenshot({ path: join(OUT, `${dosya}-03-bos-kagit-solda.png`) });
+    }
+    kontrol(ad, 'çevirme ofseti korur (4–5, 2–3, 1, 2–3)', ofsetKaldi.every(x => !x.includes('≠')), ofsetKaldi.join(' · '));
+    n = 3;
+    // (2 | 3) indexes 1, 2 → R Arkasına (R = index 2) → (R | B): starts at 2 (ofset 0)
+    await durum('R arkasına', 'sag', 'sonra', 2, 3, 'R | B');
+    // (3 | 4) indexes 2, 3 → L Önüne (L = index 2) → (B | L): starts at 2
+    await durum('L önüne', 'sol', 'once', 2, 2, 'B | L');
+    // the slider keeps the ofset too: page 1 → spread 1–2
+    await page.evaluate(() => { const sl = document.querySelector('#oSlider'); sl.value = '1'; sl.dispatchEvent(new Event('input', { bubbles: true })); sl.dispatchEvent(new Event('change', { bubbles: true })); });
+    await wait(900);
+    kontrol(ad, 'kaydırıcı: sayfa 1 → 1–2 (ofset 0)', (await pno()) === '1–2 / 7', await pno());
+    // remove: spread (3 | 4) = indexes 2, 3, both blank → "Soldaki" → the right page (index 3, now 2) stays right: (2 | 3)
+    await page.keyboard.press('ArrowRight'); await wait(700);
+    s = await ozet(page);
+    const sol = await pno();
+    await balonAc(page);
+    const soldaki = page.locator('#oSayfaEkleBalon .o-sekle-kaldir', { hasText: 'Soldaki' });
+    kontrol(ad, `kaldır: ${sol} iki boş sayfa → "Soldaki" var`, (await soldaki.count()) === 1, `${await page.locator('#oSayfaEkleBalon .o-sekle-kaldir').count()} düğme`);
+    const s0 = s;
+    await soldaki.click();
+    await bekleBitti(page, s0.surum);
+    s = await ozet(page);
+    kontrol(ad, `kaldır soldaki: sağdaki ekranda sağda kaldı (${sol} → 2–3 / 6)`, (await pno()) === '2–3 / 6' && s.sayfa === 6, `${await pno()}, boş ${s.bos.join()}`);
+    await page.screenshot({ path: join(OUT, `${dosya}-06-kaldir-soldaki.png`) });
+    // PDF mode and back: the ofset is gone (spreads 0–1, 2–3, …)
+    await page.locator('#oMode [data-m="pdf"]').click(); await wait(900);
+    await page.locator('#oMode [data-m="kitap"]').click(); await wait(1200);
+    const geri = await pno();
+    kontrol(ad, 'PDF modu → kitap: ofset 0 (çift tek sayıyla başlar)', /^(1|3|5)–/.test(geri), geri);
     await ctx.close();
   }
 } finally {
