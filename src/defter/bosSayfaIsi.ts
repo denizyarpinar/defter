@@ -1,3 +1,4 @@
+import { t } from '../dil';
 import type { Delta, KurdeleHedefi } from '../kitap/sayfaKaydir';
 import type { Desen, Yon } from './bosSayfa';
 import type { GeriAlIstek, YapistirIstek } from './yapistir';
@@ -82,14 +83,12 @@ export interface SayfaIsiOrtami {
 
 // The file still has strokes not in Drive (an upload failed): their page numbers would point at the wrong pages
 export class KalemKaydiBekliyor extends Error {
-  constructor() { super('Bu dosyada Drive\'a kaydedilmemiş çizimler var; önce onlar kaydedilmeli (Kaydet). Sayfa değişmedi.'); }
+  constructor() { super(t('sayfaIsi.kalemBekliyor')); }
 }
 
 export class SayfaIsiYarim extends Error {
   constructor(readonly adim: 'kitapJson' | 'ocr', readonly asil: unknown) {
-    super(adim === 'kitapJson'
-      ? 'Sayfa PDF\'e yazıldı ama kurdeleler güncellenemedi. Tekrar dene; bağlantı gelince kendiliğinden de denenir.'
-      : 'Sayfa PDF\'e yazıldı ama okunan el yazısının sayfa numaraları güncellenemedi. Tekrar dene; bağlantı gelince kendiliğinden de denenir.');
+    super(t(adim === 'kitapJson' ? 'sayfaIsi.yarimKurdele' : 'sayfaIsi.yarimOcr'));
   }
 }
 
@@ -104,7 +103,7 @@ export async function sayfaIsiCalistir(is: SayfaIsi, o: SayfaIsiOrtami): Promise
     // removed already by an earlier try whose answer was lost: the index the user saw
     is.indeks = pdf.indeks ?? is.kaldir?.indeks ?? is.sil?.indeks ?? is.yapistirGeriAl?.indeks
       ?? (Array.isArray(is.yapistir?.indeksler) ? is.yapistir.indeksler[0] : undefined);
-    if (is.indeks === undefined) throw new Error('Sayfanın yeri bilinmiyor.');
+    if (is.indeks === undefined) throw new Error(t('sayfaIsi.yerBilinmiyor'));
     if (pdf.ayniIzVar !== undefined) is.ayniIzVar = pdf.ayniIzVar;
     if (pdf.sonaEklendi !== undefined) is.sonaEklendi = pdf.sonaEklendi;
     is.adimlar.pdf = true;

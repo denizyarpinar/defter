@@ -1,3 +1,4 @@
+import { t } from '../dil';
 import type { PDFDocument } from 'pdf-lib';
 import { pdfLib, SAVE_OPTIONS, yazilabilirAc } from '../kalem/pdfNotlari';
 import { sayfaIzi } from '../ocr/kayit/parmakIzi';
@@ -19,11 +20,11 @@ export const GERI_ID = 'DefterGeriId';
 type Lib = typeof import('pdf-lib');
 
 export class SonSayfaSilinemez extends Error {
-  constructor() { super('Son sayfa silinemez; dosyada en az bir sayfa kalmalı.'); }
+  constructor() { super(t('sayfaBalon.sonSayfa')); }
 }
 
 export class FormAlaniVar extends Error {
-  constructor() { super('Bu sayfada form alanı var; silinemez.'); }
+  constructor() { super(t('sayfaIsi.formAlani')); }
 }
 
 export interface SilIstek {

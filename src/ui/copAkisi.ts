@@ -1,3 +1,4 @@
+import { t as dilT } from '../dil';   // 6.5-3: t is a topic in this file
 import type { AgacOgesi } from '../drive/copeAt';
 import { FOLDER_MIME } from '../drive/drive';
 import { dosyaCopYaz, dosyaGeriAlIsi, yeniDosyaCopIsi, type DosyaCopDrive, type DosyaCopSecenek } from '../drive/dosyaCop';
@@ -12,7 +13,7 @@ import { kitapKonuAnahtari, uniteKlasoru } from '../kitap/icindekiler';
 import type { Book } from '../model/types';
 import { usesUnits } from '../model/units';
 import { copOnayAc } from './copOnay';
-import { ENGEL_FOTO, type CopOzeti, type CopTuru } from './copOnayDurumu';
+import { engelFoto, type CopOzeti, type CopTuru } from './copOnayDurumu';
 import type { IcindekilerBaglantisi } from './icindekilerBaglami';
 import { toast, toastUzat } from './toast';
 
@@ -83,15 +84,15 @@ export function copAkisiKur(g: CopAkisiGirdisi) {
   // the toast with "Geri al"; a failing "Geri al" → the dialog in its error state
   function geriAlToast(tur: CopTuru, ad: string, geriAl: () => Promise<void>): void {
     let calisti = false;
-    toast(`Çöpe atıldı: ${ad}`, {
-      etiket: 'Geri al',
+    toast(dilT('cop.atildi', { ad }), {
+      etiket: dilT('genel.geriAl'),
       calistir: () => {
         if (calisti) return;
         calisti = true;
-        iz('geri al ' + tur);
-        geriAl().then(() => { iz('geri alındı'); toast(`Geri alındı: ${ad}`); }, e => {
-          iz('geri al hata');
-          copOnayAc({ tur, ad, ilkHata: e, calistir: geriAl, girisYap: g.girisYap, basarili: () => { iz('geri alındı'); toast(`Geri alındı: ${ad}`); } });
+        iz('geri al ' + tur);   // dil-kontrol: yoksay
+        geriAl().then(() => { iz('geri alındı'); toast(dilT('cop.geriAlindi', { ad })); }, e => {   // dil-kontrol: yoksay
+          iz('geri al hata');   // dil-kontrol: yoksay
+          copOnayAc({ tur, ad, ilkHata: e, calistir: geriAl, girisYap: g.girisYap, basarili: () => { iz('geri alındı'); toast(dilT('cop.geriAlindi', { ad })); } });   // dil-kontrol: yoksay
         });
       }
     }, GERI_AL_MS, true);
@@ -103,13 +104,13 @@ export function copAkisiKur(g: CopAkisiGirdisi) {
     const loc = g.loc(), bag = g.baglanti();
     const kitapKlasorId = loc?.bookFolderIds.get(b.id);
     if (!loc || !bag || !kitapKlasorId || !g.kilitAcik()) return;
-    if (bag.kuyruk.hataVar) { toast('Önce yarım kalan içindekiler kaydını bitir (Tekrar dene ya da Vazgeç).'); return; }
+    if (bag.kuyruk.hataVar) { toast(dilT('cop.icindekilerYarim')); return; }
     const konular = gidenKonular(b.uniteler, hedef);
     const ad = hedef.tur === 'konu'
       ? b.uniteler.flatMap(u => u.konular).find(t => kitapKonuAnahtari(t) === hedef.konu)?.baslik ?? hedef.konu
       : b.uniteler.find(u => uniteKlasoru(u.klasor, u.konular.map(t => t.klasor)) === hedef.klasor)?.baslik ?? hedef.klasor;
     const c = yeniCopIsi(hedef, ad);
-    iz(`aç ${hedef.tur}: ${ad}`);
+    iz(`aç ${hedef.tur}: ${ad}`);   // dil-kontrol: yoksay
     copOnayAc({
       tur: hedef.tur, ad,
       onizle: async () => {
@@ -121,7 +122,7 @@ export function copAkisiKur(g: CopAkisiGirdisi) {
       calistir: () => bag.copCalistir(b.id, c),
       vazgec: () => bag.copGeriAl(b.id, c),
       girisYap: g.girisYap,
-      basarili: () => { iz(`çöpe atıldı ${hedef.tur}`); geriAlToast(hedef.tur, ad, () => bag.copGeriAl(b.id, c)); }
+      basarili: () => { iz(`çöpe atıldı ${hedef.tur}`); geriAlToast(hedef.tur, ad, () => bag.copGeriAl(b.id, c)); }   // dil-kontrol: yoksay
     });
   }
 
@@ -134,7 +135,7 @@ export function copAkisiKur(g: CopAkisiGirdisi) {
     const s = (): KitapCopSecenek => ({ kilitAcik: g.kilitAcik(), kokKaynagi, kokId, yazabilir: g.yazabilir, oncesi: g.oncesi });
     const yenile = async () => {
       if (tur !== 'kitap') return;
-      try { await g.kitaplikYenile(); } catch (e) { console.warn('Kitaplık yenilenemedi.', e); toast('Kitaplık yenilenemedi; sayfayı yenile.'); }
+      try { await g.kitaplikYenile(); } catch (e) { console.warn('Kitaplık yenilenemedi.', e); toast(dilT('cop.kitaplikYenilenemedi')); }
       toastUzat(YENILEME_SONRASI_MS);
     };
     const geriAl = async () => {
@@ -142,7 +143,7 @@ export function copAkisiKur(g: CopAkisiGirdisi) {
       await kitapCopYaz(g.kitapApi, is, s());
       await yenile();
     };
-    iz(`aç ${tur}: ${is.kitapId}`);
+    iz(`aç ${tur}: ${is.kitapId}`);   // dil-kontrol: yoksay
     copOnayAc({
       tur, ad: is.ad,
       onizle: async () => ozet(await g.kitapApi.altAgac([is.klasorId]), is.klasorId, konu),
@@ -150,7 +151,7 @@ export function copAkisiKur(g: CopAkisiGirdisi) {
       vazgec: async () => { if (!is.geriAl) kitapGeriAlIsi(is); await kitapCopYaz(g.kitapApi, is, s()); },
       girisYap: g.girisYap,
       basarili: () => {
-        iz(`çöpe atıldı ${tur}`);
+        iz(`çöpe atıldı ${tur}`);   // dil-kontrol: yoksay
         geriAlToast(tur, is.ad, geriAl);
         void yenile();
       },
@@ -180,7 +181,7 @@ export function copAkisiKur(g: CopAkisiGirdisi) {
       kitapKlasorId: loc.bookFolderIds.get(b.id), kitapJsonId: loc.bookFileIds.get(b.id), oncesi: g.oncesi
     });
     const is = yeniDosyaCopIsi(b.id, d.konu, h.materyal, [{ id: h.dosya.id, ad: h.dosya.name }]);
-    const ad = () => is.dosyalar.length > 1 ? `${h.dosya.name} ve çözümü` : h.dosya.name;
+    const ad = () => is.dosyalar.length > 1 ? dilT('cop.veCozumu', { ad: h.dosya.name }) : h.dosya.name;
     const ids = () => is.dosyalar.map(x => x.id);
     const geriAl = async () => {
       if (!is.geriAl) dosyaGeriAlIsi(is);
@@ -188,7 +189,7 @@ export function copAkisiKur(g: CopAkisiGirdisi) {
       if (is.bellek) { kitabaKurdeleGeriKoy(b, d.konu, h.materyal, is.bellek); is.bellek = null; }
       d.geriGeldi(ids());
     };
-    iz(`aç dosya: ${h.dosya.name}`);
+    iz(`aç dosya: ${h.dosya.name}`);   // dil-kontrol: yoksay
     copOnayAc({
       tur: 'dosya', ad: h.etiket,
       ...(h.cozum ? { cozumKutusu: { ad: h.cozum.name } } : {}),
@@ -198,7 +199,7 @@ export function copAkisiKur(g: CopAkisiGirdisi) {
           g.bekleyenFoto().catch(() => [] as string[])
         ]);
         const n = dosyaCopSayimi({ hedef: h, konuKlasorId: d.konuKlasorId, kalemIdleri: kalem, fotoKonulari: foto, yukleniyor: d.kalemYukleniyor });
-        return { konu: 0, dosya: 1, bekleyen: n.bekleyen, ...(n.engel ? { engel: ENGEL_FOTO } : {}) };
+        return { konu: 0, dosya: 1, bekleyen: n.bekleyen, ...(n.engel ? { engel: engelFoto() } : {}) };
       },
       calistir: async cozumDahil => {
         if (!is.basladi && cozumDahil && h.cozum) {
@@ -211,7 +212,7 @@ export function copAkisiKur(g: CopAkisiGirdisi) {
       vazgec: geriAl,
       girisYap: g.girisYap,
       basarili: () => {
-        iz('çöpe atıldı dosya');
+        iz('çöpe atıldı dosya');   // dil-kontrol: yoksay
         // the ribbons in memory follow kitap.json (the reading state never writes them back)
         is.bellek = kitaptanKurdeleCikar(b, d.konu, h.materyal, is.dosyalar.map(x => x.ad));
         d.bitti(ids());

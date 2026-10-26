@@ -2,6 +2,7 @@
 // Usage: npm run build && node scripts/dil-kontrol.mjs [output folder] [--sadece-sayim]
 // (a) String literals with Turkish letters in src/ (not the tests, src/dil/, dev / measurement files, console.* lines):
 //     file:line list + count. Never fails (the count goes to zero in 6.5-4).
+//     Task 6.5-3: a line ending in "// dil-kontrol: yoksay" (a programmer's error, never shown) is counted apart.
 // (b) ?lang=en and ?lang=tr at 390 / 820 / 1280: the sign-in card, the library (?demo), Özelleştir open → PNGs,
 //     and every visible element whose content is wider than its box (scrollWidth > clientWidth + 1), plus the top bar's rows.
 //     Task 6.5-2a: also the search panel ("or"), a book on the desk (Linear Algebra, opened from the search), and —
@@ -9,6 +10,11 @@
 //     (filled) and the set-up card.
 // (c) Task 6.5-2a: public/ornek/en.json covers every name of the sample library (shelves; each book's title, spine,
 //     course and its units / topics / chapters by their order). A missing one is listed (stays Turkish). Never fails.
+// (d) Task 6.5-3: the reader (dev server, ?demo, no Drive) at 390 / 820 / 1180 / 1280 in both languages: book mode,
+//     PDF mode, the pen bar on, İçindekiler open, the reader's search, the page popover (window.defterBosSayfaSahte),
+//     the trash dialog (ui/copOnay.ts in the page, nothing written), an empty topic (routed into the sample book).
+//     Overflow as in (b), the reader included, and the rows of the material bar (#oBar) and the pen bar (#oTools).
+//     `--okuyucu`: only (a), (c) and (d).
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
@@ -21,7 +27,8 @@ const DEV_PORT = 4184;
 const DEV = `http://localhost:${DEV_PORT}`;
 const args = process.argv.slice(2);
 const SADECE_SAYIM = args.includes('--sadece-sayim');
-const OUT = args.find(a => !a.startsWith('--')) ?? 'C:\\Users\\yarpi\\iCloudDrive\\uni_plan_claude_code\\Claude outputs\\dil-6.5-2a';
+const SADECE_OKUYUCU = args.includes('--okuyucu');
+const OUT = args.find(a => !a.startsWith('--')) ?? 'C:\\Users\\yarpi\\iCloudDrive\\uni_plan_claude_code\\Claude outputs\\dil-6.5-3';
 const TR_HARF = /[çğıöşüÇĞİÖŞÜ]/;
 
 // ---- (a) Turkish string literals ----
@@ -100,6 +107,9 @@ function literaller(src) {
   return sonuc;
 }
 
+const YOKSAY = /\/\/.*\bdil-kontrol:\s*yoksay\s*$/;
+const yoksayilan = [];
+
 function turkceDizeler() {
   const liste = [];
   for (const p of dosyalar(join(ROOT, 'src'))) {
@@ -109,6 +119,7 @@ function turkceDizeler() {
     const satirlar = src.split('\n');
     for (const l of literaller(src)) {
       if (/console\.\w+\(/.test(satirlar[l.satir - 1] ?? '')) continue;
+      if (YOKSAY.test((satirlar[l.satir - 1] ?? '').trimEnd())) { yoksayilan.push(`${rel.replace(/\\/g, '/')}:${l.satir}`); continue; }
       liste.push({ yer: `${rel.replace(/\\/g, '/')}:${l.satir}`, metin: l.metin.replace(/\s+/g, ' ').slice(0, 70) });
     }
   }
@@ -122,7 +133,8 @@ console.log('(a) Türkçe harfli dize sabitleri');
 for (const d of dizeler) console.log(`  ${d.yer}  ${d.metin}`);
 console.log('\n  Dosya başına (çoktan aza):');
 for (const [f, n] of [...dosyaSayisi].sort((a, b) => b[1] - a[1])) console.log(`  ${String(n).padStart(4)}  ${f}`);
-console.log(`\n  TOPLAM: ${dizeler.length} dize, ${dosyaSayisi.size} dosya\n`);
+console.log(`\n  TOPLAM: ${dizeler.length} dize, ${dosyaSayisi.size} dosya`);
+console.log(`  YOKSAYILAN ("// dil-kontrol: yoksay"): ${yoksayilan.length} dize${yoksayilan.length ? ' — ' + yoksayilan.join(', ') : ''}\n`);
 
 // ---- (c) the sample library's English layer ----
 
@@ -229,14 +241,143 @@ const cubuk = () => {
   return { rows, dil };
 };
 
-const BOYUT = { 390: 844, 820: 1180, 1280: 800 };
+const BOYUT = { 390: 844, 820: 1180, 1180: 820, 1280: 800 };
+
+// ---- (d) the reader ----
+
+const ornekJson = (p) => JSON.parse(readFileSync(join(ROOT, 'public', 'ornek', p), 'utf8'));
+const KONU = {
+  tr: ornekJson('kitaplar/programlamaya-giris/kitap.json').uniteler[0].konular[0].baslik,
+  en: ornekJson('en.json').kitaplar['programlamaya-giris'].uniteler[0].konular[0]
+};
+const BOS = { klasor: 'Unite-99-Bos/Konu-99-Bos', tr: { unite: 'Boş ünite', konu: 'Boş konu' }, en: { unite: 'Empty unit', konu: 'Empty topic' } };
+const OKUYUCU_ARAMA = 'de';
+
+// rows of the visible children of a bar (centre lines, as cubuk)
+const satirlar = (sec) => {
+  const bar = document.querySelector(sec);
+  if (!bar || bar.hidden || !bar.getClientRects().length) return null;
+  const kids = [...bar.querySelectorAll(':scope > *, :scope > * > *')].filter(e => getComputedStyle(e).display !== 'none' && !e.hidden && e.getClientRects().length && e.tagName === 'BUTTON');
+  return new Set(kids.map(e => { const r = e.getBoundingClientRect(); return Math.round((r.top + r.bottom) / 2 / 12); })).size;
+};
+
+async function okuyucuAc(lang, w) {
+  const page = await browser.newPage({ viewport: { width: w, height: BOYUT[w] }, deviceScaleFactor: 2, hasTouch: w < 1280 });
+  page.on('pageerror', e => console.error('Sayfa hatası:', e.message));
+  page.on('dialog', d => { void d.dismiss(); });
+  // an empty topic (its folder has no files) at the end of the sample book
+  await page.route('**/ornek/index.json', async route => {
+    const json = await (await route.fetch()).json();
+    json.klasorler['programlamaya-giris'][BOS.klasor] = {};
+    await route.fulfill({ json });
+  });
+  await page.route('**/ornek/kitaplar/programlamaya-giris/kitap.json', async route => {
+    const json = await (await route.fetch()).json();
+    json.uniteler.push({ baslik: BOS[lang].unite, konular: [{ baslik: BOS[lang].konu, klasor: BOS.klasor, durum: 'okunmadi' }] });
+    await route.fulfill({ json: { ...json, kurdele: null } });
+  });
+  await page.goto(`${DEV}/?demo&lang=${lang}`);
+  await page.waitForFunction(() => getComputedStyle(document.querySelector('#loading')).display === 'none', null, { timeout: 60_000 });
+  await page.waitForTimeout(1200);
+  await page.evaluate(() => { try { localStorage.setItem('defter.okumaModu', 'kitap'); } catch { /* */ } });
+  await page.locator('#araBtn').click();
+  await page.locator('#aramaPaneli input').fill('program');
+  await page.waitForSelector('#aramaPaneli .ap-satir', { timeout: 10_000 });
+  await page.waitForTimeout(300);
+  await page.locator('#aramaPaneli .ap-satir').first().click();
+  await page.waitForSelector('#reader.show', { timeout: 15_000 });
+  await page.waitForTimeout(2200);
+  const konu = page.locator('#reader [data-t]', { hasText: KONU[lang] }).first();
+  if (!await konu.isVisible() && await page.locator('#next').isEnabled()) { await page.click('#next'); await page.waitForTimeout(700); }
+  await konu.click();
+  await page.waitForSelector('#okuyucu.show', { timeout: 15_000 });
+  await page.waitForFunction(() => /\d+ \/ \d+/.test(document.querySelector('#oPno')?.textContent ?? ''), null, { timeout: 20_000 });
+  await page.waitForTimeout(1500);
+  return page;
+}
+
+async function okuyucuEkranlari(lang, w) {
+  const page = await okuyucuAc(lang, w);
+  const ek = (ad) => join(OUT, `okuyucu-${ad}-${lang}-${w}.png`);
+  const kaydet = async (ad, ekstra = {}) => {
+    await page.screenshot({ path: ek(ad) });
+    tablo.push({ ekran: `okuyucu ${ad} ${lang} ${w}`, tasan: await page.evaluate(tasanlar, true),
+      cubuk: { rows: await page.evaluate(satirlar, '#oBar'), dil: `kalem çubuğu ${await page.evaluate(satirlar, '#oTools') ?? '-'} satır` }, ...ekstra });
+  };
+  try {
+    await page.locator('#oMode [data-m="kitap"]').click();
+    await page.waitForTimeout(1500);
+    await kaydet('kitap');
+    await page.locator('#oMode [data-m="pdf"]').click();
+    await page.waitForTimeout(1500);
+    await kaydet('pdf');
+
+    // the pen bar (the "pen on" toast too)
+    await page.locator('#oPenBtn').click();
+    await page.waitForTimeout(1500);
+    await kaydet('kalem');
+    await page.locator('#oTools [data-kapat]').click();
+    await page.waitForTimeout(800);
+
+    // İçindekiler
+    await page.locator('#oTocBtn').click();
+    await page.waitForTimeout(800);
+    await kaydet('icindekiler');
+    await page.keyboard.press('Escape');   // the panel's veil covers the button
+    await page.waitForTimeout(600);
+
+    // the reader's search
+    await page.locator('#oAraBtn').click();
+    await page.locator('#oAraKutu').fill(OKUYUCU_ARAMA);
+    await page.waitForFunction(() => (document.querySelector('#oAraSayac')?.textContent ?? '').trim() !== '', null, { timeout: 30_000 });
+    await page.waitForTimeout(800);
+    await kaydet('arama', { kitap: await page.locator('#oAraSayac').textContent() });
+    await page.locator('#oAraKapat').click();
+    await page.waitForTimeout(500);
+
+    // the page popover: a writable copy of the file on screen in memory (dev only)
+    await page.evaluate(() => window.defterBosSayfaSahte({}));
+    await page.waitForSelector('#oSayfaEkle:not([hidden])', { timeout: 15_000 });
+    await page.locator('#oSayfaEkle').click();
+    await page.waitForFunction(() => !document.querySelector('#oSayfaEkleBalon')?.hidden && !!document.querySelector('#oSayfaEkleBalon [data-sil]'), null, { timeout: 15_000 });
+    await page.waitForTimeout(500);
+    await kaydet('balon');
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(500);
+
+    // the trash dialog of a topic (counted, confirm step); nothing is written
+    await page.evaluate(async (ad) => {
+      const m = await import('/src/ui/copOnay.ts');
+      const hic = async () => { throw new Error('dil-kontrol: yazma yok'); };
+      m.copOnayAc({ tur: 'konu', ad, calistir: hic, vazgec: hic, girisYap() {}, basarili() {}, onizle: async () => ({ konu: 1, dosya: 3, bekleyen: 0 }) });
+    }, KONU[lang]);
+    await page.waitForSelector('#copOnay .co-kart[data-adim="onay"]', { timeout: 10_000 });
+    await page.waitForTimeout(400);
+    await kaydet('cop');
+    await page.locator('#copOnay .fp-vazgec').click();
+    await page.waitForTimeout(500);
+
+    // an empty topic (from the contents)
+    await page.locator('#oTocBtn').click();
+    await page.waitForTimeout(600);
+    await page.locator('#oTocList button[data-u]', { hasText: BOS[lang].konu }).click();
+    await page.waitForFunction(() => document.querySelector('#okuyucu')?.classList.contains('o-materyalsiz'), null, { timeout: 15_000 });
+    await page.waitForTimeout(1200);
+    await kaydet('boskonu', { kitap: await page.locator('#oMsg').textContent() });
+  } catch (e) {
+    tablo.push({ ekran: `okuyucu HATA ${lang} ${w}`, tasan: [`HATA: ${e.message.split('\n')[0]}`] });
+    await page.screenshot({ path: ek('hata') }).catch(() => {});
+  } finally {
+    await page.close();
+  }
+}
 mkdirSync(OUT, { recursive: true });
-const server = await startPreview();
+const server = SADECE_OKUYUCU ? null : await startPreview();
 const dev = await startDev();
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 const tablo = [];
 try {
-  for (const lang of ['en', 'tr']) {
+  for (const lang of SADECE_OKUYUCU ? [] : ['en', 'tr']) {
     for (const w of [390, 820, 1280]) {
       const page = await browser.newPage({ viewport: { width: w, height: BOYUT[w] }, deviceScaleFactor: 2 });
       page.on('pageerror', e => console.error('Sayfa hatası:', e.message));
@@ -299,9 +440,10 @@ try {
       await p2.close();
     }
   }
+  for (const lang of ['en', 'tr']) for (const w of [390, 820, 1180, 1280]) await okuyucuEkranlari(lang, w);
 } finally {
   await browser.close();
-  server.kill();
+  server?.kill();
   dev.kill();
 }
 
@@ -310,6 +452,6 @@ for (const r of tablo) {
   const c = r.cubuk ? `  çubuk: ${r.cubuk.rows} satır, ${r.cubuk.dil}` : '';
   const h = r.html ? `  <html lang="${r.html}">` : '';
   const k = r.kitap ? `  kitap: ${r.kitap}` : '';
-  console.log(`  ${r.ekran.padEnd(18)} taşan: ${r.tasan.length}${c}${h}${k}`);
+  console.log(`  ${r.ekran.padEnd(28)} taşan: ${r.tasan.length}${c}${h}${k}`);
   for (const t of r.tasan) console.log(`      ${t}`);
 }

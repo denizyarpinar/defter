@@ -1,3 +1,4 @@
+import { t } from '../dil';
 import { DriveError } from '../drive/drive';
 import type { DriveLocation } from '../drive/driveLibrary';
 import { tekrarlanabilir, YerDisi, yerBellegiBoyutu, yerBellegiDurumu, yerKontrol, type PdfOlusturDrive } from '../drive/pdfOlustur';
@@ -54,26 +55,26 @@ export interface EklenenSayfalar {
 // Task 6.S-4d: the deleted page, for the device's backup (written before the upload)
 export interface SilinenYedek extends Capa { indeks: number; sayfaBytes: Uint8Array; eskiSayfa: number; ayniIzVar: boolean }
 
-// ---- errors (Turkish, say what to do) ----
+// ---- errors (in the chosen language, say what to do; the extra file's EK_MESAJLAR follow in 6.5-4) ----
 
 export class SayfaEklemeCakisma extends Error {
-  constructor() { super('PDF başka bir cihazda değişip duruyor; sayfalar eklenmedi. Biraz sonra tekrar dene.'); }
+  constructor() { super(t('sayfaIsi.hata.cakisma')); }
 }
 
 export class SayfaEklemeAgHatasi extends Error {
-  constructor() { super('Sayfalar Drive\'a yüklenemedi (bağlantı ya da Drive sorunu). İnternet bağlantını kontrol edip tekrar dene; tekrar denemede sayfalar iki kez eklenmez.'); }
+  constructor() { super(t('sayfaIsi.hata.ag')); }
 }
 
 export class DosyaBulunamadi extends Error {
-  constructor() { super('PDF Drive\'da bulunamadı (silinmiş ya da taşınmış olabilir). Kitaplığı yenileyip tekrar dene.'); }
+  constructor() { super(t('sayfaIsi.hata.dosyaYok')); }
 }
 
 export class SayfaYazmaYok extends Error {
-  constructor() { super('Drive kitaplığı açık değil, sayfa eklenmedi. Google ile giriş yap ve kitaplığın yüklenmesini bekle.'); }
+  constructor() { super(t('sayfaIsi.hata.yazmaYok')); }
 }
 
 export class PdfDosyasiDegil extends Error {
-  constructor() { super('Sayfalar sadece PDF dosyalarına eklenebilir. Konunun PDF dosyasını seçip tekrar dene.'); }
+  constructor() { super(t('sayfaIsi.hata.pdfDegil')); }
 }
 
 // Task 6.S-3: the added file (an extra PDF in "Dosya ekle") can't be used: encrypted, unreadable or empty
@@ -210,12 +211,12 @@ export async function ekleVeYukle(
       if (om) om.bilgi.deneme = deneme;
       const mt = await drive.modifiedTime(fileId);
       const bilgi: PdfKaynakBilgisi = {};
-      const bytes = await olc(om, 'PDF baytları (önbellek ya da indirme)', () => om ? deps.bytes(fileId, mt, bilgi) : deps.bytes(fileId, mt), {
+      const bytes = await olc(om, 'PDF baytları (önbellek ya da indirme)', () => om ? deps.bytes(fileId, mt, bilgi) : deps.bytes(fileId, mt), {   // dil-kontrol: yoksay
         grup: () => bilgi.kaynak === 'indirme' ? 'aktarim' : 'cihaz',
         ek: b => ({ boyut: mb(b.byteLength), kaynak: bilgi.kaynak ?? '?' }),
       });
       const bu: EkKaynak = yedeklendi && 'sayfaSil' in ek ? { sayfaSil: { ...ek.sayfaSil, yedekVar: true, oncekiSayfa: yedeklendi.eskiSayfa } } : ek;
-      const h: Hazir = await olc(om, 'pdf-lib: aç + sayfa ekle + kaydet', () => hazirla(bytes, bu, islemId), {
+      const h: Hazir = await olc(om, 'pdf-lib: aç + sayfa ekle + kaydet', () => hazirla(bytes, bu, islemId), {   // dil-kontrol: yoksay
         grup: 'pdf',
         ek: x => 'zatenVar' in x ? { zatenVardi: true } : { once: mb(bytes.byteLength), sonra: mb(x.bytes.byteLength), sayfa: `${x.eskiSayfa}→${x.yeniSayfa}` },
       });
@@ -228,7 +229,7 @@ export async function ekleVeYukle(
       }
       // 6.S-4d: the deleted page is on the device before Drive changes (its failure stops the deleting)
       if (h.silinen) { await secenek.yedekle?.(h.silinen); yedeklendi = h.silinen; }
-      const r = await olc(om, '= uploadPdf (kontroller + yükleme)', () => uploadPdf(drive, fileId, h.bytes, mt, secenek.yukleme), { grup: 'toplam' });
+      const r = await olc(om, '= uploadPdf (kontroller + yükleme)', () => uploadPdf(drive, fileId, h.bytes, mt, secenek.yukleme), { grup: 'toplam' });   // dil-kontrol: yoksay
       return { fileId, islemId, eskiSayfa: h.eskiSayfa, yeniSayfa: h.yeniSayfa, modifiedTime: r.modifiedTime,
         headRevisionId: r.headRevisionId, bytes: h.bytes, zatenVardi: false, ...(h.indeks !== undefined ? { indeks: h.indeks } : {}),
         ...(h.silinen ? { ayniIzVar: h.silinen.ayniIzVar } : {}), ...(h.sonaEklendi !== undefined ? { sonaEklendi: h.sonaEklendi } : {}) };
@@ -237,7 +238,7 @@ export async function ekleVeYukle(
       const cakisma = e instanceof PdfConflict, ag = tekrarlanabilir(e);
       if (!cakisma && !ag) throw e;
       if (deneme >= max) throw cakisma ? new SayfaEklemeCakisma() : new SayfaEklemeAgHatasi();
-      if (ag) await olc(om, 'ağ hatası: tekrar öncesi bekleme', () => bekle(secenek.bekleMs ?? 2000), { grup: 'sira' });   // a conflict: the newest file at once
+      if (ag) await olc(om, 'ağ hatası: tekrar öncesi bekleme', () => bekle(secenek.bekleMs ?? 2000), { grup: 'sira' });   // a conflict: the newest file at once   // dil-kontrol: yoksay
     }
   }
 }
@@ -277,7 +278,7 @@ export async function dosyaKontrol(o: SayfaEklemeOrtami, yer: DriveLocation, fil
   const bellek = yerBellegiDurumu(yer, f.parents[0]);
   if (om) {
     // ?olcum=1: why the place was (not) known; the page load time shows a reload between two addings
-    om.bilgi.yerBellegi = `${bellek} (${yerBellegiBoyutu()} klasör)`;
+    om.bilgi.yerBellegi = `${bellek} (${yerBellegiBoyutu()} klasör)`;   // dil-kontrol: yoksay
     om.bilgi.sayfaYuklendi = typeof performance === 'undefined' ? undefined : new Date(performance.timeOrigin).toLocaleTimeString('tr-TR');
   }
   if (bellek !== 'var') await yerKontrol(o.dosyaDrive as PdfOlusturDrive, yer, f.parents[0]);
@@ -296,11 +297,11 @@ export async function ozeteSayfaEkle(
   const islemId = secenek.islemId ?? crypto.randomUUID();
   const om = secenek.olcum;
   try {
-    await olc(om, '= dosya kontrolü (yer zinciri)', () => dosyaKontrol(om ? { ...o, dosyaDrive: zamanliDrive(o.dosyaDrive, om) } : o, yer, fileId, om), { grup: 'toplam' });
+    await olc(om, '= dosya kontrolü (yer zinciri)', () => dosyaKontrol(om ? { ...o, dosyaDrive: zamanliDrive(o.dosyaDrive, om) } : o, yer, fileId, om), { grup: 'toplam' });   // dil-kontrol: yoksay
     const t0 = om?.zaman() ?? 0;
     const s = await o.sirada(fileId, async () => {
       // the file's pending strokes (and other files' uploads) went first
-      if (om) om.adim('kalem kuyruğu bekleme', om.zaman() - t0, 'sira');
+      if (om) om.adim('kalem kuyruğu bekleme', om.zaman() - t0, 'sira');   // dil-kontrol: yoksay
       await secenek.kuyrukOncesi?.();
       return ekleVeYukle(o.deps, fileId, ek, islemId, secenek);
     });

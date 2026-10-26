@@ -1,10 +1,11 @@
+import { t as dilT } from '../dil';   // 6.5-3: t is a topic in this file
 import type { IcindekilerIstegi, KayitDurumu } from '../drive/icindekilerYaz';
 import type { CopHedefi } from '../kitap/copeAt';
 import { kitabaUygula, kitapKonuAnahtari, kitapUniteAnahtarlari, uniteKlasoru, type IcindekilerIslemi } from '../kitap/icindekiler';
 import { adTemizle } from '../kitap/kitapListesi';
 import type { Book, Unit } from '../model/types';
 import { esc } from './dom';
-import { duzenleKarari, kayitMetni, SiraBirlestirici, UNITE_KLASORU_YOK } from './icindekilerDurumu';
+import { duzenleKarari, kayitMetni, SiraBirlestirici, uniteKlasoruYok } from './icindekilerDurumu';
 
 // Task 6.K5a: the edit mode of the reader's contents panel (#oToc). surum 2 only, a Drive library only.
 // - "+ Ünite", "+ Konu" (under a unit), rename (✎ or a double tap), ↑ ↓ (topics inside their unit, the units).
@@ -95,7 +96,7 @@ export class IcindekilerDuzenleyici {
     const uniteler = [...b.uniteler];
     g.uniteKlasorleri(b)
       .then(k => { if (this.book === b) { this.klasorler = new Map(uniteler.map((u, i) => [u, k[i] ?? null])); this.ciz(); } })
-      .catch(() => { if (this.book === b) { this.klasorler = new Map(); this.bilgi = 'Ünite klasörlerine bakılamadı; şimdilik konu eklenemez.'; this.ciz(); } });
+      .catch(() => { if (this.book === b) { this.klasorler = new Map(); this.bilgi = dilT('icindekiler.klasorlereBakilamadi'); this.ciz(); } });
     this.ciz();
   }
 
@@ -119,8 +120,8 @@ export class IcindekilerDuzenleyici {
     if (!metin) { k.replaceChildren(); return; }
     k.classList.toggle('hata', d.tur === 'hata' && !this.bilgi);
     const dugmeler = d.tur === 'hata' && !this.bilgi
-      ? (d.izin ? '<button type="button" data-durum="giris">Tekrar giriş yap</button>' : '<button type="button" data-durum="tekrar">Tekrar dene</button>')
-        + '<button type="button" data-durum="vazgec">Vazgeç</button>'
+      ? (d.izin ? `<button type="button" data-durum="giris">${dilT('genel.tekrarGiris')}</button>` : `<button type="button" data-durum="tekrar">${dilT('genel.tekrarDene')}</button>`)
+        + `<button type="button" data-durum="vazgec">${dilT('genel.vazgec')}</button>`
       : '';
     k.innerHTML = `<span class="ie-metin">${esc(metin)}</span>${dugmeler ? `<span class="ie-dugmeler">${dugmeler}</span>` : ''}`;
   }
@@ -139,7 +140,7 @@ export class IcindekilerDuzenleyici {
     const yazar = !!g && karar.yazar;
     if (!yazar && !this.bilgi) this.bilgi = karar.not;
     const kapali = yazar ? '' : ' disabled';
-    const kitapCop = `<button type="button" class="ie-kitapcop" data-kitapcop${g && karar.kitapCop ? '' : ' disabled'}>${COP}Kitabı çöpe at</button>`;
+    const kitapCop = `<button type="button" class="ie-kitapcop" data-kitapcop${g && karar.kitapCop ? '' : ' disabled'}>${COP}${dilT('cop.baslik.kitap')}</button>`;
     if (b.surum < 2 || !g?.hasJson(b)) {
       // 6.K5b: only the book to the trash (surum 1 / no kitap.json); the why is in the status line
       this.liste.innerHTML = kitapCop;
@@ -150,14 +151,15 @@ export class IcindekilerDuzenleyici {
     const copta = new Set((g?.copBekleyenler(b) ?? []).map(h => h.tur === 'konu' ? 'k:' + h.konu : 'u:' + h.klasor));
     const anahtarlar = kitapUniteAnahtarlari(b);
     const d = this.duzenlenen;
-    const girdi = (deger: string, yer: string) => `<span class="ie-girdi"><input type="text" value="${esc(this.taslak ?? deger)}" maxlength="120" data-girdi="${yer}" aria-label="Ad" enterkeyhint="done">`
-      + `<button type="button" class="ie-ok" data-ie-kaydet>${yer.startsWith('yeni') ? 'Ekle' : 'Kaydet'}</button><button type="button" class="ie-vaz" data-ie-iptal>Vazgeç</button></span>`
+    const girdi = (deger: string, yer: string) => `<span class="ie-girdi"><input type="text" value="${esc(this.taslak ?? deger)}" maxlength="120" data-girdi="${yer}" aria-label="${dilT('icindekiler.ad')}" enterkeyhint="done">`
+      + `<button type="button" class="ie-ok" data-ie-kaydet>${dilT(yer.startsWith('yeni') ? 'icindekiler.ekle' : 'kalem.kaydet')}</button><button type="button" class="ie-vaz" data-ie-iptal>${dilT('genel.vazgec')}</button></span>`
       + (this.hata ? `<span class="ie-hata" role="alert">${esc(this.hata)}</span>` : '');
 
     let html = '';
     const copDugmesi = (yer: string, ne: string, acik: boolean) =>
-      `<button type="button" class="ie-ik ie-cop" data-cop="${yer}" aria-label="${ne} çöpe at"${kapali || (acik ? '' : ' disabled')}>${COP}</button>`;
-    const copluyor = '<span class="ie-ekleniyor">Çöpe atılıyor…</span>';
+      `<button type="button" class="ie-ik ie-cop" data-cop="${yer}" aria-label="${ne}"${kapali || (acik ? '' : ' disabled')}>${COP}</button>`;
+    const copluyor = `<span class="ie-ekleniyor">${dilT('cop.atiliyor')}</span>`;
+    const ekleniyor = `<span class="ie-ekleniyor">${dilT('icindekiler.ekleniyor')}</span>`;
     b.uniteler.forEach((u, ui) => {
       const uKlasor = this.uniteKlasoru(u);
       if (uKlasor && copta.has('u:' + uKlasor)) {
@@ -165,11 +167,11 @@ export class IcindekilerDuzenleyici {
         return;
       }
       const ad = d?.tur === 'unite' && d.u === ui ? girdi(u.baslik, `u${ui}`)
-        : `<span class="ie-ad" data-ad="u${ui}">${esc(u.baslik)}</span><button type="button" class="ie-ik" data-yeniad="u${ui}" aria-label="Ünitenin adını değiştir"${kapali}>${KALEM}</button>`;
+        : `<span class="ie-ad" data-ad="u${ui}">${esc(u.baslik)}</span><button type="button" class="ie-ik" data-yeniad="u${ui}" aria-label="${dilT('icindekiler.uniteAdi')}"${kapali}>${KALEM}</button>`;
       const uOklar = d?.tur === 'unite' && d.u === ui ? ''
-        : `<button type="button" class="ie-ik" data-yukari="u${ui}" aria-label="Üniteyi yukarı taşı"${kapali || (ui === 0 ? ' disabled' : '')}>↑</button>`
-        + `<button type="button" class="ie-ik" data-asagi="u${ui}" aria-label="Üniteyi aşağı taşı"${kapali || (ui === b.uniteler.length - 1 ? ' disabled' : '')}>↓</button>`;
-      const uCop = d?.tur === 'unite' && d.u === ui ? '' : copDugmesi(`u${ui}`, 'Üniteyi', !!uKlasor);
+        : `<button type="button" class="ie-ik" data-yukari="u${ui}" aria-label="${dilT('icindekiler.uniteYukari')}"${kapali || (ui === 0 ? ' disabled' : '')}>↑</button>`
+        + `<button type="button" class="ie-ik" data-asagi="u${ui}" aria-label="${dilT('icindekiler.uniteAsagi')}"${kapali || (ui === b.uniteler.length - 1 ? ' disabled' : '')}>↓</button>`;
+      const uCop = d?.tur === 'unite' && d.u === ui ? '' : copDugmesi(`u${ui}`, dilT('cop.baslik.unite'), !!uKlasor);
       html += `<section class="ie-unite"><div class="ie-satir ie-ubas">${ad}${uOklar}${uCop}</div><ol>`;
       u.konular.forEach((t, ti) => {
         if (t.klasor && copta.has('k:' + kitapKonuAnahtari(t))) {
@@ -177,26 +179,26 @@ export class IcindekilerDuzenleyici {
           return;
         }
         const tad = d?.tur === 'konu' && d.u === ui && d.t === ti ? girdi(t.baslik, `k${ui}.${ti}`)
-          : `<span class="ie-ad" data-ad="k${ui}.${ti}">${esc(t.baslik)}</span><button type="button" class="ie-ik" data-yeniad="k${ui}.${ti}" aria-label="Konunun adını değiştir"${kapali}>${KALEM}</button>`;
+          : `<span class="ie-ad" data-ad="k${ui}.${ti}">${esc(t.baslik)}</span><button type="button" class="ie-ik" data-yeniad="k${ui}.${ti}" aria-label="${dilT('icindekiler.konuAdi')}"${kapali}>${KALEM}</button>`;
         const kOklar = d?.tur === 'konu' && d.u === ui && d.t === ti ? ''
-          : `<button type="button" class="ie-ik" data-yukari="k${ui}.${ti}" aria-label="Konuyu yukarı taşı"${kapali || (ti === 0 ? ' disabled' : '')}>↑</button>`
-          + `<button type="button" class="ie-ik" data-asagi="k${ui}.${ti}" aria-label="Konuyu aşağı taşı"${kapali || (ti === u.konular.length - 1 ? ' disabled' : '')}>↓</button>`;
-        const kCop = d?.tur === 'konu' && d.u === ui && d.t === ti ? '' : copDugmesi(`k${ui}.${ti}`, 'Konuyu', !!t.klasor.trim());
+          : `<button type="button" class="ie-ik" data-yukari="k${ui}.${ti}" aria-label="${dilT('icindekiler.konuYukari')}"${kapali || (ti === 0 ? ' disabled' : '')}>↑</button>`
+          + `<button type="button" class="ie-ik" data-asagi="k${ui}.${ti}" aria-label="${dilT('icindekiler.konuAsagi')}"${kapali || (ti === u.konular.length - 1 ? ' disabled' : '')}>↓</button>`;
+        const kCop = d?.tur === 'konu' && d.u === ui && d.t === ti ? '' : copDugmesi(`k${ui}.${ti}`, dilT('cop.baslik.konu'), !!t.klasor.trim());
         html += `<li class="ie-satir">${tad}${kOklar}${kCop}</li>`;
       });
-      for (const e of bekleyen) if (e.tur === 'konuEkle' && e.unite === anahtarlar[ui]) html += `<li class="ie-satir ie-bekliyor"><span class="ie-ad">${esc(e.baslik)}</span><span class="ie-ekleniyor">Ekleniyor…</span></li>`;
+      for (const e of bekleyen) if (e.tur === 'konuEkle' && e.unite === anahtarlar[ui]) html += `<li class="ie-satir ie-bekliyor"><span class="ie-ad">${esc(e.baslik)}</span>${ekleniyor}</li>`;
       html += '</ol>';
       if (d?.tur === 'yeniKonu' && d.u === ui) html += `<div class="ie-satir ie-yeni">${girdi('', `yeniKonu${ui}`)}</div>`;
       else {
         const yok = this.klasorler !== null && !uKlasor;
-        html += `<button type="button" class="ie-ekle" data-konuekle="${ui}"${kapali || (this.klasorler === null || yok ? ' disabled' : '')}>＋ Konu</button>`;
-        if (yok && yazar) html += `<p class="ie-not">${esc(UNITE_KLASORU_YOK)}</p>`;
+        html += `<button type="button" class="ie-ekle" data-konuekle="${ui}"${kapali || (this.klasorler === null || yok ? ' disabled' : '')}>${dilT('icindekiler.konuEkle')}</button>`;
+        if (yok && yazar) html += `<p class="ie-not">${esc(uniteKlasoruYok())}</p>`;
       }
       html += '</section>';
     });
-    for (const e of bekleyen) if (e.tur === 'uniteEkle') html += `<section class="ie-unite ie-bekliyor"><div class="ie-satir ie-ubas"><span class="ie-ad">${esc(e.baslik)}</span><span class="ie-ekleniyor">Ekleniyor…</span></div></section>`;
+    for (const e of bekleyen) if (e.tur === 'uniteEkle') html += `<section class="ie-unite ie-bekliyor"><div class="ie-satir ie-ubas"><span class="ie-ad">${esc(e.baslik)}</span>${ekleniyor}</div></section>`;
     html += d?.tur === 'yeniUnite' ? `<div class="ie-satir ie-yeni">${girdi('', 'yeniUnite')}</div>`
-      : `<button type="button" class="ie-ekle ie-uekle" data-uniteekle${kapali}>＋ Ünite</button>`;
+      : `<button type="button" class="ie-ekle ie-uekle" data-uniteekle${kapali}>${dilT('icindekiler.uniteEkle')}</button>`;
     html += kitapCop;
     this.liste.innerHTML = html;
     const input = this.liste.querySelector<HTMLInputElement>('[data-girdi]');

@@ -1,3 +1,4 @@
+import { t } from '../dil';
 import type { YapistirilmisSayfa, Yon } from '../defter/bosSayfa';
 
 // Task 6.S-4: the "Sayfa ekle" button and its popover, without DOM (tested). ui/sayfaEkleBalon.ts draws it.
@@ -42,10 +43,13 @@ export function silmeHedefi(gorunen: readonly GorunenSayfa[], taraf: Taraf = 'so
   return h && { liste: h.liste, dosyaId: h.dosyaId, ad: h.ad, indeks: h.komsu };
 }
 
-export const SIL_METNI = 'Bu sayfayı sil';
-export const GERI_GETIR_METNI = 'Son silineni geri getir';
+export const silMetni = () => t('sayfaBalon.sil');
+export const geriGetirMetni = () => t('sayfaBalon.geriGetir');
 // n: the page number in the reader (as the popover's "s. N")
-export const silOnay = (n: number) => `s. ${n} silinecek. Sayfadaki kalem yazısı ve okunmuş el yazısı da gider. Geri al ile hemen geri getirebilirsin.`;
+export const silOnay = (n: number) => t('sayfaBalon.silOnay', { n });
+// the reasons shared by the popover and Okuyucu's toasts
+export const isSuruyorMetni = () => t('sayfaBalon.isSuruyor');
+export const okumaSuruyorMetni = () => t('sayfaBalon.okumaSuruyor');
 
 export interface SilmeEngelGirdisi {
   isSuruyor: boolean;
@@ -57,11 +61,11 @@ export interface SilmeEngelGirdisi {
 
 // Why "Bu sayfayı sil" is grey (null: it works)
 export function silmeEngeli(g: SilmeEngelGirdisi): string | null {
-  if (g.isSuruyor) return 'Bir sayfa işi sürüyor; bitince tekrar dene.';
-  if (g.hedefYok) return 'Bu sayfa silinemiyor (PDF sayfası değil).';
+  if (g.isSuruyor) return isSuruyorMetni();
+  if (g.hedefYok) return t('sayfaBalon.silinemiyorPdfDegil');
   if (g.kalemYazamaz) return g.kalemYazamaz;
-  if (g.okumaSuruyor) return 'El yazısı okunuyor; bitince tekrar dene.';
-  if (g.sonSayfa) return 'Son sayfa silinemez; dosyada en az bir sayfa kalmalı.';
+  if (g.okumaSuruyor) return okumaSuruyorMetni();
+  if (g.sonSayfa) return t('sayfaBalon.sonSayfa');
   return null;
 }
 
@@ -78,10 +82,10 @@ export interface EngelGirdisi {
 
 // Why the patterns are grey (null: they work)
 export function eklemeEngeli(g: EngelGirdisi): string | null {
-  if (g.isSuruyor) return 'Bir sayfa işi sürüyor; bitince tekrar dene.';
+  if (g.isSuruyor) return isSuruyorMetni();
   if (g.kalemYazamaz) return g.kalemYazamaz;
-  if (g.okumaSuruyor) return 'El yazısı okunuyor; bitince tekrar dene.';
-  if (g.hedefYok) return 'Bu sayfanın yanına sayfa eklenemiyor (PDF sayfası değil).';
+  if (g.okumaSuruyor) return okumaSuruyorMetni();
+  if (g.hedefYok) return t('sayfaBalon.eklenemiyorPdfDegil');
   return null;
 }
 
@@ -112,11 +116,11 @@ export function yapistirHedefi(gorunen: readonly GorunenSayfa[], taraf: Taraf, b
 // Both sides of a two-page spread (the popover switches between them), else the one page ('sol')
 export function yapistirHedefleri(gorunen: readonly GorunenSayfa[], bilgi: (dosyaId: string) => YapistirBilgisi | null): Partial<Record<Taraf, YapistirHedefi>> {
   const out: Partial<Record<Taraf, YapistirHedefi>> = {};
-  for (const t of ['sol', 'sag'] as const) { const h = yapistirHedefi(gorunen, t, bilgi); if (h) out[t] = h; }
+  for (const x of ['sol', 'sag'] as const) { const h = yapistirHedefi(gorunen, x, bilgi); if (h) out[x] = h; }
   return out;
 }
 
-export const YAPISTIR_GERI_AL_ONAY = 'Slaytın dışındaki kalem yazısı da silinecek. Devam edilsin mi?';
+export const yapistirGeriAlOnay = () => t('sayfaBalon.yapistirGeriAlOnay');
 
 // ---- task 6.S-4b: book mode, two pages: the page being read stays on screen ----
 

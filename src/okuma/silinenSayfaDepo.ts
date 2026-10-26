@@ -1,3 +1,4 @@
+import { t } from '../dil';
 import type { TasinanKurdele } from '../kitap/sayfaKaydir';
 
 // Task 6.S-4d: the backups of deleted pages, for "Geri al" (CLAUDE.md → 6.S-4d), on the device (IndexedDB
@@ -73,7 +74,7 @@ async function oku<T>(fallback: T, fn: (s: IDBObjectStore) => IDBRequest): Promi
 }
 
 export class YedekYazilamadi extends Error {
-  constructor(cause: unknown) { super('Sayfanın yedeği cihaza yazılamadı; sayfa silinmedi. Tarayıcının depolama iznini kontrol edip tekrar dene.', { cause }); }
+  constructor(cause: unknown) { super(t('sayfaIsi.yedekYazilamadi'), { cause }); }
 }
 
 // Throws: the deleting must stop when its backup can't be kept

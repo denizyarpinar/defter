@@ -1,3 +1,4 @@
+import { t as dilT } from '../dil';   // 6.5-3: t is a topic in this file
 import { icindekilerUygula, IcindekilerUyusmuyor, uniteAnahtarlari, uniteKlasoru, uniteKlasoruBul, type AltKlasor, type IcindekilerIslemi } from '../kitap/icindekiler';
 import { bosAd, sonrakiNumara } from '../kitap/klasorNumarasi';
 import { CopAgHatasi, CopIzinYok, driveAltAgac, driveCopDurumu, driveOge, type CopDrive } from './copeAt';
@@ -32,39 +33,39 @@ export interface IcindekilerDrive extends CopDrive {
   jsonYaz(id: string, obj: unknown): Promise<void>;
 }
 
-// ---- errors (Turkish, say what to do) ----
+// ---- errors (in the chosen language, say what to do) ----
 
 export class IcindekilerKilitli extends Error {
-  constructor() { super('İçindekiler düzenlenemiyor: hiçbir şey yazılmadı. Google ile giriş yap ve kitaplığı yeniden aç.'); }
+  constructor() { super(dilT('icindekiler.hata.kilitli')); }
 }
 export class IcindekilerYazmaYok extends Error {
-  constructor() { super('İçindekiler kaydedilemez: Google ile giriş yapılmamış ya da örnek kitaplık açık. Google ile giriş yapıp tekrar dene.'); }
+  constructor() { super(dilT('icindekiler.hata.yazmaYok')); }
 }
 export class Surum1Duzenlenemez extends Error {
-  constructor() { super('Bu kitap eski biçimde (surum 1); içindekiler düzenlenemez. Hiçbir şey yazılmadı.'); }
+  constructor() { super(dilT('icindekiler.hata.surum1')); }
 }
 export class KitapJsonYok extends Error {
-  constructor() { super('Bu kitapta kitap.json yok; içindekiler düzenlenemez. Hiçbir şey yazılmadı.'); }
+  constructor() { super(dilT('icindekiler.hata.jsonYok')); }
 }
 export class UniteKlasoruYok extends Error {
-  constructor(ad: string) { super(`"${ad}" ünitesinin Drive klasörü bulunamadı; konu eklenemez. Hiçbir şey yazılmadı.`); }
+  constructor(ad: string) { super(dilT('icindekiler.hata.uniteKlasoruYok', { ad })); }
 }
 export class IcindekilerIzinYok extends Error {
-  constructor() { super('Drive yazmaya izin vermedi. Tekrar giriş yapıp Drive iznini onayla.'); }
+  constructor() { super(dilT('hata.yazmaIzniYok')); }
 }
 export class IcindekilerAgHatasi extends Error {
-  constructor() { super('İçindekiler kaydedilemedi: Drive\'a bağlanılamadı. İnternetini kontrol edip tekrar dene; çift klasör oluşmaz.'); }
+  constructor() { super(dilT('icindekiler.hata.ag')); }
 }
 export class IcindekilerCakisma extends Error {
-  constructor() { super('İçindekiler kaydedilemedi: kitap.json bu sırada başka bir yerde değişti. Tekrar dene.'); }
+  constructor() { super(dilT('icindekiler.hata.cakisma')); }
 }
 export class IcindekilerBeklenmedik extends Error {
-  constructor(ne: string) { super(`İçindekiler kaydı durdu: ${ne}. Drive'da kitabın klasörüne bakıp tekrar dene.`); }
+  constructor(ne: string) { super(dilT('icindekiler.hata.beklenmedik', { ne })); }
 }
 
 // ---- the real Drive ----
 
-const WHAT = 'İçindekiler kaydedilirken';
+const what = () => dilT('icindekiler.kaydedilirken');
 const GRUP = 40;   // parents in one query
 
 // kitapOlustur's requests, loaded on the first write (it stays out of the first bundle, as before)
@@ -87,7 +88,7 @@ export const driveIcindekilerApi: IcindekilerDrive = {
       do {
         const params = new URLSearchParams({ q, fields: 'nextPageToken,files(id,name,parents,appProperties)', pageSize: '1000' });
         if (pageToken) params.set('pageToken', pageToken);
-        const j = await (await ok(await driveFetch('files?' + params), WHAT)).json() as { files?: (AltKlasor & { parents?: string[] })[]; nextPageToken?: string };
+        const j = await (await ok(await driveFetch('files?' + params), what())).json() as { files?: (AltKlasor & { parents?: string[] })[]; nextPageToken?: string };
         out.push(...(j.files ?? []));
         pageToken = j.nextPageToken ?? '';
       } while (pageToken);
@@ -167,7 +168,7 @@ export async function icindekilerYaz(drive: IcindekilerDrive, is: IcindekilerIsi
     await s.oncesi?.();
     if (eklemeMi(is) && !is.klasorTamam) await klasorOlustur(drive, is, kitapKlasorId, jsonId, s);
     const islem = is.islem;
-    if (!islem) throw new IcindekilerBeklenmedik('değişiklik hazırlanamadı');
+    if (!islem) throw new IcindekilerBeklenmedik(dilT('icindekiler.neden.degisiklik'));
     await jsonaYaz(drive, jsonId, islem);
     return islem;
   } catch (e) {
@@ -182,7 +183,7 @@ type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => typeof v === 'object' && v !== null && !Array.isArray(v);
 
 function sonHalKontrol(j: unknown): Obj {
-  if (!isObj(j)) throw new IcindekilerBeklenmedik('kitap.json okunamadı');
+  if (!isObj(j)) throw new IcindekilerBeklenmedik(dilT('icindekiler.neden.jsonOkunamadi'));
   if (typeof j.surum !== 'number' || j.surum < 2) throw new Surum1Duzenlenemez();
   return j;
 }
@@ -207,7 +208,7 @@ async function klasorOlustur(drive: IcindekilerDrive, is: IcindekilerIsi, kitapK
   // the book's folder: in the root's kitaplar/ (also in the owner's "Kitaplık")
   const kitaplarId = (await drive.kokCocuklari(s.kokId)).find(c => c.name === 'kitaplar' && c.mimeType === FOLDER_MIME)?.id;
   const kitap = await drive.oge(kitapKlasorId);
-  if (!kitaplarId || !kitap || kitap.trashed || !kitap.parents?.includes(kitaplarId)) throw new IcindekilerBeklenmedik('kitabın klasörü kitaplığın "kitaplar" klasöründe değil');
+  if (!kitaplarId || !kitap || kitap.trashed || !kitap.parents?.includes(kitaplarId)) throw new IcindekilerBeklenmedik(dilT('icindekiler.neden.kitapYeri'));
   const uniteKlasorleri = await drive.klasorler([kitapKlasorId]);
   const izinli = new Set(uniteKlasorleri.map(f => f.id));   // the book's unit folders (children of its folder)
 
@@ -223,7 +224,7 @@ async function klasorOlustur(drive: IcindekilerDrive, is: IcindekilerIsi, kitapK
       is.ebeveynId = kitapKlasorId;
     } else if (istek.tur === 'konuEkle') {
       const i = uniteAnahtarlari(uniteler).indexOf(istek.unite);
-      if (i < 0) throw new IcindekilerUyusmuyor('konunun ünitesi kitap.json\'da bulunamadı');
+      if (i < 0) throw new IcindekilerUyusmuyor(dilT('icindekiler.neden.konuUnitesiYok'));
       const uk = uniteKlasoruBul(uniteler, i, uniteKlasorleri);
       const ust = uk ? uniteKlasorleri.filter(f => f.name === uk) : [];
       if (ust.length !== 1) throw new UniteKlasoruYok(String(uniteler[i].baslik ?? ''));
@@ -237,12 +238,12 @@ async function klasorOlustur(drive: IcindekilerDrive, is: IcindekilerIsi, kitapK
     }
   }
   const islem = is.islem;
-  if (!islem || (islem.tur !== 'uniteEkle' && islem.tur !== 'konuEkle') || !is.ebeveynId) throw new IcindekilerBeklenmedik('değişiklik hazırlanamadı');
-  if (!ebeveynGecerliMi(is.ebeveynId, kitapKlasorId, izinli)) throw new IcindekilerBeklenmedik('yeni klasörün üst klasörü doğrulanamadı');
+  if (!islem || (islem.tur !== 'uniteEkle' && islem.tur !== 'konuEkle') || !is.ebeveynId) throw new IcindekilerBeklenmedik(dilT('icindekiler.neden.degisiklik'));
+  if (!ebeveynGecerliMi(is.ebeveynId, kitapKlasorId, izinli)) throw new IcindekilerBeklenmedik(dilT('icindekiler.neden.ebeveyn'));
   const ad = islem.klasor.slice(islem.klasor.lastIndexOf('/') + 1);
 
   is.id ??= (await drive.yeniIdler(1))[0];
-  if (!is.id) throw new IcindekilerBeklenmedik('klasör kimliği alınamadı');
+  if (!is.id) throw new IcindekilerBeklenmedik(dilT('icindekiler.neden.kimlik'));
   const id = is.id;
   let vardi = (await drive.islemAra(is.islemId)).some(f => f.id === id);
   if (!vardi && is.denendi) {
@@ -252,7 +253,7 @@ async function klasorOlustur(drive: IcindekilerDrive, is: IcindekilerIsi, kitapK
   if (!vardi) {
     // a folder with this name made meanwhile (not by us): it is never written into; a new name next time
     const ayni = (await drive.klasorler([is.ebeveynId])).filter(f => f.name.toLowerCase() === ad.toLowerCase());
-    if (ayni.length) { is.islem = null; is.ebeveynId = null; throw new IcindekilerBeklenmedik(`"${ad}" adında bir klasör bu sırada oluştu; tekrar dene`); }
+    if (ayni.length) { is.islem = null; is.ebeveynId = null; throw new IcindekilerBeklenmedik(dilT('icindekiler.neden.ayniAd', { ad })); }
     is.denendi = true;
     await olusturIdIle(drive, { id, name: ad, parents: [is.ebeveynId], mimeType: FOLDER_MIME, appProperties: { defter: '1', defterIslem: is.islemId } }, is.islemId, s);
   }
@@ -261,8 +262,8 @@ async function klasorOlustur(drive: IcindekilerDrive, is: IcindekilerIsi, kitapK
 
 // An item Drive has with our id: ours only with our name and islemId, not in the trash
 function bizimMi(f: KurulumOgesi & { trashed?: boolean }, ad: string, islemId: string): void {
-  if (f.name !== ad || f.appProperties?.defterIslem !== islemId) throw new IcindekilerBeklenmedik(`"${ad}" için alınan kimlik başka bir dosyada`);
-  if (f.trashed) throw new IcindekilerBeklenmedik(`"${ad}" Drive'da çöpe atılmış`);
+  if (f.name !== ad || f.appProperties?.defterIslem !== islemId) throw new IcindekilerBeklenmedik(dilT('icindekiler.neden.kimlikBaska', { ad }));
+  if (f.trashed) throw new IcindekilerBeklenmedik(dilT('icindekiler.neden.copte', { ad }));
 }
 
 const bekle = (ms: number) => new Promise(r => setTimeout(r, ms));
@@ -276,7 +277,7 @@ async function olusturIdIle(drive: IcindekilerDrive, meta: YeniOgeMeta, islemId:
     } catch (e) {
       if (e instanceof IdZatenVar) {
         const f = await drive.oge(meta.id!);
-        if (!f) throw new IcindekilerBeklenmedik(`"${meta.name}" için Drive "zaten var" dedi ama bulunamadı`);
+        if (!f) throw new IcindekilerBeklenmedik(dilT('icindekiler.neden.zatenVarYok', { ad: meta.name }));
         bizimMi(f, meta.name, islemId);
         return;
       }
@@ -371,7 +372,7 @@ export class IcindekilerKuyrugu {
           haberVer(is, null);
         } catch (e) {
           this.hata = is;
-          this.b.durum({ tur: 'hata', mesaj: e instanceof Error ? e.message : 'İçindekiler kaydedilemedi.', izin: e instanceof IcindekilerIzinYok || e instanceof CopIzinYok });
+          this.b.durum({ tur: 'hata', mesaj: e instanceof Error ? e.message : dilT('icindekiler.kaydedilemedi'), izin: e instanceof IcindekilerIzinYok || e instanceof CopIzinYok });
           haberVer(is, e);
           return;
         }

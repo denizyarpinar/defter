@@ -1,3 +1,4 @@
+import { t } from '../dil';
 import { isSampleId } from '../okuma/ornekKaynak';
 import { driveFetch, driveXhr, ok } from './drive';
 
@@ -44,32 +45,32 @@ export interface PdfDrive {
 }
 
 export class PdfSampleNoWrite extends Error {
-  constructor() { super('Örnek kitaplıktaki PDF\'lere çizim kaydedilmez. Kendi notların için Google ile giriş yap.'); }
+  constructor() { super(t('pdfYaz.ornek')); }
 }
 
 export class PdfReadOnly extends Error {
-  constructor() { super('Bu PDF\'i değiştirme iznin yok. Drive\'da dosyanın sahibi ya da düzenleyicisi olduğundan emin ol.'); }
+  constructor() { super(t('pdfYaz.izinYok')); }
 }
 
 export class PdfConflict extends Error {
-  constructor() { super('PDF bu arada başka bir yerde değişmiş, o yüzden üstüne yazılmadı.'); }
+  constructor() { super(t('pdfYaz.cakisma')); }
 }
 
 // Task 6.K6b: the file is in Drive's trash (or in a folder there): nothing is written, a pen record stays on the device
 export class PdfCopte extends Error {
-  constructor() { super("PDF Drive'ın çöpünde; üstüne yazılmadı. Geri alınırsa kayıt yeniden denenir."); }
+  constructor() { super(t('pdfYaz.copte')); }
 }
 
 export class PdfUploadSession extends Error {
-  constructor() { super('PDF yüklemesi başlatılamadı: Drive yükleme adresini vermedi. Biraz sonra tekrar dene.'); }
+  constructor() { super(t('pdfYaz.oturum')); }
 }
 
 // The resumable session is gone (404/410): like a network error, the caller starts again from the checks
 export class YuklemeOturumuDustu extends TypeError {
-  constructor() { super('Yükleme oturumu kapandı; yükleme baştan denenecek.'); }
+  constructor() { super(t('pdfYaz.oturumDustu')); }
 }
 
-const WHAT = 'PDF kaydedilirken';
+const what = () => t('pdfYaz.kaydedilirken');
 const fileUrl = (fileId: string) => `files/${encodeURIComponent(fileId)}`;
 const uploadUrl = (fileId: string, type: 'media' | 'resumable') =>
   `${UPLOAD}files/${encodeURIComponent(fileId)}?uploadType=${type}&fields=id,modifiedTime,headRevisionId`;
@@ -157,7 +158,7 @@ export async function devamliGonder(
 // devam (task 6.2e-2): progress and resuming (devamliGonder); without it one PUT with fetch (new files, pdfOlustur).
 export async function resumableUpload(
   startUrl: string, method: 'PATCH' | 'POST', meta: string, bytes: Uint8Array,
-  check: (res: Response) => Promise<Response> = res => ok(res, WHAT), devam?: DevamliGonderim
+  check: (res: Response) => Promise<Response> = res => ok(res, what()), devam?: DevamliGonderim
 ): Promise<UploadResult> {
   const start = await check(await driveFetch(startUrl, {
     method,
@@ -181,19 +182,19 @@ export async function resumableUpload(
 
 export const drivePdfApi: PdfDrive = {
   async durum(fileId) {
-    const res = await ok(await driveFetch(`${fileUrl(fileId)}?fields=capabilities/canEdit,modifiedTime,headRevisionId,trashed`), WHAT);
+    const res = await ok(await driveFetch(`${fileUrl(fileId)}?fields=capabilities/canEdit,modifiedTime,headRevisionId,trashed`), what());
     const j = await res.json() as { capabilities?: { canEdit?: boolean }; modifiedTime?: string; headRevisionId?: string; trashed?: boolean };
     return { canEdit: j.capabilities?.canEdit === true, modifiedTime: j.modifiedTime ?? '', headRevisionId: j.headRevisionId ?? '', trashed: j.trashed === true };
   },
   async listRevisions(fileId, pageToken) {
     const params = new URLSearchParams({ fields: 'nextPageToken,revisions(id,keepForever)' });
     if (pageToken) params.set('pageToken', pageToken);
-    const res = await ok(await driveFetch(`${fileUrl(fileId)}/revisions?${params}`), WHAT);
+    const res = await ok(await driveFetch(`${fileUrl(fileId)}/revisions?${params}`), what());
     const j = await res.json() as { revisions?: Revision[]; nextPageToken?: string };
     return { revisions: j.revisions ?? [], nextPageToken: j.nextPageToken };
   },
   async headRevisionId(fileId) {
-    const res = await ok(await driveFetch(`${fileUrl(fileId)}?fields=headRevisionId`), WHAT);
+    const res = await ok(await driveFetch(`${fileUrl(fileId)}?fields=headRevisionId`), what());
     return (await res.json() as { headRevisionId?: string }).headRevisionId ?? '';
   },
   async keepRevision(fileId, revisionId) {
@@ -201,17 +202,17 @@ export const drivePdfApi: PdfDrive = {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json; charset=UTF-8' },
       body: JSON.stringify({ keepForever: true })
-    }), WHAT);
+    }), what());
   },
   async modifiedTime(fileId) {
-    const res = await ok(await driveFetch(`${fileUrl(fileId)}?fields=modifiedTime`), WHAT);
+    const res = await ok(await driveFetch(`${fileUrl(fileId)}?fields=modifiedTime`), what());
     return (await res.json() as { modifiedTime?: string }).modifiedTime ?? '';
   },
   async uploadMedia(fileId, bytes, s = {}) {
     const init: RequestInit = { method: 'PATCH', headers: { 'Content-Type': 'application/pdf' }, body: pdfBody(bytes) };
     const ilerleme = s.ilerleme;
     const res = await ok(await driveXhr(uploadUrl(fileId, 'media'), init,
-      ilerleme && (n => ilerleme(Math.min(n, bytes.byteLength), bytes.byteLength))), WHAT);
+      ilerleme && (n => ilerleme(Math.min(n, bytes.byteLength), bytes.byteLength))), what());
     return readResult(res);
   },
   uploadResumable(fileId, bytes, s = {}) {

@@ -1,3 +1,4 @@
+import { t } from '../dil';
 import type { DriveLocation } from '../drive/driveLibrary';
 import { DriveError } from '../drive/drive';
 import { saltOkunurFetch } from '../drive/saltOkunur';
@@ -224,9 +225,9 @@ export function driveOcrKaynak(yer: () => DriveLocation | null, o: { hesap?: () 
     izler: async (id, mt) => sayfaParmakIzleri(new Uint8Array(await getPdf(id, mt))),
     async klasor(id) {
       const res = await saltOkunurFetch(`files/${encodeURIComponent(id)}?fields=parents`);
-      if (!res.ok) throw new DriveError(res.status, 'Dosya bilgisi okunurken');
+      if (!res.ok) throw new DriveError(res.status, t('okuyucuArama.dosyaBilgisi'));
       const p = ((await res.json()) as { parents?: string[] }).parents?.[0];
-      if (!p) throw new Error('Dosyanın klasörü bulunamadı.');
+      if (!p) throw new Error(t('okuyucuArama.klasorYok'));
       return p;
     },
     kayit: async f => {

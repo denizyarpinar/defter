@@ -1,3 +1,4 @@
+import { t } from '../dil';
 import { jsonaKurdeleGeriKoy, jsondanKurdeleCikar, type CikanKurdeleler } from '../kitap/dosyaCop';
 import type { MaterialKind } from '../okuma/konuKesfi';
 import { CopAgHatasi, CopCakisma, CopIzinYok, CopKilitli, CopYazmaYok, CopYeriBeklenmedik, kokYeri, zincirKontrol, type CopDrive, type CopOgesi } from './copeAt';
@@ -35,7 +36,7 @@ export const driveDosyaCopApi: DosyaCopDrive = {
 };
 
 export class GeriAlAdDolu extends Error {
-  constructor() { super('Aynı adlı yeni bir dosya var; eski dosya Drive çöpünde kaldı.'); }
+  constructor() { super(t('cop.hata.geriAlAdDolu')); }
 }
 
 export interface DosyaCopIsi {
@@ -84,7 +85,7 @@ const isObj = (v: unknown): v is Obj => typeof v === 'object' && v !== null && !
 const adAnahtari = (s: string) => s.trim().toLowerCase();
 
 function json2(j: unknown): Obj {
-  if (!isObj(j) || typeof j.surum !== 'number' || j.surum < 2) throw new CopYeriBeklenmedik('kitap.json okunamadı ya da eski biçimde');
+  if (!isObj(j) || typeof j.surum !== 'number' || j.surum < 2) throw new CopYeriBeklenmedik(t('cop.neden.jsonEski'));
   return j;
 }
 
@@ -93,9 +94,9 @@ async function dosyaKontrol(drive: DosyaCopDrive, is: DosyaCopIsi, konuId: strin
   const out: CopOgesi[] = [];
   for (const d of is.dosyalar) {
     const o = await drive.oge(d.id);
-    if (!o) throw new CopYeriBeklenmedik(`"${d.ad}" Drive'da bulunamadı`);
+    if (!o) throw new CopYeriBeklenmedik(t('cop.neden.dosyaYok', { ad: d.ad }));
     const ust = o.parents?.length === 1 && o.parents[0] !== konuId ? await drive.oge(o.parents[0]) : null;
-    if (!dosyaEbeveyniGecerliMi(o, d.ad, konuId, ust && { ...ust, id: o.parents![0] })) throw new CopYeriBeklenmedik(`"${d.ad}" beklenen yerde değil`);
+    if (!dosyaEbeveyniGecerliMi(o, d.ad, konuId, ust && { ...ust, id: o.parents![0] })) throw new CopYeriBeklenmedik(t('cop.neden.yeriYanlis', { ad: d.ad }));
     out.push(o);
   }
   return out;
@@ -105,8 +106,8 @@ export async function dosyaCopYaz(drive: DosyaCopDrive, is: DosyaCopIsi, s: Dosy
   // checks without any request
   if (!s.kilitAcik || s.kokKaynagi === null) throw new CopKilitli();
   if (!s.yazabilir()) throw new CopYazmaYok();
-  if (s.surum < 2 || !s.kitapJsonId || !s.kitapKlasorId) throw new CopYeriBeklenmedik('kitabın kitap.json\'u yok ya da eski biçimde');
-  if (!is.dosyalar.length) throw new CopYeriBeklenmedik('dosya bilinmiyor');
+  if (s.surum < 2 || !s.kitapJsonId || !s.kitapKlasorId) throw new CopYeriBeklenmedik(t('cop.neden.kitapJsonYokEski'));
+  if (!is.dosyalar.length) throw new CopYeriBeklenmedik(t('cop.neden.dosyaBilinmiyor'));
   const jsonId = s.kitapJsonId, kitapKlasorId = s.kitapKlasorId;
   is.basladi = true;
   try {

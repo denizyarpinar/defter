@@ -1,3 +1,4 @@
+import { t } from '../dil';
 import { jsonaGeriKoy, jsondanCikar, type Cikan, type CopHedefi } from '../kitap/copeAt';
 import { CopCakisma, CopYeriBeklenmedik, kokYeri, zincirKontrol, type CopDrive } from './copeAt';
 import { jsonDegistir, type JsonDrive } from './jsonDegistir';
@@ -42,13 +43,13 @@ type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => typeof v === 'object' && v !== null && !Array.isArray(v);
 
 function json2(j: unknown): Obj {
-  if (!isObj(j) || typeof j.surum !== 'number' || j.surum < 2) throw new CopYeriBeklenmedik('kitap.json okunamadı ya da eski biçimde');
+  if (!isObj(j) || typeof j.surum !== 'number' || j.surum < 2) throw new CopYeriBeklenmedik(t('cop.neden.jsonEski'));
   return j;
 }
 
 const tekKlasor = (liste: readonly { id: string; name: string }[], ad: string) => {
   const uyan = liste.filter(f => f.name === ad);
-  if (uyan.length !== 1) throw new CopYeriBeklenmedik(uyan.length ? `"${ad}" adında birden çok klasör var` : `"${ad}" klasörü Drive'da bulunamadı`);
+  if (uyan.length !== 1) throw new CopYeriBeklenmedik(t(uyan.length ? 'cop.neden.cokKlasor' : 'cop.neden.adliKlasorYok', { ad }));
   return uyan[0].id;
 };
 
@@ -57,7 +58,7 @@ export type KlasorDrive = { klasorler(ebeveynIdleri: readonly string[]): Promise
 // The folder ids by name (read only): the unit folder in the book's folder, the topic folder in it
 export async function klasorleriBul(drive: KlasorDrive, hedef: CopHedefi, kitapKlasorId: string): Promise<{ klasorId: string; uniteKlasorId: string | null }> {
   const parca = (hedef.tur === 'konu' ? hedef.konu : hedef.klasor).split('/');
-  if (parca.length !== (hedef.tur === 'konu' ? 2 : 1) || parca.some(p => !p.trim())) throw new CopYeriBeklenmedik('klasörü bilinmiyor');
+  if (parca.length !== (hedef.tur === 'konu' ? 2 : 1) || parca.some(p => !p.trim())) throw new CopYeriBeklenmedik(t('cop.neden.klasorBilinmiyor'));
   const uniteKlasorId = tekKlasor(await drive.klasorler([kitapKlasorId]), parca[0]);
   if (hedef.tur === 'unite') return { klasorId: uniteKlasorId, uniteKlasorId: null };
   return { klasorId: tekKlasor(await drive.klasorler([uniteKlasorId]), parca[1]), uniteKlasorId };

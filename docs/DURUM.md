@@ -1,5 +1,15 @@
 # Defter – Durum
 
+## 6.5-3 – Okuyucu iki dilli (26 Ekim 2026, Claude Code)
+
+- Okuyucu, kalem çubuğu, İçindekiler düzenleme, çöpe atma + Geri al, sayfa balonu (boş sayfa / deftere yapıştır / sil), temiz yazı düğmesi, boş konu, okuyucu araması ve bunların hata sınıfları sözlükte (302 yeni anahtar, toplam 599). Sınıf adları, `instanceof`, Drive adları, JSON anahtarları ve `/Defter…` işaretleri aynı.
+- Kalan Türkçe dize 811 → 446 (çoğu 6.5-4: fotoğraf/dosya paneli, OCR paneli, çeviri). `// dil-kontrol: yoksay` ile işaretli 55 dize (programcı hataları, `?olcum=1` günlükleri, dev araçları) ayrı sayılır.
+- `dil-kontrol.mjs` (d): okuyucu ekranları EN/TR × 390/820/1180/1280 (`--okuyucu` sadece bu kısım). Okuyucu betikleri `lang=tr` ile geçti; `bos-sayfa --4d` ve `cop-kontrol` `DIL=en` ile de geçti.
+- Commit yok; laptop + iPad denemesi bekleniyor.
+- **Son güncelleyen:** Claude Code, 26 Ekim 2026.
+
+---
+
 ## 6.5-2b – Dil tercihi Drive'da (26 Ekim 2026, Claude Code)
 
 - TR'ye geçince seçim `kitaplik.json` → `ayarlar.dil`'e yazılır (en çok 3 sn beklenir, hata dili durdurmaz); başka cihazda girişte bir kez yenilenip o dilde açılır. `?lang` bağlantısı Drive'a dokunmaz. Yazılamayan seçim cihazda bekler (kitaplığa bağlı) ve sonraki açılışta yazılır.

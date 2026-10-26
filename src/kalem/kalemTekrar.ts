@@ -20,9 +20,9 @@ export interface Tekrar {
 // The JSON array out of a pasted text or a file (it may have text around it)
 export function kayitlariAyikla(text: string): Kayit[] {
   const a = text.indexOf('['), b = text.lastIndexOf(']');
-  if (a < 0 || b < a) throw new Error('Metinde kalem kaydı (JSON dizisi) bulunamadı.');
+  if (a < 0 || b < a) throw new Error('Metinde kalem kaydı (JSON dizisi) bulunamadı.');   // dil-kontrol: yoksay
   const list = JSON.parse(text.slice(a, b + 1)) as unknown;
-  if (!Array.isArray(list)) throw new Error('Kalem kaydı bir dizi olmalı.');
+  if (!Array.isArray(list)) throw new Error('Kalem kaydı bir dizi olmalı.');   // dil-kontrol: yoksay
   return list.filter((k): k is Kayit => !!k && Array.isArray(k.olaylar) && Array.isArray(k.saklanan) && k.sonuc !== 'reddedildi');
 }
 
@@ -173,9 +173,9 @@ export function ornekKayitlar(): { ad: string; kayit: Kayit }[] {
     return [v * 60 + 5 * Math.cos(a), 5 * Math.sin(a)];
   }, 1);
   return [
-    { ad: 'Örnek: u', kayit: ornekKayit('kalem', 2.2, u) },
-    { ad: 'Örnek: s (2 move iki kez)', kayit: ornekKayit('kalem', 2.2, s, [3, 4]) },
-    { ad: 'Örnek: A', kayit: ornekKayit('kalem', 2.2, A) },
-    { ad: 'Örnek: fosforlu, sıkı kıvrım', kayit: ornekKayit('fosforlu', 12, kivrim) },
+    { ad: 'Örnek: u', kayit: ornekKayit('kalem', 2.2, u) },   // dil-kontrol: yoksay
+    { ad: 'Örnek: s (2 move iki kez)', kayit: ornekKayit('kalem', 2.2, s, [3, 4]) },   // dil-kontrol: yoksay
+    { ad: 'Örnek: A', kayit: ornekKayit('kalem', 2.2, A) },   // dil-kontrol: yoksay
+    { ad: 'Örnek: fosforlu, sıkı kıvrım', kayit: ornekKayit('fosforlu', 12, kivrim) },   // dil-kontrol: yoksay
   ];
 }

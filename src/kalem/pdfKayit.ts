@@ -1,3 +1,4 @@
+import { t } from '../dil';
 import { DriveError, SessionExpired } from '../drive/drive';
 import { PdfConflict, PdfCopte, PdfReadOnly, PdfSampleNoWrite, PdfUploadSession, uploadPdf, type PdfDrive } from '../drive/pdfYazici';
 import { isSampleId } from '../okuma/ornekKaynak';
@@ -55,7 +56,7 @@ export async function uploadRecord(deps: UploadDeps, rec: PendingRecord): Promis
       out = await write(bytes, changed);
     } catch (e) {
       // the file has fewer pages now (another program changed it): the strokes don't fit, they stay on the device
-      if (e instanceof RangeError) throw new PdfYazilamaz('PDF\'in sayfaları değişmiş; çizimler sayfalara yerleşmedi.');
+      if (e instanceof RangeError) throw new PdfYazilamaz(t('kalemKayit.sayfalarDegismis'));
       throw e;
     }
     try {
@@ -80,14 +81,14 @@ export type UploadStatus =
 export function describeError(e: unknown): { tur: 'cevrimdisi' } | { tur: 'hata'; mesaj: string; tekrar: boolean } | null {
   if (e instanceof SessionExpired) return null;
   if (e instanceof TypeError || (typeof navigator !== 'undefined' && navigator.onLine === false)) return { tur: 'cevrimdisi' };
-  if (e instanceof PdfReadOnly) return { tur: 'hata', mesaj: 'Bu PDF\'e yazma iznin yok; çizimler cihazda kaldı.', tekrar: false };
-  if (e instanceof PdfConflict) return { tur: 'hata', mesaj: 'PDF başka bir yerde değişip duruyor; çizimler cihazda kaldı. Biraz sonra tekrar dene.', tekrar: false };
-  if (e instanceof PdfUploadSession) return { tur: 'hata', mesaj: `${e.message} Çizimler cihazda kaldı.`, tekrar: false };
-  if (e instanceof PdfYazilamaz) return { tur: 'hata', mesaj: `Bu PDF'e çizim yazılamıyor: ${e.message} Çizimler cihazda kaldı.`, tekrar: false };
+  if (e instanceof PdfReadOnly) return { tur: 'hata', mesaj: t('kalemKayit.izinYok'), tekrar: false };
+  if (e instanceof PdfConflict) return { tur: 'hata', mesaj: t('kalemKayit.cakisma'), tekrar: false };
+  if (e instanceof PdfUploadSession) return { tur: 'hata', mesaj: t('kalemKayit.cihazdaKaldi', { neden: e.message }), tekrar: false };
+  if (e instanceof PdfYazilamaz) return { tur: 'hata', mesaj: t('kalemKayit.yazilamiyor', { neden: e.message }), tekrar: false };
   if (e instanceof PdfSampleNoWrite) return { tur: 'hata', mesaj: e.message, tekrar: false };
-  if (e instanceof DriveError && (e.status === 429 || e.status >= 500)) return { tur: 'hata', mesaj: `${e.message} Çizimler cihazda; kendiliğinden tekrar denenecek.`, tekrar: true };
-  const why = e instanceof Error && e.message ? e.message : 'Bilinmeyen bir hata oldu.';
-  return { tur: 'hata', mesaj: `Çizimler Drive'a kaydedilemedi: ${why} Çizimler cihazda kaldı.`, tekrar: false };
+  if (e instanceof DriveError && (e.status === 429 || e.status >= 500)) return { tur: 'hata', mesaj: t('kalemKayit.tekrarDenenecek', { neden: e.message }), tekrar: true };
+  const why = e instanceof Error && e.message ? e.message : t('genel.bilinmeyenHata');
+  return { tur: 'hata', mesaj: t('kalemKayit.kaydedilemedi', { neden: why }), tekrar: false };
 }
 
 export interface UploaderHooks {

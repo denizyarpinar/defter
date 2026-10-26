@@ -1,5 +1,6 @@
+import { t, type Anahtar } from '../dil';
 import { DESENLER, type Desen, type Yon } from '../defter/bosSayfa';
-import { GERI_GETIR_METNI, SIL_METNI, type SilmeHedefi, type Taraf, type YapistirHedefi } from './sayfaEkleDurumu';
+import { geriGetirMetni, isSuruyorMetni, silMetni, type SilmeHedefi, type Taraf, type YapistirHedefi } from './sayfaEkleDurumu';
 
 // Task 6.S-4: "Sayfa ekle" (+) in the reader's material bar (index.html #oSayfaEkle) and its popover (6.H1b's o-balon,
 // as TemizDugme): Önüne / Arkasına, three patterns with a small preview (a tap starts the adding), "Bu sayfayı
@@ -10,8 +11,11 @@ import { GERI_GETIR_METNI, SIL_METNI, type SilmeHedefi, type Taraf, type Yapisti
 // Task 6.S-4d: "Bu sayfayı sil" (red text) for the page read; "Son silineni geri getir". Grey: the reason under it.
 // Decisions: ui/sayfaEkleDurumu.ts.
 
-const DESEN_ADI: Record<Desen, string> = { duz: 'Düz', kareli: 'Kareli', cizgili: 'Çizgili' };
-const YON_ADI: Record<Yon, string> = { once: 'Önüne', sonra: 'Arkasına' };
+// 6.5-3: the data- values stay (duz / kareli / cizgili, once / sonra); only the names are in the chosen language
+const DESEN_ANAHTARI: Record<Desen, Anahtar> = { duz: 'sayfaBalon.desen.duz', kareli: 'sayfaBalon.desen.kareli', cizgili: 'sayfaBalon.desen.cizgili' };
+const YON_ANAHTARI: Record<Yon, Anahtar> = { once: 'sayfaBalon.yon.once', sonra: 'sayfaBalon.yon.sonra' };
+const desenAdi = (d: Desen) => t(DESEN_ANAHTARI[d]);
+const yonAdi = (y: Yon) => t(YON_ANAHTARI[y]);
 
 // A small page with the pattern (the PDF's proportions: 5 mm squares, 8 mm lines on A4)
 function onizleme(d: Desen): string {
@@ -58,7 +62,7 @@ export class SayfaEkleBalon {
     this.pop.className = 'o-balon o-sekle-balon';
     this.pop.id = 'oSayfaEkleBalon';
     this.pop.setAttribute('role', 'dialog');
-    this.pop.setAttribute('aria-label', 'Boş sayfa ekle');
+    this.pop.setAttribute('aria-label', t('sayfaBalon.baslik'));
     this.pop.hidden = true;
     this.cover.className = 'o-perde';
     this.cover.hidden = true;
@@ -94,8 +98,8 @@ export class SayfaEkleBalon {
     y.textContent = yuzde ?? '';
     y.hidden = yuzde === null;
     this.btn.classList.toggle('calisiyor', yuzde !== null);
-    this.btn.setAttribute('aria-label', yuzde !== null ? `Sayfa ekleniyor ${yuzde}` : 'Sayfa ekle');
-    this.btn.title = yuzde !== null ? `Sayfa işi sürüyor ${yuzde}` : 'Sayfa ekle';
+    this.btn.setAttribute('aria-label', yuzde !== null ? t('sayfaBalon.ekleniyor', { yuzde }) : t('okuyucu.sayfaEkle'));
+    this.btn.title = yuzde !== null ? t('sayfaBalon.isSuruyorYuzde', { yuzde }) : t('okuyucu.sayfaEkle');
     if (!this.pop.hidden) this.ciz();
   }
 
@@ -120,7 +124,7 @@ export class SayfaEkleBalon {
     let b: BalonBilgisi;
     try { b = await this.olay.bilgi(); } catch (e) {
       console.warn('Sayfa ekle: PDF okunamadı.', e);
-      b = { engel: 'PDF okunamadı; bağlantını kontrol edip tekrar dene.' };
+      b = { engel: t('sayfaBalon.pdfOkunamadi') };
     }
     if (my !== this.acilis) return;
     this.bilgi = b;
@@ -144,46 +148,46 @@ export class SayfaEkleBalon {
 
   private silBolumu(): string {
     const h = this.silBilgisi(), g = this.bilgi?.geriGetir;
-    const engel = (x: string | null) => this.yuzde !== null ? 'Sayfa işi sürüyor; bitince tekrar dene.' : x;
+    const engel = (x: string | null) => this.yuzde !== null ? isSuruyorMetni() : x;
     let out = '';
     if (h) {
       const e = engel(h.engel);
-      out += `<button type="button" class="o-sekle-kaldir o-sekle-sil" data-sil ${e ? 'disabled' : ''}>${SIL_METNI}</button>`
+      out += `<button type="button" class="o-sekle-kaldir o-sekle-sil" data-sil ${e ? 'disabled' : ''}>${silMetni()}</button>`
         + (e && e !== this.genelEngel() ? `<div class="o-sekle-not o-sekle-silnot">${e}</div>` : '');
     }
-    if (g) out += `<button type="button" class="o-sekle-kaldir" data-geri-getir ${engel(g.engel) ? 'disabled' : ''}>${GERI_GETIR_METNI}</button>`;
-    return out ? `<div class="o-sekle-silme" role="group" aria-label="Sayfayı sil">${out}</div>` : '';
+    if (g) out += `<button type="button" class="o-sekle-kaldir" data-geri-getir ${engel(g.engel) ? 'disabled' : ''}>${geriGetirMetni()}</button>`;
+    return out ? `<div class="o-sekle-silme" role="group" aria-label="${t('sayfaBalon.silGrup')}">${out}</div>` : '';
   }
 
   private genelEngel(): string | null {
-    return this.yuzde !== null ? 'Sayfa işi sürüyor; bitince tekrar dene.' : this.bilgi?.engel ?? null;
+    return this.yuzde !== null ? isSuruyorMetni() : this.bilgi?.engel ?? null;
   }
 
   private yapistirBolumu(kapali: boolean): string {
     const h = this.yapistirHedefi();
     if (!h) return '';
-    if (h.tur === 'geriAl') return `<button type="button" class="o-sekle-kaldir" data-geri-al ${this.yuzde !== null ? 'disabled' : ''}>Deftere yapıştırmayı geri al</button>`;
+    if (h.tur === 'geriAl') return `<button type="button" class="o-sekle-kaldir" data-geri-al ${this.yuzde !== null ? 'disabled' : ''}>${t('sayfaBalon.yapistirGeriAl')}</button>`;
     const desenler = DESENLER.map(d =>
-      `<button type="button" class="o-sekle-desen o-sekle-ydesen${d === this.ydesen ? ' on' : ''}" data-ydesen="${d}" aria-pressed="${d === this.ydesen}" ${kapali ? 'disabled' : ''} aria-label="Bantlarda ${DESEN_ADI[d].toLowerCase()}">${onizleme(d)}<span>${DESEN_ADI[d]}</span></button>`).join('');
-    const hepsi = h.yataySayisi > 1 ? `<button type="button" data-yapistir="hepsi" ${kapali ? 'disabled' : ''}>Dosyadaki tüm yatay sayfalar (${h.yataySayisi})</button>` : '';
-    return `<div class="o-sekle-yapistir" role="group" aria-label="Deftere yapıştır"><div class="o-sekle-baslik">Deftere yapıştır</div>`
+      `<button type="button" class="o-sekle-desen o-sekle-ydesen${d === this.ydesen ? ' on' : ''}" data-ydesen="${d}" aria-pressed="${d === this.ydesen}" ${kapali ? 'disabled' : ''} aria-label="${t('sayfaBalon.bantlarda', { desen: desenAdi(d).toLocaleLowerCase() })}">${onizleme(d)}<span>${desenAdi(d)}</span></button>`).join('');
+    const hepsi = h.yataySayisi > 1 ? `<button type="button" data-yapistir="hepsi" ${kapali ? 'disabled' : ''}>${t('sayfaBalon.tumYatay', { n: h.yataySayisi })}</button>` : '';
+    return `<div class="o-sekle-yapistir" role="group" aria-label="${t('sayfaBalon.yapistir')}"><div class="o-sekle-baslik">${t('sayfaBalon.yapistir')}</div>`
       + `<div class="o-sekle-desenler">${desenler}</div>`
-      + `<div class="o-sekle-yon o-sekle-ydugmeler"><button type="button" data-yapistir="bu" ${kapali ? 'disabled' : ''}>Bu sayfa</button>${hepsi}</div></div>`;
+      + `<div class="o-sekle-yon o-sekle-ydugmeler"><button type="button" data-yapistir="bu" ${kapali ? 'disabled' : ''}>${t('sayfaBalon.buSayfa')}</button>${hepsi}</div></div>`;
   }
 
   private ciz(): void {
     const b = this.bilgi, bekliyor = !b, engel = this.genelEngel();
     const kapali = bekliyor || !!engel;
     const yonlar = (['once', 'sonra'] as const).map(y =>
-      `<button type="button" data-yon="${y}" class="${y === this.yon ? 'on' : ''}" aria-pressed="${y === this.yon}">${YON_ADI[y]}</button>`).join('');
-    const t = b?.taraflar ?? {};
-    const taraflar = t.sol && t.sag ? '<div class="o-sekle-yon o-sekle-taraf" role="group" aria-label="Okuduğun sayfa"><span>Okuduğun sayfa:</span>'
-      + (['sol', 'sag'] as const).map(x => `<button type="button" data-taraf="${x}" class="${x === this.taraf ? 'on' : ''}" aria-pressed="${x === this.taraf}">${x === 'sol' ? 'Sol' : 'Sağ'} (s. ${t[x]})</button>`).join('')
+      `<button type="button" data-yon="${y}" class="${y === this.yon ? 'on' : ''}" aria-pressed="${y === this.yon}">${yonAdi(y)}</button>`).join('');
+    const tf = b?.taraflar ?? {};
+    const taraflar = tf.sol && tf.sag ? `<div class="o-sekle-yon o-sekle-taraf" role="group" aria-label="${t('sayfaBalon.okunan')}"><span>${t('sayfaBalon.okunanEtiket')}</span>`
+      + (['sol', 'sag'] as const).map(x => `<button type="button" data-taraf="${x}" class="${x === this.taraf ? 'on' : ''}" aria-pressed="${x === this.taraf}">${t(x === 'sol' ? 'sayfaBalon.sol' : 'sayfaBalon.sag', { n: tf[x] ?? 0 })}</button>`).join('')
       + '</div>' : '';
     const desenler = DESENLER.map(d =>
-      `<button type="button" class="o-sekle-desen" data-desen="${d}" ${kapali ? 'disabled' : ''} aria-label="${DESEN_ADI[d]} sayfa ekle (${YON_ADI[this.yon].toLowerCase()})">${onizleme(d)}<span>${DESEN_ADI[d]}</span></button>`).join('');
-    const not = this.yuzde !== null ? `Yükleniyor… ${this.yuzde}` : bekliyor ? 'PDF kontrol ediliyor…' : engel ?? 'Desene dokununca boş sayfa eklenir.';
-    this.pop.innerHTML = taraflar + `<div class="o-sekle-yon" role="group" aria-label="Nereye">${yonlar}</div>`
+      `<button type="button" class="o-sekle-desen" data-desen="${d}" ${kapali ? 'disabled' : ''} aria-label="${t('sayfaBalon.desenEkle', { desen: desenAdi(d), yon: yonAdi(this.yon).toLocaleLowerCase() })}">${onizleme(d)}<span>${desenAdi(d)}</span></button>`).join('');
+    const not = this.yuzde !== null ? t('sayfaBalon.yukleniyor', { yuzde: this.yuzde }) : bekliyor ? t('sayfaBalon.kontrol') : engel ?? t('sayfaBalon.ipucu');
+    this.pop.innerHTML = taraflar + `<div class="o-sekle-yon" role="group" aria-label="${t('sayfaBalon.nereye')}">${yonlar}</div>`
       + `<div class="o-sekle-desenler">${desenler}</div>`
       + `<div class="o-sekle-not" aria-live="polite">${not}</div>` + this.yapistirBolumu(kapali) + this.silBolumu();
   }

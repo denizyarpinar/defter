@@ -34,7 +34,7 @@ export async function buildBookPages(book: Book, bookFolderId: string): Promise<
   // one source after the other: several downloads at once would be too much for the iPad
   for (const [bolumIndex, chapter] of book.bolumler.entries()) {
     for (const src of chapter.kaynaklar) {
-      const missing = (): BookPage => ({ bolumIndex, tur: src.tur, dosyaId: null, eksik: src.dosya || '(adsız)' });
+      const missing = (): BookPage => ({ bolumIndex, tur: src.tur, dosyaId: null, eksik: src.dosya });   // 6.5-3: an empty name is shown as "(adsız)" by the reader
 
       if (src.tur === 'link') { pages.push({ bolumIndex, tur: src.tur, dosyaId: null, link: src.dosya }); continue; }
 

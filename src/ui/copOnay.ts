@@ -2,6 +2,7 @@ import {
   adSorulur, BASLIKLAR, copAcik, hataAdimi, hataDugmeleri, kapatilabilir, ozetMetni, sayildi, uyariMetni,
   type CopAdimi, type CopOzeti, type CopTuru
 } from './copOnayDurumu';
+import { t } from '../dil';
 import { gorunurAlaniDuzelt } from './gorunurAlan';
 
 // Task 6.K5b: the trash dialog (the logic is in copOnayDurumu.ts). One dialog for a topic, a unit, a book and a
@@ -62,14 +63,14 @@ export function copOnayAc(g: CopOnayGirdisi): void {
   kart.setAttribute('aria-modal', 'true');
   kart.setAttribute('aria-labelledby', 'coBaslik');
   kart.setAttribute('aria-describedby', 'coMetin');
-  const baslik = el('h2', 'fp-baslik', geriModu ? `Geri al: ${g.ad}` : BASLIKLAR[g.tur]);
+  const baslik = el('h2', 'fp-baslik', geriModu ? t('cop.geriAlBaslik', { ad: g.ad }) : BASLIKLAR[g.tur]);
   baslik.id = 'coBaslik';
   const adSatiri = el('p', 'co-ad', g.ad);
   adSatiri.hidden = geriModu;
   const metin = el('p', 'fp-not co-metin');
   metin.id = 'coMetin';
   metin.setAttribute('aria-live', 'polite');
-  const adEt = el('label', 'co-adalan', `Onaylamak için kitabın adını yaz: ${g.ad}`);
+  const adEt = el('label', 'co-adalan', t('cop.adYaz', { ad: g.ad }));
   const adKutu = el('input');
   adKutu.type = 'text';
   adKutu.autocomplete = 'off';
@@ -80,11 +81,11 @@ export function copOnayAc(g: CopOnayGirdisi): void {
   const cozumKutu = el('input');
   cozumKutu.type = 'checkbox';
   cozumKutu.checked = true;
-  cozumEt.append(cozumKutu, ` Çözümü de çöpe at (${g.cozumKutusu?.ad ?? ''})`);
+  cozumEt.append(cozumKutu, ' ' + t('cop.cozumuDe', { ad: g.cozumKutusu?.ad ?? '' }));
   let basladi = false;   // the box is fixed once the operation ran
   const alt = el('div', 'fp-alt');
-  const yan = dugme('fp-vazgec', 'Vazgeç');
-  const ana = dugme('fp-ekle co-cop', 'Çöpe at');
+  const yan = dugme('fp-vazgec', t('genel.vazgec'));
+  const ana = dugme('fp-ekle co-cop', t('cop.at'));
   alt.append(yan, ana);
   kart.append(baslik, adSatiri, metin, adEt, cozumEt, alt);
   kok.append(kart);
@@ -98,40 +99,41 @@ export function copOnayAc(g: CopOnayGirdisi): void {
     cozumKutu.disabled = basladi || a.tur === 'calisiyor';
     ana.hidden = a.tur === 'engel' || (a.tur === 'hata' && hataDugmeleri(a).ana === null);
     yan.disabled = !kapatilabilir(a);
-    yan.textContent = 'Vazgeç';
+    yan.textContent = t('genel.vazgec');
     ana.classList.toggle('co-kirmizi', a.tur === 'onay' || a.tur === 'uyari');
+    kart.dataset.adim = a.tur;   // 6.5-3: the step for the check scripts (not the text)
     switch (a.tur) {
       case 'sayiliyor':
-        m = 'Hesaplanıyor…';
-        ana.textContent = 'Çöpe at';
+        m = t('cop.hesaplaniyor');
+        ana.textContent = t('cop.at');
         ana.disabled = true;
         break;
       case 'uyari':
         m = uyariMetni(a.ozet.bekleyen);
-        ana.textContent = 'Yine de çöpe at';
+        ana.textContent = t('cop.yineDe');
         ana.disabled = false;
         break;
       case 'onay':
         m = ozetMetni(g.tur, g.cozumKutusu ? { ...a.ozet, dosya: 1 + (cozumKutu.checked ? 1 : 0) } : a.ozet);
-        ana.textContent = 'Çöpe at';
+        ana.textContent = t('cop.at');
         ana.disabled = !copAcik(a, adSorulur(g.tur), yazilan, g.ad);
         break;
       case 'engel':
         m = a.metin;
         ana.disabled = true;
-        yan.textContent = 'Kapat';
+        yan.textContent = t('genel.kapat');
         break;
       case 'calisiyor':
-        m = a.geri ? 'Geri alınıyor…' : 'Çöpe atılıyor…';
-        ana.textContent = a.geri ? 'Geri alınıyor…' : 'Çöpe atılıyor…';
+        m = t(a.geri ? 'cop.geriAliniyor' : 'cop.atiliyor');
+        ana.textContent = m;
         ana.disabled = true;
         break;
       case 'hata': {
         m = a.mesaj;
         const d = hataDugmeleri(a);
-        ana.textContent = d.ana === 'giris' ? 'Tekrar giriş yap' : 'Tekrar dene';
+        ana.textContent = t(d.ana === 'giris' ? 'genel.tekrarGiris' : 'genel.tekrarDene');
         ana.disabled = false;
-        yan.textContent = d.yan === 'vazgec' ? 'Vazgeç' : 'Kapat';
+        yan.textContent = t(d.yan === 'vazgec' ? 'genel.vazgec' : 'genel.kapat');
         break;
       }
     }
@@ -175,7 +177,7 @@ export function copOnayAc(g: CopOnayGirdisi): void {
     if (a.tur !== 'hata') return;
     if (a.izin) {
       void Promise.resolve(g.girisYap()).catch(() => undefined).then(() => {
-        adim = { ...a, izin: false, mesaj: 'Giriş yapıldıysa Tekrar dene.' };
+        adim = { ...a, izin: false, mesaj: t('cop.girisSonrasi') };
         ciz();
       });
       return;
@@ -205,7 +207,7 @@ export function copOnayAc(g: CopOnayGirdisi): void {
   function kapat(cop = false): void {
     removeEventListener('keydown', tus, true);
     kok.remove();
-    gorunurAlaniDuzelt('çöp penceresi kapandı');
+    gorunurAlaniDuzelt('çöp penceresi kapandı');   // dil-kontrol: yoksay
     g.kapandi?.(cop);
   }
 

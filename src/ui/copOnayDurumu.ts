@@ -1,3 +1,4 @@
+import { t as dilT } from '../dil';   // 6.5-3: t is a topic in this file
 import { CopIzinYok } from '../drive/copeAt';
 import { GeriAlAdDolu } from '../drive/dosyaCop';
 import { IcindekilerIzinYok } from '../drive/icindekilerYaz';
@@ -21,24 +22,23 @@ export type CopAdimi =
   | { tur: 'calisiyor'; geri: boolean }
   | { tur: 'hata'; mesaj: string; izin: boolean; asama: 'sayim' | 'cop' | 'geri'; tekrarYok?: boolean };
 
+// 6.5-3: in the chosen language (getters; only shown)
 export const BASLIKLAR: Record<CopTuru, string> = {
-  konu: 'Konuyu çöpe at', unite: 'Üniteyi çöpe at', kitap: 'Kitabı çöpe at', yarim: 'Yarım kitabı çöpe at',
-  dosya: 'Dosyayı çöpe at'
+  get konu() { return dilT('cop.baslik.konu'); }, get unite() { return dilT('cop.baslik.unite'); },
+  get kitap() { return dilT('cop.baslik.kitap'); }, get yarim() { return dilT('cop.baslik.yarim'); },
+  get dosya() { return dilT('cop.baslik.dosya'); }
 };
 
-const AG_METNI = "Drive'a bağlanılamadı. İnternet bağlantını kontrol et ve tekrar dene.";
-
 export function ozetMetni(t: CopTuru, o: CopOzeti): string {
-  if (t === 'dosya') return `${o.dosya > 1 ? 'Dosya ve çözümü' : 'Dosya'} çöpe gidecek. Drive'ın çöpünden 30 gün içinde geri alınabilir.`;
-  const dosya = `${o.dosya} dosya`;
-  const ne = t === 'yarim' ? `Yarım klasör ve içindeki ${dosya}` : `${o.konu} konu, ${dosya}`;
-  return `${ne} çöpe gidecek. Drive'ın çöpünden 30 gün içinde geri alınabilir.`;
+  if (t === 'dosya') return dilT(o.dosya > 1 ? 'cop.ozet.dosyaCozum' : 'cop.ozet.dosya');
+  const dosya = dilT('masa.dosyaSayisi', { n: o.dosya });
+  if (t === 'yarim') return dilT('cop.ozet.yarim', { dosya });
+  return dilT('cop.ozet.icerik', { konu: dilT('masa.konuSayisi', { n: o.konu }), dosya });
 }
 
-export const uyariMetni = (n: number): string =>
-  `Kaydedilmemiş ${n} değişiklik var (kalem ya da fotoğraf). Çöpe atılırsa Drive'a yazılamaz; cihazda kalır, silinmez.`;
+export const uyariMetni = (n: number): string => dilT('cop.uyari', { n });
 
-export const ENGEL_FOTO = "Bu konuda Drive'a eklenmeyi bekleyen fotoğraflar var. Önce bekleyen fotoğrafları ekle, sonra özeti çöpe at.";
+export const engelFoto = () => dilT('cop.engelFoto');
 
 export const sayildi = (ozet: CopOzeti): CopAdimi =>
   ozet.engel ? { tur: 'engel', metin: ozet.engel } : ozet.bekleyen > 0 ? { tur: 'uyari', ozet } : { tur: 'onay', ozet };
@@ -54,7 +54,7 @@ export const adSorulur = (t: CopTuru): boolean => t === 'kitap';
 export const kapatilabilir = (adim: CopAdimi): boolean => adim.tur !== 'calisiyor';
 
 export function hataAdimi(e: unknown, asama: 'sayim' | 'cop' | 'geri'): CopAdimi {
-  const mesaj = e instanceof TypeError || !(e instanceof Error) ? AG_METNI : e.message;
+  const mesaj = e instanceof TypeError || !(e instanceof Error) ? dilT('genel.agHatasi') : e.message;
   return { tur: 'hata', mesaj, izin: e instanceof CopIzinYok || e instanceof IcindekilerIzinYok, asama, ...(e instanceof GeriAlAdDolu ? { tekrarYok: true } : {}) };
 }
 

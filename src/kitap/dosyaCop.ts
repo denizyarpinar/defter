@@ -1,3 +1,4 @@
+import { t as dilT } from '../dil';   // 6.5-3: t is a topic in this file
 import type { DriveFile } from '../drive/drive';
 import { topicKey } from '../model/okumaYamasi';
 import { defaultKind, type MaterialKind, type TopicMaterials } from '../okuma/konuKesfi';
@@ -87,7 +88,11 @@ export const kitabaKurdeleGeriKoy = (b: Tutucu, konu: string, materyal: Material
 
 // ---- the reader ----
 
-export const TUR_ETIKETI: Record<MaterialKind, string> = { orijinal: 'Orijinal', ozet: 'Özet', uebungen: 'Übung', oedevler: 'Ödev' };
+// 6.5-3: the label in the chosen language (getters; only shown); the folder in the path stays (ALT_KLASOR)
+export const TUR_ETIKETI: Record<MaterialKind, string> = {
+  get orijinal() { return dilT('materyal.orijinal'); }, get ozet() { return dilT('materyal.ozet'); },
+  get uebungen() { return dilT('cop.tur.uebung'); }, get oedevler() { return dilT('cop.tur.oedev'); }
+};
 const ALT_KLASOR: Partial<Record<MaterialKind, string>> = { uebungen: 'Uebungen/', oedevler: 'Oedevler/' };
 
 export interface DosyaCopHedefi {
@@ -112,7 +117,7 @@ export function dosyaCopHedefi(t: AcikKonu, odakDosyaId: string | null, odak: nu
   if (!m) return null;
   const yol = (f: DriveFile) => `${TUR_ETIKETI[kind]} · ${ALT_KLASOR[kind] ?? ''}${f.name}`;
   if (m.cozum && ((t.solution && odak >= mainCount) || odakDosyaId === m.cozum.id)) {
-    return { materyal: kind, dosya: m.cozum, cozum: null, sadeceCozum: true, etiket: `Çözüm · ${ALT_KLASOR[kind] ?? ''}${m.cozum.name}` };
+    return { materyal: kind, dosya: m.cozum, cozum: null, sadeceCozum: true, etiket: `${dilT('materyal.cozum')} · ${ALT_KLASOR[kind] ?? ''}${m.cozum.name}` };
   }
   return { materyal: kind, dosya: m.file, cozum: m.cozum, sadeceCozum: false, etiket: yol(m.file) };
 }

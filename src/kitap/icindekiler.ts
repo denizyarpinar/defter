@@ -1,3 +1,4 @@
+import { t as dilT } from '../dil';   // 6.5-3: t is a topic in this file
 import { topicKey } from '../model/okumaYamasi';
 import type { Book, Topic, Unit } from '../model/types';
 import { klasorAdi } from './klasorAdi';
@@ -20,7 +21,7 @@ export type IcindekilerIslemi =
 
 // The file and the book in memory don't fit the change (e.g. the unit is gone): nothing is written.
 export class IcindekilerUyusmuyor extends Error {
-  constructor(ne: string) { super(`İçindekiler kaydedilemedi: ${ne}. Sayfayı yenileyip tekrar dene.`); }
+  constructor(ne: string) { super(dilT('icindekiler.hata.uyusmuyor', { ne })); }
 }
 
 const ilkParca = (yol: string) => yol.includes('/') ? yol.slice(0, yol.indexOf('/')) : '';
@@ -92,7 +93,7 @@ function uygula<K extends KonuBenzeri, U extends UniteBenzeri<K>>(uniteler: U[],
     }
     case 'konuEkle': {
       const u = uniteBul(uniteler, islem.unite, islem.uniteKlasor);
-      if (!u) throw new IcindekilerUyusmuyor('konunun ünitesi kitap.json\'da bulunamadı');
+      if (!u) throw new IcindekilerUyusmuyor(dilT('icindekiler.neden.konuUnitesiYok'));
       let degisti = false;
       if (uniteKlasoru(u.klasor, []) === '') { u.klasor = islem.uniteKlasor; degisti = true; }   // the folder becomes known
       const key = topicKey(islem.klasor, islem.baslik);
@@ -102,14 +103,14 @@ function uygula<K extends KonuBenzeri, U extends UniteBenzeri<K>>(uniteler: U[],
     }
     case 'uniteAdi': {
       const u = uniteBul(uniteler, islem.unite);
-      if (!u) throw new IcindekilerUyusmuyor('ünite kitap.json\'da bulunamadı');
+      if (!u) throw new IcindekilerUyusmuyor(dilT('icindekiler.neden.uniteYok'));
       if (u.baslik === islem.baslik) return false;
       u.baslik = islem.baslik;
       return true;
     }
     case 'konuAdi': {
       const t = uniteler.flatMap(u => u.konular).find(t => konuAnahtari(t) === islem.konu);
-      if (!t) throw new IcindekilerUyusmuyor('konu kitap.json\'da bulunamadı');
+      if (!t) throw new IcindekilerUyusmuyor(dilT('icindekiler.neden.konuYok'));
       if (t.baslik === islem.baslik) return false;
       t.baslik = islem.baslik;
       return true;
@@ -122,7 +123,7 @@ function uygula<K extends KonuBenzeri, U extends UniteBenzeri<K>>(uniteler: U[],
     }
     case 'konuSirasi': {
       const u = uniteBul(uniteler, islem.unite);
-      if (!u) throw new IcindekilerUyusmuyor('ünite kitap.json\'da bulunamadı');
+      if (!u) throw new IcindekilerUyusmuyor(dilT('icindekiler.neden.uniteYok'));
       const yeniSira = sirala(u.konular, u.konular.map(konuAnahtari), islem.sira);
       if (ayni(yeniSira, u.konular)) return false;
       u.konular.splice(0, u.konular.length, ...yeniSira);
@@ -141,7 +142,7 @@ export function icindekilerUygula(latest: unknown, islem: IcindekilerIslemi): { 
   const uniteler = json.uniteler;
   // parse.ts would show odd entries anyway, but we don't write over a list we can't read
   if (!Array.isArray(uniteler) || !uniteler.every(u => isObj(u) && Array.isArray(u.konular) && u.konular.every(isObj))) {
-    throw new IcindekilerUyusmuyor('kitap.json\'daki ünite listesi beklenmedik biçimde');
+    throw new IcindekilerUyusmuyor(dilT('icindekiler.neden.uniteListesi'));
   }
   const degisti = uygula(uniteler as (Obj & UniteBenzeri<Obj & KonuBenzeri>)[], islem, {
     unite: (baslik, klasor) => ({ baslik, klasor, konular: [] }) as unknown as Obj & UniteBenzeri<Obj & KonuBenzeri>,

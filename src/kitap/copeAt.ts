@@ -1,3 +1,4 @@
+import { t as dilT } from '../dil';   // 6.5-3: t is a topic in this file
 import { katla } from '../dil/katla';
 import { topicKey } from '../model/okumaYamasi';
 import { IcindekilerUyusmuyor, uniteAnahtarlari, uniteKlasoru } from './icindekiler';
@@ -40,7 +41,7 @@ function uniteListesi(t: Tutucu): UniteBenzeri[] {
   const u = t.uniteler;
   if (u === undefined) return [];
   if (!Array.isArray(u) || !u.every(x => isObj(x) && Array.isArray(x.konular) && x.konular.every(isObj))) {
-    throw new IcindekilerUyusmuyor('kitap.json\'daki ünite listesi beklenmedik biçimde');
+    throw new IcindekilerUyusmuyor(dilT('icindekiler.neden.uniteListesi'));
   }
   return u as UniteBenzeri[];
 }
@@ -92,7 +93,7 @@ function geriKoy(t: Tutucu, c: Cikan): boolean {
     const key = konuAnahtari(nesne);
     if (!uniteler.some(u => u.konular.some(k => konuAnahtari(k) === key))) {
       const u = uniteler.find(x => uniteKlasoruOf(x) === c.uniteKlasor);
-      if (!u) throw new IcindekilerUyusmuyor('konunun ünitesi kitap.json\'da bulunamadı');
+      if (!u) throw new IcindekilerUyusmuyor(dilT('icindekiler.neden.konuUnitesiYok'));
       const j = c.onceki === null ? -1 : u.konular.findIndex(k => konuAnahtari(k) === c.onceki);
       u.konular.splice(j >= 0 ? j + 1 : c.onceki === null ? 0 : Math.min(c.sira, u.konular.length), 0, nesne);
       degisti = true;

@@ -1,3 +1,4 @@
+import { t, type Anahtar } from '../dil';
 import type { Stil } from '../elYazisi/basici';
 import { dugmeMetni, kisaMetin, type Sayac } from '../elYazisi/temizGorunum';
 
@@ -6,7 +7,9 @@ import { dugmeMetni, kisaMetin, type Sayac } from '../elYazisi/temizGorunum';
 // "3/8" (styles.css, the 5.10g one-row rule). The ▾ next to it opens a small popover (6.H1b's o-balon) with the
 // style: Tükenmez / Yumuşak. With the pen on both are grey.
 
-const STIL_ADI: Record<Stil, string> = { tukenmez: 'Tükenmez', yumusak: 'Yumuşak' };
+// 6.5-3: the data-stil values stay; the names are in the chosen language
+const STIL_ANAHTARI: Record<Stil, Anahtar> = { tukenmez: 'temiz.stil.tukenmez', yumusak: 'temiz.stil.yumusak' };
+const stilAdi = (s: Stil) => t(STIL_ANAHTARI[s]);
 
 export interface TemizDugmeDurumu { gorunur: boolean; basili: boolean; sayac: Sayac; stil: Stil }
 
@@ -22,7 +25,7 @@ export class TemizDugme {
     this.pop.className = 'o-balon o-temiz-balon';
     this.pop.id = 'oTemizBalon';
     this.pop.setAttribute('role', 'dialog');
-    this.pop.setAttribute('aria-label', 'Temiz yazı stili');
+    this.pop.setAttribute('aria-label', t('okuyucu.temizStil'));
     this.pop.hidden = true;
     this.cover.className = 'o-perde';
     this.cover.hidden = true;
@@ -44,13 +47,13 @@ export class TemizDugme {
     this.stil = d.stil;
     if (!d.gorunur) this.balonKapat();
     const metin = dugmeMetni(d.sayac);
-    const eylem = d.basili ? 'Orijinali göster' : 'Temiz yazıyı göster';
+    const eylem = t(d.basili ? 'temiz.orijinaliGoster' : 'temiz.temiziGoster');
     this.btn.querySelector('.o-uzun')!.textContent = metin;
     this.btn.querySelector('.o-kisa')!.textContent = kisaMetin(d.sayac);
     this.btn.setAttribute('aria-pressed', String(d.basili));
     this.btn.setAttribute('aria-label', `${metin} · ${eylem}`);
-    this.btn.title = `${eylem} (${d.sayac.okunmus} okunmuş sayfa)`;
-    this.stilBtn.title = `Stil: ${STIL_ADI[d.stil]}`;
+    this.btn.title = t('temiz.dugmeIpucu', { eylem, n: d.sayac.okunmus });
+    this.stilBtn.title = t('temiz.stilIpucu', { ad: stilAdi(d.stil) });
   }
 
   // false: it wasn't open (Okuyucu's Esc: the popover first)
@@ -62,8 +65,8 @@ export class TemizDugme {
   }
 
   private balonAc(): void {
-    this.pop.innerHTML = (Object.keys(STIL_ADI) as Stil[]).map(s =>
-      `<button type="button" data-stil="${s}" class="${s === this.stil ? 'on' : ''}" aria-pressed="${s === this.stil}">${STIL_ADI[s]}</button>`).join('');
+    this.pop.innerHTML = (Object.keys(STIL_ANAHTARI) as Stil[]).map(s =>
+      `<button type="button" data-stil="${s}" class="${s === this.stil ? 'on' : ''}" aria-pressed="${s === this.stil}">${stilAdi(s)}</button>`).join('');
     this.pop.hidden = this.cover.hidden = false;
     this.stilBtn.setAttribute('aria-expanded', 'true');
     // under the bar, centred on the ▾, kept inside the reader (as kalemCubugu.ts)

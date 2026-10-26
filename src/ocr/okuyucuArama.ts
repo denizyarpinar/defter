@@ -1,3 +1,4 @@
+import { t } from '../dil';
 import { katlaUzunlukKoru } from '../dil/katla';
 import { duzeltilmisMetin, hamMetin, type OcrSayfa } from './kayit/sema';
 
@@ -32,7 +33,7 @@ export class ReaderOcrSearch {
   private abort: AbortController | null = null;
   constructor(private io: SearchIO) {}
   private check(generation: number): void {
-    if (this.cancelled || generation !== this.generation || !this.io.valid()) throw new Error('İşlem iptal edildi veya dosya/oturum değişti. Eski sonuç kullanılmadı.');
+    if (this.cancelled || generation !== this.generation || !this.io.valid()) throw new Error(t('ocrArama.iptal'));
   }
   cancel(): void { this.cancelled = true; this.generation++; this.abort?.abort(); }
   forget(): void {
@@ -41,8 +42,8 @@ export class ReaderOcrSearch {
   }
   // the number of pages that would be sent
   async prepare(selection: SearchPage[]): Promise<number> {
-    if (this.busy) throw new Error('Önce sürmekte olan işlemi tamamla.');
-    if (!selection.length || selection.length > 5 || new Set(selection.map(p => p.number)).size !== selection.length) throw new Error('Aynı dosyadan 1–5 farklı sayfa seç.');
+    if (this.busy) throw new Error(t('ocrArama.mesgul'));
+    if (!selection.length || selection.length > 5 || new Set(selection.map(p => p.number)).size !== selection.length) throw new Error(t('ocrArama.secim'));
     this.cancelled = false; const generation = ++this.generation; this.busy = true;
     this.pages = [];
     try {
@@ -59,7 +60,7 @@ export class ReaderOcrSearch {
   }
   // again: page numbers to read even though the record has them ("Tekrar oku"); pages with text never
   async start(again: number[] = []): Promise<void> {
-    if (this.busy || !this.pages.length) throw new Error('Önce sayfaları kontrol et; aynı anda tek işlem çalışır.');
+    if (this.busy || !this.pages.length) throw new Error(t('ocrArama.onceKontrol'));
     this.busy = true; this.cancelled = false; const generation = ++this.generation;
     const abort = this.abort = new AbortController();
     try {

@@ -18,7 +18,12 @@ import { chromium } from 'playwright-core';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = 4185;
-const URL = `http://localhost:${PORT}/?demo&lang=tr`;
+// 6.5-3: DIL=en node scripts/cop-kontrol.mjs → the English interface (default Turkish). The steps are read from the
+// dialog's data-adim and the toast's button, not from their texts. The book's name to type is the made-up Drive's
+// kitap.json name (data: the same in both languages).
+const DIL = process.env.DIL === 'en' ? 'en' : 'tr';
+const URL = `http://localhost:${PORT}/?demo&lang=${DIL}`;
+const KITAP_ADI = { yaz: 'Programlamaya giriş', buyuk: '  PROGRAMLAMAYA GIRIŞ ' };   // ı for i, any case
 const OUT = process.argv[2] ?? 'C:\\Users\\yarpi\\iCloudDrive\\uni_plan_claude_code\\Claude outputs\\kitap-6.K5b';
 
 const wait = (ms) => new Promise(r => setTimeout(r, ms));
@@ -141,7 +146,7 @@ try {
     await page.waitForFunction(() => document.querySelector('#loading')?.hidden, null, { timeout: 30_000 });
     // measured first: a big screenshot takes seconds (the toast's timing)
     const cek = async (dosya) => { const o = await olc(page); await page.screenshot({ path: join(OUT, `${ad}-${dosya}.png`) }); tablo.push([`${ad} ${dosya}`, o]); };
-    const anaHazir = () => page.waitForFunction(() => { const b = document.querySelector('#copOnay .co-cop'); return b && !b.textContent.includes('Hesaplanıyor') && !document.querySelector('#coMetin').textContent.includes('Hesaplanıyor'); });
+    const anaHazir = () => page.waitForFunction(() => { const k = document.querySelector('#copOnay .co-kart'); return !!k?.dataset.adim && k.dataset.adim !== 'sayiliyor'; });
 
     // 1. the trash buttons; 2. a topic: counted → confirm
     await ac(page);
@@ -151,12 +156,12 @@ try {
     await cek('02-onay-konu');
     // 3. a confirm → the toast with Geri al, the topic gone from the list
     await page.click('#copOnay .co-cop');
-    await page.waitForFunction(() => document.querySelector('#toast.show')?.textContent.includes('Geri al'));
+    await page.waitForFunction(() => !!document.querySelector('#toast.show button'));   // the toast with Geri al
     await wait(300);
     await cek('03-geri-al-toast');
     // 4. Geri al → back in the list
     await page.click('#toast button');
-    await page.waitForFunction(() => document.querySelector('#toast.show')?.textContent.includes('Geri alındı'));
+    await page.waitForFunction(() => !!document.querySelector('#toast.show') && !document.querySelector('#toast.show button'));   // "Geri alındı"
     await wait(300);
     await cek('04-geri-alindi');
 
@@ -175,7 +180,7 @@ try {
     await cek('06-onay-unite');
     await page.evaluate(() => { window.__offline = true; });
     await page.click('#copOnay .co-cop');
-    await page.waitForFunction(() => document.querySelector('#copOnay .co-cop')?.textContent === 'Tekrar dene');
+    await page.waitForSelector('#copOnay .co-kart[data-adim="hata"]');
     await cek('07-hata-karti');
     await page.evaluate(() => { window.__offline = false; });
     await page.click('#copOnay .fp-vazgec');
@@ -186,7 +191,7 @@ try {
     await page.click('[data-kitapcop]');
     await anaHazir();
     await cek('08-kitap-ad-gri');
-    await page.fill('#copOnay input', '  PROGRAMLAMAYA GIRIŞ ');   // ı for i, any case
+    await page.fill('#copOnay input', KITAP_ADI.buyuk);
     await wait(100);
     await cek('09-kitap-ad-acik');
     await page.click('#copOnay .fp-vazgec');
@@ -196,11 +201,11 @@ try {
     await page.click('[data-cop="k0.0"]');
     await anaHazir();
     await page.click('#copOnay .co-cop');
-    await page.waitForFunction(() => document.querySelector('#toast.show')?.textContent.includes('Geri al'));
+    await page.waitForFunction(() => !!document.querySelector('#toast.show button'));   // the toast with Geri al
     await page.evaluate(() => { window.__offline = true; });
     await page.click('#toast button');
     await page.waitForSelector('#copOnay');
-    await page.waitForFunction(() => document.querySelector('#copOnay .co-cop')?.textContent === 'Tekrar dene');
+    await page.waitForSelector('#copOnay .co-kart[data-adim="hata"]');
     await cek('10-geri-al-hata');
     await page.evaluate(() => { window.__offline = false; });
     await wait(8500);   // the toast is long gone
@@ -214,9 +219,9 @@ try {
     await page.evaluate(() => document.querySelector('[data-kitapcop]').scrollIntoView({ block: 'center' }));
     await page.click('[data-kitapcop]');
     await anaHazir();
-    await page.fill('#copOnay input', 'Programlamaya giriş');
+    await page.fill('#copOnay input', KITAP_ADI.yaz);
     await page.click('#copOnay .co-cop');
-    await page.waitForFunction(() => document.querySelector('#toast.show')?.textContent.includes('Geri al'));
+    await page.waitForFunction(() => !!document.querySelector('#toast.show button'));   // the toast with Geri al
     const t0 = Date.now();
     await page.evaluate(async () => { (await import('/src/ui/toast.ts')).toast('Başka bir bildirim (sırada bekler)'); });
     await wait(1000);

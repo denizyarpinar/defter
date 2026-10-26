@@ -16,11 +16,11 @@ export function installRevisionHelper(openFileId: () => string | null): void {
     do {
       const q = new URLSearchParams({ fields: 'nextPageToken,revisions(id,modifiedTime,keepForever,size)' });
       if (pageToken) q.set('pageToken', pageToken);
-      const j = await (await ok(await driveFetch(`${f}/revisions?${q}`), 'Sürümler okunurken')).json() as { revisions?: Rev[]; nextPageToken?: string };
+      const j = await (await ok(await driveFetch(`${f}/revisions?${q}`), 'Sürümler okunurken')).json() as { revisions?: Rev[]; nextPageToken?: string };   // dil-kontrol: yoksay
       revs.push(...(j.revisions ?? []));
       pageToken = j.nextPageToken;
     } while (pageToken);
-    const head = (await (await ok(await driveFetch(`${f}?fields=headRevisionId`), 'Sürüm okunurken')).json() as { headRevisionId?: string }).headRevisionId ?? '';
+    const head = (await (await ok(await driveFetch(`${f}?fields=headRevisionId`), 'Sürüm okunurken')).json() as { headRevisionId?: string }).headRevisionId ?? '';   // dil-kontrol: yoksay
     console.log(`defterSurumler: ${id} · headRevisionId = ${head}`);
     console.table(revs.map(r => ({ id: r.id, modifiedTime: r.modifiedTime, keepForever: r.keepForever === true, size: r.size, head: r.id === head })));
   };

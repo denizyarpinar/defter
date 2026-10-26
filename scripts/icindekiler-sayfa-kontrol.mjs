@@ -4,7 +4,7 @@
 // Also compares short-page geometry against reader.ts from HEAD.
 import assert from 'node:assert/strict';
 import { spawn, execFileSync } from 'node:child_process';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright-core';
@@ -24,8 +24,8 @@ const sizes = [
 const baseline = (await transformWithOxc(
   execFileSync('git', ['show', 'HEAD:src/ui/reader.ts'], { cwd: ROOT, encoding: 'utf8' }),
   'reader.ts'
-)).code.replace(/from ["'](\.[^"']+)["']/g, (_, path) =>
-  `from '${new globalThis.URL(path + '.ts', 'http://localhost:' + PORT + '/src/ui/reader.ts').href}'`);
+)).code.replace(/from ["'](\.[^"']+)["']/g, (_, path) =>   // a folder ('../dil', 6.5-2a) → its index.ts
+  `from '${new globalThis.URL(path + (existsSync(join(ROOT, 'src', 'ui', path + '.ts')) ? '.ts' : '/index.ts'), 'http://localhost:' + PORT + '/src/ui/reader.ts').href}'`);
 
 async function startDev() {
   const child = spawn(process.execPath, [join(ROOT, 'node_modules/vite/bin/vite.js'), '--port', String(PORT), '--strictPort'],

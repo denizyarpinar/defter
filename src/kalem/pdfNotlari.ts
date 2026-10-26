@@ -1,4 +1,5 @@
 import type { PDFArray, PDFContext, PDFDict, PDFDocument, PDFObject, PDFRef } from 'pdf-lib';
+import { t } from '../dil';
 import { TITLE } from './defterNotu';
 import { hexToRgb, rgbToHex, strokeBounds, validateStroke, type PageStrokes, type Stroke, type StrokeTool } from './cizgi';
 import { curveBounds, curveToPdf, strokeCurve, type Curve } from './cizgiSekli';
@@ -34,9 +35,9 @@ export class PdfYazilamaz extends Error {}
 export interface YazilamazMesajlari { sifreli: string; okunamadi: string; imzali: string }
 
 const CIZIM: YazilamazMesajlari = {
-  sifreli: 'Bu PDF şifreli olduğu için çizimler kaydedilemiyor. Şifresiz bir kopyasını Drive\'a yükleyip onu kullan.',
-  okunamadi: 'Bu PDF okunamadı, o yüzden çizimler kaydedilemiyor. Dosya bozuk olabilir; Drive\'da açılıp açılmadığına bak.',
-  imzali: 'Bu PDF dijital imzalı; çizim kaydedilirse imza bozulur.'
+  get sifreli() { return t('kalemKayit.sifreli'); },
+  get okunamadi() { return t('kalemKayit.okunamadi'); },
+  get imzali() { return t('kalemKayit.imzali'); }
 };
 
 const NM_PREFIX = 'defter-';
@@ -250,7 +251,7 @@ export async function writeDefterStrokes(bytes: Uint8Array, pages: PageStrokes, 
     if (!Number.isInteger(i) || i < 0 || i >= all.length) throw new RangeError(`Sayfa ${i} bu PDF'te yok (${all.length} sayfa).`);
     for (const s of strokes) {
       validateStroke(s);
-      if (ids.has(s.id)) throw new Error(`Aynı çizgi id'si iki kez: ${s.id}`);
+      if (ids.has(s.id)) throw new Error(`Aynı çizgi id'si iki kez: ${s.id}`);   // dil-kontrol: yoksay
       ids.add(s.id);
     }
   }

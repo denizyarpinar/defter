@@ -1,3 +1,4 @@
+import { t } from '../dil';
 import { rafaGeriKoy, raftanCikar, type RafYeri } from '../kitap/copeAt';
 import {
   CopAgHatasi, CopCakisma, CopIzinYok, CopKilitli, CopYazmaYok, CopYeriBeklenmedik, driveAltAgac, driveCopDurumu, driveOge, kokYeri, zincirKontrol,
@@ -74,10 +75,10 @@ export async function kitapCopYaz(drive: KitapCopDrive, is: KitapCopIsi, s: Kita
     if (!is.geriAl) await s.oncesi?.();
     const yer = await kokYeri(drive, s.kokId);
     const klasor = await zincirKontrol(drive, [is.klasorId], s.kokId, yer);
-    if (klasor.name !== is.kitapId) throw new CopYeriBeklenmedik(`klasörün adı "${is.kitapId}" değil`);
+    if (klasor.name !== is.kitapId) throw new CopYeriBeklenmedik(t('cop.neden.adFarkli', { ad: is.kitapId }));
     if (is.yarim) {
-      if (klasor.appProperties?.defter !== '1') throw new CopYeriBeklenmedik('klasör uygulamanın değil');
-      if ((await drive.kokCocuklari(is.klasorId)).some(c => c.name === 'kitap.json')) throw new CopYeriBeklenmedik('kitabın kitap.json\'u var; yarım değil');
+      if (klasor.appProperties?.defter !== '1') throw new CopYeriBeklenmedik(t('cop.neden.uygulamaninDegil'));
+      if ((await drive.kokCocuklari(is.klasorId)).some(c => c.name === 'kitap.json')) throw new CopYeriBeklenmedik(t('cop.neden.yarimDegil'));
     }
     is.kitaplikId ??= yer.kitaplikId;
     const kitaplikId = is.yarim ? null : is.kitaplikId;

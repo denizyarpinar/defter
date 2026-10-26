@@ -1,3 +1,4 @@
+import { t, type Anahtar } from '../dil';
 import { esc } from '../ui/dom';
 import { toast } from '../ui/toast';
 import type { UploadStatus } from './pdfKayit';
@@ -11,14 +12,21 @@ import type { PenTool } from './kalemModu';
 // Task 6.H1: one row of fixed height at every width (styles.css); nothing in it changes the bar's height.
 
 // Task 4.7b: a brighter red, orange and purple pens, blue and orange highlighters (Deniz's choice)
+// 6.5-3: the code is the saved choice; the name (second) is in the chosen language (getters, only shown)
+const RENKLER: Record<StrokeTool, readonly (readonly [string, Anahtar])[]> = {
+  kalem: [['#222222', 'kalem.renk.siyah'], ['#1d3a8a', 'kalem.renk.mavi'], ['#e02020', 'kalem.renk.kirmizi'], ['#2f7a46', 'kalem.renk.yesil'], ['#f07a00', 'kalem.renk.turuncu'], ['#7b2fbf', 'kalem.renk.mor']],
+  fosforlu: [['#f5d33a', 'kalem.renk.sari'], ['#8fd16a', 'kalem.renk.yesil'], ['#f59ac0', 'kalem.renk.pembe'], ['#7cc4f5', 'kalem.renk.mavi'], ['#ffb347', 'kalem.renk.turuncu']]
+};
+const adli = (a: StrokeTool) => RENKLER[a].map(([c, k]) => [c, t(k)] as const);
 export const COLORS: Record<StrokeTool, readonly (readonly [string, string])[]> = {
-  kalem: [['#222222', 'Siyah'], ['#1d3a8a', 'Mavi'], ['#e02020', 'Kırmızı'], ['#2f7a46', 'Yeşil'], ['#f07a00', 'Turuncu'], ['#7b2fbf', 'Mor']],
-  fosforlu: [['#f5d33a', 'Sarı'], ['#8fd16a', 'Yeşil'], ['#f59ac0', 'Pembe'], ['#7cc4f5', 'Mavi'], ['#ffb347', 'Turuncu']]
+  get kalem() { return adli('kalem'); },
+  get fosforlu() { return adli('fosforlu'); }
 };
 // colours that were chosen before and changed since → their new value (strokes already drawn keep theirs)
 const RENAMED: Partial<Record<StrokeTool, Record<string, string>>> = { kalem: { '#b5523b': '#e02020' } };
 export const SIZES: Record<StrokeTool, readonly number[]> = { kalem: [1.2, 2.2, 4], fosforlu: [10, 14, 20] };
-const SIZE_NAMES = ['İnce', 'Orta', 'Kalın'];
+const SIZE_KEYS: readonly Anahtar[] = ['kalem.boy.ince', 'kalem.boy.orta', 'kalem.boy.kalin'];
+const sizeName = (i: number) => t(SIZE_KEYS[i]);
 export const HL_OPACITY = 0.35;   // < 1: the reader knows a highlighter by its opacity
 
 export interface PenPrefs {
@@ -152,9 +160,9 @@ export class PenToolbar {
   private togglePopover(kind: 'renk' | 'boy', btn: HTMLElement): void {
     if (this.popKind === kind) { this.closePopover(); return; }
     this.popKind = kind;
-    const t = this.prefs.arac;
-    this.pop.setAttribute('aria-label', kind === 'renk' ? 'Renk' : 'Kalınlık');
-    this.pop.innerHTML = kind === 'renk' ? this.colorButtons(t) : this.sizeButtons(t);
+    const arac = this.prefs.arac;
+    this.pop.setAttribute('aria-label', t(kind === 'renk' ? 'kalem.renk' : 'kalem.kalinlik'));
+    this.pop.innerHTML = kind === 'renk' ? this.colorButtons(arac) : this.sizeButtons(arac);
     this.pop.hidden = this.cover.hidden = false;
     this.el.querySelectorAll('[data-pop]').forEach(b => b.setAttribute('aria-expanded', String(b === btn)));
     // under the bar, centred on the button, kept inside the reader
@@ -175,33 +183,34 @@ export class PenToolbar {
   private sizeButtons(t: StrokeTool): string {
     const p = this.prefs;
     return SIZES[t].map((_, i) =>
-      `<button type="button" class="sz${i === p.boy[t] ? ' on' : ''}" data-boy="${i}" aria-label="${SIZE_NAMES[i]}" title="${SIZE_NAMES[i]}" aria-pressed="${i === p.boy[t]}">${sizeSample(t, i)}</button>`).join('');
+      `<button type="button" class="sz${i === p.boy[t] ? ' on' : ''}" data-boy="${i}" aria-label="${sizeName(i)}" title="${sizeName(i)}" aria-pressed="${i === p.boy[t]}">${sizeSample(t, i)}</button>`).join('');
   }
 
   private render(): void {
-    const p = this.prefs, t = p.arac, cur = this.tool;
+    const p = this.prefs, arac = p.arac, cur = this.tool;
     const on = (yes: boolean) => yes ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"';
     const tool = (k: PenTool, label: string) => `<button type="button" data-arac="${k}"${on(cur === k)} title="${label}" aria-label="${label}">${ICONS[k]}<span>${label}</span></button>`;
     const st = this.state;
-    const history = `<button type="button" data-geri title="Geri al (Ctrl+Z)" aria-label="Geri al"${st.canUndo ? '' : ' disabled'}>${ICONS.geri}<span>Geri al</span></button>`
-      + `<button type="button" data-ileri title="Yinele (Ctrl+Shift+Z)" aria-label="Yinele"${st.canRedo ? '' : ' disabled'}>${ICONS.ileri}<span>Yinele</span></button>`;
+    const geri = t('kalem.geriAl'), ileri = t('kalem.yinele');
+    const history = `<button type="button" data-geri title="${geri} (Ctrl+Z)" aria-label="${geri}"${st.canUndo ? '' : ' disabled'}>${ICONS.geri}<span>${geri}</span></button>`
+      + `<button type="button" data-ileri title="${ileri} (Ctrl+Shift+Z)" aria-label="${ileri}"${st.canRedo ? '' : ' disabled'}>${ICONS.ileri}<span>${ileri}</span></button>`;
     // Task 6.H1b: one button for the colour and one for the width (≤ 1024 px, styles.css); they open the popover
-    const colorName = COLORS[t].find(([c]) => c === p.renk[t])?.[1] ?? '';
+    const colorName = COLORS[arac].find(([c]) => c === p.renk[arac])?.[1] ?? '';
     const expanded = (k: string) => String(this.popKind === k);
-    const compact = `<button type="button" class="o-kisasec dot on" data-pop="renk" style="--c:${p.renk[t]}" aria-haspopup="dialog" aria-expanded="${expanded('renk')}" aria-label="Renk: ${colorName}" title="Renk: ${colorName}"></button>`
-      + `<button type="button" class="o-kisasec sz" data-pop="boy" aria-haspopup="dialog" aria-expanded="${expanded('boy')}" aria-label="Kalınlık: ${SIZE_NAMES[p.boy[t]]}" title="Kalınlık: ${SIZE_NAMES[p.boy[t]]}">${sizeSample(t, p.boy[t])}</button>`;
+    const compact = `<button type="button" class="o-kisasec dot on" data-pop="renk" style="--c:${p.renk[arac]}" aria-haspopup="dialog" aria-expanded="${expanded('renk')}" aria-label="${t('kalem.renkAdi', { ad: colorName })}" title="${t('kalem.renkAdi', { ad: colorName })}"></button>`
+      + `<button type="button" class="o-kisasec sz" data-pop="boy" aria-haspopup="dialog" aria-expanded="${expanded('boy')}" aria-label="${t('kalem.kalinlikAdi', { ad: sizeName(p.boy[arac]) })}" title="${t('kalem.kalinlikAdi', { ad: sizeName(p.boy[arac]) })}">${sizeSample(arac, p.boy[arac])}</button>`;
     // Task 6.H1: the bar is one row of fixed height whatever the tool or the status. The eraser has no colour
     // or width: they stay in their slot, hidden, with the prototype's hint over them (nothing moves).
     const options = `<div class="o-secenek${this.eraser ? ' silgide' : ''}">`
-      + `<div class="o-tgrp o-ayar"${this.eraser ? ' aria-hidden="true"' : ''}><div class="o-tgrp o-renkler">${this.colorButtons(t)}</div><span class="sep o-genis"></span><div class="o-tgrp o-boylar">${this.sizeButtons(t)}</div>${compact}</div>`
-      + '<span class="o-tipucu">Silmek için çizginin üzerinden geç</span></div>';
+      + `<div class="o-tgrp o-ayar"${this.eraser ? ' aria-hidden="true"' : ''}><div class="o-tgrp o-renkler">${this.colorButtons(arac)}</div><span class="sep o-genis"></span><div class="o-tgrp o-boylar">${this.sizeButtons(arac)}</div>${compact}</div>`
+      + `<span class="o-tipucu">${t('kalem.silgiIpucu')}</span></div>`;
     // Task 6.H1b: two parts. The left one may scroll sideways (phone); the right one [Kaydet][status][Kalemi kapat]
     // never moves and sits on the bar's own background.
-    this.el.innerHTML = `<div class="o-kaydir"><div class="o-tgrp">${tool('kalem', 'Kalem')}${tool('fosforlu', 'Fosforlu')}${tool('silgi', 'Silgi')}</div>`
+    this.el.innerHTML = `<div class="o-kaydir"><div class="o-tgrp">${tool('kalem', t('okuyucu.kalem'))}${tool('fosforlu', t('kalem.fosforlu'))}${tool('silgi', t('kalem.silgi'))}</div>`
       + `<span class="sep"></span>${options}`
       + `<span class="sep"></span><div class="o-tgrp">${history}</div></div>`
       + `<div class="o-sag">${saveButton(st)}${statusSlot(st)}`
-      + `<button type="button" class="o-tkapat" data-kapat title="Kalemi kapat" aria-label="Kalemi kapat">${ICONS.kapat}<span>Kalemi kapat</span></button></div>`;
+      + `<button type="button" class="o-tkapat" data-kapat title="${t('kalem.kapat')}" aria-label="${t('kalem.kapat')}">${ICONS.kapat}<span>${t('kalem.kapat')}</span></button></div>`;
     if (this.eraser) this.el.querySelectorAll<HTMLButtonElement>('.o-ayar button').forEach(b => { b.tabIndex = -1; });
   }
 }
@@ -237,7 +246,6 @@ export function statusSlot(st: ToolbarState): string {
 }
 
 const STATUS_TOAST_MS = 2000;
-const DEVICE_TITLE = "Çizimler henüz PDF'e kaydedilmedi; bu cihazda saklanıyor";
 
 // Task 4.9b: every status has a long text and a short one; on a phone (styles.css, < 600 px) only
 // the short one shows (with a coloured dot), the full text stays in the title.
@@ -246,17 +254,17 @@ const pill = (cls: string, long: string, short: string, title: string) =>
 
 // Task 4.8b: what the tool bar says about saving (first what is going on, then what is waiting)
 export function saveStatus(st: ToolbarState): string {
-  if (st.preparing) return pill('o-tdurum', 'Kalem hazırlanıyor…', 'Hazırlanıyor…', 'Kalem hazırlanıyor…');
+  if (st.preparing) return pill('o-tdurum', t('kalem.hazirlaniyor'), t('kalem.hazirlaniyorKisa'), t('kalem.hazirlaniyor'));
   const k = st.kayit, d = k.durum;
   const unsaved = !st.dirty ? ''
-    : st.onDevice ? pill('o-tdurum kaydedilmedi', 'Kaydedilmedi <small>cihazda</small>', 'Cihazda', DEVICE_TITLE)
-    : pill('o-tdurum kaydedilmedi', 'Kaydedilmedi', 'Kaydedilmedi', "Çizimler henüz PDF'e kaydedilmedi ve bu cihaza da kaydedilemiyor");
-  if (k.kilit === 'ornek') return unsaved + pill('o-tipucu', "Örnek kitaplık: Drive'a kaydedilmez", 'Örnek', "Örnek kitaplık: Drive'a kaydedilmez");
-  if (d.tur === 'kaydediliyor') return pill('o-tdurum kaydediliyor', 'Kaydediliyor…', 'Kaydediliyor…', 'Kaydediliyor…');
-  if (d.tur === 'hata' && st.dirty) return pill('o-tdurum hata', 'Kaydedilemedi', 'Hata', `Kaydedilemedi: ${esc(d.mesaj)}`);
-  if (d.tur === 'cevrimdisi' && st.dirty) return pill('o-tdurum kaydedilmedi', 'Çevrimdışı <small>cihazda</small>', 'Çevrimdışı', 'İnternet yok. Çizimler bu cihazda; bağlanınca kaydedilecek.');
+    : st.onDevice ? pill('o-tdurum kaydedilmedi', t('kalem.kaydedilmediCihazda'), t('kalem.cihazda'), t('kalem.cihazdaIpucu'))
+    : pill('o-tdurum kaydedilmedi', t('kalem.kaydedilmedi'), t('kalem.kaydedilmedi'), t('kalem.cihazaDaYokIpucu'));
+  if (k.kilit === 'ornek') return unsaved + pill('o-tipucu', t('kalem.ornekKaydedilmez'), t('kalem.ornek'), t('kalem.ornekKaydedilmez'));
+  if (d.tur === 'kaydediliyor') return pill('o-tdurum kaydediliyor', t('kalem.kaydediliyor'), t('kalem.kaydediliyor'), t('kalem.kaydediliyor'));
+  if (d.tur === 'hata' && st.dirty) return pill('o-tdurum hata', t('kalem.kaydedilemedi'), t('kalem.hata'), t('kalem.kaydedilemediNeden', { neden: esc(d.mesaj) }));
+  if (d.tur === 'cevrimdisi' && st.dirty) return pill('o-tdurum kaydedilmedi', t('kalem.cevrimdisiCihazda'), t('kalem.cevrimdisi'), t('kalem.cevrimdisiIpucu'));
   if (st.dirty) return unsaved;
-  if (d.tur === 'kaydedildi') return pill('o-tdurum kaydedildi', 'Kaydedildi', 'Kaydedildi', 'Kaydedildi');
+  if (d.tur === 'kaydedildi') return pill('o-tdurum kaydedildi', t('kalem.kaydedildi'), t('kalem.kaydedildi'), t('kalem.kaydedildi'));
   return '';
 }
 
@@ -265,7 +273,7 @@ export function saveButton(st: ToolbarState): string {
   const k = st.kayit;
   const retry = k.kilit === 'acik' && k.durum.tur === 'hata' && st.dirty;
   const off = k.kilit !== 'acik' || k.durum.tur === 'kaydediliyor' || !st.dirty;
-  const title = k.kilit === 'ornek' ? "Örnek kitaplıkta çizimler Drive'a kaydedilmez" : "Çizimleri Drive'daki PDF'e kaydet";
-  const label = retry ? 'Tekrar dene' : 'Kaydet';   // ≤ 1024 px only the icon (task 6.H1)
+  const title = t(k.kilit === 'ornek' ? 'kalem.kaydetOrnekIpucu' : 'kalem.kaydetIpucu');
+  const label = t(retry ? 'genel.tekrarDene' : 'kalem.kaydet');   // ≤ 1024 px only the icon (task 6.H1)
   return `<button type="button" class="o-kaydet" data-kaydet title="${title}" aria-label="${label}"${off ? ' disabled' : ''}>${ICONS.kaydet}<span>${label}</span></button>`;
 }

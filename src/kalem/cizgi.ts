@@ -45,22 +45,22 @@ const HEX = /^#[0-9a-f]{6}$/i;
 
 // Throws for data the writer must not put into a PDF (a bug in the caller, not a user error).
 export function validateStroke(s: Stroke): void {
-  const bad = (why: string) => { throw new Error(`Geçersiz çizgi ${s.id || '(id yok)'}: ${why}`); };
-  if (typeof s.id !== 'string' || !s.id) bad('id boş');
-  if (!STROKE_TOOLS.includes(s.arac)) bad(`araç "${s.arac}"`);
+  const bad = (why: string) => { throw new Error(`Geçersiz çizgi ${s.id || '(id yok)'}: ${why}`); };   // dil-kontrol: yoksay
+  if (typeof s.id !== 'string' || !s.id) bad('id boş');   // dil-kontrol: yoksay
+  if (!STROKE_TOOLS.includes(s.arac)) bad(`araç "${s.arac}"`);   // dil-kontrol: yoksay
   if (!HEX.test(s.renk)) bad(`renk "${s.renk}"`);
-  if (!(Number.isFinite(s.kalinlik) && s.kalinlik > 0)) bad(`kalınlık ${s.kalinlik}`);
-  if (!(Number.isFinite(s.opaklik) && s.opaklik > 0 && s.opaklik <= 1)) bad(`opaklık ${s.opaklik}`);
+  if (!(Number.isFinite(s.kalinlik) && s.kalinlik > 0)) bad(`kalınlık ${s.kalinlik}`);   // dil-kontrol: yoksay
+  if (!(Number.isFinite(s.opaklik) && s.opaklik > 0 && s.opaklik <= 1)) bad(`opaklık ${s.opaklik}`);   // dil-kontrol: yoksay
   // the reader tells the tools apart by opacity alone (pdf.js doesn't give /DefterArac): pen 1, highlighter < 1
-  if (s.arac === 'kalem' && s.opaklik !== 1) bad(`kalem opaklığı 1 olmalı (${s.opaklik})`);
-  if (s.arac === 'fosforlu' && s.opaklik === 1) bad(`fosforlu opaklığı 1'den küçük olmalı`);
-  if (s.noktalar.length < 2 || s.noktalar.length % 2 !== 0) bad('nokta sayısı');
-  if (!s.noktalar.every(Number.isFinite)) bad('nokta sayı değil');
-  if (s.gorunum !== undefined && s.gorunum !== 'temiz') bad(`görünüm "${s.gorunum}"`);
+  if (s.arac === 'kalem' && s.opaklik !== 1) bad(`kalem opaklığı 1 olmalı (${s.opaklik})`);   // dil-kontrol: yoksay
+  if (s.arac === 'fosforlu' && s.opaklik === 1) bad(`fosforlu opaklığı 1'den küçük olmalı`);   // dil-kontrol: yoksay
+  if (s.noktalar.length < 2 || s.noktalar.length % 2 !== 0) bad('nokta sayısı');   // dil-kontrol: yoksay
+  if (!s.noktalar.every(Number.isFinite)) bad('nokta sayı değil');   // dil-kontrol: yoksay
+  if (s.gorunum !== undefined && s.gorunum !== 'temiz') bad(`görünüm "${s.gorunum}"`);   // dil-kontrol: yoksay
   if (s.basinc !== undefined) {
-    if (s.arac !== 'kalem') bad('fosforluda basınç olmaz');
-    if (!Array.isArray(s.basinc) || s.basinc.length !== s.noktalar.length / 2) bad('basınç sayısı nokta sayısına eşit değil');
-    if (!s.basinc.every(p => Number.isFinite(p) && p >= 0 && p <= 1)) bad('basınç 0–1 arasında değil');
+    if (s.arac !== 'kalem') bad('fosforluda basınç olmaz');   // dil-kontrol: yoksay
+    if (!Array.isArray(s.basinc) || s.basinc.length !== s.noktalar.length / 2) bad('basınç sayısı nokta sayısına eşit değil');   // dil-kontrol: yoksay
+    if (!s.basinc.every(p => Number.isFinite(p) && p >= 0 && p <= 1)) bad('basınç 0–1 arasında değil');   // dil-kontrol: yoksay
   }
 }
 

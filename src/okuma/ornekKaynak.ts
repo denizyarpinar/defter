@@ -1,3 +1,4 @@
+import { t } from '../dil';
 import type { DriveFile } from '../drive/drive';
 import { splitPath } from './kaynakCoz';
 import { classifyTopic, emptyMaterials, type TopicMaterials } from './konuKesfi';
@@ -73,7 +74,7 @@ export async function fetchSample(id: string): Promise<ArrayBuffer> {
   const res = await fetch(import.meta.env.BASE_URL + path);
   // the dev server answers a missing file with index.html (200)
   if (!res.ok || (res.headers.get('content-type') ?? '').includes('html')) {
-    throw new Error(`Örnek PDF yüklenemedi: ${path}. Sayfayı yenile.`);
+    throw new Error(t('okuyucu.ornekPdfYok', { yol: path }));
   }
   return res.arrayBuffer();
 }

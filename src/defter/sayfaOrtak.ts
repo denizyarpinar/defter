@@ -1,3 +1,4 @@
+import { t } from '../dil';
 import type { PDFDocument } from 'pdf-lib';
 import { sayfaIzi } from '../ocr/kayit/parmakIzi';
 
@@ -16,7 +17,7 @@ const KENAR_TOLERANS = 0.5;   // pt: no line right on the page edge
 type Lib = typeof import('pdf-lib');
 
 export class SayfaYeriDegisti extends Error {
-  constructor() { super('PDF bu arada başka bir yerde değişti; sayfanın yeri bulunamadı, hiçbir şey yazılmadı. Konuyu kapatıp yeniden aç, sonra tekrar dene.'); }
+  constructor() { super(t('sayfaIsi.yerDegisti')); }
 }
 
 export interface Cizgi { x1: number; y1: number; x2: number; y2: number }

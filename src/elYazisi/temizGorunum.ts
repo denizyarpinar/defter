@@ -1,3 +1,4 @@
+import { t } from '../dil';
 import type { Stil } from './basici';
 
 const STILLER: readonly Stil[] = ['tukenmez', 'yumusak'];   // basici.ts STILLER (not imported: this module is in the reader's first bundle)
@@ -39,7 +40,7 @@ export function sayac(izler: ReadonlyMap<number, string>, okunmus: ReadonlySet<n
 }
 
 export const kisaMetin = (s: Sayac): string => `${s.okunmus}/${s.fotograf}`;
-export const dugmeMetni = (s: Sayac): string => `Temiz yazı (${kisaMetin(s)})`;
+export const dugmeMetni = (s: Sayac): string => t('temiz.dugme', { sayi: kisaMetin(s) });
 
 export interface Depo { getItem(k: string): string | null; setItem(k: string, v: string): void }
 

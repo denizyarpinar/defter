@@ -1,3 +1,4 @@
+import { t } from '../dil';
 import { yaziSatiriMi, type OcrParca, type OcrSayfa } from '../ocr/kayit/sema';
 import type { ElYazisiAtlas } from './atlasSema';
 
@@ -33,7 +34,7 @@ export const MIN_OLCEK = 0.6;        // shrink down to 60 %
 export const ALT_PAY = 0.9;          // room below the last baseline (descenders, xh)
 export const KUCUK = 0.7;            // superscript / subscript size
 export const NOT_BOYUT = 0.8;           // drawing notes and the "devamı" note: smaller
-export const DEVAMI = '… devamı Orijinal\'de';
+export const devamiMetni = () => t('temiz.devami');   // 6.5-3: the chosen language
 export const NOKTA = '·';
 export const NOKTA_R = 0.1;          // the dot's radius (xh)
 export const NOKTA_W = 0.4;          // the room it takes (xh)
@@ -160,7 +161,7 @@ function parcaHarfleri(p: OcrParca, renk: string): Harf[] {
 
 export function mantikSatirlari(sayfa: Pick<OcrSayfa, 'satirlar'>, atlas: DizgiAyar['atlas']): MantikSatir[] {
   return sayfa.satirlar.map(s => {
-    if (!yaziSatiriMi(s)) return { girinti: s.girinti, harfler: [...`[çizim: ${s.cizim}]`].map(k => ({ k, renk: RENK_YEDEK, boyut: NOT_BOYUT, kayma: null, cizim: true })) };
+    if (!yaziSatiriMi(s)) return { girinti: s.girinti, harfler: [...t('temiz.cizim', { ne: s.cizim })].map(k => ({ k, renk: RENK_YEDEK, boyut: NOT_BOYUT, kayma: null, cizim: true })) };
     const harfler: Harf[] = [];
     for (const p of s.parcalar) {
       if (p.ustuCizili) continue;
@@ -354,7 +355,8 @@ export function dizgi(sayfa: Pick<OcrSayfa, 'satirlar'>, ayar: DizgiAyar): Dizgi
   satirlar.forEach((s, i) => satirYerlestir(s, i, ilkTaban + i * satirAraligi, kenar, k, oynama, ogeler));
   if (kesildi) {
     const olc = ayar.olc ?? tahminiOlc;
-    ogeler.push({ tur: 'not', metin: DEVAMI, x: kenar, taban: ilkTaban + (sigan - 1) * satirAraligi, xh: k.xh * NOT_BOYUT, w: olc(DEVAMI, k.xh * NOT_BOYUT, true) });
+    const devami = devamiMetni();
+    ogeler.push({ tur: 'not', metin: devami, x: kenar, taban: ilkTaban + (sigan - 1) * satirAraligi, xh: k.xh * NOT_BOYUT, w: olc(devami, k.xh * NOT_BOYUT, true) });
   }
   // only characters that were actually placed count as missing
   const eksik = [...k.eksik].filter(c => ogeler.some(o => o.tur === 'yedek' && o.metin.includes(c)));

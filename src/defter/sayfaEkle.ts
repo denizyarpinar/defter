@@ -1,3 +1,4 @@
+import { t } from '../dil';
 import type { PDFDocument } from 'pdf-lib';
 import { pdfLib, SAVE_OPTIONS, yazilabilirAc, type YazilamazMesajlari } from '../kalem/pdfNotlari';
 import { SAYFA_DUZENI } from './ayarlar';
@@ -23,7 +24,7 @@ export interface Yerlesim {
 // Landscape photo (wider than tall) → landscape page, otherwise portrait. Fitted inside the margin
 // with its aspect kept (small photos are enlarged too), centred.
 export function sayfaYerlesimi(gw: number, gh: number, duzen: SayfaDuzeni = SAYFA_DUZENI): Yerlesim {
-  if (!(gw > 0 && gh > 0 && Number.isFinite(gw) && Number.isFinite(gh))) throw new RangeError(`Geçersiz görsel boyutu: ${gw}×${gh}`);
+  if (!(gw > 0 && gh > 0 && Number.isFinite(gw) && Number.isFinite(gh))) throw new RangeError(`Geçersiz görsel boyutu: ${gw}×${gh}`);   // dil-kontrol: yoksay
   const kisa = Math.min(duzen.genislik, duzen.yukseklik), uzun = Math.max(duzen.genislik, duzen.yukseklik);
   const [W, H] = gw > gh ? [uzun, kisa] : [kisa, uzun];
   const k = Math.min((W - 2 * duzen.kenar) / gw, (H - 2 * duzen.kenar) / gh);
@@ -31,10 +32,11 @@ export function sayfaYerlesimi(gw: number, gh: number, duzen: SayfaDuzeni = SAYF
   return { sayfa: [W, H], x: (W - w) / 2, y: (H - h) / 2, w, h };
 }
 
+// 6.5-3: in the chosen language (getters; blank pages, deleting and photos all use them)
 export const MESAJLAR: YazilamazMesajlari = {
-  sifreli: 'Bu PDF şifreli olduğu için sayfa eklenemiyor. Şifresiz bir kopyasını Drive\'a yükleyip onu kullan.',
-  okunamadi: 'Bu PDF okunamadı, o yüzden sayfa eklenemiyor. Dosya bozuk olabilir; Drive\'da açılıp açılmadığına bak.',
-  imzali: 'Bu PDF dijital imzalı; sayfa eklenirse imza bozulur.'
+  get sifreli() { return t('sayfaIsi.sifreli'); },
+  get okunamadi() { return t('sayfaIsi.okunamadi'); },
+  get imzali() { return t('sayfaIsi.imzali'); }
 };
 
 // Empty list or a broken photo. The PDF itself → PdfYazilamaz.

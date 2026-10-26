@@ -1,3 +1,4 @@
+import { t } from '../dil';
 import { applyPatch, mergePatch, type ReadingPatch } from '../model/okumaYamasi';
 import { BrokenJson, DriveError, getModifiedTime, readJsonStrict, updateJson } from './drive';
 import type { SaveUi } from './save';
@@ -17,12 +18,12 @@ export interface ReadingDrive {
 
 export const driveReadingApi: ReadingDrive = {
   modifiedTime: (f, b) => getModifiedTime(f, `${b}/kitap.json okunurken`),
-  read: (f, b) => readJsonStrict(f, `${b}/kitap.json okunurken`),
-  write: (f, json, b, keepalive) => updateJson(f, json, `${b}/kitap.json kaydedilirken`, keepalive)
+  read: (f, b) => readJsonStrict(f, t('okumaKaydi.okunurken', { kitap: b })),
+  write: (f, json, b, keepalive) => updateJson(f, json, t('okumaKaydi.kaydedilirken', { kitap: b }), keepalive)
 };
 
 export class WriteConflict extends Error {
-  constructor() { super('Okuma yerin kaydedilemedi: kitap.json başka bir cihazda aynı anda değişiyor. Biraz sonra kendiliğinden tekrar denenecek.'); }
+  constructor() { super(t('okumaKaydi.cakisma')); }
 }
 
 export interface ReadingSaverOptions { delay: number; retry: number }
@@ -95,8 +96,8 @@ export class ReadingSaver {
     this.writing = false;
     if (failure) {
       this.failing = true;
-      const msg = failure instanceof TypeError ? 'Okuma yerin kaydedilemedi: internet yok gibi. Bağlantı gelince kendiliğinden kaydedilecek.'
-        : failure instanceof Error ? failure.message : 'Okuma yerin kaydedilemedi.';
+      const msg = failure instanceof TypeError ? t('okumaKaydi.cevrimdisi')
+        : failure instanceof Error ? failure.message : t('okumaKaydi.kaydedilemedi');
       this.ui.failed(msg, () => void this.flush());
       // no permission / file gone / broken file: trying again won't help, only the button
       const hopeless = failure instanceof BrokenJson || (failure instanceof DriveError && (failure.status === 403 || failure.status === 404));

@@ -279,7 +279,7 @@ export class PenModel {
 
   private list(key: string, page: number): Stroke[] {
     const f = this.files.get(key);
-    if (f?.state !== 'hazir') throw new Error(`Çizim modeli hazır değil: ${key}`);
+    if (f?.state !== 'hazir') throw new Error(`Çizim modeli hazır değil: ${key}`);   // dil-kontrol: yoksay
     let list = f.pages.get(page);
     if (!list) f.pages.set(page, list = []);
     return list;

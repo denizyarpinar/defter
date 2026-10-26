@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CopIzinYok } from '../drive/copeAt';
 import { GeriAlAdDolu } from '../drive/dosyaCop';
-import { adSorulur, BASLIKLAR, copAcik, ENGEL_FOTO, hataAdimi, hataDugmeleri, kapatilabilir, ozetMetni, sayildi, uyariMetni } from './copOnayDurumu';
+import { adSorulur, BASLIKLAR, copAcik, engelFoto, hataAdimi, hataDugmeleri, kapatilabilir, ozetMetni, sayildi, uyariMetni } from './copOnayDurumu';
 
 // Task 6.K5b: the trash dialog's steps (pure).
 
@@ -46,9 +46,9 @@ describe('copOnayDurumu', () => {
     expect(BASLIKLAR.dosya).toBe('Dosyayı çöpe at');
     expect(ozetMetni('dosya', { konu: 0, dosya: 1, bekleyen: 0 })).toBe("Dosya çöpe gidecek. Drive'ın çöpünden 30 gün içinde geri alınabilir.");
     expect(ozetMetni('dosya', { konu: 0, dosya: 2, bekleyen: 0 })).toMatch(/^Dosya ve çözümü çöpe gidecek/);
-    const engel = sayildi({ konu: 0, dosya: 1, bekleyen: 2, engel: ENGEL_FOTO });
-    expect(engel).toEqual({ tur: 'engel', metin: ENGEL_FOTO });
-    expect(ENGEL_FOTO).toMatch(/Önce bekleyen fotoğrafları ekle/);
+    const engel = sayildi({ konu: 0, dosya: 1, bekleyen: 2, engel: engelFoto() });
+    expect(engel).toEqual({ tur: 'engel', metin: engelFoto() });
+    expect(engelFoto()).toMatch(/Önce bekleyen fotoğrafları ekle/);
     expect(copAcik(engel, false, '', 'x')).toBe(false);
     expect(kapatilabilir(engel)).toBe(true);
     expect(sayildi({ konu: 0, dosya: 1, bekleyen: 1 }).tur).toBe('uyari');

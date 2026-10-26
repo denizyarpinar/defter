@@ -1,3 +1,4 @@
+import { t as dilT } from '../dil';   // t is a timer below
 import { dokunmaIptal } from './dokunmaIz';
 
 // iPad: the browser must never zoom the page itself (task 3.7). Our own zoom (reader) works with
@@ -65,8 +66,8 @@ export function installPageZoomGuard(onViewportChange: () => void): void {
   const bar = document.createElement('div');
   bar.id = 'sayfaZoom';
   bar.hidden = true;
-  bar.innerHTML = '<span>Sayfa yakınlaşmış.</span><button type="button">Sıfırla</button>'
-    + '<small>Olmazsa iki parmakla uzaklaştır ya da iPad\'i yan çevir.</small>';
+  bar.innerHTML = `<span>${dilT('sayfaZoom.yakinlasmis')}</span><button type="button">${dilT('sayfaZoom.sifirla')}</button>`
+    + `<small>${dilT('sayfaZoom.olmazsa')}</small>`;
   bar.querySelector('button')!.addEventListener('click', resetZoom);
   document.body.append(bar);
 

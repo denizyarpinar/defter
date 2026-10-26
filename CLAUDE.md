@@ -519,5 +519,4 @@ Kitaplık/
 - Sayfa yenilenince yarım kalan yükleme kaldığı yerden devam etmiyor (baştan yükleniyor).
 - Masadaki açık kitabın İçindekiler sayfası uzun listede taşıyor (kesiliyor, kaydırma yok; 6.K5a'dan önce de böyleydi).
 - Okuyucudaki × (kapat) düğmeleri 36 px (iPad için 40–44 px önerilir).
-- `scripts/dil-donus-kontrol.mjs` 6.5-2a'dan beri kırık: örnek kitaplık EN, betik "Programlamaya Giriş" bekliyor (06ddf9a'da da aynı).
 - 'Kurulumu tamamla'da `kitaplik.json` zaten varsa (sadece `kitaplar/` eksikse) örnek kitap rafa değil "Yeni gelenler"e düşüyor (kitaplik.json güncellenmez).

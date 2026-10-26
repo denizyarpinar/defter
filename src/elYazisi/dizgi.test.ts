@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { OcrSatir } from '../ocr/kayit/sema';
-import { DEVAMI, GIRINTI, NOKTA_R, KARE, KENAR_ORAN, MIN_OLCEK, SATIR_ARALIGI, VARSAYILAN_KAGIT, XH_BOLEN, dizgi, latexDuz, oynamaDegeri, type DizgiAyar, type DizgiOge } from './dizgi';
+import { devamiMetni, GIRINTI, NOKTA_R, KARE, KENAR_ORAN, MIN_OLCEK, SATIR_ARALIGI, VARSAYILAN_KAGIT, XH_BOLEN, dizgi, latexDuz, oynamaDegeri, type DizgiAyar, type DizgiOge } from './dizgi';
 
 const ornek = (w = 20) => ({ x: 0, y: 0, w, h: 30, taban: 25 });
 const karakterler: DizgiAyar['atlas']['karakterler'] = Object.fromEntries([...'bcdefghijklmnoprstuvwxyzK→'].map(k => [k, [ornek()]]));
@@ -68,7 +68,7 @@ describe('dizgi', () => {
     expect(cok.xh).toBeCloseTo(20 * MIN_OLCEK);
     expect(cok.kesildi).toBe(true);
     const son = cok.ogeler[cok.ogeler.length - 1];
-    expect(son).toMatchObject({ tur: 'not', metin: DEVAMI });
+    expect(son).toMatchObject({ tur: 'not', metin: devamiMetni() });
     expect(son.tur === 'not' && son.taban).toBeLessThanOrEqual(1270 - cok.kenar);
   });
 

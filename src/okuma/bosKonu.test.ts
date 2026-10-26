@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { DriveFile } from '../drive/drive';
-import { BOS_KONU_METIN, bosKonuDurumu, KLASOR_YOK_NOT, konuKurdelesi, kurdeleSecimi, okumaKaydiYazilsinMi } from './bosKonu';
+import { bosKonuDurumu, bosKonuMetni, klasorYokNotu, konuKurdelesi, kurdeleSecimi, okumaKaydiYazilsinMi } from './bosKonu';
 import { emptyMaterials, type TopicMaterials } from './konuKesfi';
 
 // Task 6.K6a: a topic without materials in the reader.
@@ -12,11 +12,11 @@ describe('bosKonuDurumu', () => {
     expect(bosKonuDurumu({ klasorVar: true })).toEqual({
       foto: { aktif: true, not: null }, dosya: { aktif: true, not: null }, metin: 'Henüz materyal yok. Dosya ekle ile başla.',
     });
-    expect(BOS_KONU_METIN).toBe('Henüz materyal yok. Dosya ekle ile başla.');
+    expect(bosKonuMetni()).toBe('Henüz materyal yok. Dosya ekle ile başla.');
   });
   it('no folder: both grey with a short note; Drive\'s missing folder keeps its own text', () => {
     const d = bosKonuDurumu({ klasorVar: false });
-    expect(d.foto).toEqual({ aktif: false, not: KLASOR_YOK_NOT });
+    expect(d.foto).toEqual({ aktif: false, not: klasorYokNotu() });
     expect(d.dosya).toEqual({ aktif: false, not: 'Bu konunun Drive klasörü yok' });
     expect(d.metin).toMatch(/Drive klasörü yok/);
     expect(bosKonuDurumu({ klasorVar: false, klasorYokMetni: 'Konu klasörü bulunamadı: X.' }).metin).toBe('Konu klasörü bulunamadı: X.');

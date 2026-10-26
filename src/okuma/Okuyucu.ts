@@ -7,6 +7,7 @@ import { isEmptyDiff, remainingDiff, type PendingRecord } from '../kalem/bekleye
 import { PendingSaver } from '../kalem/bekleyenKayit';
 import { PenModel, fileIdOf, versionOf, type Place } from '../kalem/cizimModeli';
 import { inView, type StrokeView } from '../kalem/cizgi';
+import { dil, t as dilT, type Anahtar } from '../dil';   // 6.5-3: t is a topic in this file
 import { locative } from '../kalem/gecmis';
 import { penLayerMode } from '../kalem/defterNotu';
 import { PenToolbar, strokeStyle } from '../kalem/kalemCubugu';
@@ -22,7 +23,7 @@ import { kurdeleGeriKoy, kurdeleGeriKoyYerinde, kurdeleKaydir, kurdeleKaydirYeri
 import { jsonDegistir, type JsonDrive } from '../drive/jsonDegistir';
 import { topicKey } from '../model/okumaYamasi';
 import { SayfaEkleBalon, type BalonBilgisi } from '../ui/sayfaEkleBalon';
-import { eklemeEngeli, eklemeHedefi, eklemeSonrasiOkunan, geriGetirGorunur, isSonrasiSayfa, kitapCiftiSonrasi, okunanTaraflar, sayfaEkleGorunur, silmeEngeli, silmeHedefi, silmeSonrasiOkunan, silOnay, varsayilanTaraf, YAPISTIR_GERI_AL_ONAY, yapistirHedefleri, type GorunenSayfa, type OkunanSonrasi, type SilmeHedefi, type Taraf, type YapistirBilgisi, type YapistirHedefi } from '../ui/sayfaEkleDurumu';
+import { eklemeEngeli, eklemeHedefi, eklemeSonrasiOkunan, geriGetirGorunur, isSonrasiSayfa, kitapCiftiSonrasi, okunanTaraflar, sayfaEkleGorunur, silmeEngeli, silmeHedefi, silmeSonrasiOkunan, silOnay, varsayilanTaraf, yapistirGeriAlOnay, isSuruyorMetni, okumaSuruyorMetni, yapistirHedefleri, type GorunenSayfa, type OkunanSonrasi, type SilmeHedefi, type Taraf, type YapistirBilgisi, type YapistirHedefi } from '../ui/sayfaEkleDurumu';
 import { isKaydet, isler, isleriTemizle, isSil } from './sayfaIsiDepo';
 import { yedekAl, yedekBuda, yedekleriTemizle, yedekSil, yedekYaz } from './silinenSayfaDepo';
 import { bekleyenFotoDepo } from '../defter/bekleyenFoto';
@@ -366,7 +367,7 @@ export function initOkuyucu(yer: () => DriveLocation | null): void {
         pages: pages.map((page, index) => ({ page: { ...page }, index })).filter(x => x.page.dosyaId === p.dosyaId),
         go: (index: number) => goToMatch(index, null) };
     }, { okundu: temizOkundu, duzenlenebilir: () => okumaIzni.simdi(), duzeltildi: temizDuzeltildi }));
-    okumaPaneli.then(p => p.ac(), e => { okumaPaneli = null; console.warn('El yazısı paneli yüklenemedi.', e); toast('El yazısı paneli açılamadı. Bağlantını kontrol edip tekrar dene.'); });
+    okumaPaneli.then(p => p.ac(), e => { okumaPaneli = null; console.warn('El yazısı paneli yüklenemedi.', e); toast(dilT('okuyucu.okumaPaneliAcilamadi')); });
   });
   $('#oClose').addEventListener('click', closeOkuyucu);
   installOkuyucuKaydirma($('#okuyucu'));   // task 6.K5b-4: the page itself never moves under the reader
@@ -810,7 +811,7 @@ function tocEditDugmesi(): void {
   btn.classList.toggle('gri', !!k && !k.acik);
   btn.setAttribute('aria-disabled', String(!!k && !k.acik));
   if (k?.not) btn.title = k.not; else btn.removeAttribute('title');
-  btn.textContent = duzenleyici.acik ? 'Bitti' : 'Düzenle';
+  btn.textContent = dilT(duzenleyici.acik ? 'okuyucu.bitti' : 'okuyucu.duzenle');
   btn.setAttribute('aria-pressed', String(duzenleyici.acik));
 }
 
@@ -845,16 +846,16 @@ function renderToc(): void {
     const on = cur.unit === ui && cur.topic === ti;
     const empty = v1 && !t.kaynaklar?.length;
     return `<li><button type="button" data-u="${ui}" data-t="${ti}"${on ? ' aria-current="true"' : ''}${empty ? ' class="empty"' : ''}>`
-      + `<span class="o-tst st ${cls}" data-st title="${label} · değiştirmek için dokun" aria-label="${label}">${STATUS_ICON[t.durum]}</span><span>${esc(t.baslik)}</span></button></li>`;
+      + `<span class="o-tst st ${cls}" data-st title="${dilT('okuyucu.durumIpucu', { durum: label })}" aria-label="${label}">${STATUS_ICON[t.durum]}</span><span>${esc(t.baslik)}</span></button></li>`;
   }).join('')}</ol></section>`).join('');
-  $('#oTocList').innerHTML = html || '<p class="o-msg">Bu kitapta henüz konu yok.</p>';
+  $('#oTocList').innerHTML = html || `<p class="o-msg">${dilT('masa.konuYok')}</p>`;
 }
 
 function chooseTopic(unit: number, ti: number): void {
   const b = book!;
   if (usesUnits(b)) { closeToc(); void openTopic(unit, ti); return; }
   // surum 1: every chapter is in the same page list
-  if (!bookUnits(b)[unit]?.konular[ti]?.kaynaklar?.length) { toast('Bu bölümde henüz kaynak yok.'); return; }
+  if (!bookUnits(b)[unit]?.konular[ti]?.kaynaklar?.length) { toast(dilT('okuyucu.kaynakYok')); return; }
   const i = pages.findIndex(p => p.bolumIndex === ti);
   if (i < 0) return;   // pages are still loading
   closeToc();
@@ -876,7 +877,7 @@ export async function openOkuyucu(b: Book, folderId: string, unit: number, topic
   const t = bookUnits(b)[unit]?.konular[topicIndex];
   if (!t) return;
   const v2 = usesUnits(b);
-  if (!v2 && !t.kaynaklar?.length) { toast('Bu bölümde henüz kaynak yok.'); return; }
+  if (!v2 && !t.kaynaklar?.length) { toast(dilT('okuyucu.kaynakYok')); return; }
   open = true;
   const my = ++session;
   book = b; folder = folderId; onClosed = closed;
@@ -893,11 +894,11 @@ export async function openOkuyucu(b: Book, folderId: string, unit: number, topic
   $('#oPno').textContent = '';
   clearPages();
   renderBar();
-  setMessage(v2 ? 'Konu açılıyor…' : 'Sayfalar hazırlanıyor…');
+  setMessage(dilT(v2 ? 'okuyucu.konuAciliyor' : 'okuyucu.sayfalarHazirlaniyor'));
   const el = $('#okuyucu');
   el.hidden = false;
   requestAnimationFrame(() => el.classList.add('show'));
-  gorunurAlaniDuzelt('okuyucu açıldı');   // task 6.K5b-4: a page moved before (not while the keyboard is open)
+  gorunurAlaniDuzelt('okuyucu açıldı');   // task 6.K5b-4: a page moved before (not while the keyboard is open) · dil-kontrol: yoksay
   startFps();
   kitapGozle(true);
 
@@ -920,7 +921,7 @@ export async function openOkuyucu(b: Book, folderId: string, unit: number, topic
   const first = prepared.pages.findIndex(p => p.bolumIndex === topicIndex);
   // resume: page `sayfa` of the chapter (if the chapter still has that many)
   const at = resume && first >= 0 && prepared.pages[first + resume.sayfa - 1]?.bolumIndex === topicIndex ? first + resume.sayfa - 1 : first;
-  showPages(prepared.pages, prepared.ratios, Math.max(0, at), 'Bu kitapta gösterilecek sayfa yok.');
+  showPages(prepared.pages, prepared.ratios, Math.max(0, at), dilT('okuyucu.kitaptaSayfaYok'));
 }
 
 // Task 6.K5b-3: the desk's "İçindekileri düzenle": the reader without a topic, the contents panel in edit mode.
@@ -936,7 +937,7 @@ export function openOkuyucuDuzenle(b: Book, folderId: string, closed: () => void
   topic = null;
   zoom.reset();
   $('#oBook').textContent = b.baslik;
-  $('#oChap').textContent = 'İçindekiler';
+  $('#oChap').textContent = dilT('okuyucu.icindekiler');
   clearPages();
   renderBar();
   konusuzMod(true);
@@ -944,7 +945,7 @@ export function openOkuyucuDuzenle(b: Book, folderId: string, closed: () => void
   const el = $('#okuyucu');
   el.hidden = false;
   requestAnimationFrame(() => el.classList.add('show'));
-  gorunurAlaniDuzelt('okuyucu açıldı');
+  gorunurAlaniDuzelt('okuyucu açıldı');   // dil-kontrol: yoksay
   startFps();
   kitapGozle(true);
   openToc();
@@ -972,7 +973,7 @@ function loadFailed(e: unknown): void {
   if (e instanceof SessionExpired) return;
   console.error(e);
   toast(e instanceof TypeError || !(e instanceof Error)
-    ? 'Sayfalar yüklenemedi. İnternet bağlantını kontrol et ve tekrar dene.'
+    ? dilT('okuyucu.sayfalarYuklenemedi')
     : e.message);
 }
 
@@ -1010,7 +1011,7 @@ async function openTopic(unit: number, topicIndex: number, resume?: Resume): Pro
   clearPages();
   renderBar();
   $('#oChap').textContent = t.baslik;
-  setMessage('Konu açılıyor…');
+  setMessage(dilT('okuyucu.konuAciliyor'));
   try {
     const m = await discover(folder, t.klasor ?? '');
     if (my !== session) return;
@@ -1018,7 +1019,7 @@ async function openTopic(unit: number, topicIndex: number, resume?: Resume): Pro
     topic = { title: t.baslik, klasor: t.klasor ?? '', materials: m ?? emptyMaterials(), kind, fileIndex: 0, solution: false };
     if (!kind) {
       // task 6.K6a: no materials (or no folder): the bar with Fotoğraf / Dosya ekle; nothing of the reading state written
-      const klasorYokMetni = m ? undefined : `Konu klasörü bulunamadı: ${t.klasor}. Drive'da kitabın klasöründe bu klasörü oluştur ve yenile.`;
+      const klasorYokMetni = m ? undefined : dilT('okuyucu.konuKlasoruYok', { klasor: t.klasor ?? '' });
       materyalsizMod(bosKonuDurumu({ klasorVar: !!m && !!t.klasor?.trim(), klasorYokMetni }));
       renderBar();
       setMessage(bosDurum!.metin);
@@ -1060,7 +1061,7 @@ async function showMaterial(start?: PageMark | null, kitapTaraf?: Taraf): Promis
   releaseAll();
   clearPages();
   renderBar();
-  setMessage('Sayfalar hazırlanıyor…');
+  setMessage(dilT('okuyucu.sayfalarHazirlaniyor'));
 
   const material = t.kind === 'uebungen' || t.kind === 'oedevler' ? t.materials[t.kind][t.fileIndex] : null;
   const files = material ? [material.file] : t.materials[kind].map(m => m.file);
@@ -1075,11 +1076,11 @@ async function showMaterial(start?: PageMark | null, kitapTaraf?: Taraf): Promis
     const main = await cached(key(files), () => buildTopicPages(t.materials, kind, t.fileIndex), my);
     if (my !== session) return;
     mainCount = main.pages.length;
-    if (!cozum) { showPages(main.pages, main.ratios, at(main.pages, 0), 'Bu materyalde gösterilecek sayfa yok.', taraf(main.pages)); return; }
+    if (!cozum) { showPages(main.pages, main.ratios, at(main.pages, 0), dilT('okuyucu.materyaldeSayfaYok'), taraf(main.pages)); return; }
     const sol = await cached(key([cozum]), () => buildSolutionPages(cozum), my);
     if (my !== session) return;
     const all = [...main.pages, ...sol.pages];
-    showPages(all, [...main.ratios, ...sol.ratios], at(all, main.pages.length), 'Bu materyalde gösterilecek sayfa yok.', taraf(all));
+    showPages(all, [...main.ratios, ...sol.ratios], at(all, main.pages.length), dilT('okuyucu.materyaldeSayfaYok'), taraf(all));
   } catch (e) {
     if (my === session) loadFailed(e);
   }
@@ -1127,7 +1128,7 @@ function temizAl(): Promise<TemizYaziOkuyucu<TemizYazici> | null> {
     const s = temizSahte;
     const t = m.temizYaziKur({
       kaynak: ocrKaynakAl,
-      boyut: p => { if (!content) throw new Error('Okuyucu kapalı.'); return content.viewport(p); },
+      boyut: p => { if (!content) throw new Error('Okuyucu kapalı.'); return content.viewport(p); },   // dil-kontrol: yoksay
       tercih: temizTercih,
       degisti: temizGeldi,
       atlas: { kok: () => driveLocation()?.rootId ?? null, hesap: hesapAl },   // task 6.4e-2b
@@ -1226,8 +1227,8 @@ function temizOlc(): void {
   temizT0 = 0;
   const k = ocrKaynakHazir?.kayitIzi(), a = temizAtlasIzi();
   const ad = { bellek: 'bellek', cihaz: 'cihaz', drive: 'Drive' } as Record<string, string>;
-  const iz = `açılış → temiz ${ms} ms · eşleşme ${temizEslesmeMs} ms`
-    + (k ? ` · kayıt ${k.ms} (${ad[k.kaynak]})` : '') + (a ? ` · atlas ${a.ms} (${ad[a.nereden]})` : '')
+  const iz = `açılış → temiz ${ms} ms · eşleşme ${temizEslesmeMs} ms`   // dil-kontrol: yoksay
+    + (k ? ` · kayıt ${k.ms} (${ad[k.kaynak]})` : '') + (a ? ` · atlas ${a.ms} (${ad[a.nereden]})` : '')   // dil-kontrol: yoksay
     + ` · ${s.okunmus}/${s.fotograf}`;
   temizIzYaz(iz);
   if (import.meta.env.DEV || olcumAcik()) console.info(`[temiz yazı] ${iz}`);
@@ -1257,7 +1258,7 @@ function renderBar(): void {
   for (const [id, d] of [['#oFoto', bosDurum?.foto], ['#oDosya', bosDurum?.dosya]] as const) {
     const btn = $<HTMLButtonElement>(id);
     btn.disabled = t.kind === null && !!d && !d.aktif;
-    btn.title = (btn.disabled && d?.not) || (id === '#oFoto' ? 'Fotoğraf ekle' : 'Dosya ekle');
+    btn.title = (btn.disabled && d?.not) || dilT(id === '#oFoto' ? 'okuyucu.fotoEkle' : 'okuyucu.dosyaEkle');
   }
   $('#oTabs').replaceChildren(...availableKinds(t.materials).map(k => {
     const b = document.createElement('button');
@@ -1285,12 +1286,15 @@ function renderBar(): void {
   select.value = String(t.fileIndex);
   const sol = $('#oSol');
   sol.hidden = !list[t.fileIndex]?.cozum;
-  // task 5.10g: narrow bar: only "Çözüm" (the rest hides in CSS); the full text for screen readers
-  const solText = t.solution ? 'Çözümü gizle' : 'Çözümü göster';
-  const uzun = document.createElement('span');
+  // task 5.10g: narrow bar: only "Çözüm" (CSS shows .o-kisa instead of .o-uzun); the full text for screen readers.
+  // 6.5-3: two whole texts (no slicing: "Show solution" doesn't start with "Solution")
+  const solText = dilT(t.solution ? 'okuyucu.cozumGizle' : 'okuyucu.cozumGoster');
+  const uzun = document.createElement('span'), kisa = document.createElement('span');
   uzun.className = 'o-uzun';
-  uzun.textContent = solText.slice('Çözüm'.length);
-  sol.replaceChildren('Çözüm', uzun);
+  uzun.textContent = solText;
+  kisa.className = 'o-kisa';
+  kisa.textContent = dilT('materyal.cozum');
+  sol.replaceChildren(kisa, uzun);
   sol.setAttribute('aria-label', solText);
   sol.title = solText;
   sol.setAttribute('aria-pressed', String(t.solution));
@@ -1317,7 +1321,7 @@ function openPhotoPanel(files: File[]): void {
       await photoAdder.baslat({ kitapAdi: b.id, konuKlasorId, konuBaslik: t.title, hedefFileId: hedef?.id, hedefAd: hedef?.name ?? OZET_ADI, jpegler }, basildi);
     }
   };
-  import('../ui/fotoPanel').then(m => m.acFotoPanel(ctx, files)).catch(e => { console.warn(e); toast('Fotoğraf paneli açılamadı. Sayfayı yenileyip tekrar dene.'); });
+  import('../ui/fotoPanel').then(m => m.acFotoPanel(ctx, files)).catch(e => { console.warn(e); toast(dilT('okuyucu.fotoPaneliAcilamadi')); });
 }
 
 // Task 5.10g: what the chosen files are (first bytes) → images: the panel's list; one other file:
@@ -1336,7 +1340,7 @@ async function chooseFiles(files: File[]): Promise<void> {
     ilk = turler[0].tur;
   } catch (e) {
     console.warn('Dosya okunamadı.', e);
-    toast('Dosya okunamadı. Sayfayı yenileyip tekrar dene.');
+    toast(dilT('okuyucu.dosyaOkunamadi'));
     return;
   }
   if (topic !== t || !open) return;
@@ -1357,28 +1361,28 @@ async function prepareFile(file: File, tur: DosyaTuruSonucu): Promise<void> {
       yol = tekDosyaYolu(tur, { drive: !!driveLocation() && !isSampleId(folder), bayt: file.size });
     } catch (e) {
       console.warn(e);
-      toast('Dosya hazırlanamadı. Sayfayı yenileyip tekrar dene.');
+      toast(dilT('okuyucu.dosyaHazirlanamadi'));
       return;
     }
     if (topic !== t || !open) return;
     if (yol.yol === 'ret') { toast(yol.metin); return; }
     if (yol.yol === 'ofis') { openFilePanel(t, { tur: 'ofis', dosya: file, alt: yol.alt }); return; }
   }
-  photoBox.durum('Dosya hazırlanıyor…');
+  photoBox.durum(dilT('okuyucu.dosyaHazirlaniyor'));
   let hazir: HazirDosya;
   try {
     const t0 = olcumAcik() ? performance.now() : null;   // task 6.2e-1
     const m = await import('../defter/dosyaHazirla');
     try {
       hazir = await m.dosyaHazirla(file);
-      if (t0 !== null) hazirlikEkle({ ad: `dosya hazırla ${file.name}`, ms: performance.now() - t0, grup: 'hazirlik', ek: { giris: mb(file.size), cikis: mb(hazir.bytes.byteLength), tur: hazir.kaynak } });
+      if (t0 !== null) hazirlikEkle({ ad: `dosya hazırla ${file.name}`, ms: performance.now() - t0, grup: 'hazirlik', ek: { giris: mb(file.size), cikis: mb(hazir.bytes.byteLength), tur: hazir.kaynak } });   // dil-kontrol: yoksay
     } catch (e) {
       if (e instanceof m.DosyaHazirlanamadi) { toast(e.message); return; }
       throw e;
     }
   } catch (e) {
     console.warn('Dosya hazırlanamadı.', e);
-    toast('Dosya hazırlanamadı. Sayfayı yenileyip tekrar dene.');
+    toast(dilT('okuyucu.dosyaHazirlanamadi'));
     return;
   } finally {
     photoBox.durum(null);
@@ -1438,7 +1442,7 @@ function openFilePanel(t: OpenTopic, kaynak: DosyaPanelKaynak): void {
     },
     kapanis: kapanis.signal,
   };
-  import('../ui/dosyaPanel').then(m => m.acDosyaPanel(ctx, kaynak)).catch(e => { console.warn(e); toast('Dosya paneli açılamadı. Sayfayı yenileyip tekrar dene.'); });
+  import('../ui/dosyaPanel').then(m => m.acDosyaPanel(ctx, kaynak)).catch(e => { console.warn(e); toast(dilT('okuyucu.dosyaPaneliAcilamadi')); });
 }
 
 // Task 6.K6a: the topic's missing Uebungen / Oedevler (drive/altKlasorAc.ts, lazy); the lock asked again at "Ekle"
@@ -1485,9 +1489,9 @@ async function topicFolderId(t: OpenTopic): Promise<string> {
   try {
     id = resolver && resolver.folderId === folder ? await resolver.r.resolveFolder(t.klasor) : null;
   } catch (e) {
-    throw e instanceof TypeError ? new Error('Konu klasörüne ulaşılamadı. İnternet bağlantını kontrol edip tekrar dene.') : e;
+    throw e instanceof TypeError ? new Error(dilT('okuyucu.konuKlasorunaUlasilamadi')) : e;
   }
-  if (!id) throw new Error(`Konu klasörü Drive'da bulunamadı: ${t.klasor}. Kitaplığı yenileyip tekrar dene.`);
+  if (!id) throw new Error(dilT('okuyucu.konuKlasoruDriveYok', { klasor: t.klasor }));
   return id;
 }
 
@@ -1546,7 +1550,7 @@ function pagesShown(t: OpenTopic | null, same: boolean, r: EklemeSonucu, metin: 
   const g = karar.goster;
   if (!g) { toast(metin); return; }
   const go = () => { void ready.then(() => showAdded(t!, g)); };
-  if (GOSTER_OTOMATIK) { toast(metin); go(); } else toast(metin, { etiket: 'Göster', calistir: go });
+  if (GOSTER_OTOMATIK) { toast(metin); go(); } else toast(metin, { etiket: dilT('okuyucu.goster'), calistir: go });
 }
 
 // The file on screen got pages at the end: the list grows, the reader stays where it is.
@@ -1653,7 +1657,7 @@ function showAdded(t: OpenTopic, g: GosterHedefi): void {
   if (!open || topic !== t) return;
   const i = gosterIndeksi(pages, g);
   if (i >= 0) { goToPage(i); return; }
-  if (!t.materials.ozet.some(m => m.file.id === g.fileId)) { toast('Yeni sayfalar bulunamadı. Konuyu kapatıp yeniden aç.'); return; }
+  if (!t.materials.ozet.some(m => m.file.id === g.fileId)) { toast(dilT('okuyucu.yeniSayfalarYok')); return; }
   // the file's newest version (its bytes are in the cache)
   const mt = latestVersion.get(g.fileId);
   if (mt) for (const m of t.materials.ozet) if (m.file.id === g.fileId) m.file.modifiedTime = mt;
@@ -1817,7 +1821,7 @@ async function sayfaBalonBilgisi(): Promise<BalonBilgisi> {
     }) };
   }
   const geriGetir = sonSilinen && geriGetirGorunur(sonSilinen.fileId, pages.map(p => p.dosyaId ?? null))
-    ? { engel: sayfaIsiDosyalari.size ? 'Bir sayfa işi sürüyor; bitince tekrar dene.' : ocrPaneliAcik() ? 'El yazısı okunuyor; bitince tekrar dene.' : null } : null;
+    ? { engel: sayfaIsiDosyalari.size ? isSuruyorMetni() : ocrPaneliAcik() ? okumaSuruyorMetni() : null } : null;
   // 6.S-4c: a file the pen can't write still shows "Deftere yapıştır" (grey, engel) for its landscape pages on screen
   const yapistirBilgi = (id: string): YapistirBilgisi | null => {
     const b = bilgiler.get(id);
@@ -1868,9 +1872,9 @@ async function sayfaSilBasla(h: SilmeHedefi): Promise<void> {
 // "Geri al" of a removal (toast or popover): the page from the device's backup, back where it was
 async function silineniGeriGetir(islemId: string): Promise<void> {
   const y = await yedekAl(islemId);
-  if (!y || !y.tamam) { toast('Silinen sayfanın yedeği bu cihazda bulunamadı; geri getirilemiyor.'); return; }
-  if (sayfaIsiDosyalari.size) { toast('Bir sayfa işi sürüyor; bitince tekrar dene.'); return; }
-  if (ocrPaneliAcik()) { toast('El yazısı okunuyor; bitince tekrar dene.'); return; }
+  if (!y || !y.tamam) { toast(dilT('okuyucu.yedekYok')); return; }
+  if (sayfaIsiDosyalari.size) { toast(isSuruyorMetni()); return; }
+  if (ocrPaneliAcik()) { toast(okumaSuruyorMetni()); return; }
   const t = topic && open && pages.some(p => p.dosyaId === y.fileId) ? topic : null;
   kitapSonrasi = t && y.taraf ? { islemId, dosya: y.dosyaAdi, sayfa: y.indeks + 1, taraf: y.taraf } : null;
   const is = yeniGeriKoymaIsi({
@@ -1910,7 +1914,7 @@ async function yapistirGeriAlBasla(h: YapistirHedefi & { tur: 'geriAl' }): Promi
   try { notlar = await bantNotlari(new Uint8Array(await getPdf(p.dosyaId!, p.modifiedTime!)), h.indeks); } catch (e) { console.warn('Deftere yapıştır: bantlardaki notlara bakılamadı.', e); }
   const key = fileKey(p);
   if (!notlar.length && penModel.isDirty(key)) notlar = ['?'];   // strokes not saved yet: ask to be safe
-  if (notlar.length && !confirm(YAPISTIR_GERI_AL_ONAY)) return;
+  if (notlar.length && !confirm(yapistirGeriAlOnay())) return;
   yapistirSonrasi(h, h.kayit.islemId);
   const is = yeniGeriAlIsi({
     islemId: h.kayit.islemId, fileId: h.dosyaId, dosyaAdi: p.ad ?? h.ad, klasorId: p.klasorId ?? null, kitapId: b.id, konu: topicKey(t.klasor, t.title),
@@ -1942,10 +1946,10 @@ async function isKaynagi(is: SayfaIsi): Promise<EkKaynak> {
   }
   if (is.tur === 'geriKoy') {
     const y = await yedekAl(is.islemId);
-    if (!y) throw new Error('Silinen sayfanın yedeği bu cihazda bulunamadı; geri getirilemiyor.');
+    if (!y) throw new Error(dilT('okuyucu.yedekYok'));
     return { sayfaGeriKoy: { sayfaBytes: y.sayfaBytes, indeks: is.geriKoy!.indeks, komsuIz: is.geriKoy!.komsuIz, komsuYon: is.geriKoy!.komsuYon } };
   }
-  throw new Error('Bu sayfa işinin PDF adımı artık yapılmıyor.');   // 6.S-4's 'kaldir': only its later steps are left
+  throw new Error(dilT('okuyucu.isPdfAdimiYok'));   // 6.S-4's 'kaldir': only its later steps are left
 }
 
 // 6.S-4d: the deleted page's backup, before the upload (its failure stops the deleting)
@@ -1987,10 +1991,10 @@ function sayfaIsiOrtami(loc: DriveLocation, ctx: SayfaIsiBaglami): SayfaIsiOrtam
     },
     kitapJson: async (is, h) => {
       const id = ctx.kitapJsonId(is.kitapId);
-      if (!id) throw new Error('Kitabın kitap.json\'u bulunamadı.');
+      if (!id) throw new Error(dilT('okuyucu.kitapJsonYok'));
       const kb = ctx.kitap(is.kitapId);   // the book in memory (the same object the reader uses)
       const yer = { konu: h.konu, dosya: h.dosya, indeks: h.indeks };
-      const cakisma = () => new Error('kitap.json bu arada başka bir cihazda değişti.');
+      const cakisma = () => new Error(dilT('okuyucu.kitapJsonDegisti'));
       if (is.tur === 'sil') {   // 6.S-4d: the ribbons on the page are kept for "Geri al"
         let tasinan: TasinanKurdele | undefined;
         await jsonDegistir(ctx.jsonDrive, id, latest => { tasinan = nesneMi(latest) ? silinenKurdeleler(latest, yer) : undefined; return kurdeleKaydir(latest, h); }, cakisma);
@@ -2011,7 +2015,7 @@ function sayfaIsiOrtami(loc: DriveLocation, ctx: SayfaIsiBaglami): SayfaIsiOrtam
     ocr: async (is, indeks, delta) => {
       const { driveOcrApi, kaydirmaYaz } = await import('../ocr/kayit/kayitDrive');
       const klasorId = is.klasorId ?? (await (bosSahte?.dosyaDrive ?? drivePdfOlusturApi).klasorBilgisi(is.fileId)).parents[0];
-      if (!klasorId) throw new Error('PDF\'in klasörü bulunamadı.');
+      if (!klasorId) throw new Error(dilT('okuyucu.pdfKlasoruYok'));
       is.klasorId = klasorId;
       // 6.S-4d: a deleted page's entries wait in `silinenler` for "Geri al"
       const degistir = is.tur === 'sil' ? (k: OcrKayit) => ocrSil(k, { islemId: is.islemId, indeks, ...(is.sil?.iz ? { iz: is.sil.iz } : {}), ayniIzVar: !!is.ayniIzVar }).kayit
@@ -2073,33 +2077,33 @@ async function sayfaIsiSonrasi(t: OpenTopic | null, is: SayfaIsi): Promise<void>
 
 const tekrarDenenebilir = (e: unknown) => e instanceof SayfaIsiYarim || e instanceof SayfaEklemeAgHatasi || e instanceof SayfaEklemeCakisma || e instanceof TypeError;
 
-const IS_BITTI: Record<SayfaIsi['tur'], string> = {
-  ekle: 'Boş sayfa eklendi.', kaldir: 'Boş sayfa kaldırıldı.', yapistir: 'Deftere yapıştırıldı.', yapistirGeriAl: 'Deftere yapıştırma geri alındı.',
-  sil: 'Sayfa silindi.', geriKoy: 'Sayfa geri getirildi.'
+const IS_BITTI: Record<SayfaIsi['tur'], Anahtar> = {
+  ekle: 'sayfaIsi.eklendi', kaldir: 'sayfaIsi.kaldirildi', yapistir: 'sayfaIsi.yapistirildi', yapistirGeriAl: 'sayfaIsi.yapistirGeriAlindi',
+  sil: 'sayfaIsi.silindi', geriKoy: 'sayfaIsi.geriGetirildi'
 };
 
 // The job is done: its toast (6.S-4d: "Geri al" for 10 s after deleting; the backup goes after putting back)
 function isBitti(is: SayfaIsi): void {
-  if (is.tur === 'sil') { toast(IS_BITTI.sil, { etiket: 'Geri al', calistir: () => { void silineniGeriGetir(is.islemId); } }, 10000, true); return; }
+  if (is.tur === 'sil') { toast(dilT(IS_BITTI.sil), { etiket: dilT('genel.geriAl'), calistir: () => { void silineniGeriGetir(is.islemId); } }, 10000, true); return; }
   if (is.tur === 'geriKoy') {
     void yedekSil(is.islemId);
     if (sonSilinen?.islemId === is.islemId) sonSilinen = null;
-    toast(is.sonaEklendi ? 'Sayfa eski yerine konamadı (dosya bu arada değişmiş); dosyanın sonuna eklendi.' : IS_BITTI.geriKoy);
+    toast(dilT(is.sonaEklendi ? 'sayfaIsi.sonaEklendi' : IS_BITTI.geriKoy));
     return;
   }
-  toast(IS_BITTI[is.tur]);
+  toast(dilT(IS_BITTI[is.tur]));
 }
 
 function isHataMetni(is: SayfaIsi, e: unknown): string {
-  if (is.tur.startsWith('yapistir') && e instanceof SayfaEklemeAgHatasi) return 'Sayfa Drive\'a yazılamadı (bağlantı ya da Drive sorunu). İnternet bağlantını kontrol edip tekrar dene.';
-  if (is.tur.startsWith('yapistir') && e instanceof SayfaEklemeCakisma) return 'PDF başka bir cihazda değişip duruyor; sayfa değişmedi. Biraz sonra tekrar dene.';
-  if (is.tur === 'kaldir' && e instanceof SayfaEklemeAgHatasi) return 'Boş sayfa kaldırılamadı (bağlantı ya da Drive sorunu). İnternet bağlantını kontrol edip tekrar dene.';
-  if (is.tur === 'sil' && e instanceof SayfaEklemeAgHatasi) return 'Sayfa silinemedi (bağlantı ya da Drive sorunu). İnternet bağlantını kontrol edip tekrar dene; sayfa iki kez silinmez.';
-  if (is.tur === 'sil' && e instanceof SayfaEklemeCakisma) return 'PDF başka bir cihazda değişip duruyor; sayfa silinmedi. Biraz sonra tekrar dene.';
-  if (is.tur === 'geriKoy' && e instanceof SayfaEklemeAgHatasi) return 'Sayfa geri getirilemedi (bağlantı ya da Drive sorunu). İnternet bağlantını kontrol edip tekrar dene; sayfa iki kez eklenmez.';
-  if (is.tur === 'geriKoy' && e instanceof SayfaEklemeCakisma) return 'PDF başka bir cihazda değişip duruyor; sayfa geri getirilmedi. Biraz sonra tekrar dene.';
-  if (is.tur === 'kaldir' && e instanceof SayfaEklemeCakisma) return 'PDF başka bir cihazda değişip duruyor; boş sayfa kaldırılmadı. Biraz sonra tekrar dene.';
-  return e instanceof Error && e.message ? e.message : 'Bilinmeyen bir hata oldu.';
+  if (is.tur.startsWith('yapistir') && e instanceof SayfaEklemeAgHatasi) return dilT('sayfaIsi.hata.yapistirAg');
+  if (is.tur.startsWith('yapistir') && e instanceof SayfaEklemeCakisma) return dilT('sayfaIsi.hata.yapistirCakisma');
+  if (is.tur === 'kaldir' && e instanceof SayfaEklemeAgHatasi) return dilT('sayfaIsi.hata.kaldirAg');
+  if (is.tur === 'sil' && e instanceof SayfaEklemeAgHatasi) return dilT('sayfaIsi.hata.silAg');
+  if (is.tur === 'sil' && e instanceof SayfaEklemeCakisma) return dilT('sayfaIsi.hata.silCakisma');
+  if (is.tur === 'geriKoy' && e instanceof SayfaEklemeAgHatasi) return dilT('sayfaIsi.hata.geriKoyAg');
+  if (is.tur === 'geriKoy' && e instanceof SayfaEklemeCakisma) return dilT('sayfaIsi.hata.geriKoyCakisma');
+  if (is.tur === 'kaldir' && e instanceof SayfaEklemeCakisma) return dilT('sayfaIsi.hata.kaldirCakisma');
+  return e instanceof Error && e.message ? e.message : dilT('genel.bilinmeyenHata');
 }
 
 async function sayfaIsiYurut(is: SayfaIsi, t: OpenTopic | null): Promise<void> {
@@ -2118,7 +2122,7 @@ async function sayfaIsiYurut(is: SayfaIsi, t: OpenTopic | null): Promise<void> {
     console.warn('Sayfa işi:', e);
     if (e instanceof SayfaIsiYarim) await sayfaIsiSonrasi(t, is).catch(x => console.warn(x));   // the PDF changed: show it
     const tekrar = tekrarDenenebilir(e);
-    toast(isHataMetni(is, e), tekrar ? { etiket: 'Tekrar dene', calistir: () => { void sayfaIsiYurut(is, topic === t ? t : null); } } : undefined);
+    toast(isHataMetni(is, e), tekrar ? { etiket: dilT('genel.tekrarDene'), calistir: () => { void sayfaIsiYurut(is, topic === t ? t : null); } } : undefined);
   } finally {
     sayfaIsiDosyalari.delete(is.fileId);
     sayfaIsiYuzdesi(null);
@@ -2140,7 +2144,7 @@ async function bosSahteKur(m: typeof import('./bosSayfaSahte'), o: SahteSecenek 
   }
   if (bosSahte) return bosSahte.durum;
   const t = topic, b = book, p = pages[focusPage()];
-  if (!open || !t || !b || !p?.dosyaId || !p.modifiedTime || pageKind(p) !== 'pdf') throw new Error('Önce bir konunun PDF materyalini aç.');
+  if (!open || !t || !b || !p?.dosyaId || !p.modifiedTime || pageKind(p) !== 'pdf') throw new Error('Önce bir konunun PDF materyalini aç.');   // dil-kontrol: yoksay
   const bytes = new Uint8Array(await getPdf(p.dosyaId, p.modifiedTime));
   const s = m.bosSayfaSahte(bytes, b.id, p.ad ?? 'ozet.pdf', o);
   await putPdf(m.SAHTE_ID, 't1', bytes);
@@ -2193,7 +2197,7 @@ async function afterFileAdded(t: OpenTopic, hedef: DosyaHedefi, r: DosyaEklendi)
   if (olcumId) measureToast(olcumId, ready);
   if (!karar.goster || bosKonu) { toast(metin); return; }
   const go = () => { void ready.then(() => showAddedFile(t, e)); };
-  if (GOSTER_OTOMATIK) { toast(metin); go(); } else toast(metin, { etiket: 'Göster', calistir: go });
+  if (GOSTER_OTOMATIK) { toast(metin); go(); } else toast(metin, { etiket: dilT('okuyucu.goster'), calistir: go });
 }
 
 // Task 6.S-3: a file's pages went at the end of a summary: the photos' refresh (pagesShown)
@@ -2220,7 +2224,7 @@ function measureToast(islemId: string, ready: Promise<void>): void {
 function showAddedFile(t: OpenTopic, e: EklenenDosya): void {
   if (!open || topic !== t) return;
   const h = dosyaGosterHedefi(e, t.materials);
-  if (!h) { toast('Eklenen dosya bulunamadı. Konuyu kapatıp yeniden aç.'); return; }
+  if (!h) { toast(dilT('okuyucu.eklenenDosyaYok')); return; }
   if (t.kind === h.kind && t.fileIndex === h.fileIndex && t.solution === h.solution && pages.length) {
     goToPage(h.solution ? mainCount : 0);
     return;
@@ -2523,9 +2527,9 @@ function mount(i: number, box: HTMLElement, w: number, h: number): void {
     case 'image': return mountImage(i, p, box);
     case 'link': return mountCard(i, box, linkCard(p.link ?? ''));
     case 'missing': return mountCard(i, box,
-      `<p class="o-big">Dosya bulunamadı: ${esc(p.eksik ?? '')}</p><p>Drive'da kitabın klasörüne bu adla yükle ve yenile.</p>`);
+      `<p class="o-big">${dilT('okuyucu.kart.dosyaYok', { ad: esc(p.eksik || dilT('okuyucu.adsiz')) })}</p><p>${dilT('okuyucu.kart.dosyaYokNe')}</p>`);
     case 'unsupported': return mountCard(i, box,
-      `<p class="o-big">Bu dosya türü henüz gösterilemiyor: ${esc(p.ad ?? '')}</p><p>Şimdilik PDF, JPG ve PNG dosyaları okunabiliyor.</p>`);
+      `<p class="o-big">${dilT('okuyucu.kart.turYok', { ad: esc(p.ad ?? '') })}</p><p>${dilT('okuyucu.kart.turYokNe')}</p>`);
   }
 }
 
@@ -2540,9 +2544,9 @@ function mountCard(i: number, box: HTMLElement, html: string): void {
 
 function linkCard(url: string): string {
   const safe = /^https?:\/\//i.test(url.trim());
-  if (!safe) return `<p class="o-big">Bağlantı açılamıyor.</p><p>Adres http:// ya da https:// ile başlamalı: ${esc(url)}</p>`;
-  return `<p class="o-label">Bağlantı</p><p class="o-url">${esc(url)}</p>
-    <a class="o-open" href="${esc(url.trim())}" target="_blank" rel="noopener noreferrer">Bağlantıyı aç ↗</a>`;
+  if (!safe) return `<p class="o-big">${dilT('okuyucu.kart.baglantiAcilamiyor')}</p><p>${dilT('okuyucu.kart.baglantiAdres', { url: esc(url) })}</p>`;
+  return `<p class="o-label">${dilT('okuyucu.kart.baglanti')}</p><p class="o-url">${esc(url)}</p>
+    <a class="o-open" href="${esc(url.trim())}" target="_blank" rel="noopener noreferrer">${dilT('okuyucu.kart.baglantiAc')}</a>`;
 }
 
 interface Detail { canvas: HTMLCanvasElement; rect: Rect; pageW: number; job: { cancel(): void } | null }
@@ -2624,7 +2628,7 @@ function mountPdf(i: number, p: BookPage, box: HTMLElement, cssW: number, cssH: 
         console.warn(`Sayfa ${i + 1} çizilemedi.`, e);
         if (mine()) {
           release(); mounted.delete(i);
-          mountCard(i, box, '<p class="o-big">Bu sayfa çizilemedi.</p><p>Sayfayı yenileyip tekrar dene.</p>');
+          mountCard(i, box, `<p class="o-big">${dilT('okuyucu.kart.cizilemedi')}</p><p>${dilT('okuyucu.kart.yenileDene')}</p>`);
         }
       } finally {
         renders.done(i, d);
@@ -2769,7 +2773,7 @@ function mountImage(i: number, p: BookPage, box: HTMLElement): void {
     img.onerror = () => {
       if (gone) return;
       mounted.get(i)?.release(); mounted.delete(i);
-      mountCard(i, box, '<p class="o-big">Bu resim gösterilemiyor.</p><p>Dosya JPG ya da PNG olmalı.</p>');
+      mountCard(i, box, `<p class="o-big">${dilT('okuyucu.kart.resimYok')}</p><p>${dilT('okuyucu.kart.resimTur')}</p>`);
     };
     img.src = url;
   }).catch(e => {
@@ -2777,7 +2781,7 @@ function mountImage(i: number, p: BookPage, box: HTMLElement): void {
     if (e instanceof SessionExpired) { closeOkuyucu(); return; }
     console.warn(`Resim ${i + 1} indirilemedi.`, e);
     mounted.get(i)?.release(); mounted.delete(i);
-    mountCard(i, box, '<p class="o-big">Resim indirilemedi.</p><p>İnternet bağlantını kontrol et ve sayfayı yenile.</p>');
+    mountCard(i, box, `<p class="o-big">${dilT('okuyucu.kart.resimIndirilemedi')}</p><p>${dilT('okuyucu.kart.internetYenile')}</p>`);
   });
 }
 
@@ -2804,7 +2808,7 @@ const fileKey = (p: BookPage) => `${p.dosyaId}@${p.modifiedTime}`;
 
 function setPen(on: boolean): void {
   if (on === penOn) return;
-  if (on && !pages.some(p => pageKind(p) === 'pdf')) { toast('Bu sayfalarda çizilecek PDF yok.'); return; }
+  if (on && !pages.some(p => pageKind(p) === 'pdf')) { toast(dilT('okuyucu.kalemPdfYok')); return; }
   const listTop = $('#oScroll').getBoundingClientRect().top;
   penOn = on;
   pen.active = on;
@@ -2822,7 +2826,7 @@ function setPen(on: boolean): void {
   if (on) {
     penModel.retryFailed();
     loadVisibleFiles();
-    toast('Kalem açık. Sayfa çevirmek için alttaki kaydırıcıyı ya da ok tuşlarını kullan.');
+    toast(dilT('okuyucu.kalemAcik'));
   }
   renderTools();
   // Task 6.H1: the page being read stays where it is on screen. Book mode: the bar's room is always kept
@@ -2842,7 +2846,7 @@ function renderTools(): void {
   const btn = document.querySelector<HTMLElement>('#oPenBtn');
   if (btn) {
     btn.classList.toggle('bekleyen', dirty);
-    btn.title = dirty ? `Kalem · Kaydedilmemiş çizim var${pendingStore.ok ? ' (cihazda)' : ''}` : 'Kalem';
+    btn.title = dirty ? dilT(pendingStore.ok ? 'okuyucu.kalemBekleyenCihazda' : 'okuyucu.kalemBekleyen') : dilT('okuyucu.kalem');
   }
 }
 
@@ -2960,11 +2964,11 @@ async function pagesAdded(s: EklenenSayfalar): Promise<void> {
 function uploadStatus(s: UploadStatus): void {
   saveState = s;
   if (s.tur === 'hata' || s.tur === 'cevrimdisi') {
-    const text = s.tur === 'hata' ? s.mesaj : 'İnternet yok. Çizimler bu cihazda; bağlanınca Drive\'a kaydedilecek.';
+    const text = s.tur === 'hata' ? s.mesaj : dilT('okuyucu.kalemCevrimdisi');
     if (text !== lastSaveToast) { lastSaveToast = text; toast(text); }
   } else if (s.tur === 'kaydedildi') {
     lastSaveToast = '';
-    if (!open) toast('Çizimler Drive\'a kaydedildi.');
+    if (!open) toast(dilT('okuyucu.kalemKaydedildi'));
   }
   renderTools();
 }
@@ -2973,7 +2977,7 @@ function uploadStatus(s: UploadStatus): void {
 function warnStore(): void {
   if (storeWarned) return;
   storeWarned = true;
-  toast('Çizimler bu cihaza kaydedilemiyor. Okuyucuyu ya da sekmeyi kapatırsan kaybolur.');
+  toast(dilT('okuyucu.kalemCihazYok'));
   renderTools();
 }
 
@@ -2996,7 +3000,7 @@ function undoRedo(redo: boolean): void {
   if (!c) return;
   for (const key of new Set(c.places.map(p => p.key))) changed(fileIdOf(key));
   for (const p of c.places) relayer(p.key, p.page);
-  if (c.places.length && !c.places.some(onScreen)) toast(`${whereText(c.places[0])} ${redo ? 'yinelendi' : 'geri alındı'}.`);
+  if (c.places.length && !c.places.some(onScreen)) toast(whereText(c.places[0], redo));
 }
 
 // Task 4.7b: the tool on #okuyucu (the cursor over the pages, styles.css)
@@ -3012,12 +3016,14 @@ function onScreen(c: Place): boolean {
   });
 }
 
-// "Sayfa 12'de": the reader's page number; a file not open now: its PDF page and its name
-function whereText(c: Place): string {
+// "Sayfa 12'de geri alındı.": the reader's page number; a file not open now: its PDF page and its name.
+// 6.5-3: {sayfa} is the number with the Turkish locative (12'de) in Turkish, the plain number in English
+function whereText(c: Place, redo: boolean): string {
   const i = pages.findIndex(p => p.pdfSayfa === c.page + 1 && pageKind(p) === 'pdf' && fileKey(p) === c.key);
-  if (i >= 0) return `Sayfa ${locative(i + 1)}`;
-  const name = penFileNames.get(c.key);
-  return name ? `${name}, sayfa ${locative(c.page + 1)}` : `Sayfa ${locative(c.page + 1)}`;
+  const n = i >= 0 ? i + 1 : c.page + 1, name = i >= 0 ? undefined : penFileNames.get(c.key);
+  const d = { sayfa: dil() === 'tr' ? locative(n) : String(n), ad: name ?? '' };
+  if (name) return dilT(redo ? 'okuyucu.yinelendiDosya' : 'okuyucu.geriAlindiDosya', d);
+  return dilT(redo ? 'okuyucu.yinelendi' : 'okuyucu.geriAlindi', d);
 }
 
 // Pen mode: the files of the pages on screen get their strokes loaded (once per file);
@@ -3050,7 +3056,7 @@ function loadFile(p: BookPage, quiet = false): void {
       // task 4.8a: a pending record was applied
       const r = penModel.restored(key);
       if (r) {
-        if (restoreTold !== session) { restoreTold = session; toast('Kaydedilmemiş çizimler geri yüklendi.'); }
+        if (restoreTold !== session) { restoreTold = session; toast(dilT('okuyucu.kalemGeriYuklendi')); }
         // made against another version: written again (now against this one, marked baskaSurum)
         if (r.kaynakModifiedTime !== p.modifiedTime) saver.changed(p.dosyaId!);
         uploadNow([p.dosyaId!]);   // task 4.8b: left from before → tried once now
@@ -3069,6 +3075,6 @@ function tellError(p: BookPage, key: string): void {
   console.warn(`Kalem: "${p.ad}" okunamadı.`, err);
   const name = p.ad ?? 'PDF';
   toast(err instanceof PdfYazilamaz
-    ? `Kalem bu dosyada çalışmıyor (${name}). ${err.message}`
-    : `Kalem bu dosyada açılamadı (${name}). İnternet bağlantını kontrol et; kalemi kapatıp açınca tekrar denenir.`);
+    ? dilT('okuyucu.kalemCalismiyor', { ad: name, neden: err.message })
+    : dilT('okuyucu.kalemAcilamadi', { ad: name }));
 }

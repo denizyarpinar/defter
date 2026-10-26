@@ -75,7 +75,7 @@ async function pencere(page, tur) {
     const ortak = { tur: 'dosya', calistir: hic, vazgec: hic, girisYap() {}, basarili() {} };
     if (tur === 'cozum') m.copOnayAc({ ...ortak, ad: 'Übung · Uebungen/blatt-01.pdf', cozumKutusu: { ad: 'blatt-01_cozum.pdf' }, onizle: async () => ({ konu: 0, dosya: 1, bekleyen: 0 }) });
     if (tur === 'uyari') m.copOnayAc({ ...ortak, ad: 'Orijinal · orijinal.pdf', onizle: async () => ({ konu: 0, dosya: 1, bekleyen: 1 }) });
-    if (tur === 'engel') m.copOnayAc({ ...ortak, ad: 'Özet · ozet.pdf', onizle: async () => ({ konu: 0, dosya: 1, bekleyen: 0, engel: (await import('/src/ui/copOnayDurumu.ts')).ENGEL_FOTO }) });
+    if (tur === 'engel') m.copOnayAc({ ...ortak, ad: 'Özet · ozet.pdf', onizle: async () => ({ konu: 0, dosya: 1, bekleyen: 0, engel: (await import('/src/ui/copOnayDurumu.ts')).engelFoto() }) });
     if (tur === 'adDolu') m.copOnayAc({ ...ortak, ad: 'orijinal.pdf', ilkHata: new d.GeriAlAdDolu() });
   }, tur);
   await page.waitForSelector('#copOnay');

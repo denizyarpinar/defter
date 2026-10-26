@@ -1,3 +1,4 @@
+import { t } from '../dil';
 import type { PDFDocumentProxy, PDFPageProxy, RenderTask } from 'pdfjs-dist';
 import type { TextContent } from 'pdfjs-dist/types/src/display/api';
 import { SessionExpired, driveFetch, ok } from '../drive/drive';
@@ -176,7 +177,7 @@ export class PageContent {
     let b = this.images.get(id);
     if (!b) {
       b = driveFetch(`files/${encodeURIComponent(id)}?alt=media`)
-        .then(r => ok(r, 'Resim indirilirken'))
+        .then(r => ok(r, t('okuyucu.resimIndirilirken')))
         .then(r => r.blob());
       b.catch(() => this.images.delete(id));
       this.images.set(id, b);
@@ -195,7 +196,7 @@ export class PageContent {
 // Photo size from Drive without downloading it. rotation = number of 90° turns (EXIF).
 // If Drive doesn't know the size: A4; the reader corrects it when the photo is shown.
 async function imageRatio(id: string): Promise<number> {
-  const res = await ok(await driveFetch(`files/${encodeURIComponent(id)}?fields=imageMediaMetadata(width,height,rotation)`), 'Resim bilgisi okunurken');
+  const res = await ok(await driveFetch(`files/${encodeURIComponent(id)}?fields=imageMediaMetadata(width,height,rotation)`), t('okuyucu.resimBilgisi'));
   const m = (await res.json() as { imageMediaMetadata?: { width?: number; height?: number; rotation?: number } }).imageMediaMetadata;
   if (!m?.width || !m.height) return A4;
   return (m.rotation ?? 0) % 2 ? m.width / m.height : m.height / m.width;

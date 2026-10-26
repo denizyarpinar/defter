@@ -1,3 +1,4 @@
+import { t } from '../dil';
 import type { KayitDurumu } from '../drive/icindekilerYaz';
 import type { Book } from '../model/types';
 import { topicCount, usesUnits } from '../model/units';
@@ -15,33 +16,33 @@ export interface DuzenleGirdisi {
 // kitapCop (6.K5b): "Kitabı çöpe at" works (also in a surum 1 book and one without kitap.json: only that one)
 export interface DuzenleKarari { goster: boolean; acik: boolean; yazar: boolean; kitapCop: boolean; not: string | null }
 
-export const KILIT_NOTU = 'Düzenlemek için Google ile giriş yap ve kitaplığı aç.';
+const kilitNotu = () => t('icindekiler.kilitNotu');
 
 export function duzenleKarari(g: DuzenleGirdisi): DuzenleKarari {
   if (!g.drive) return { goster: false, acik: false, yazar: false, kitapCop: false, not: null };
-  const kilit = g.kilitAcik ? '' : ' ' + KILIT_NOTU;
-  if (!g.hasJson) return { goster: true, acik: true, yazar: false, kitapCop: g.kilitAcik, not: 'Bu kitapta kitap.json yok; içindekiler düzenlenemez, sadece kitap çöpe atılabilir.' + kilit };
-  if (g.surum < 2) return { goster: true, acik: true, yazar: false, kitapCop: g.kilitAcik, not: 'Eski biçim kitapta (surum 1) içindekiler düzenlenemez, sadece kitap çöpe atılabilir.' + kilit };
-  if (!g.kilitAcik) return { goster: true, acik: true, yazar: false, kitapCop: false, not: KILIT_NOTU };
+  const kilit = g.kilitAcik ? '' : ' ' + kilitNotu();
+  if (!g.hasJson) return { goster: true, acik: true, yazar: false, kitapCop: g.kilitAcik, not: t('icindekiler.jsonYokCop') + kilit };
+  if (g.surum < 2) return { goster: true, acik: true, yazar: false, kitapCop: g.kilitAcik, not: t('icindekiler.surum1Cop') + kilit };
+  if (!g.kilitAcik) return { goster: true, acik: true, yazar: false, kitapCop: false, not: kilitNotu() };
   return { goster: true, acik: true, yazar: true, kitapCop: true, not: null };
 }
 
 // 6.K5b-3: the reader opened from the desk's "İçindekileri düzenle" with no topic open: the text in its page area
 export function bosDurumMetni(b: Book, hasJson: boolean): string {
-  if (!hasJson) return 'Bu klasörde kitap.json yok; içindekiler düzenlenemez.';
-  if (topicCount(b)) return 'Açmak için İçindekiler\'den bir konu seç.';
-  if (!usesUnits(b)) return 'Bu kitapta henüz konu yok.';
-  return b.uniteler.length ? 'Bu kitapta henüz konu yok. ＋ Konu ile başla.' : 'Bu kitapta henüz konu yok. ＋ Ünite ile başla.';
+  if (!hasJson) return t('icindekiler.jsonYok');
+  if (topicCount(b)) return t('icindekiler.konuSec');
+  if (!usesUnits(b)) return t('masa.konuYok');
+  return t(b.uniteler.length ? 'icindekiler.konuIleBasla' : 'icindekiler.uniteIleBasla');
 }
 
-export const UNITE_KLASORU_YOK = 'Bu ünitenin Drive klasörü bilinmiyor; konu eklenemez, ünite çöpe atılamaz.';
+export const uniteKlasoruYok = () => t('icindekiler.uniteKlasoruYok');
 
 // The status line at the top of the panel; null: hidden
 export function kayitMetni(d: KayitDurumu): string | null {
   switch (d.tur) {
     case 'bos': return null;
-    case 'kaydediliyor': return d.cop === 'at' ? 'Çöpe atılıyor…' : d.cop === 'geri' ? 'Geri alınıyor…' : d.ekleme ? 'Ekleniyor…' : 'Kaydediliyor…';
-    case 'kaydedildi': return 'Kaydedildi';
+    case 'kaydediliyor': return t(d.cop === 'at' ? 'cop.atiliyor' : d.cop === 'geri' ? 'cop.geriAliniyor' : d.ekleme ? 'icindekiler.ekleniyor' : 'kalem.kaydediliyor');
+    case 'kaydedildi': return t('kalem.kaydedildi');
     case 'hata': return d.mesaj;
   }
 }

@@ -90,7 +90,7 @@ export function icindekilerBaglamiKur(o: BaglamGirdisi): IcindekilerBaglantisi {
     durum: d => { iz('durum ' + d.tur); durum = d; haber(); },
     basarili: (is, islem) => {
       const c = copIsi(is);
-      iz('basarılı ' + (c ? (c.geriAl ? 'geri al' : 'çöp') : is.istek.tur));
+      iz('basarılı ' + (c ? (c.geriAl ? 'geri al' : 'çöp') : is.istek.tur));   // dil-kontrol: yoksay
       geriler.delete(is);
       // adding / trash: the book in memory changes only now (names and order changed at once)
       const b = o.kitap(is.kitapId);
@@ -103,7 +103,7 @@ export function icindekilerBaglamiKur(o: BaglamGirdisi): IcindekilerBaglantisi {
 
   async function vazgec(): Promise<void> {
     const is = kuyruk.vazgec();
-    iz('vazgeç' + (is ? ' ' + is.istek.tur : ' (iş yok)'));
+    iz('vazgeç' + (is ? ' ' + is.istek.tur : ' (iş yok)'));   // dil-kontrol: yoksay
     if (!is) return;
     const c = copIsi(is);
     if (c) {
@@ -127,11 +127,11 @@ export function icindekilerBaglamiKur(o: BaglamGirdisi): IcindekilerBaglantisi {
       kitabiEsitle(b, await o.jsonOku(is.kitapId));
       // the changes still waiting are not in the file yet: they stay on the screen
       for (const p of kuyruk.bekleyenler) if (p.kitapId === b.id && !eklemeMi(p) && p.islem) uygula(b, p.islem);
-      iz('Drive\'daki hale dönüldü');
+      iz('Drive\'daki hale dönüldü');   // dil-kontrol: yoksay
     } catch (e) {
       console.warn('İçindekiler: kitap.json okunamadı; değişiklik geri alındı.', e);
       if (geri) uygula(b, geri);
-      iz('işlem öncesine dönüldü');
+      iz('işlem öncesine dönüldü');   // dil-kontrol: yoksay
     }
     yenile();
     haber();
@@ -142,7 +142,7 @@ export function icindekilerBaglamiKur(o: BaglamGirdisi): IcindekilerBaglantisi {
     return new Promise((res, rej) => {
       const bitti = (e: unknown) => { if (e) rej(e); else res(); };
       const is = copIsleri.get(c);
-      if (is && kuyruk.bekleyenler.includes(is)) { is.bitti = bitti; iz('tekrar dene (çöp)'); void kuyruk.tekrarDene(); return; }
+      if (is && kuyruk.bekleyenler.includes(is)) { is.bitti = bitti; iz('tekrar dene (çöp)'); void kuyruk.tekrarDene(); return; }   // dil-kontrol: yoksay
       const yeni = yeniIs(o.islemId?.() ?? crypto.randomUUID(), kitapId, { tur: 'cop', cop: c });
       yeni.bitti = bitti;
       copIsleri.set(c, yeni);

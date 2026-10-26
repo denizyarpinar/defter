@@ -1,3 +1,4 @@
+import { t } from '../dil';
 import { FLIP_MS, KITAP_KAGIT_PAYI, fitPage, ilkCift, isSingle, keepRange, pageStep, sagdaMi, slotSize, spreadStart, visiblePages } from './kitapDuzen';
 
 // Reader, book mode (task 3.3): two pages side by side with a spine shadow, one page on a portrait screen.
@@ -217,7 +218,7 @@ export class BookView {
     const s = this.sheets.get(i);
     if (s) return s.el;
     const end = div(`o-sheet o-end ${this.yan(i)}`);
-    if (i >= this.host.count()) div('o-endtext', end).textContent = 'Son sayfa';
+    if (i >= this.host.count()) div('o-endtext', end).textContent = t('okuyucu.sonSayfa');
     return end;
   }
 

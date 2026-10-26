@@ -1,4 +1,5 @@
 import type { PDFDict, PDFDocument, PDFObject, PDFPage, PDFRef } from 'pdf-lib';
+import { t } from '../dil';
 import { KAGIT_CIZGI_KOYULUK, KAGIT_CIZGI_PT } from '../elYazisi/kagitCizgi';
 import { isDefterInk, SAVE_OPTIONS, yazilabilirAc } from '../kalem/pdfNotlari';
 import { sayfaIzi } from '../ocr/kayit/parmakIzi';
@@ -24,11 +25,11 @@ const KALITILABILIR = new Set(['MediaBox', 'CropBox']);
 type Lib = typeof import('pdf-lib');
 
 export class BantNotuVar extends Error {
-  constructor() { super('Slaytın dışında yeni kalem yazısı var; geri alma yapılmadı. "Deftere yapıştırmayı geri al"a yeniden dokun.'); }
+  constructor() { super(t('sayfaIsi.bantNotu')); }
 }
 
 export class YapistirilamazDikey extends Error {
-  constructor() { super('Bu sayfa zaten dikey; deftere yapıştırmaya gerek yok.'); }
+  constructor() { super(t('sayfaIsi.zatenDikey')); }
 }
 
 // ---- geometry (pure numbers) ----

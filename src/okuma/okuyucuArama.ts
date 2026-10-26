@@ -1,3 +1,4 @@
+import { t } from '../dil';
 import { gorunurAlaniDuzelt } from '../ui/gorunurAlan';
 import { aranamayanNotu, okunmamisSayisi, baslangicEslesmesi, bosDurum, listeDegisti, onceki, sayacMetni, sonraki, type AramaDurumu } from './aramaDurumu';
 import { elYazisiAra, type ElYazisiSonucu } from './elYazisiAra';
@@ -156,7 +157,7 @@ export class OkuyucuArama {
           if (!etiket) {
             etiket = document.createElement('div');
             etiket.className = 'o-ara-el';
-            etiket.textContent = 'El yazısında bulundu';
+            etiket.textContent = t('okuyucuArama.elYazisinda');
           }
           etiket.classList.toggle('gecerli', el === this.d.gecerli);
           if (etiket.parentNode !== box) box.append(etiket);

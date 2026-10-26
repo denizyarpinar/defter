@@ -34,10 +34,19 @@ import { PDFDocument, StandardFonts, degrees, rgb } from 'pdf-lib';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = 4189;
-const URL = `http://localhost:${PORT}/?demo&lang=tr`;
+// 6.5-3: DIL=en node scripts/bos-sayfa-kontrol.mjs --4d → the English interface (default Turkish); the texts it
+// checks come from the dictionaries (src/dil/tr.ts, en.ts), the topic's name from the sample library's en.json
+const DIL = process.env.DIL === 'en' ? 'en' : 'tr';
+const URL = `http://localhost:${PORT}/?demo&lang=${DIL}`;
 const OUT = process.argv.slice(2).find(a => !a.startsWith('--')) ?? 'C:\\Users\\yarpi\\iCloudDrive\\uni_plan_claude_code\\Claude outputs\\bos-sayfa-6.S';
 const KONU = 'Unite-01-Temeller/Konu-01-Degiskenler';
-const TOPIC = 'Değişkenler ve veri tipleri';
+const TOPIC_TR = 'Değişkenler ve veri tipleri';
+const TOPIC = DIL === 'en' ? JSON.parse(readFileSync(join(ROOT, 'public', 'ornek', 'en.json'), 'utf8')).kitaplar['programlamaya-giris'].uniteler[0].konular[0] : TOPIC_TR;
+// the texts the 6.S-4d part checks, as the dictionaries have them
+const METIN = {
+  tr: { silOnay3: 's. 3 silinecek. Sayfadaki kalem yazısı ve okunmuş el yazısı da gider. Geri al ile hemen geri getirebilirsin.', geriAl: 'Geri al', silindi: 'Sayfa silindi', sonSayfa: /Son sayfa silinemez/, bant: 'Slaytın dışındaki kalem yazısı' },
+  en: { silOnay3: 'p. 3 will be deleted, along with its pen strokes and read handwriting. You can bring it right back with Undo.', geriAl: 'Undo', silindi: 'Page deleted', sonSayfa: /last page can't be deleted/, bant: 'Pen strokes outside the slide' }
+}[DIL];
 const SIZES = [[1180, 820], [820, 1180], [390, 844]];
 
 const wait = (ms) => new Promise(r => setTimeout(r, ms));
@@ -87,7 +96,7 @@ async function startDev() {
 const KITAP_JSON = {
   surum: 2, baslik: 'Programlamaya giriş', bilinmeyen: { kalsin: true },
   kurdele: { konu: KONU, materyal: 'ozet', dosya: 'ozet.pdf', sayfa: 3 },
-  uniteler: [{ baslik: 'Temeller', konular: [{ baslik: TOPIC, klasor: KONU, durum: 'okunuyor', kurdeleler: { ozet: { dosya: 'ozet.pdf', sayfa: 2 } } }] }],
+  uniteler: [{ baslik: 'Temeller', konular: [{ baslik: TOPIC_TR, klasor: KONU, durum: 'okunuyor', kurdeleler: { ozet: { dosya: 'ozet.pdf', sayfa: 2 } } }] }],
 };
 const OCR = {
   tur: 'defter-ocr', surum: 1, kaynak: { id: 'sahte-pdf', ad: 'ozet.pdf' },
@@ -147,7 +156,7 @@ async function okuyucuAc(w, h, ad, govde = pdfBytes, sahte = (page) => page.eval
   await page.evaluate(() => { try { localStorage.setItem('defter.okumaModu', 'kitap'); } catch { /* */ } });
 
   await page.keyboard.press('/');
-  await page.locator('#aramaPaneli .ap-kutu').fill('programlamaya');
+  await page.locator('#aramaPaneli .ap-kutu').fill(DIL === 'en' ? 'introduction to programming' : 'programlamaya');
   await page.waitForFunction(() => document.querySelectorAll('#aramaPaneli .ap-satir').length > 0, null, { timeout: 10_000 });
   await page.locator('#aramaPaneli .ap-satir').first().click();
   await page.waitForSelector('#reader.show', { timeout: 15_000 });
@@ -544,7 +553,7 @@ try {
     await geriAl.click();
     await bekleBitti(page, s0.surum);
     s = await ozet4c(page);
-    kontrol(ad, 'geri al: onay soruldu (slaytın dışındaki kalem yazısı)', diyaloglar.slice(d0).some(m => m.includes('Slaytın dışındaki kalem yazısı')), diyaloglar.slice(d0).join(' | '));
+    kontrol(ad, 'geri al: onay soruldu (slaytın dışındaki kalem yazısı)', diyaloglar.slice(d0).some(m => m.includes(METIN.bant)), diyaloglar.slice(d0).join(' | '));
     kontrol(ad, 'geri al: slayt 960 × 540, bant çizgisi gitti, diğerleri yapıştırılmış', s.olcu[0].join() === '960,540' && !s.cizgi.some(([i]) => i === 0) && s.yapistirilmis.join() === '3,4', `${s.olcu[0]}, ${JSON.stringify(s.cizgi)}`);
     await page.screenshot({ path: join(OUT, `${dosya}-10-geri-alindi.png`) });
     const tasma = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth);
@@ -574,13 +583,13 @@ try {
     await page.locator('#oSayfaEkleBalon [data-sil]').click();
     await bekleBitti(page, s0.surum);
     s = await ozet4d(page);
-    kontrol(ad, 'onay metni (s. 3)', diyaloglar.slice(d0).includes('s. 3 silinecek. Sayfadaki kalem yazısı ve okunmuş el yazısı da gider. Geri al ile hemen geri getirebilirsin.'), diyaloglar.slice(d0).join(' | '));
+    kontrol(ad, 'onay metni (s. 3)', diyaloglar.slice(d0).includes(METIN.silOnay3), diyaloglar.slice(d0).join(' | '));
     kontrol(ad, 'kitap · sil: 4 sayfa, çizgi gitti, 3. sayfanın izi yok', s.sayfa === 4 && !s.cizgi.length && !s.izler.includes(bas.izler[2]), `${s.sayfa}, ${JSON.stringify(s.cizgi)}`);
     kontrol(ad, 'kitap · sil: kurdeleler 3→2, 5→4', s.konuKurdele === 2 && s.kurdele === 4, `${s.konuKurdele}, ${s.kurdele}`);
     kontrol(ad, 'kitap · sil: okuma 4→3, 3. sayfanın kaydı silinenler alanında', s.ocr.join() === '3' && s.silinenler.join() === '3', `ocr ${s.ocr}, silinenler ${s.silinenler}`);
     kontrol(ad, 'kitap · sil: sağdaki sayfa (eski 4) sağda kaldı → 2–3 / 4', (await pno()) === '2–3 / 4', await pno());
-    const toastGeri = page.locator('#toast.show button', { hasText: 'Geri al' });
-    kontrol(ad, 'toast "Sayfa silindi · Geri al"', (await toastGeri.count()) === 1 && (await page.locator('#toast').textContent()).includes('Sayfa silindi'), await page.locator('#toast').textContent());
+    const toastGeri = page.locator('#toast.show button', { hasText: METIN.geriAl });
+    kontrol(ad, 'toast "Sayfa silindi · Geri al"', (await toastGeri.count()) === 1 && (await page.locator('#toast').textContent()).includes(METIN.silindi), await page.locator('#toast').textContent());
     await page.screenshot({ path: join(OUT, `${dosya}-02-kitap-silindi.png`) });
     s0 = s;
     await toastGeri.click();
@@ -627,7 +636,7 @@ try {
     await t.page.waitForSelector('#oSayfaEkleBalon:not([hidden]) [data-sil]', { timeout: 15_000 });
     const silGri = await t.page.locator('#oSayfaEkleBalon [data-sil][disabled]').count();
     const not = await t.page.locator('#oSayfaEkleBalon .o-sekle-silnot').textContent().catch(() => '');
-    kontrol(`${ad} tek`, 'tek sayfalık PDF: "Bu sayfayı sil" gri, "Son sayfa silinemez"', silGri === 1 && /Son sayfa silinemez/.test(not ?? ''), not ?? '');
+    kontrol(`${ad} tek`, 'tek sayfalık PDF: "Bu sayfayı sil" gri, "Son sayfa silinemez"', silGri === 1 && METIN.sonSayfa.test(not ?? ''), not ?? '');
     await t.page.screenshot({ path: join(OUT, `${dosya}-07-son-sayfa.png`) });
     await t.ctx.close();
   }
