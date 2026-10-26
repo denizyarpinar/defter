@@ -25,7 +25,7 @@ import type { Book, ModeKey } from './model/types';
 import { usesUnits } from './model/units';
 import { markOpened, setReadingSink } from './okuma/okumaDurumu';
 import { sampleBookFolder, sampleFolders } from './okuma/ornekKaynak';
-import { bekleyenKalemIdleri, closeOkuyucu, forgetBook, fotoYuklemeSuruyor, initOkuyucu, isOkuyucuOpen, okuyucuAra, okuyucuOturumKapandi, openOkuyucu, openOkuyucuDuzenle, sayfaEklemeOrtami, setDosyaCop, setIcindekilerBaglami, setKlasorAcma } from './okuma/Okuyucu';
+import { bekleyenKalemIdleri, closeOkuyucu, forgetBook, fotoYuklemeSuruyor, initOkuyucu, isOkuyucuOpen, okuyucuAra, okuyucuOturumKapandi, openOkuyucu, openOkuyucuDuzenle, sayfaEklemeOrtami, setDosyaCop, setIcindekilerBaglami, setKlasorAcma, setSayfaIsi } from './okuma/Okuyucu';
 import { createRoomScene, type LibraryData, type RoomScene, type View } from './scene';
 import { canvas, drawWood, noise } from './scene/textures';
 import { updateHint } from './ui/hint';
@@ -389,6 +389,14 @@ setKlasorAcma(() => driveLoc && sihirbazKilidi() === 'acik' ? { kokId: driveLoc.
 setDosyaCop({
   acik: () => !!driveLoc && sihirbazKilidi() === 'acik',
   iste: d => copAkisi.dosyaCopIste(d)
+});
+
+// ---- task 6.S-4: a blank page between pages: kitap.json's ribbons follow (the reader's job, drive/jsonDegistir.ts) ----
+setSayfaIsi({
+  kitapJsonId: id => driveLoc?.bookFileIds.get(id),
+  jsonDrive: driveDosyaCopApi,
+  kitap: id => data?.books.get(id),
+  oncesi: async () => { await reading?.flush(); await saver?.bekleyenleriYaz(); }
 });
 
 // The same warning (e.g. two "Defter Library" roots) only once per page load

@@ -173,3 +173,15 @@ export async function duzeltmeYaz(drive: OcrDrive, k: OcrKaynakDosya, h: Duzeltm
     return { dosyaId: dosyalar[0].id, yeni: false, kopyaSayisi: dosyalar.length, kayit };
   });
 }
+
+// Task 6.S-4: a blank page went in / out of the PDF: the record's page numbers follow (sayfaKaydir.ts → ocrKaydir),
+// the same rounds as sayfaYaz. No record → null, nothing created.
+export async function kaydirmaYaz(drive: OcrDrive, k: OcrKaynakDosya, degistir: (k: OcrKayit) => OcrKayit): Promise<OcrYazma | null> {
+  if (isSampleId(k.id)) throw new OcrOrnekYazmaYok();
+  return kilitle(`defter-ocr-${k.id}`, async () => {
+    const dosyalar = sirala(await drive.ara(k));
+    if (!dosyalar.length) return null;
+    const kayit = await turlar(drive, k, dosyalar, degistir);
+    return { dosyaId: dosyalar[0].id, yeni: false, kopyaSayisi: dosyalar.length, kayit };
+  });
+}

@@ -3,7 +3,7 @@ import { listChildren, SessionExpired } from '../drive/drive';
 import { drivePdfApi, type YuklemeDinleyici } from '../drive/pdfYazici';
 import { penLayerSvg } from '../kalem/cizimKatmani';
 import { IdbPendingStore } from '../kalem/bekleyenDepo';
-import { remainingDiff, type PendingRecord } from '../kalem/bekleyenFark';
+import { isEmptyDiff, remainingDiff, type PendingRecord } from '../kalem/bekleyenFark';
 import { PendingSaver } from '../kalem/bekleyenKayit';
 import { PenModel, fileIdOf, versionOf, type Place } from '../kalem/cizimModeli';
 import { inView, type StrokeView } from '../kalem/cizgi';
@@ -14,7 +14,15 @@ import { PenInput } from '../kalem/kalemModu';
 import type { PenViewport } from '../kalem/koordinat';
 import { DriveUploader, type UploadDeps, type UploadStatus, type Uploaded } from '../kalem/pdfKayit';
 import { OZET_ADI, type KonuEklemeOrtami, type KonuyaEklendi } from '../defter/konuyaEkle';
-import { ozeteSayfaEkle, SayfaYazmaYok, type EklenenSayfalar } from '../defter/ozeteEkle';
+import { ozeteSayfaEkle, SayfaEklemeAgHatasi, SayfaEklemeCakisma, SayfaYazmaYok, type EklenenSayfalar } from '../defter/ozeteEkle';
+import { bosSayfaBilgisi, sayfaIziAl, type BosSayfaBilgisi, type Desen, type Yon } from '../defter/bosSayfa';
+import { KalemKaydiBekliyor, sayfaIsiCalistir, SayfaIsiYarim, yeniEklemeIsi, yeniKaldirmaIsi, type SayfaIsi, type SayfaIsiOrtami } from '../defter/bosSayfaIsi';
+import { kurdeleKaydir, kurdeleKaydirYerinde, ocrKaydir } from '../kitap/sayfaKaydir';
+import { jsonDegistir, type JsonDrive } from '../drive/jsonDegistir';
+import { topicKey } from '../model/okumaYamasi';
+import { SayfaEkleBalon, type BalonBilgisi } from '../ui/sayfaEkleBalon';
+import { eklemeEngeli, eklemeHedefi, isSonrasiSayfa, KALDIR_ONAY, kaldirmaHedefleri, sayfaEkleGorunur, type GorunenSayfa, type KaldirmaHedefi } from '../ui/sayfaEkleDurumu';
+import { isKaydet, isler, isleriTemizle, isSil } from './sayfaIsiDepo';
 import { bekleyenFotoDepo } from '../defter/bekleyenFoto';
 import type { BekleyenFoto, BekleyenJpeg } from '../defter/bekleyenFotoKayit';
 import { FotoEkleyici } from '../defter/fotoEkleme';
@@ -72,6 +80,7 @@ import { TemizDugme } from '../ui/temizDugme';
 import { temizIzYaz } from './temizIz';
 import type { TemizBildirim, TemizYaziOkuyucu } from './temizYaziOkuyucu';
 import type { TemizSahte } from './temizSahte';
+import type { BosSayfaSahte, BosSayfaSahteDurum, SahteSecenek } from './bosSayfaSahte';
 import { currentToken, rememberedUser } from '../drive/auth';
 import { PageContent, pageKind } from './sayfaIcerik';
 import { PAD_TOP, canvasSize, currentPage, layoutPages, visibleRange, type Layout } from './sanalListe';
@@ -326,6 +335,8 @@ export function initOkuyucu(yer: () => DriveLocation | null): void {
       if (!s) { temizDugmesi(); temizYenile(); }
       temizDegerlendir();
     }));
+    // task 6.S-4: window.defterBosSayfaSahte() gives the file on screen a writable copy in memory (screenshots)
+    void import('./bosSayfaSahte').then(m => m.installBosSayfaSahte(o => bosSahteKur(m, o)));
   }
   // task 6.4c-4: "El yazısını oku" opens the handwriting panel (lazy; the button only with okumaIzni)
   $('#oOku').addEventListener('click', () => {
@@ -376,7 +387,7 @@ export function initOkuyucu(yer: () => DriveLocation | null): void {
     if (!open || document.getElementById('fotoPanel') || document.getElementById('dosyaPanel') || document.getElementById('copOnay') || document.getElementById('ocrDuzelt')) return;
     // task 6.3c: Ctrl/Cmd+F opens our search box (not the browser's)
     if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'f') { e.preventDefault(); e.stopPropagation(); if (!konusuz && !bosDurum) arama.ac(); return; }
-    if (e.key === 'Escape') { e.stopPropagation(); if (toolbar?.closePopover() || temizDugme?.balonKapat()) return; if (tocOpen) closeToc(); else if (arama.acik) arama.kapat(); else closeOkuyucu(); return; }
+    if (e.key === 'Escape') { e.stopPropagation(); if (toolbar?.closePopover() || temizDugme?.balonKapat() || sayfaEkleBalon?.balonKapat()) return; if (tocOpen) closeToc(); else if (arama.acik) arama.kapat(); else closeOkuyucu(); return; }
     // pen mode: Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z and Ctrl+Y redo (not while typing somewhere)
     if (penOn && (e.ctrlKey || e.metaKey) && !e.altKey && !typing(e.target)) {
       const k = e.key.toLowerCase();
@@ -495,10 +506,17 @@ export function initOkuyucu(yer: () => DriveLocation | null): void {
     degistir: () => temizTercihDegisti({ ...temizTercih, acik: !temizTercih.acik }),
     stil: (st: Stil) => temizTercihDegisti({ ...temizTercih, stil: st }),
   });
+  // task 6.S-4: a blank page before / after the page on screen
+  sayfaEkleBalon = new SayfaEkleBalon({
+    bilgi: sayfaBalonBilgisi,
+    ekle: (y, d) => { void bosSayfaEkleBasla(y, d); },
+    kaldir: h => { void bosSayfaKaldirBasla(h); },
+  });
+  addEventListener('online', () => { void sayfaIsleriniSurdur(); });
   pen = new PenInput([scroller, area], {
     pageAtPoint: (x, y) => {
       for (const [i, m] of mounted) {
-        if (!m.box || !m.vp || !m.pdf || penModel.state(fileKey(m.pdf)) !== 'hazir') continue;
+        if (!m.box || !m.vp || !m.pdf || penModel.state(fileKey(m.pdf)) !== 'hazir' || sayfaIsiDosyalari.has(m.pdf.dosyaId!)) continue;   // 6.S-4
         const r = m.box.getBoundingClientRect();
         if (r.width > 0 && x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return { box: m.box, page: { index: i, viewport: m.vp } };
       }
@@ -506,7 +524,7 @@ export function initOkuyucu(yer: () => DriveLocation | null): void {
     },
     pageAt: box => {
       for (const [i, m] of mounted) {
-        if (m.box === box && m.vp && m.pdf && penModel.state(fileKey(m.pdf)) === 'hazir') return { index: i, viewport: m.vp };
+        if (m.box === box && m.vp && m.pdf && penModel.state(fileKey(m.pdf)) === 'hazir' && !sayfaIsiDosyalari.has(m.pdf.dosyaId!)) return { index: i, viewport: m.vp };
       }
       return null;
     },
@@ -665,6 +683,7 @@ function recordReading(cur: number, shown: number[]): void {
   const seen = (i: number) => shown.includes(i) || (atEnd && i === pages.length - 1);
   if (topic) {
     if (!okumaKaydiYazilsinMi(topic.kind)) return;   // task 6.K6a: no material, nothing written
+    if (p.dosyaId && sayfaIsiDosyalari.has(p.dosyaId)) return;   // task 6.S-4: its page numbers are changing
     if (p.ad && p.pdfSayfa) markTopicPage(b, current.unit, current.topic, topic.kind, { dosya: p.ad, sayfa: p.pdfSayfa });
     if (topic.kind === readKind(topic.materials) && mainCount && seen(mainCount - 1)) autoTopicStatus(b, current.unit, current.topic, 'bitti');
   } else if (!usesUnits(b)) {
@@ -830,6 +849,7 @@ export async function openOkuyucu(b: Book, folderId: string, unit: number, topic
   open = true;
   const my = ++session;
   book = b; folder = folderId; onClosed = closed;
+  void sayfaIsleriniSurdur();   // task 6.S-4: a job left half done (its PDF step worked)
   current = { unit, topic: topicIndex };
   content = new PageContent();
   metin = new MetinOnbellek(content);
@@ -1187,6 +1207,8 @@ export function okuyucuOturumKapandi(): void {
   temiz?.oturumDegisti();
   if (temizYukleme) void import('./temizYaziBagla').then(m => m.atlasBellekTemizle());
   void import('./temizDepo').then(m => m.depoTemizle());   // task 6.4e-2b: the device copies of records and atlas
+  bosBilgi.clear();
+  void isleriTemizle();   // task 6.S-4: another account must not run them
 }
 
 function renderBar(): void {
@@ -1213,6 +1235,7 @@ function renderBar(): void {
   showSelectedTab();
   okuDugmesi();
   temizDugmesi();   // task 6.4e-2
+  sayfaEkleDugmesi();   // task 6.S-4
   $('#oCop').hidden = !copDugmesiGorunur({
     kilitAcik: !!dosyaCop?.acik(), drive: !isSampleId(folder) && !!driveLocation(),
     surum2: !!book && usesUnits(book) && book.hasJson && book.surum >= 2, materyal: t.kind !== null, kalem: penOn
@@ -1675,6 +1698,264 @@ async function dosyaGeldi(t: OpenTopic, b: Book, gelen: readonly string[]): Prom
   t.kind = s.kind; t.fileIndex = s.fileIndex; t.solution = s.solution;
   if (bosKonu) autoTopicStatus(b, current.unit, current.topic, 'girildi');
   await showMaterial();
+}
+
+// ---- task 6.S-4: a blank page before / after the page on screen, and its removal ----
+// Decisions: ui/sayfaEkleDurumu.ts; the job: defter/bosSayfaIsi.ts (PDF → kitap.json → .ocr.json); the PDF goes through
+// ozeteSayfaEkle (the pen's queue, ekleVeYukle: tries, conflict, backup, progress). While a job goes the pen doesn't draw
+// on that file (pageAt) and no ribbon is recorded in it (recordReading). The open list follows only at the end, in one
+// step (pages, pen model, pdf.js document): until then the screen shows the old version as it was.
+
+// main.ts: kitap.json's id, its writer, the book in memory and the writers that must go first (reading state, cover)
+export interface SayfaIsiBaglami {
+  kitapJsonId(kitapId: string): string | undefined;
+  jsonDrive: JsonDrive;
+  kitap(kitapId: string): Book | undefined;
+  oncesi(): Promise<void>;
+}
+let sayfaIsiBaglami: SayfaIsiBaglami | null = null;
+export function setSayfaIsi(b: SayfaIsiBaglami | null): void { sayfaIsiBaglami = b; if (open) renderBar(); }
+
+const sayfaIsiDosyalari = new Set<string>();   // files with a job going
+let sayfaIsiYuzde: string | null = null;
+let sayfaEkleBalon: SayfaEkleBalon;
+const bosBilgi = new Map<string, Promise<BosSayfaBilgisi>>();   // file key → can it be written, its blank pages (pdf-lib)
+
+function sayfaEkleDugmesi(): void {
+  const t = topic;
+  sayfaEkleBalon?.goster(!!t && sayfaEkleGorunur({
+    drive: (!isSampleId(folder) && !!driveLocation() && !!sayfaIsiBaglami) || !!bosSahte,
+    surum2: !!book && usesUnits(book) && book.hasJson && book.surum >= 2, materyal: t.kind !== null
+  }), sayfaIsiYuzde);
+}
+
+function gorunenSayfalar(): GorunenSayfa[] {
+  if (!pages.length) return [];
+  const list = mode === 'kitap' ? visiblePages(bookView?.idx ?? 0, bookView?.single ?? true, pages.length) : [focusPage()];
+  return list.map(i => {
+    const p = pages[i];
+    return { liste: i, dosyaId: p.dosyaId ?? null, ...(pageKind(p) === 'pdf' && p.pdfSayfa ? { pdfSayfa: p.pdfSayfa } : {}), ...(p.ad ? { ad: p.ad } : {}) };
+  });
+}
+
+function bosBilgiAl(p: BookPage): Promise<BosSayfaBilgisi> {
+  const key = fileKey(p);
+  let b = bosBilgi.get(key);
+  if (!b) {
+    const yeni = getPdf(p.dosyaId!, p.modifiedTime!).then(x => bosSayfaBilgisi(new Uint8Array(x)));
+    bosBilgi.set(key, yeni);
+    yeni.catch(() => { if (bosBilgi.get(key) === yeni) bosBilgi.delete(key); });
+    b = yeni;
+  }
+  return b;
+}
+
+const ocrPaneliAcik = () => document.getElementById('reader-ocr-search')?.hidden === false;
+
+// The popover opens: the files on screen are checked once per version (the pen's check + the blank pages)
+async function sayfaBalonBilgisi(): Promise<BalonBilgisi> {
+  const g = gorunenSayfalar();
+  const bilgiler = new Map<string, BosSayfaBilgisi>();
+  for (const x of g) {
+    const p = pages[x.liste];
+    if (x.pdfSayfa && p.dosyaId && p.modifiedTime && !bilgiler.has(p.dosyaId)) bilgiler.set(p.dosyaId, await bosBilgiAl(p));
+  }
+  const yazamaz = [...bilgiler.values()].find(b => !b.yazilabilir);
+  const engel = eklemeEngeli({
+    isSuruyor: sayfaIsiDosyalari.size > 0, kalemYazamaz: yazamaz && !yazamaz.yazilabilir ? yazamaz.mesaj : null,
+    okumaSuruyor: ocrPaneliAcik(), hedefYok: !eklemeHedefi(g, 'once') && !eklemeHedefi(g, 'sonra')
+  });
+  const kaldir = kaldirmaHedefleri(g, (id, i) => { const b = bilgiler.get(id); return b?.yazilabilir ? b.bos.get(i) ?? null : null; });
+  return { engel, kaldir: sayfaIsiDosyalari.size || ocrPaneliAcik() ? [] : kaldir };
+}
+
+async function bosSayfaEkleBasla(yon: Yon, desen: Desen): Promise<void> {
+  const t = topic, b = book;
+  if (!t || !b || !open || sayfaIsiDosyalari.size || ocrPaneliAcik()) return;
+  const h = eklemeHedefi(gorunenSayfalar(), yon);
+  if (!h) return;
+  const p = pages[h.liste];
+  // the neighbour's fingerprint in the version on screen: its anchor when Drive has a newer one
+  let komsuIzi: string | undefined;
+  try { komsuIzi = await sayfaIziAl(new Uint8Array(await getPdf(p.dosyaId!, p.modifiedTime!)), h.komsu); } catch (e) { console.warn('Sayfa ekle: komşu sayfanın izi alınamadı.', e); }
+  const is = yeniEklemeIsi({
+    islemId: crypto.randomUUID(), fileId: h.dosyaId, dosyaAdi: p.ad ?? h.ad, klasorId: p.klasorId ?? null, kitapId: b.id,
+    konu: topicKey(t.klasor, t.title), ekle: { komsu: h.komsu, yon, desen, ...(komsuIzi ? { komsuIzi } : {}) }
+  });
+  await sayfaIsiYurut(is, t);
+}
+
+async function bosSayfaKaldirBasla(h: KaldirmaHedefi): Promise<void> {
+  const t = topic, b = book;
+  if (!t || !b || !open || sayfaIsiDosyalari.size) return;
+  if (!confirm(KALDIR_ONAY)) return;
+  const p = pages[h.liste];
+  const is = yeniKaldirmaIsi({
+    islemId: h.kayit.islemId, fileId: h.dosyaId, dosyaAdi: p?.ad ?? h.ad, klasorId: p?.klasorId ?? null, kitapId: b.id,
+    konu: topicKey(t.klasor, t.title), kaldir: { indeks: h.indeks, iz: h.kayit.iz }
+  });
+  await sayfaIsiYurut(is, t);
+}
+
+function sayfaIsiYuzdesi(y: string | null): void {
+  sayfaIsiYuzde = y;
+  sayfaEkleDugmesi();
+}
+
+// In the pen's queue, after the file's strokes: none may be left (their page numbers would move)
+async function kalemBosMu(fileId: string): Promise<void> {
+  await saver.flush();
+  const key = penModel.keyOf(fileId), rec = await pendingStore.get(fileId);
+  if ((key && penModel.isDirty(key)) || (rec && !isEmptyDiff(rec))) throw new KalemKaydiBekliyor();
+}
+
+function sayfaIsiOrtami(loc: DriveLocation, ctx: SayfaIsiBaglami): SayfaIsiOrtami {
+  return {
+    pdf: is => ozeteSayfaEkle(is.fileId, is.tur === 'ekle' ? { bosSayfa: is.ekle! } : { bosKaldir: { indeks: is.kaldir!.indeks } }, {
+      yer: loc, deps: uploadDeps, dosyaDrive: bosSahte?.dosyaDrive ?? drivePdfOlusturApi, sirada: (id, job) => uploader.sirada(id, job), degisti: sayfaSurumuGeldi
+    }, {
+      islemId: is.islemId, kuyrukOncesi: () => kalemBosMu(is.fileId),
+      yukleme: { basladi: () => sayfaIsiYuzdesi('%0'), ilerleme: (g, n) => sayfaIsiYuzdesi(`%${n ? Math.round(100 * g / n) : 0}`) }
+    }),
+    kitapJson: async (is, h) => {
+      const id = ctx.kitapJsonId(is.kitapId);
+      if (!id) throw new Error('Kitabın kitap.json\'u bulunamadı.');
+      await jsonDegistir(ctx.jsonDrive, id, latest => kurdeleKaydir(latest, h), () => new Error('kitap.json bu arada başka bir cihazda değişti.'));
+      const kb = ctx.kitap(is.kitapId);   // the book in memory (the same object the reader uses)
+      if (kb) kurdeleKaydirYerinde(kb, h);
+    },
+    ocr: async (is, indeks, delta) => {
+      const { driveOcrApi, kaydirmaYaz } = await import('../ocr/kayit/kayitDrive');
+      const klasorId = is.klasorId ?? (await (bosSahte?.dosyaDrive ?? drivePdfOlusturApi).klasorBilgisi(is.fileId)).parents[0];
+      if (!klasorId) throw new Error('PDF\'in klasörü bulunamadı.');
+      is.klasorId = klasorId;
+      const r = await kaydirmaYaz(bosSahte?.ocrDrive ?? driveOcrApi(loc), { id: is.fileId, ad: is.dosyaAdi, klasorId }, k => ocrKaydir(k, indeks, delta, is.kaldir?.iz).kayit);
+      if (r) await ocrKaynak?.then(k => k.guncelle(is.fileId, r.kayit), () => {});
+    },
+    kaydet: isKaydet,
+    sil: isSil,
+  };
+}
+
+// The PDF step worked: the new bytes into the cache; what was made from the old version and isn't on screen goes.
+// The list on screen, the pen model and the pdf.js document move at the end (sayfaIsiSonrasi).
+async function sayfaSurumuGeldi(s: EklenenSayfalar): Promise<void> {
+  await putPdf(s.fileId, s.modifiedTime, s.bytes);
+  latestVersion.set(s.fileId, s.modifiedTime);
+  metin?.unut(s.fileId);
+  void ocrKaynak?.then(k => k.unut(s.fileId), () => {});
+  for (const k of [...bosBilgi.keys()]) if (fileIdOf(k) === s.fileId) bosBilgi.delete(k);
+  const has = (p: BookPage) => p.dosyaId === s.fileId;
+  for (const [k, v] of [...pageCache]) if (v.pages.some(has)) pageCache.delete(k);
+  if (prepared?.pages.some(has)) prepared = null;
+  for (const t of topicCache.values()) {
+    t.then(m => {
+      if (m && m !== topic?.materials) for (const list of Object.values(m)) for (const it of list) for (const f of [it.file, it.cozum]) if (f?.id === s.fileId) f.modifiedTime = s.modifiedTime;
+    }, () => {});
+  }
+  agacGecersiz();
+}
+
+// The open reader on the new version, at the new page (ekle) / the page before the removed one (kaldir)
+async function sayfaIsiSonrasi(t: OpenTopic | null, is: SayfaIsi): Promise<void> {
+  sayfaEkleBalon.balonKapat();
+  const mt = latestVersion.get(is.fileId);
+  if (!mt || !open || !t || topic !== t || !content || is.indeks === undefined) return;
+  const eski = pages.find(p => p.dosyaId === is.fileId && p.modifiedTime)?.modifiedTime;
+  if (eski && eski !== mt) {
+    const oldKey = `${is.fileId}@${eski}`, newKey = `${is.fileId}@${mt}`;
+    if (penModel.state(oldKey) === 'hazir') {
+      const inFile = await readDefterStrokes(new Uint8Array(await getPdf(is.fileId, mt)));
+      if (!open || topic !== t) return;
+      penModel.rebase(oldKey, newKey, inFile, { eklenen: [], silinenIdler: [] });
+    }
+    const name = penFileNames.get(oldKey);
+    if (name !== undefined) { penFileNames.delete(oldKey); penFileNames.set(newKey, name); }
+  }
+  penModel.gecmisiTemizle();   // undo / redo pointed at the old page numbers
+  renderTools();
+  content.newVersion(is.fileId, mt);
+  for (const list of Object.values(t.materials)) for (const it of list) for (const f of [it.file, it.cozum]) if (f?.id === is.fileId) f.modifiedTime = mt;
+  if (arama.acik) arama.kapat();   // its matches are on the old page numbers
+  await showMaterial({ dosya: is.dosyaAdi, sayfa: isSonrasiSayfa(is.tur, is.indeks) });
+}
+
+const tekrarDenenebilir = (e: unknown) => e instanceof SayfaIsiYarim || e instanceof SayfaEklemeAgHatasi || e instanceof SayfaEklemeCakisma || e instanceof TypeError;
+
+function isHataMetni(is: SayfaIsi, e: unknown): string {
+  if (is.tur === 'kaldir' && e instanceof SayfaEklemeAgHatasi) return 'Boş sayfa kaldırılamadı (bağlantı ya da Drive sorunu). İnternet bağlantını kontrol edip tekrar dene.';
+  if (is.tur === 'kaldir' && e instanceof SayfaEklemeCakisma) return 'PDF başka bir cihazda değişip duruyor; boş sayfa kaldırılmadı. Biraz sonra tekrar dene.';
+  return e instanceof Error && e.message ? e.message : 'Bilinmeyen bir hata oldu.';
+}
+
+async function sayfaIsiYurut(is: SayfaIsi, t: OpenTopic | null): Promise<void> {
+  const loc = bosSahte?.loc ?? driveLocation(), ctx = bosSahte ? sahteBaglam(bosSahte) : sayfaIsiBaglami;
+  if (!loc || !ctx || sayfaIsiDosyalari.has(is.fileId)) return;
+  sayfaIsiDosyalari.add(is.fileId);
+  sayfaIsiYuzdesi('…');
+  uploadNow([is.fileId]);   // the file's strokes go first (the queue); kalemBosMu checks they went
+  try {
+    await ctx.oncesi();       // reading state / cover with the old page numbers go first
+    await sayfaIsiCalistir(is, sayfaIsiOrtami(loc, ctx));
+    toast(is.tur === 'ekle' ? 'Boş sayfa eklendi.' : 'Boş sayfa kaldırıldı.');
+    await sayfaIsiSonrasi(t, is);
+  } catch (e) {
+    if (e instanceof SessionExpired) return;
+    console.warn('Sayfa işi:', e);
+    if (e instanceof SayfaIsiYarim) await sayfaIsiSonrasi(t, is).catch(x => console.warn(x));   // the PDF changed: show it
+    const tekrar = tekrarDenenebilir(e);
+    toast(isHataMetni(is, e), tekrar ? { etiket: 'Tekrar dene', calistir: () => { void sayfaIsiYurut(is, topic === t ? t : null); } } : undefined);
+  } finally {
+    sayfaIsiDosyalari.delete(is.fileId);
+    sayfaIsiYuzdesi(null);
+  }
+}
+
+// ---- dev only (bosSayfaSahte.ts): the file on screen as a writable copy in memory ----
+let bosSahte: BosSayfaSahte | null = null;
+const sahteBaglam = (s: BosSayfaSahte): SayfaIsiBaglami => ({
+  kitapJsonId: () => s.kitapJsonId, jsonDrive: s.jsonDrive, kitap: id => book?.id === id ? book : undefined, oncesi: async () => {}
+});
+
+async function bosSahteKur(m: typeof import('./bosSayfaSahte'), o: SahteSecenek | false): Promise<BosSayfaSahteDurum | null> {
+  if (o === false) {
+    bosSahte = null;
+    uploadDeps.drive = drivePdfApi;
+    if (open) { renderBar(); renderTools(); }
+    return null;
+  }
+  if (bosSahte) return bosSahte.durum;
+  const t = topic, b = book, p = pages[focusPage()];
+  if (!open || !t || !b || !p?.dosyaId || !p.modifiedTime || pageKind(p) !== 'pdf') throw new Error('Önce bir konunun PDF materyalini aç.');
+  const bytes = new Uint8Array(await getPdf(p.dosyaId, p.modifiedTime));
+  const s = m.bosSayfaSahte(bytes, b.id, p.ad ?? 'ozet.pdf', o);
+  await putPdf(m.SAHTE_ID, 't1', bytes);
+  bosSahte = s;
+  uploadDeps.drive = s.pdfDrive;
+  const eski = p.dosyaId;
+  for (const list of Object.values(t.materials)) for (const it of list) for (const f of [it.file, it.cozum]) if (f?.id === eski) { f.id = m.SAHTE_ID; f.modifiedTime = 't1'; }
+  await showMaterial();
+  renderTools();
+  return s.durum;
+}
+
+// Jobs left on the device with their PDF step done: the rest now (the reader opening, back online)
+let surduruluyor = false;
+async function sayfaIsleriniSurdur(): Promise<void> {
+  const loc = driveLocation(), ctx = sayfaIsiBaglami;
+  if (!loc || !ctx || surduruluyor || isSampleId(folder)) return;
+  surduruluyor = true;
+  try {
+    const liste = (await isler()).filter(is => is.adimlar.pdf && !sayfaIsiDosyalari.has(is.fileId));
+    if (liste.length) await ctx.oncesi();
+    for (const is of liste) {
+      try { await sayfaIsiCalistir(is, sayfaIsiOrtami(loc, ctx)); } catch (e) { console.warn('Yarım kalan sayfa işi yine tamamlanamadı; sonra tekrar denenecek.', e); }
+    }
+  } catch (e) {
+    console.warn('Yarım kalan sayfa işlerine bakılamadı.', e);
+  } finally {
+    surduruluyor = false;
+  }
 }
 
 // ---- task 5.10f: the open reader after "Dosya ekle" (decisions: eklemeYenileme.ts) ----
@@ -2336,7 +2617,7 @@ function setPen(on: boolean): void {
 
 function renderTools(): void {
   const dirty = penModel.dirty;
-  const kilit = isSampleId(folder) ? 'ornek' : 'acik';
+  const kilit = isSampleId(folder) && !bosSahte ? 'ornek' : 'acik';
   toolbar?.set({ preparing: penOn && penModel.loading, dirty, onDevice: pendingStore.ok, canUndo: penModel.canUndo(yerGorunumu), canRedo: penModel.canRedo(yerGorunumu), kayit: { kilit, durum: saveState } });
   // reading mode (no tool bar): a dot on the pen button
   const btn = document.querySelector<HTMLElement>('#oPenBtn');

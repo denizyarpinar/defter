@@ -34,7 +34,8 @@ function akislar(lib: PdfLib, doc: PdfDoc, page: PdfPage) {
   return { icerik, xobjeler };
 }
 
-async function sayfaIzi(lib: PdfLib, doc: PdfDoc, page: PdfPage): Promise<string> {
+// One page of an open document (task 6.S-4: the blank page's anchor in a newer version)
+export async function sayfaIzi(lib: PdfLib, doc: PdfDoc, page: PdfPage): Promise<string> {
   const { icerik, xobjeler } = akislar(lib, doc, page);
   const gorseller = xobjeler.filter(x => x.gorsel);
   if (gorseller.length === 1) return 'g:' + await sha256(gorseller[0].bayt);

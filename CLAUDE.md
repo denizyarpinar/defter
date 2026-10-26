@@ -170,7 +170,7 @@ Kitaplık/
 
 ### Biçim
 - Çizimler PDF'e standart Ink annotation (not) olarak yazılır; görünüm akışı (/AP) eklenir, böylece Drive önizlemesi, iPad ve Windows'ta görünür. Var olan sayfaların içeriğine (content stream) asla dokunulmaz.
-- Uygulamanın notları özel `/DefterId` anahtarıyla (ve /T "Defter") işaretlenir. Sadece /DefterId işaretli Ink annotation'lar eklenir/değişir/silinir. Sayfa içeriği, başka notlar, form alanları, metadata ve sayfa sırası korunur (Faz 5: sadece sona yeni sayfa eklenebilir). İmzalı PDF'e yazılmaz.
+- Uygulamanın notları özel `/DefterId` anahtarıyla (ve /T "Defter") işaretlenir. Sadece /DefterId işaretli Ink annotation'lar eklenir/değişir/silinir. Sayfa içeriği, başka notlar, form alanları, metadata ve sayfa sırası korunur (Faz 5: sadece sona yeni sayfa eklenebilir; 6.S-4: tek istisna Defter'in `/DefterBosSayfa` işaretli boş sayfası, bkz. 6.S-4). İmzalı PDF'e yazılmaz.
 - Çizgi şekli tek kaynak: `src/kalem/cizgiSekli.ts`. Kalem = perfect-freehand dış hattı, dolgu; fosforlu = orta noktalardan yumuşatılmış eğri, sabit kalınlık. Canlı çizim, okuma katmanı ve /AP aynı fonksiyonu kullanır. /AP kalemde dış hat dolgu (f), fosforluda yumuşak eğri (S). /InkList merkez çizgi olarak kalır.
 - Apple Pencil basıncı `basinc` (nokta başına 0–1, 2 ondalık) PDF'te `/DefterBasinc` dizisinde; basınç yoksa (fare, parmak) hızdan tahmin edilir.
 - 6.H2b (Deniz kararı): düz basınç (en çok − en az < 0.02, ör. ESR kalem hep 0.12) = basınç yok → kalemde sabit kalınlık (seçilen kalınlık, hız tahmini yok). Düz basınç `/DefterBasinc`'e yine yazılır (basınçsız kalem işareti); eski 0.12'li çizgiler de sabit çizilir. Fare/parmak (basınç hiç yok) hızdan tahminle kalır. Karar: `hasRealPressure` (`cizgiSekli.ts`).
@@ -186,7 +186,7 @@ Kitaplık/
 - Hata ayıklama: `?defterNot=goster` (katman yok, pdf.js kendisi çizer).
 
 ### pdf-lib
-- Tam sürüm 1.17.1, tembel yüklenir (`await import('pdf-lib')`): kalem modunda, ya da okuma modunda Defter notu veya bekleyen kaydı olan bir dosya açılınca, ya da açık listede sayfalı bir `.ocr.json` kaydı olunca (parmak izi, 6.4e-2; Deniz onayı). Diğer dosyalarda hiç yüklenmez; ilk açılış paketine girmez.
+- Tam sürüm 1.17.1, tembel yüklenir (`await import('pdf-lib')`): kalem modunda, ya da okuma modunda Defter notu veya bekleyen kaydı olan bir dosya açılınca, ya da açık listede sayfalı bir `.ocr.json` kaydı olunca (parmak izi, 6.4e-2; Deniz onayı), ya da "Sayfa ekle" balonu açılınca (6.S-4: kalem yazabilir mi, boş sayfa mı). Diğer dosyalarda hiç yüklenmez; ilk açılış paketine girmez.
 
 ### Cihazda saklama
 - Çizgiler önce cihazda, sonra Drive'a. Kaydedilmemiş çizimler dosya başına net fark olarak IndexedDB'de (`defter-kalem`) tutulur; sadece Drive'a başarılı yüklemeden sonra silinir, hiçbir hatada silinmez.
@@ -220,7 +220,7 @@ Kitaplık/
 - Hiçbir dosya silinmez, çöpe atılmaz, taşınmaz (değişmedi).
 
 ### PDF'e sayfa ekleme
-- Sayfa sadece sona eklenir. Var olan sayfaların içeriği ve sırası değişmez; Defter notları, kurdeleler ve sayfa numaraları korunur.
+- Sayfa sadece sona eklenir. Var olan sayfaların içeriği ve sırası değişmez; Defter notları, kurdeleler ve sayfa numaraları korunur. Tek istisna (6.S-4, Deniz kararı): Defter'in boş not sayfası (`/DefterBosSayfa`) araya girebilir ve sadece o kaldırılabilir; kullanıcının sayfası asla silinmez.
 - Sayfa ekleme kalemin yazma kuyruğundan (PdfKayit) geçer; aynı dosyaya iki ayrı yükleyici yazmaz. Önce bekleyen çizgiler, sonra sayfa ekleme.
 - Yedek (keepForever, ensureOriginalKept) ve çakışma kontrolü (modifiedTime, headRevisionId, PdfConflict) aynen uygulanır.
 
@@ -466,6 +466,16 @@ Kitaplık/
 - 6.S-2b: PDF canvas'ları (ana + zoom detay, temiz yazı dahil) `.o-baski` kutusunda; kitap modunda kutu tek parça `multiply` ile kâğıda basılır (beyaz → kâğıt rengi). Kalem ve arama katmanları kutunun dışında, multiply olmaz. PDF modu değişmez.
 - 6.K5b-4 / 6.S-1b: okuyucu açıkken altında kayan bir şey olmayan yerde parmak/kalem hareketi iptal edilir (`okuyucuKaydirma.ts`; iPad sayfa kayması). İstisna (6.S-1b): dokunuş bir kontrolün (`KONTROLLER`, `sayfaZoom.ts`) üstünde başladıysa ve başlangıçtan 10 px'ten az kaydıysa iptal yok (`kaymaIptalMi`; kalemle düğme dokunuşu click üretsin). Pay bir kez aşılınca bugünkü kural.
 - Kontrol: `node scripts/kitap-sigdir-kontrol.mjs` (Drive yok; sığma, pay, kalem 0.00 pt, pay 0 | 0.04 karşılaştırma görüntüleri).
+
+## 6.S-4 — Araya boş not sayfası (Deniz kararı)
+- Okuyucuda `#oSayfaEkle` (+, malzeme çubuğunda, kalem açıkken de): balon Önüne / Arkasına + Düz / Kareli / Çizgili; desene dokununca eklenir. Boş sayfadayken "Bu sayfayı kaldır" (onaylı: "Bu boş sayfa ve üstündeki kalem yazısı silinecek."). Sadece Drive kitaplığı, surum 2 + kitap.json, materyal açık. Kalem yazamazsa (şifreli/imzalı/okunamaz) desenler gri + aynı açıklama.
+- Hedef: PDF modu odaktaki sayfa; kitap modu Önüne = çiftin SOL sayfasının önü, Arkasına = SAĞ sayfanın arkası (tek sayfa / sağ PDF değilse o sayfa). Karar: `src/ui/sayfaEkleDurumu.ts`.
+- Sayfa (`src/defter/bosSayfa.ts`, saf, testli): pdf-lib ile gerçek sayfa; boyut = komşunun görünür kutusu (CropBox yoksa MediaBox, /Rotate uygulanmış; yeni sayfa döndürülmemiş, MediaBox [0 0 w h]). Kare 5 mm, çizgi 8 mm, sol üstten, kenar payı 0, vektör; ton ve kalınlık tek yerden (`src/elYazisi/kagitCizgi.ts`, temiz yazıyla aynı: kâğıt − 16, 0.35 pt). Sayfa sözlüğünde `/DefterBosSayfa` (islemId) + `/DefterBosDesen`; içerik akışı `% DefterBosSayfa <islemId>` ile başlar (her boş sayfanın parmak izi ayrı). Aynı islemId varsa ekleme yok (zatenVar). Kaldırma islemId ile bulur; yoksa "zaten kaldırılmış"; işaretsiz sayfa = `BosSayfaDegil`.
+- Yazma: `ozeteSayfaEkle` → kalem kuyruğu (`sirada`) → `ekleVeYukle` (3 deneme, PdfConflict, headRevisionId, yedek, yüzde); ikinci yükleme yolu yok. Kuyrukta önce dosyanın bekleyen çizgileri gider; sonra hâlâ kaydedilmemiş çizgi varsa yazılmaz (`KalemKaydiBekliyor`). İş sürerken o dosyaya kalem çizmez, kurdele kaydedilmez. Drive'daki sürüm ekrandakinden yeniyse komşunun parmak izi çapa olur (`komsuIzi`), bulunamazsa `SayfaYeriDegisti`.
+- Sıra (`src/defter/bosSayfaIsi.ts`, testli): PDF → kitap.json kurdeleleri (`jsonDegistir`; o konunun `kurdeleler[*]` + kitabın `kurdele`'si, `dosya` = bu PDF) → `.ocr.json` sayfa numaraları (`kaydirmaYaz`, sadece varsa; kaldırılan sayfanın kaydı parmak iziyle silinir) → okuyucu yeni sürümde yeni sayfada. Kural: `src/kitap/sayfaKaydir.ts` (eklenen indeksten sonrası +1 / −1; kaldırılan sayfadaki kurdele bir öncekine).
+- Yarıda kalırsa: PDF adımı bitince iş cihaza (IndexedDB `defter-sayfa-isi`, `src/okuma/sayfaIsiDepo.ts`); kalan adımlar "Tekrar dene", çevrimiçi olunca ve okuyucu açılınca; yapılmış adım tekrar yapılmaz. PDF adımı hatası saklanmaz (Tekrar dene aynı islemId). Kabul: kitap.json yazılıp cevap kaybolursa kurdele bir kez daha kayabilir. Çıkışta iş deposu boşalır.
+- Önbellekler: yeni baytlar PDF önbelleğine; o dosyanın sayfa listesi önbellekleri, okuyucu metni, ocr kaynağı, balon bilgisi, arama ağacı geçersiz; kalem modeli yeni sürüme (dosyadaki çizgilerden), geri al/yinele geçmişi temizlenir (`gecmisiTemizle`); okuyucu araması kapanır.
+- Dev: `window.defterBosSayfaSahte({ kitapJson, ocr })` (sadece `npm run dev`, `src/okuma/bosSayfaSahte.ts`): ekrandaki dosyaya bellek içi yazılabilir kopya. Kontrol: `node scripts/bos-sayfa-kontrol.mjs` (Drive yok).
 
 ## Sonra bakılabilir
 - Oda zaman aşımı: şu an glb yüklemesine toplam 15 sn veriliyor; yavaş bağlantıda (masaüstü lightmap'leri ~3.3 MB) eski odaya düşüyor. Öneri: "15 sn hiç ilerleme yok" kuralı + yükleme göstergesi. Faz 2 kural metni değişeceği için Deniz'in onayı gerekir.

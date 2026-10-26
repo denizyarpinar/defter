@@ -3,6 +3,7 @@ import { ornekD, pngCoz, type AtlasD } from './atlasCoz';
 import type { ElYazisiAtlas } from './atlasSema';
 import { GlifBellegi, kagitRengi, tukenmezAyar, type Glif, type Stil } from './basici';
 import { dizgi, type Dizgi, type Kagit } from './dizgi';
+import { KAGIT_CIZGI_KOYULUK } from './kagitCizgi';
 
 // Task 6.4e-1: a typeset page (dizgi.ts) → a canvas, at any pixel size (zoom: call again with a bigger size).
 // Paper in the atlas's paper colour; kareli/cizgili lines one device pixel wide, only a little darker than the
@@ -16,7 +17,6 @@ import { dizgi, type Dizgi, type Kagit } from './dizgi';
 const AILE = 'system-ui, -apple-system, "Segoe UI", sans-serif';
 const AGIRLIK = 400;               // normal
 const OLCU_PX = 100;               // font size the x height is measured at
-const CIZGI_KOYULUK = 16;          // grid / rule: paper minus this (per channel)
 const YEDEK_ACIK = 0.15;           // fallback colour: tone + 15 % of the way to the paper
 const NOT_RENGI = '#8a8a8a';
 
@@ -82,7 +82,7 @@ export function temizSayfaCiz(canvas: HTMLCanvasElement, d: Dizgi, o: TemizCizim
 
   // paper lines: 1 device px, snapped to the pixel grid
   if (d.kagit !== 'duz') {
-    ctx.strokeStyle = rgb(kagit.map(v => Math.max(0, v - CIZGI_KOYULUK)));
+    ctx.strokeStyle = rgb(kagit.map(v => Math.max(0, v - KAGIT_CIZGI_KOYULUK)));
     ctx.lineWidth = 1;
     ctx.beginPath();
     const adim = d.kagit === 'kareli' ? d.kare : d.satirAraligi;

@@ -1,7 +1,8 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { YerDisi } from '../../drive/pdfOlustur';
-import { duzeltmeYaz, kayitOkuDrive, sayfaYaz, MAX_TUR, OcrKayitCakisma, OcrKayitYok, OcrOrnekYazmaYok, type OcrDrive, type OcrKaynakDosya } from './kayitDrive';
+import { duzeltmeYaz, kaydirmaYaz, kayitOkuDrive, sayfaYaz, MAX_TUR, OcrKayitCakisma, OcrKayitYok, OcrOrnekYazmaYok, type OcrDrive, type OcrKaynakDosya } from './kayitDrive';
 import { kelimeDegistir, OcrSayfaDegisti, type DuzeltmeHedefi } from './elleDuzelt';
+import { ocrKaydir } from '../../kitap/sayfaKaydir';
 import { bosKayit, OcrKayitBozuk, OcrKayitYeniSurum, type OcrKayit, type OcrSayfa } from './sema';
 
 // Task 6.4c-1: a fake Drive in memory. There is no delete / trash in OcrDrive at all; the tests also check
@@ -268,6 +269,31 @@ describe('duzeltmeYaz', () => {
       await duzeltmeYaz(f.drive, K, ok(), degistir);
       expect(request).toHaveBeenCalledWith('defter-ocr-pdf1', expect.any(Function));
     } finally { vi.unstubAllGlobals(); }
+  });
+});
+
+describe('kaydirmaYaz (6.S-4)', () => {
+  it('kayıt yok: null, hiçbir şey oluşturulmaz', async () => {
+    const f = sahte();
+    expect(await kaydirmaYaz(f.drive, K, x => ocrKaydir(x, 0, 1).kayit)).toBeNull();
+    expect(f.drive.olustur).not.toHaveBeenCalled();
+    expect(f.yazilan).toEqual([]);
+  });
+
+  it('son hali okur, sayfa numaralarını kaydırıp ana dosyaya yazar; değişiklik yoksa yazmaz', async () => {
+    const f = sahte();
+    f.ekle('o1', '2026-10-01T00:00:00Z', kayit(s(1, 'a'), s(2, 'b')));
+    const r = await kaydirmaYaz(f.drive, K, x => ocrKaydir(x, 1, 1).kayit);
+    expect(f.icerik('o1').sayfalar.map(x => x.sayfa)).toEqual([1, 3]);
+    expect(r?.kayit).toEqual(f.icerik('o1'));
+    await kaydirmaYaz(f.drive, K, x => ocrKaydir(x, 9, 1).kayit);
+    expect(f.yazilan).toEqual(['o1']);
+  });
+
+  it('örnek kitaplık: istek yok', async () => {
+    const f = sahte();
+    await expect(kaydirmaYaz(f.drive, { ...K, id: 'ornek:x' }, x => x)).rejects.toThrow(OcrOrnekYazmaYok);
+    expect(f.drive.ara).not.toHaveBeenCalled();
   });
 });
 

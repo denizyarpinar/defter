@@ -314,6 +314,13 @@ export class PenModel {
     }));
   }
 
+  // Task 6.S-4: a page went in / out of a file: the undo / redo history points at old page numbers, so it goes
+  // (all views; the strokes themselves stay)
+  gecmisiTemizle(): void {
+    for (const v of VIEWS) this.history[v].clear();
+    this.erasing = null;
+  }
+
   clear(): void {
     this.files.clear();
     for (const v of VIEWS) this.history[v].clear();

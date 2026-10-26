@@ -434,3 +434,32 @@ describe('pages at the end and the pen', () => {
     up.dispose();
   });
 });
+
+// Task 6.S-4: a blank page between pages and its removal, the same way (queue, tries, conflict)
+describe('ozeteSayfaEkle: { bosSayfa } / { bosKaldir }', () => {
+  const bosIdleri = async (b: Uint8Array) => {
+    const doc = await PDFDocument.load(b);
+    return doc.getPages().map(p => (doc.context.lookup(p.node.get(N('DefterBosSayfa'))) as PDFString | undefined)?.decodeText() ?? null);
+  };
+
+  it('araya girer (indeks döner); cevap kaybolursa ikinci sayfa yok; kaldırma aynı yoldan', async () => {
+    const d = fakeDrive(baslangic);
+    d.file.kayip = 1;
+    const s = await ozeteSayfaEkle('P', { bosSayfa: { komsu: 0, yon: 'sonra', desen: 'kareli' } }, d.ortam, { ...HIZLI, islemId: 'b1' });
+    expect([s.indeks, s.zatenVardi]).toEqual([1, true]);
+    expect(await bosIdleri(d.file.bytes)).toEqual([null, 'b1', null, null]);
+    expect(d.log.filter(l => l === 'upload')).toHaveLength(1);
+    // the stroke on page 0 stays there; the other note's page moved to 2
+    expect([...(await readDefterStrokes(d.file.bytes)).keys()]).toEqual([0]);
+    const k = await ozeteSayfaEkle('P', { bosKaldir: { indeks: 1 } }, d.ortam, { ...HIZLI, islemId: 'b1' });
+    expect([k.indeks, k.yeniSayfa]).toEqual([1, 3]);
+    expect(await eskiSayfalar(d.file.bytes, 3)).toEqual(await eskiSayfalar(baslangic, 3));
+  });
+
+  it('kuyrukOncesi reddederse hiçbir şey okunmaz, yazılmaz', async () => {
+    const d = fakeDrive(baslangic);
+    const red = ozeteSayfaEkle('P', { bosSayfa: { komsu: 0, yon: 'once', desen: 'duz' } }, d.ortam, { ...HIZLI, kuyrukOncesi: async () => { throw new Error('önce çizimler'); } });
+    await expect(red).rejects.toThrow('önce çizimler');
+    expect(d.log.filter(l => l === 'upload' || l === 'modifiedTime')).toEqual([]);
+  });
+});

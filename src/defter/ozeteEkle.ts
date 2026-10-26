@@ -6,6 +6,7 @@ import type { UploadDeps } from '../kalem/pdfKayit';
 import type { PDFDocument } from 'pdf-lib';
 import { pdfLib, SAVE_OPTIONS, yazilabilirAc } from '../kalem/pdfNotlari';
 import { isSampleId } from '../okuma/ornekKaynak';
+import { bosSayfaEkle, bosSayfaKaldir, type BosSayfaIstek } from './bosSayfa';
 import { MESAJLAR, sayfalariEkle, type Jpeg } from './sayfaEkle';
 import { mb, olc, zamanliDrive, type Olcum, type PdfKaynakBilgisi } from './sureOlcum';
 
@@ -20,6 +21,8 @@ import { mb, olc, zamanliDrive, type Olcum, type PdfKaynakBilgisi } from './sure
 // - Existing pages, their notes (Defter's and others') and ribbons stay: pages are only added after them.
 // - Only with the Drive library open.
 // Task 6.S-3: the same way for the pages of a whole PDF ("Dosya ekle" → Özet, EkKaynak { pdf }).
+// Task 6.S-4: the same way for a blank page between pages (EkKaynak { bosSayfa }) and its removal ({ bosKaldir }):
+//   bosSayfa.ts; the mark is /DefterBosSayfa (islemId), found again on a retry.
 // Task 6.2e-1: secenek.olcum (only with ?olcum=1) times each step and each Drive request; without it nothing changes.
 
 export const EK_ID = 'DefterEkId';
@@ -37,6 +40,7 @@ export interface EklenenSayfalar {
   headRevisionId: string;
   bytes: Uint8Array;        // the file as it is in Drive now
   zatenVardi: boolean;      // an earlier try had added them already: nothing was uploaded this time
+  indeks?: number;          // task 6.S-4: where the blank page went in / came out (0-based)
 }
 
 // ---- errors (Turkish, say what to do) ----
@@ -74,9 +78,11 @@ const EK_MESAJLAR = {
 // ---- pure: pages + their mark ----
 
 // What goes at the end: photos (5.6) or the pages of a PDF (6.S-3, "Dosya ekle" → Özet)
-export type EkKaynak = { jpegler: readonly Jpeg[] } | { pdf: Uint8Array };
+// task 6.S-4: or a blank page between pages / its removal (the islemId is the one of the adding)
+export type EkKaynak = { jpegler: readonly Jpeg[] } | { pdf: Uint8Array }
+  | { bosSayfa: Omit<BosSayfaIstek, 'islemId'> } | { bosKaldir: { indeks: number } };   // bosKaldir: islemId = the blank page's id
 
-type Hazir = { bytes: Uint8Array; eskiSayfa: number; yeniSayfa: number } | { zatenVar: true; sayfa: number; eskiSayfa: number };
+type Hazir = { bytes: Uint8Array; eskiSayfa: number; yeniSayfa: number; indeks?: number } | { zatenVar: true; sayfa: number; eskiSayfa: number; indeks?: number };
 
 // Pages already marked with islemId (an earlier try of this adding)
 function isaretliSay(L: Lib, doc: PDFDocument, islemId: string): number {
@@ -144,6 +150,18 @@ export async function isaretliPdfEkle(ozetBytes: Uint8Array, ekBytes: Uint8Array
 }
 
 
+// The new bytes for one kind of adding (zatenVar: an earlier try did it already)
+async function hazirla(bytes: Uint8Array, ek: EkKaynak, islemId: string): Promise<Hazir> {
+  if ('pdf' in ek) return isaretliPdfEkle(bytes, ek.pdf, islemId);
+  if ('jpegler' in ek) return isaretliEkle(bytes, ek.jpegler, islemId);
+  if ('bosSayfa' in ek) {
+    const r = await bosSayfaEkle(bytes, { ...ek.bosSayfa, islemId });
+    return 'zatenVar' in r ? { zatenVar: true, sayfa: r.sayfa, eskiSayfa: r.sayfa - 1, indeks: r.indeks } : r;
+  }
+  const r = await bosSayfaKaldir(bytes, { indeks: ek.bosKaldir.indeks, islemId });
+  return 'zatenYok' in r ? { zatenVar: true, sayfa: r.sayfa, eskiSayfa: r.sayfa + 1 } : r;
+}
+
 // ---- one adding, with its tries (runs inside the queue) ----
 
 const bekle = (ms: number) => new Promise(r => setTimeout(r, ms));
@@ -164,18 +182,18 @@ export async function ekleVeYukle(
         grup: () => bilgi.kaynak === 'indirme' ? 'aktarim' : 'cihaz',
         ek: b => ({ boyut: mb(b.byteLength), kaynak: bilgi.kaynak ?? '?' }),
       });
-      const h = await olc(om, 'pdf-lib: aç + sayfa ekle + kaydet', () => 'pdf' in ek ? isaretliPdfEkle(bytes, ek.pdf, islemId) : isaretliEkle(bytes, ek.jpegler, islemId), {
+      const h = await olc(om, 'pdf-lib: aç + sayfa ekle + kaydet', () => hazirla(bytes, ek, islemId), {
         grup: 'pdf',
         ek: x => 'zatenVar' in x ? { zatenVardi: true } : { once: mb(bytes.byteLength), sonra: mb(x.bytes.byteLength), sayfa: `${x.eskiSayfa}→${x.yeniSayfa}` },
       });
       if ('zatenVar' in h) {
         // an earlier try arrived: done, nothing uploaded (no second copy of the pages)
         return { fileId, islemId, eskiSayfa: h.eskiSayfa, yeniSayfa: h.sayfa, modifiedTime: mt,
-          headRevisionId: await drive.headRevisionId(fileId), bytes, zatenVardi: true };
+          headRevisionId: await drive.headRevisionId(fileId), bytes, zatenVardi: true, ...(h.indeks !== undefined ? { indeks: h.indeks } : {}) };
       }
       const r = await olc(om, '= uploadPdf (kontroller + yükleme)', () => uploadPdf(drive, fileId, h.bytes, mt, secenek.yukleme), { grup: 'toplam' });
       return { fileId, islemId, eskiSayfa: h.eskiSayfa, yeniSayfa: h.yeniSayfa, modifiedTime: r.modifiedTime,
-        headRevisionId: r.headRevisionId, bytes: h.bytes, zatenVardi: false };
+        headRevisionId: r.headRevisionId, bytes: h.bytes, zatenVardi: false, ...(h.indeks !== undefined ? { indeks: h.indeks } : {}) };
     } catch (e) {
       if (e instanceof DriveError && e.status === 404) throw new DosyaBulunamadi();
       const cakisma = e instanceof PdfConflict, ag = tekrarlanabilir(e);
@@ -202,10 +220,11 @@ export interface SayfaEklemeSecenek {
   deneme?: number;
   olcum?: Olcum;                // task 6.2e-1: only with ?olcum=1
   yukleme?: YuklemeDinleyici;   // task 6.2e-2: the upload started / its progress (the status strip)
+  kuyrukOncesi?: () => Promise<void>;   // task 6.S-4: inside the queue, after the file's strokes, before the PDF is read (may refuse)
 }
 
 // The PDF must be in Drive, not in the trash, inside Kitaplık/kitaplar/<kitap>/ (or a subfolder).
-async function dosyaKontrol(o: SayfaEklemeOrtami, yer: DriveLocation, fileId: string, om?: Olcum): Promise<void> {
+export async function dosyaKontrol(o: SayfaEklemeOrtami, yer: DriveLocation, fileId: string, om?: Olcum): Promise<void> {
   let f;
   try { f = await o.dosyaDrive.klasorBilgisi(fileId); } catch (e) {
     if (e instanceof DriveError && e.status === 404) throw new DosyaBulunamadi();
@@ -229,7 +248,7 @@ async function dosyaKontrol(o: SayfaEklemeOrtami, yer: DriveLocation, fileId: st
 export async function ozeteSayfaEkle(
   fileId: string, girdi: readonly Jpeg[] | EkKaynak, o: SayfaEklemeOrtami, secenek: SayfaEklemeSecenek = {}
 ): Promise<EklenenSayfalar> {
-  const ek: EkKaynak = Array.isArray(girdi) ? { jpegler: girdi } : girdi as EkKaynak;
+  const ek: EkKaynak = Array.isArray(girdi) ? { jpegler: girdi as readonly Jpeg[] } : girdi as EkKaynak;
   // checks without any request
   if (isSampleId(fileId)) throw new PdfSampleNoWrite();
   if (!o.yer) throw new SayfaYazmaYok();
@@ -240,9 +259,10 @@ export async function ozeteSayfaEkle(
   try {
     await olc(om, '= dosya kontrolü (yer zinciri)', () => dosyaKontrol(om ? { ...o, dosyaDrive: zamanliDrive(o.dosyaDrive, om) } : o, yer, fileId, om), { grup: 'toplam' });
     const t0 = om?.zaman() ?? 0;
-    const s = await o.sirada(fileId, () => {
+    const s = await o.sirada(fileId, async () => {
       // the file's pending strokes (and other files' uploads) went first
       if (om) om.adim('kalem kuyruğu bekleme', om.zaman() - t0, 'sira');
+      await secenek.kuyrukOncesi?.();
       return ekleVeYukle(o.deps, fileId, ek, islemId, secenek);
     });
     try { await olc(om, 'önbelleğe yaz + okuyucu sürümü', async () => { await o.degisti?.(s); }, { grup: 'cihaz', ek: { boyut: mb(s.bytes.byteLength) } }); } catch (e) { console.warn('Önbellek güncellenemedi; dosya bir sonraki açılışta indirilir.', e); }

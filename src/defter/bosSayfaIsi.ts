@@ -1,0 +1,90 @@
+import type { Delta, KurdeleHedefi } from '../kitap/sayfaKaydir';
+import type { Desen, Yon } from './bosSayfa';
+import type { EklenenSayfalar } from './ozeteEkle';
+
+// Task 6.S-4: one blank page in / out as one job, in this order (CLAUDE.md → 6.S-4):
+//   1. the PDF (ozeteSayfaEkle → the pen's queue → ekleVeYukle: tries, conflict, backup, progress)
+//   2. kitap.json: the ribbons pointing into this PDF follow (sayfaKaydir.ts)
+//   3. .ocr.json: its page numbers follow (only when there is one; never created)
+// The job goes to the device only once the PDF step worked (before that nothing changed in Drive, or a retry with
+// the same islemId finds the page: no double page). Each later step is marked done when it worked; a job with
+// steps left is run again (Tekrar dene, back online, the reader opening) and never does a done step twice.
+// A PDF step that fails is not stored: the user decides ("Tekrar dene" in the toast, same islemId).
+
+export interface SayfaIsi {
+  tur: 'ekle' | 'kaldir';
+  islemId: string;          // ekle: the new page's id; kaldir: the blank page's id (its /DefterBosSayfa)
+  fileId: string;
+  dosyaAdi: string;         // the ribbons' `dosya`
+  klasorId: string | null;  // the PDF's folder (the reading record is next to it); null: asked when needed
+  kitapId: string;
+  konu: string;             // the topic's key (topicKey) in kitap.json
+  ekle?: { komsu: number; yon: Yon; desen: Desen; komsuIzi?: string };
+  kaldir?: { indeks: number; iz?: string };   // iz: the blank page's fingerprint (its reading entry goes)
+  indeks?: number;          // where the page went in / came out, known after the PDF step
+  adimlar: { pdf: boolean; kitapJson: boolean; ocr: boolean };
+  zaman: string;            // ISO, when the job started
+}
+
+export const isAnahtari = (is: Pick<SayfaIsi, 'tur' | 'islemId'>) => `${is.tur}:${is.islemId}`;
+export const isDeltasi = (is: Pick<SayfaIsi, 'tur'>): Delta => is.tur === 'ekle' ? 1 : -1;
+
+export function yeniEklemeIsi(o: Omit<SayfaIsi, 'tur' | 'adimlar' | 'zaman' | 'kaldir' | 'indeks'> & { ekle: NonNullable<SayfaIsi['ekle']> }, simdi = new Date()): SayfaIsi {
+  return { ...o, tur: 'ekle', adimlar: { pdf: false, kitapJson: false, ocr: false }, zaman: simdi.toISOString() };
+}
+
+export function yeniKaldirmaIsi(o: Omit<SayfaIsi, 'tur' | 'adimlar' | 'zaman' | 'ekle' | 'indeks'> & { kaldir: NonNullable<SayfaIsi['kaldir']> }, simdi = new Date()): SayfaIsi {
+  return { ...o, tur: 'kaldir', adimlar: { pdf: false, kitapJson: false, ocr: false }, zaman: simdi.toISOString() };
+}
+
+export interface SayfaIsiOrtami {
+  pdf(is: SayfaIsi): Promise<EklenenSayfalar>;
+  kitapJson(is: SayfaIsi, h: KurdeleHedefi): Promise<void>;
+  ocr(is: SayfaIsi, indeks: number, delta: Delta): Promise<void>;
+  kaydet(is: SayfaIsi): Promise<void>;   // the device's job store
+  sil(is: SayfaIsi): Promise<void>;
+}
+
+// The file still has strokes not in Drive (an upload failed): their page numbers would point at the wrong pages
+export class KalemKaydiBekliyor extends Error {
+  constructor() { super('Bu dosyada Drive\'a kaydedilmemiş çizimler var; önce onlar kaydedilmeli (Kaydet). Sayfa değişmedi.'); }
+}
+
+export class SayfaIsiYarim extends Error {
+  constructor(readonly adim: 'kitapJson' | 'ocr', readonly asil: unknown) {
+    super(adim === 'kitapJson'
+      ? 'Sayfa PDF\'e yazıldı ama kurdeleler güncellenemedi. Tekrar dene; bağlantı gelince kendiliğinden de denenir.'
+      : 'Sayfa PDF\'e yazıldı ama okunan el yazısının sayfa numaraları güncellenemedi. Tekrar dene; bağlantı gelince kendiliğinden de denenir.');
+  }
+}
+
+export interface SayfaIsiSonucu { indeks: number; pdf: EklenenSayfalar | null }
+
+// Runs the steps left (in place on `is`). The PDF step's error is thrown as it is; a later step's as SayfaIsiYarim
+// (the job stays on the device).
+export async function sayfaIsiCalistir(is: SayfaIsi, o: SayfaIsiOrtami): Promise<SayfaIsiSonucu> {
+  let pdf: EklenenSayfalar | null = null;
+  if (!is.adimlar.pdf) {
+    pdf = await o.pdf(is);
+    // removed already by an earlier try whose answer was lost: the index the user saw
+    is.indeks = pdf.indeks ?? is.kaldir?.indeks;
+    if (is.indeks === undefined) throw new Error('Sayfanın yeri bilinmiyor.');
+    is.adimlar.pdf = true;
+    await o.kaydet(is).catch(e => console.warn('Sayfa işi cihaza yazılamadı.', e));
+  }
+  const indeks = is.indeks!;
+  const delta = isDeltasi(is);
+  for (const adim of ['kitapJson', 'ocr'] as const) {
+    if (is.adimlar[adim]) continue;
+    try {
+      if (adim === 'kitapJson') await o.kitapJson(is, { konu: is.konu, dosya: is.dosyaAdi, indeks, delta });
+      else await o.ocr(is, indeks, delta);
+    } catch (e) {
+      throw new SayfaIsiYarim(adim, e);
+    }
+    is.adimlar[adim] = true;
+    await o.kaydet(is).catch(e => console.warn('Sayfa işi cihaza yazılamadı.', e));
+  }
+  await o.sil(is).catch(e => console.warn('Sayfa işi cihazdan silinemedi.', e));
+  return { indeks, pdf };
+}
