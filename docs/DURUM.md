@@ -1,5 +1,15 @@
 # Defter – Durum
 
+## 6.S canlıda (26 Ekim 2026)
+
+- main = e597b82 (+ bu not), production defter-jade.vercel.app. Testler (1730), typecheck, build ve `scripts/bos-sayfa-kontrol.mjs` geçti.
+- 6.S-1a `?olcum=1` dokunma günlüğü · 6.S-1b kalemle düğme dokunuşu (kontrol üstünde 10 px pay)
+- 6.S-2 kitap modunda sığdırma · 6.S-2b kâğıt payı (%4, baskı kâğıda multiply)
+- 6.S-3 özete ek dosya (sayfalar özetin sonuna)
+- 6.S-4 araya boş not sayfası · 4b kitapta okunan sayfanın yanına · 4c dikey A4 + deftere yapıştır · 4d her sayfa onaylı silinir + Geri al
+- **Son güncelleyen (6.S canlı):** Claude Code, 26 Ekim 2026.
+
+---
 ## 6.4e-2b + 6.4e-3 canlıda (25 Ekim 2026)
 
 - ba6c96e main'de (8fa3769..ba6c96e), production defter-jade.vercel.app. `scripts/ocr-production-kontrol.mjs` geçti.
