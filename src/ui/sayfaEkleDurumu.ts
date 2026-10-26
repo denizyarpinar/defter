@@ -1,4 +1,4 @@
-import type { BosSayfaKaydi, Yon } from '../defter/bosSayfa';
+import type { BosSayfaKaydi, YapistirilmisSayfa, Yon } from '../defter/bosSayfa';
 
 // Task 6.S-4: the "Sayfa ekle" button and its popover, without DOM (tested). ui/sayfaEkleBalon.ts draws it.
 // - Shown: a Drive library (not the sample one), surum 2 with kitap.json, a material open. With the pen on too.
@@ -65,8 +65,38 @@ export function eklemeEngeli(g: EngelGirdisi): string | null {
   return null;
 }
 
-// After the job: the PDF page (1-based) the reader opens at. ekle: the new page; kaldir: the page before it (or 1)
-export const isSonrasiSayfa = (tur: 'ekle' | 'kaldir', indeks: number): number => tur === 'ekle' ? indeks + 1 : Math.max(1, indeks);
+// After the job: the PDF page (1-based) the reader opens at. ekle: the new page; kaldir: the page before it (or 1);
+// 6.S-4c yapistir / geri al: the same page
+export const isSonrasiSayfa = (tur: 'ekle' | 'kaldir' | 'yapistir' | 'yapistirGeriAl', indeks: number): number =>
+  tur === 'kaldir' ? Math.max(1, indeks) : indeks + 1;
+
+// ---- task 6.S-4c: "Deftere yapıştır" for the page being read ----
+
+export type YapistirHedefi =
+  | { tur: 'yapistir'; liste: number; dosyaId: string; ad: string; indeks: number; yataySayisi: number }   // yataySayisi: the file's landscape pages not pasted yet
+  | { tur: 'geriAl'; liste: number; dosyaId: string; ad: string; indeks: number; kayit: YapistirilmisSayfa };
+
+export interface YapistirBilgisi { yatay: ReadonlySet<number>; yapistirilmis: ReadonlyMap<number, YapistirilmisSayfa> }
+
+// The page being read (as eklemeHedefi): landscape → paste; pasted → undo; upright / not a PDF page / unknown → null
+export function yapistirHedefi(gorunen: readonly GorunenSayfa[], taraf: Taraf, bilgi: (dosyaId: string) => YapistirBilgisi | null): YapistirHedefi | null {
+  const h = eklemeHedefi(gorunen, 'sonra', taraf);
+  const b = h && bilgi(h.dosyaId);
+  if (!h || !b) return null;
+  const o = { liste: h.liste, dosyaId: h.dosyaId, ad: h.ad, indeks: h.komsu };
+  const kayit = b.yapistirilmis.get(h.komsu);
+  if (kayit) return { tur: 'geriAl', ...o, kayit };
+  return b.yatay.has(h.komsu) ? { tur: 'yapistir', ...o, yataySayisi: b.yatay.size } : null;
+}
+
+// Both sides of a two-page spread (the popover switches between them), else the one page ('sol')
+export function yapistirHedefleri(gorunen: readonly GorunenSayfa[], bilgi: (dosyaId: string) => YapistirBilgisi | null): Partial<Record<Taraf, YapistirHedefi>> {
+  const out: Partial<Record<Taraf, YapistirHedefi>> = {};
+  for (const t of ['sol', 'sag'] as const) { const h = yapistirHedefi(gorunen, t, bilgi); if (h) out[t] = h; }
+  return out;
+}
+
+export const YAPISTIR_GERI_AL_ONAY = 'Slaytın dışındaki kalem yazısı da silinecek. Devam edilsin mi?';
 
 // ---- task 6.S-4b: book mode, two pages: the page being read stays on screen ----
 

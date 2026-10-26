@@ -3,12 +3,18 @@ import { KAGIT_CIZGI_KOYULUK, KAGIT_CIZGI_PT } from '../elYazisi/kagitCizgi';
 import { SAVE_OPTIONS, yazilabilirAc, PdfYazilamaz } from '../kalem/pdfNotlari';
 import { sayfaIzi } from '../ocr/kayit/parmakIzi';
 import { MESAJLAR } from './sayfaEkle';
+import { desenCizgileri, izleBul, n3, temizId, type Desen } from './sayfaOrtak';
+import { sayfaDurumlari, type YapistirKaydi } from './yapistir';
+
+// the shared pattern and errors (sayfaOrtak.ts), under their old names here
+export { CIZGI_MM, DESENLER, desenCizgileri, KARE_MM, SayfaYeriDegisti, type Cizgi, type Desen } from './sayfaOrtak';
 
 // Task 6.S-4: a blank note page INSIDE a PDF, before or after a page (CLAUDE.md → 6.S-4). Pure: no Drive, no DOM.
 // - The only page Defter puts between pages, and the only page it ever removes: marked /DefterBosSayfa (islemId)
 //   and /DefterBosDesen. A page without the mark is never removed (BosSayfaDegil).
 // - Size: the neighbour's visible box (CropBox, else MediaBox), its /Rotate applied: the new page is not rotated
-//   but has the same visible width and height; MediaBox [0 0 w h].
+//   but has the same visible width and height; MediaBox [0 0 w h]. 6.S-4c: a landscape or square neighbour (a slide)
+//   gets an upright A4 page beside it instead (dikeyBoyut).
 // - Pattern: vector lines from the top-left corner, no margin (kareli 5 mm, cizgili 8 mm), the clean handwriting's
 //   light grey (kagitCizgi.ts). duz: no lines (white).
 // - The content stream starts with a comment carrying islemId: every blank page gets its own fingerprint
@@ -18,23 +24,12 @@ import { MESAJLAR } from './sayfaEkle';
 export const BOS_ID = 'DefterBosSayfa';
 export const BOS_DESEN = 'DefterBosDesen';
 
-export const DESENLER = ['duz', 'kareli', 'cizgili'] as const;
-export type Desen = typeof DESENLER[number];
 export type Yon = 'once' | 'sonra';
-
-const MM = 72 / 25.4;
-export const KARE_MM = 5;
-export const CIZGI_MM = 8;
-const KENAR_TOLERANS = 0.5;   // pt: no line right on the page edge
 
 type Lib = typeof import('pdf-lib');
 
 export class BosSayfaDegil extends Error {
   constructor() { super('Bu sayfa Defter\'in boş sayfası değil; kaldırılmaz. Sadece "Sayfa ekle" ile eklenen boş sayfalar kaldırılabilir.'); }
-}
-
-export class SayfaYeriDegisti extends Error {
-  constructor() { super('PDF bu arada başka bir yerde değişti; sayfanın yeri bulunamadı, hiçbir şey yazılmadı. Konuyu kapatıp yeniden aç, sonra tekrar dene.'); }
 }
 
 // ---- geometry ----
@@ -48,20 +43,10 @@ export function gorunurKutu(page: PDFPage): Kutu {
   return a === 90 || a === 270 ? { w: b.height, h: b.width } : { w: b.width, h: b.height };
 }
 
-export interface Cizgi { x1: number; y1: number; x2: number; y2: number }
+export const A4: Kutu = { w: 595.28, h: 841.89 };
 
-// The pattern's lines on a w × h page (PDF coordinates, origin bottom left), measured from the top left corner
-export function desenCizgileri(w: number, h: number, desen: Desen): Cizgi[] {
-  if (desen === 'duz') return [];
-  const adim = (desen === 'kareli' ? KARE_MM : CIZGI_MM) * MM;
-  const out: Cizgi[] = [];
-  for (let k = 1; k * adim < h - KENAR_TOLERANS; k++) { const y = h - k * adim; out.push({ x1: 0, y1: y, x2: w, y2: y }); }
-  if (desen === 'kareli') for (let k = 1; k * adim < w - KENAR_TOLERANS; k++) { const x = k * adim; out.push({ x1: x, y1: 0, x2: x, y2: h }); }
-  return out;
-}
-
-const n3 = (x: number) => String(Math.round(x * 1000) / 1000);
-const temizId = (s: string) => s.replace(/[^A-Za-z0-9_-]/g, '');
+// Task 6.S-4c: the blank page's size from its neighbour's visible size: upright as it is, landscape / square → A4 upright
+export const dikeyBoyut = (komsu: Kutu): Kutu => komsu.w >= komsu.h ? { ...A4 } : komsu;
 
 export function desenAkisi(w: number, h: number, desen: Desen, islemId: string): string {
   const gri = n3((255 - KAGIT_CIZGI_KOYULUK) / 255);
@@ -90,15 +75,20 @@ export function isaretliSayfalar(L: Lib, doc: PDFDocument): Map<number, string> 
 }
 
 export interface BosSayfaKaydi { islemId: string; iz: string }   // iz: its fingerprint (parmakIzi.ts)
-export type BosSayfaBilgisi = { yazilabilir: true; sayfa: number; bos: Map<number, BosSayfaKaydi> } | { yazilabilir: false; mesaj: string };
+export type YapistirilmisSayfa = YapistirKaydi & { iz: string };
+// 6.S-4c: yatay = the landscape / square pages not pasted yet; yapistirilmis = the pasted ones ("Deftere yapıştır")
+export type BosSayfaBilgisi = { yazilabilir: true; sayfa: number; bos: Map<number, BosSayfaKaydi>; yatay: Set<number>; yapistirilmis: Map<number, YapistirilmisSayfa> }
+  | { yazilabilir: false; mesaj: string };
 
-// For the reader's popover: can pages go in at all (the pen's check), and which pages are blank ones
+// For the reader's popover: can pages go in at all (the pen's check), and which pages are blank / landscape / pasted
 export async function bosSayfaBilgisi(bytes: Uint8Array): Promise<BosSayfaBilgisi> {
   try {
     const { L, doc } = await yazilabilirAc(bytes, MESAJLAR);
     const bos = new Map<number, BosSayfaKaydi>();
     for (const [i, islemId] of isaretliSayfalar(L, doc)) bos.set(i, { islemId, iz: await sayfaIzi(L, doc, doc.getPage(i)) });
-    return { yazilabilir: true, sayfa: doc.getPageCount(), bos };
+    const d = sayfaDurumlari(L, doc), yapistirilmis = new Map<number, YapistirilmisSayfa>();
+    for (const [i, y] of d.yapistirilmis) yapistirilmis.set(i, { ...y, iz: await sayfaIzi(L, doc, doc.getPage(i)) });
+    return { yazilabilir: true, sayfa: doc.getPageCount(), bos, yatay: d.yatay, yapistirilmis };
   } catch (e) {
     if (e instanceof PdfYazilamaz) return { yazilabilir: false, mesaj: e.message };
     throw e;
@@ -126,29 +116,12 @@ export type BosEklendi =
   | { bytes: Uint8Array; indeks: number; eskiSayfa: number; yeniSayfa: number }
   | { zatenVar: true; indeks: number; sayfa: number };
 
-// Where the neighbour is in this version: the page with its fingerprint nearest to its old index
-async function komsuBul(L: Lib, doc: PDFDocument, r: BosSayfaIstek): Promise<number> {
-  const n = doc.getPageCount();
-  if (!r.komsuIzi) {
-    if (!Number.isInteger(r.komsu) || r.komsu < 0 || r.komsu >= n) throw new SayfaYeriDegisti();
-    return r.komsu;
-  }
-  const sayfalar = doc.getPages();
-  let en = -1;
-  for (let i = 0; i < n; i++) {
-    if (await sayfaIzi(L, doc, sayfalar[i]) !== r.komsuIzi) continue;
-    if (en < 0 || Math.abs(i - r.komsu) < Math.abs(en - r.komsu)) en = i;
-  }
-  if (en < 0) throw new SayfaYeriDegisti();
-  return en;
-}
-
 export async function bosSayfaEkle(pdfBytes: Uint8Array, r: BosSayfaIstek): Promise<BosEklendi> {
   const { L, doc } = await yazilabilirAc(pdfBytes, MESAJLAR);
   const n = doc.getPageCount();
   for (const [i, id] of isaretliSayfalar(L, doc)) if (id === r.islemId) return { zatenVar: true, indeks: i, sayfa: n };
-  const k = await komsuBul(L, doc, r);
-  const { w, h } = gorunurKutu(doc.getPage(k));
+  const k = await izleBul(L, doc, r.komsu, r.komsuIzi);   // where the neighbour is in this version
+  const { w, h } = dikeyBoyut(gorunurKutu(doc.getPage(k)));
   const indeks = r.yon === 'once' ? k : k + 1;
   const page = doc.insertPage(indeks, [w, h]);
   page.node.set(L.PDFName.of('Contents'), doc.context.register(doc.context.flateStream(desenAkisi(w, h, r.desen, r.islemId))));

@@ -12,18 +12,24 @@
 // Task 6.S-4b (1180×820, two pages, a new reader): the page read stays on screen, the blank page beside it, in the four
 // cases (left / right × Önüne / Arkasına), with turns on a shifted spread and "Soldaki boş sayfayı kaldır";
 // screenshots with "-4b-".
+// Task 6.S-4c (1180×820 and 820×1180): a PDF with a 16:9 slide, an upright A4 page, an A4 landscape page whose
+// MediaBox is not at (0,0) and an upright page turned 90 (seen landscape). The blank page beside the slide is A4
+// upright; "Deftere yapıştır" (kareli) on the slide → a stroke in its top band (pen, PDF mode) → Kaydet → drawn again
+// (mode change) at the same place → "Dosyadaki tüm yatay sayfalar" (the upright pages stay) → "Deftere yapıştırmayı
+// geri al" on the slide (the dialog about the band's writing is accepted) → its boxes back, the band stroke gone.
+// Screenshots with "-4c-". `--4c`: only this part.
 import { spawn } from 'node:child_process';
 import { mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright-core';
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import { PDFDocument, StandardFonts, degrees, rgb } from 'pdf-lib';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = 4189;
 const URL = `http://localhost:${PORT}/?demo`;
-const OUT = process.argv[2] ?? 'C:\\Users\\yarpi\\iCloudDrive\\uni_plan_claude_code\\Claude outputs\\bos-sayfa-6.S';
+const OUT = process.argv.slice(2).find(a => !a.startsWith('--')) ?? 'C:\\Users\\yarpi\\iCloudDrive\\uni_plan_claude_code\\Claude outputs\\bos-sayfa-6.S';
 const KONU = 'Unite-01-Temeller/Konu-01-Degiskenler';
 const TOPIC = 'Değişkenler ve veri tipleri';
 const SIZES = [[1180, 820], [820, 1180], [390, 844]];
@@ -38,6 +44,26 @@ async function testPdf() {
     p.drawRectangle({ x: 1, y: 1, width: 593.28, height: 839.89, borderColor: rgb(0.2, 0.3, 0.6), borderWidth: 2 });
     p.drawText(`Sayfa ${i}`, { x: 220, y: 420, size: 40, font, color: rgb(0.1, 0.2, 0.5) });
   }
+  return doc.save();
+}
+
+// 6.S-4c: slides and offsets
+async function testPdf4c() {
+  const doc = await PDFDocument.create();
+  const font = await doc.embedFont(StandardFonts.HelveticaBold);
+  const yaz = (p, t, x, y, w, h) => {
+    p.drawRectangle({ x: x + 2, y: y + 2, width: w - 4, height: h - 4, color: rgb(0.93, 0.95, 1), borderColor: rgb(0.2, 0.3, 0.6), borderWidth: 3 });
+    p.drawText(t, { x: x + w * 0.2, y: y + h * 0.45, size: 40, font, color: rgb(0.1, 0.2, 0.5) });
+  };
+  yaz(doc.addPage([960, 540]), 'Slayt 1 (16:9)', 0, 0, 960, 540);
+  yaz(doc.addPage([595.28, 841.89]), 'Dikey A4', 0, 0, 595.28, 841.89);
+  const p3 = doc.addPage([891.89, 625.28]);
+  p3.setMediaBox(50, 30, 841.89, 595.28);
+  yaz(p3, 'Kaymis yatay', 50, 30, 841.89, 595.28);
+  const p4 = doc.addPage([595.28, 841.89]);
+  p4.drawRectangle({ x: 4, y: 4, width: 587.28, height: 833.89, color: rgb(1, 0.95, 0.9), borderColor: rgb(0.6, 0.3, 0.2), borderWidth: 3 });
+  p4.drawText('Dondurulmus', { x: 300, y: 250, size: 40, font, color: rgb(0.5, 0.2, 0.1), rotate: degrees(90) });
+  p4.setRotation(degrees(90));
   return doc.save();
 }
 
@@ -94,11 +120,11 @@ async function bekleBitti(page, onceSurum) {
 }
 
 // A new browser page with the reader open on the test PDF (book mode) and the fake Drive
-async function okuyucuAc(w, h, ad) {
+async function okuyucuAc(w, h, ad, govde = pdfBytes) {
   const ctx = await browser.newContext({ viewport: { width: w, height: h }, hasTouch: true, deviceScaleFactor: 2 });
   const page = await ctx.newPage();
   page.on('pageerror', e => { bad++; console.error(`${ad} sayfa hatası:`, e.message); });
-  page.on('dialog', d => { void d.accept(); });
+  page.on('dialog', d => { diyaloglar.push(d.message()); void d.accept(); });
   await page.route('**/ornek/index.json', async route => {
     const json = await (await route.fetch()).json();
     json.klasorler['programlamaya-giris'][KONU] = { 'ozet.pdf': 'demo/__bos.pdf' };
@@ -108,7 +134,7 @@ async function okuyucuAc(w, h, ad) {
     const json = await (await route.fetch()).json();
     await route.fulfill({ json: { ...json, kurdele: null } });
   });
-  await page.route('**/demo/__bos.pdf', route => route.fulfill({ contentType: 'application/pdf', body: pdfBytes }));
+  await page.route('**/demo/__bos.pdf', route => route.fulfill({ contentType: 'application/pdf', body: govde }));
   await page.goto(URL);
   await page.waitForFunction(() => document.querySelector('#loading')?.hidden, null, { timeout: 30_000 });
   await wait(1500);
@@ -144,9 +170,37 @@ const browser = await chromium.launch({ channel: 'chrome' });
 const rows = [];
 let bad = 0;
 const kontrol = (ad, adim, kosul, not = '') => { rows.push([ad, adim, kosul, not]); if (!kosul) bad++; };
+const diyaloglar = [];
+const sadece4c = process.argv.includes('--4c');
+const pdf4cPath = join(pdfDir, 'yapistir-4c.pdf');
+writeFileSync(pdf4cPath, await testPdf4c());
+const pdf4c = readFileSync(pdf4cPath);
+
+// 6.S-4c: the fake Drive's PDF in detail: visible sizes, pasted pages, strokes (lowest / highest y of their points)
+const ozet4c = (page) => page.evaluate(async () => {
+  const d = await window.defterBosSayfaSahte();
+  const [b, n] = await Promise.all([import('/src/defter/bosSayfa.ts'), import('/src/kalem/pdfNotlari.ts')]);
+  const L = await n.pdfLib();
+  const doc = await L.PDFDocument.load(d.bytes);
+  const bilgi = await b.bosSayfaBilgisi(d.bytes);
+  const s = await n.readDefterStrokes(d.bytes);
+  const r2 = (v) => Math.round(v * 100) / 100;
+  return {
+    surum: d.surum, sayfa: doc.getPageCount(),
+    olcu: doc.getPages().map(p => { const k = b.gorunurKutu(p); return [r2(k.w), r2(k.h)]; }),
+    mediaBox: doc.getPages().map(p => { const m = p.getMediaBox(); return [m.x, m.y, m.width, m.height].map(r2); }),
+    yapistirilmis: [...bilgi.yapistirilmis.keys()], yatay: [...bilgi.yatay], bos: [...bilgi.bos.keys()],
+    cizgi: [...s].filter(([, l]) => l.length).map(([i, l]) => [i, l.map(x => { const y = x.noktalar.filter((_, k) => k % 2); return [x.id, Math.min(...y), Math.max(...y)]; })]),
+  };
+});
+
+const sayfayaGit = async (page, no) => {
+  await page.evaluate((v) => { const sl = document.querySelector('#oSlider'); sl.value = String(v); sl.dispatchEvent(new Event('input', { bubbles: true })); sl.dispatchEvent(new Event('change', { bubbles: true })); }, no);
+  await wait(1200);
+};
 
 try {
-  for (const [w, h] of SIZES) {
+  for (const [w, h] of sadece4c ? [] : SIZES) {
     const ad = `${w}×${h}`, dosya = `${w}x${h}`;
     const { ctx, page } = await okuyucuAc(w, h, ad);
 
@@ -267,7 +321,7 @@ try {
   }
 
   // ---- 6.S-4b: the page read stays on screen (two pages) ----
-  {
+  if (!sadece4c) {
     const [w, h] = SIZES[0], ad = `${w}×${h} 4b`, dosya = `${w}x${h}-4b`;
     const { ctx, page } = await okuyucuAc(w, h, ad);
     // tap the middle of the left / right page (not its outer edge: that turns the page)
@@ -335,6 +389,112 @@ try {
     await page.locator('#oMode [data-m="kitap"]').click(); await wait(1200);
     const geri = await pno();
     kontrol(ad, 'PDF modu → kitap: ofset 0 (çift tek sayıyla başlar)', /^(1|3|5)–/.test(geri), geri);
+    await ctx.close();
+  }
+  // ---- 6.S-4c: a blank page beside a slide is upright; "Deftere yapıştır" ----
+  for (const [w, h] of [SIZES[0], SIZES[1]]) {
+    const ad = `${w}×${h} 4c`, dosya = `${w}x${h}-4c`;
+    const { ctx, page } = await okuyucuAc(w, h, ad, pdf4c);
+    const solSec = async () => { const t = page.locator('#oSayfaEkleBalon [data-taraf="sol"]'); if (await t.count()) await t.click(); };
+    let s = await ozet4c(page);
+    kontrol(ad, 'başta: 4 sayfa, yataylar 0, 2, 3 (3: Rotate 90)', s.sayfa === 4 && s.yatay.join() === '0,2,3', JSON.stringify(s.olcu));
+    await sayfayaGit(page, 1);
+    await balonAc(page);
+    await solSec();
+    kontrol(ad, 'slaytta balonda "Deftere yapıştır" var', await page.locator('#oSayfaEkleBalon .o-sekle-yapistir').isVisible());
+    await page.screenshot({ path: join(OUT, `${dosya}-01-balon-slayt.png`) });
+    // (a) a blank page after the slide: A4 upright
+    let s0 = s;
+    await page.locator('#oSayfaEkleBalon [data-yon="sonra"]').click();
+    await page.locator('#oSayfaEkleBalon [data-desen="cizgili"]').click();
+    await bekleBitti(page, s0.surum);
+    s = await ozet4c(page);
+    kontrol(ad, 'slaytın arkasına boş sayfa: A4 dikey (595.28 × 841.89)', s.sayfa === 5 && s.bos.join() === '1' && s.olcu[1].join() === '595.28,841.89', JSON.stringify(s.olcu[1]));
+    await page.screenshot({ path: join(OUT, `${dosya}-02-bos-sayfa-dikey.png`) });
+
+    // (b) paste the slide (kareli)
+    await sayfayaGit(page, 1);
+    await balonAc(page);
+    await solSec();
+    await page.locator('#oSayfaEkleBalon [data-ydesen="kareli"]').click();
+    s0 = s;
+    await page.locator('#oSayfaEkleBalon [data-yapistir="bu"]').click();
+    await bekleBitti(page, s0.surum);
+    s = await ozet4c(page);
+    const [sw, sh] = s.olcu[0];
+    kontrol(ad, 'yapıştır: sayfa sayısı aynı (5), slayt 960 × 960√2', s.sayfa === 5 && sw === 960 && Math.abs(sh - 960 * Math.SQRT2) < 0.01 && s.yapistirilmis.join() === '0', `${sw} × ${sh}, mediaBox ${s.mediaBox[0]}`);
+    kontrol(ad, 'yapıştır: okuyucu aynı sayfada (1)', (await ekranda(page)).startsWith('1'), await ekranda(page));
+    await page.screenshot({ path: join(OUT, `${dosya}-03-kitap-yapistirildi.png`) });
+
+    // pen in PDF mode: a stroke in the slide's top band
+    await page.locator('#oMode [data-m="pdf"]').click();
+    await wait(1500);
+    await sayfayaGit(page, 1);
+    await page.locator('#oPenBtn').click();
+    await wait(1200);
+    await page.locator('#oTools [data-arac="kalem"]').click().catch(() => {});
+    const r0 = await page.evaluate(() => { const r = document.querySelectorAll('#oPages .o-page')[0].getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; });
+    const x0 = r0.x + r0.w * 0.2, y0 = r0.y + r0.h * 0.12;
+    await page.mouse.move(x0, y0); await page.mouse.down();
+    for (let i = 1; i <= 14; i++) { await page.mouse.move(x0 + i * r0.w * 0.03, y0 + Math.sin(i / 2) * 10); await wait(16); }
+    await page.mouse.up();
+    await wait(600);
+    s0 = s;
+    await page.locator('#oTools .o-kaydet').click();
+    await page.waitForFunction(async (v) => (await window.defterBosSayfaSahte()).surum > v, s0.surum, { timeout: 20_000, polling: 200 });
+    await wait(1200);
+    s = await ozet4c(page);
+    const bant = s.cizgi.find(([i]) => i === 0)?.[1] ?? [];
+    kontrol(ad, 'bantta çizgi kaydedildi (y > 540, slaytın üstü)', bant.length === 1 && bant[0][1] > 540, JSON.stringify(bant));
+    const yer = () => page.evaluate(() => {
+      const p = document.querySelectorAll('#oPages .o-page')[0], r = p.getBoundingClientRect();
+      const b = [...p.querySelectorAll('svg.o-cizim path')].map(x => x.getBoundingClientRect()).find(x => x.width > 0);
+      return b ? [(b.left - r.left) / r.width, (b.top - r.top) / r.height].map(v => Math.round(v * 1000) / 1000) : null;
+    });
+    await page.locator('#oPenBtn').click(); await wait(800);
+    const yerOnce = await yer();
+    await page.screenshot({ path: join(OUT, `${dosya}-04-pdf-bantta-kalem.png`) });
+    // drawn again from the file (book mode and back)
+    await page.locator('#oMode [data-m="kitap"]').click(); await wait(1500);
+    await page.screenshot({ path: join(OUT, `${dosya}-05-kitap-bantta-kalem.png`) });
+    await page.locator('#oMode [data-m="pdf"]').click(); await wait(1500);
+    await sayfayaGit(page, 1);
+    const yerSonra = await yer();
+    kontrol(ad, 'yeniden çizilince çizgi aynı yerde', !!yerOnce && !!yerSonra && Math.abs(yerOnce[0] - yerSonra[0]) < 0.01 && Math.abs(yerOnce[1] - yerSonra[1]) < 0.01, `${yerOnce} → ${yerSonra}`);
+
+    // all landscape pages: the shifted one and the turned one; upright pages stay
+    await sayfayaGit(page, 4);
+    await balonAc(page);
+    const hepsi = page.locator('#oSayfaEkleBalon [data-yapistir="hepsi"]');
+    kontrol(ad, '"Dosyadaki tüm yatay sayfalar (2)"', (await hepsi.count()) === 1 && (await hepsi.textContent()).includes('(2)'), (await hepsi.count()) ? await hepsi.textContent() : 'yok');
+    await page.screenshot({ path: join(OUT, `${dosya}-06-balon-pdf-hepsi.png`) });
+    s0 = s;
+    await hepsi.click();
+    await bekleBitti(page, s0.surum);
+    s = await ozet4c(page);
+    kontrol(ad, 'tüm yataylar: 0, 3, 4 yapıştırılmış; dikey (2) ve boş (1) aynen', s.yapistirilmis.join() === '0,3,4' && s.olcu[1].join() === '595.28,841.89' && s.olcu[2].join() === '595.28,841.89', JSON.stringify(s.olcu));
+    kontrol(ad, 'kaymış MediaBox (50,30) yukarı-aşağı büyüdü, x aynı', s.mediaBox[3][0] === 50 && s.mediaBox[3][2] === 841.89 && Math.abs(s.olcu[3][1] - 841.89 * Math.SQRT2) < 0.01, JSON.stringify(s.mediaBox[3]));
+    kontrol(ad, 'Rotate 90: görünür oran √2', Math.abs(s.olcu[4][1] / s.olcu[4][0] - Math.SQRT2) < 0.001, JSON.stringify(s.olcu[4]));
+    await page.screenshot({ path: join(OUT, `${dosya}-07-pdf-kaymis.png`) });
+    await sayfayaGit(page, 5);
+    await page.screenshot({ path: join(OUT, `${dosya}-08-pdf-dondurulmus.png`) });
+
+    // undo on the slide: the band's stroke → the dialog → gone
+    await sayfayaGit(page, 1);
+    await balonAc(page);
+    const geriAl = page.locator('#oSayfaEkleBalon [data-geri-al]');
+    kontrol(ad, '"Deftere yapıştırmayı geri al" görünür', (await geriAl.count()) === 1);
+    await page.screenshot({ path: join(OUT, `${dosya}-09-balon-geri-al.png`) });
+    s0 = s;
+    const d0 = diyaloglar.length;
+    await geriAl.click();
+    await bekleBitti(page, s0.surum);
+    s = await ozet4c(page);
+    kontrol(ad, 'geri al: onay soruldu (slaytın dışındaki kalem yazısı)', diyaloglar.slice(d0).some(m => m.includes('Slaytın dışındaki kalem yazısı')), diyaloglar.slice(d0).join(' | '));
+    kontrol(ad, 'geri al: slayt 960 × 540, bant çizgisi gitti, diğerleri yapıştırılmış', s.olcu[0].join() === '960,540' && !s.cizgi.some(([i]) => i === 0) && s.yapistirilmis.join() === '3,4', `${s.olcu[0]}, ${JSON.stringify(s.cizgi)}`);
+    await page.screenshot({ path: join(OUT, `${dosya}-10-geri-alindi.png`) });
+    const tasma = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth);
+    kontrol(ad, 'yatay taşma yok', tasma <= 0, `${tasma}px`);
     await ctx.close();
   }
 } finally {

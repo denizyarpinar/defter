@@ -92,7 +92,7 @@ function numbers(L: Lib, ctx: PDFContext, arr: PDFArray | undefined): number[] {
 }
 
 // Ours: /Subtype /Ink with a /DefterId.
-function isDefterInk(L: Lib, dict: PDFDict): boolean {
+export function isDefterInk(L: Lib, dict: PDFDict): boolean {
   return dict.get(L.PDFName.of('Subtype')) === L.PDFName.of('Ink') && text(L, dict.get(L.PDFName.of('DefterId'))) !== undefined;
 }
 

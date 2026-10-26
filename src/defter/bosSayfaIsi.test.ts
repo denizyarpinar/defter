@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { EklenenSayfalar } from './ozeteEkle';
-import { sayfaIsiCalistir, SayfaIsiYarim, yeniEklemeIsi, yeniKaldirmaIsi, type SayfaIsi, type SayfaIsiOrtami } from './bosSayfaIsi';
+import { sayfaIsiCalistir, SayfaIsiYarim, yeniEklemeIsi, yeniGeriAlIsi, yeniKaldirmaIsi, yeniYapistirmaIsi, type SayfaIsi, type SayfaIsiOrtami } from './bosSayfaIsi';
 
 // Task 6.S-4: the job's order and what is left after a failure
 
@@ -22,6 +22,20 @@ function ortam(o: Partial<SayfaIsiOrtami> = {}) {
 }
 
 describe('sayfaIsiCalistir', () => {
+  it('6.S-4c deftere yapıştır ve geri al: sadece PDF (sayfa kaymaz, kurdele / .ocr.json çağrılmaz)', async () => {
+    const o = { islemId: 'y', fileId: 'f', dosyaAdi: 'ozet.pdf', klasorId: 'k', kitapId: 'b', konu: 'U/K' };
+    for (const is of [
+      yeniYapistirmaIsi({ ...o, yapistir: { indeksler: [4], desen: 'kareli' } }),
+      yeniGeriAlIsi({ ...o, yapistirGeriAl: { indeks: 4, notlariSil: false } }),
+    ]) {
+      const f = ortam({ pdf: vi.fn(async () => { f.sira.push('pdf'); return sonuc({ indeks: undefined, eskiSayfa: 6, yeniSayfa: 6, zatenVardi: true }); }) });
+      expect(await sayfaIsiCalistir(is, f.m)).toMatchObject({ indeks: 4 });
+      expect(f.sira).toEqual(['pdf', 'sil']);
+      expect(f.m.kitapJson).not.toHaveBeenCalled();
+      expect(f.m.ocr).not.toHaveBeenCalled();
+    }
+  });
+
   it('sıra: PDF → kitap.json → .ocr.json → cihazdan sil; iş PDF\'ten sonra cihaza yazılır', async () => {
     const f = ortam();
     const is = ekleme();

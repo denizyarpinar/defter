@@ -7,6 +7,7 @@ import type { PDFDocument } from 'pdf-lib';
 import { pdfLib, SAVE_OPTIONS, yazilabilirAc } from '../kalem/pdfNotlari';
 import { isSampleId } from '../okuma/ornekKaynak';
 import { bosSayfaEkle, bosSayfaKaldir, type BosSayfaIstek } from './bosSayfa';
+import { yapistir, yapistirGeriAl, type GeriAlIstek, type YapistirIstek } from './yapistir';
 import { MESAJLAR, sayfalariEkle, type Jpeg } from './sayfaEkle';
 import { mb, olc, zamanliDrive, type Olcum, type PdfKaynakBilgisi } from './sureOlcum';
 
@@ -23,6 +24,8 @@ import { mb, olc, zamanliDrive, type Olcum, type PdfKaynakBilgisi } from './sure
 // Task 6.S-3: the same way for the pages of a whole PDF ("Dosya ekle" → Özet, EkKaynak { pdf }).
 // Task 6.S-4: the same way for a blank page between pages (EkKaynak { bosSayfa }) and its removal ({ bosKaldir }):
 //   bosSayfa.ts; the mark is /DefterBosSayfa (islemId), found again on a retry.
+// Task 6.S-4c: "Deftere yapıştır" ({ yapistir }) and its undo ({ yapistirGeriAl }) the same way: yapistir.ts; the
+//   page count stays, indeks = the (first) page changed.
 // Task 6.2e-1: secenek.olcum (only with ?olcum=1) times each step and each Drive request; without it nothing changes.
 
 export const EK_ID = 'DefterEkId';
@@ -80,7 +83,8 @@ const EK_MESAJLAR = {
 // What goes at the end: photos (5.6) or the pages of a PDF (6.S-3, "Dosya ekle" → Özet)
 // task 6.S-4: or a blank page between pages / its removal (the islemId is the one of the adding)
 export type EkKaynak = { jpegler: readonly Jpeg[] } | { pdf: Uint8Array }
-  | { bosSayfa: Omit<BosSayfaIstek, 'islemId'> } | { bosKaldir: { indeks: number } };   // bosKaldir: islemId = the blank page's id
+  | { bosSayfa: Omit<BosSayfaIstek, 'islemId'> } | { bosKaldir: { indeks: number } }   // bosKaldir: islemId = the blank page's id
+  | { yapistir: Omit<YapistirIstek, 'islemId'> } | { yapistirGeriAl: Omit<GeriAlIstek, 'islemId'> };   // geri al: islemId = the paste's
 
 type Hazir = { bytes: Uint8Array; eskiSayfa: number; yeniSayfa: number; indeks?: number } | { zatenVar: true; sayfa: number; eskiSayfa: number; indeks?: number };
 
@@ -157,6 +161,16 @@ async function hazirla(bytes: Uint8Array, ek: EkKaynak, islemId: string): Promis
   if ('bosSayfa' in ek) {
     const r = await bosSayfaEkle(bytes, { ...ek.bosSayfa, islemId });
     return 'zatenVar' in r ? { zatenVar: true, sayfa: r.sayfa, eskiSayfa: r.sayfa - 1, indeks: r.indeks } : r;
+  }
+  if ('yapistir' in ek) {
+    const r = await yapistir(bytes, { ...ek.yapistir, islemId });
+    const indeks = r.sayfalar[0];
+    return 'zatenVar' in r ? { zatenVar: true, sayfa: r.sayfa, eskiSayfa: r.sayfa, ...(indeks !== undefined ? { indeks } : {}) }
+      : { bytes: r.bytes, eskiSayfa: r.sayfa, yeniSayfa: r.sayfa, indeks };
+  }
+  if ('yapistirGeriAl' in ek) {
+    const r = await yapistirGeriAl(bytes, { ...ek.yapistirGeriAl, islemId });
+    return 'zatenYok' in r ? { zatenVar: true, sayfa: r.sayfa, eskiSayfa: r.sayfa } : { bytes: r.bytes, eskiSayfa: r.sayfa, yeniSayfa: r.sayfa, indeks: r.indeks };
   }
   const r = await bosSayfaKaldir(bytes, { indeks: ek.bosKaldir.indeks, islemId });
   return 'zatenYok' in r ? { zatenVar: true, sayfa: r.sayfa, eskiSayfa: r.sayfa + 1 } : r;

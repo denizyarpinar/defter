@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { eklemeEngeli, eklemeHedefi, eklemeSonrasiOkunan, isSonrasiSayfa, kaldirmaHedefleri, kaldirmaSonrasiOkunan, kitapCiftiSonrasi, okunanTaraflar, sayfaEkleGorunur, varsayilanTaraf, type GorunenSayfa, type Taraf } from './sayfaEkleDurumu';
+import { eklemeEngeli, eklemeHedefi, eklemeSonrasiOkunan, isSonrasiSayfa, kaldirmaHedefleri, kaldirmaSonrasiOkunan, kitapCiftiSonrasi, okunanTaraflar, sayfaEkleGorunur, varsayilanTaraf, yapistirHedefi, yapistirHedefleri, type GorunenSayfa, type Taraf } from './sayfaEkleDurumu';
 import type { Yon } from '../defter/bosSayfa';
 
 // Task 6.S-4
@@ -120,5 +120,25 @@ describe('kitap modu: okunan sayfa yerinde', () => {
     const g = [p(9, 10, 'brifing'), p(10, 1, 'sorular')];
     const h = kaldirmaHedefleri(g, (f, i) => f === 'brifing' && i === 9 ? kayit : null)[0];
     expect(kaldirmaSonrasiOkunan(g, h)).toMatchObject({ sayfa: 1, taraf: 'sag' });
+  });
+});
+
+describe('6.S-4c yapistirHedefi', () => {
+  const g: GorunenSayfa[] = [{ liste: 4, dosyaId: 'f', pdfSayfa: 2, ad: 'ozet.pdf' }, { liste: 5, dosyaId: 'f', pdfSayfa: 3, ad: 'ozet.pdf' }];
+  const kayit = { islemId: 'y', desen: 'kareli' as const, eskiKutu: { x0: 0, y0: 0, x1: 960, y1: 540 }, iz: 'i:a' };
+  const bilgi = { yatay: new Set([1, 6]), yapistirilmis: new Map([[2, kayit]]) };
+
+  it('yatay → yapıştır (dosyadaki yatay sayısıyla), yapıştırılmış → geri al, dikey / bilinmeyen → yok', () => {
+    expect(yapistirHedefi(g, 'sol', () => bilgi)).toEqual({ tur: 'yapistir', liste: 4, dosyaId: 'f', ad: 'ozet.pdf', indeks: 1, yataySayisi: 2 });
+    expect(yapistirHedefi(g, 'sag', () => bilgi)).toEqual({ tur: 'geriAl', liste: 5, dosyaId: 'f', ad: 'ozet.pdf', indeks: 2, kayit });
+    expect(yapistirHedefi([{ liste: 0, dosyaId: 'f', pdfSayfa: 1 }], 'sol', () => bilgi)).toBeNull();
+    expect(yapistirHedefi(g, 'sol', () => null)).toBeNull();
+    expect(yapistirHedefi([{ liste: 0, dosyaId: null }], 'sol', () => bilgi)).toBeNull();
+  });
+
+  it('iki sayfada iki taraf; geri al ve yapıştır sonrası aynı sayfa', () => {
+    expect(Object.keys(yapistirHedefleri(g, () => bilgi))).toEqual(['sol', 'sag']);
+    expect(isSonrasiSayfa('yapistir', 3)).toBe(4);
+    expect(isSonrasiSayfa('yapistirGeriAl', 0)).toBe(1);
   });
 });

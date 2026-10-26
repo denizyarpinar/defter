@@ -359,6 +359,14 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 .o-balon .o-sekle-desen:disabled, .o-balon .o-sekle-kaldir:disabled { opacity: .45; cursor: not-allowed }
 .o-sekle-not { font: 13px/1.35 var(--ui); color: rgba(245, 236, 223, .85); padding: 0 2px }
 .o-balon .o-sekle-kaldir { border-color: rgba(230, 120, 100, .6); color: #ffd9cf }
+/* task 6.S-4c: "Deftere yapıştır" (the page read is landscape): its own pattern choice + Bu sayfa / tüm yatay sayfalar */
+.o-sekle-yapistir { display: flex; flex-direction: column; gap: 6px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, .18) }
+.o-sekle-baslik { font: 600 13px var(--ui); color: #f5ecdf; padding: 0 2px }
+.o-balon .o-sekle-ydesen { min-height: 70px }
+.o-sekle-ydesen svg { width: 24px; height: 34px }
+.o-sekle-ydugmeler { flex-direction: column }   /* "Dosyadaki tüm yatay sayfalar (N)" needs the whole width */
+.o-sekle-ydugmeler button { min-height: 40px }
+.o-balon .o-sekle-yapistir button:disabled, .o-balon [data-geri-al]:disabled { opacity: .45; cursor: not-allowed }
 /* task 5.8a: "Fotoğraf ekle" button in the tab bar + its panel over the reader (draft, writes nothing) */
 .o-foto { flex: none; display: inline-flex; align-items: center; gap: 7px; min-height: 40px; padding: 0 14px; margin-left: auto; border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, .22); background: rgba(0, 0, 0, .18); color: #f5ecdf; font: 500 14px var(--ui) }

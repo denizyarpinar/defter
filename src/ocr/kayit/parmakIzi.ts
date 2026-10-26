@@ -4,6 +4,8 @@
 // - Otherwise: SHA-256 over the page's content streams and every XObject (by resource name) → "i:<hex>".
 // Annotations (/Annots, the pen's Ink notes) are never read, so drawing does not change it. Only the file's
 // bytes count: the same on every device. pdf-lib is loaded lazily (like the pen).
+// Task 6.S-4c: the bands' stream of "Deftere yapıştır" (/DefterYapistir true in its dictionary) is left out, so
+// pasting and undoing it keep the page's fingerprint; the boxes never counted.
 
 type PdfLib = typeof import('pdf-lib');
 type PdfDoc = import('pdf-lib').PDFDocument;
@@ -20,7 +22,7 @@ function akislar(lib: PdfLib, doc: PdfDoc, page: PdfPage) {
   const icerik: Uint8Array[] = [];
   const c = page.node.Contents();
   const parcalar = c instanceof PDFArray ? c.asArray().map(x => ctx.lookup(x)) : [c];
-  for (const s of parcalar) if (s instanceof PDFStream) icerik.push(s.getContents());
+  for (const s of parcalar) if (s instanceof PDFStream && !s.dict.has(PDFName.of('DefterYapistir'))) icerik.push(s.getContents());
 
   const xobjeler: { ad: string; gorsel: boolean; bayt: Uint8Array }[] = [];
   const xo = page.node.Resources()?.lookupMaybe(PDFName.of('XObject'), PDFDict);

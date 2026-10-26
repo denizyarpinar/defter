@@ -14,14 +14,15 @@ import { PenInput } from '../kalem/kalemModu';
 import type { PenViewport } from '../kalem/koordinat';
 import { DriveUploader, type UploadDeps, type UploadStatus, type Uploaded } from '../kalem/pdfKayit';
 import { OZET_ADI, type KonuEklemeOrtami, type KonuyaEklendi } from '../defter/konuyaEkle';
-import { ozeteSayfaEkle, SayfaEklemeAgHatasi, SayfaEklemeCakisma, SayfaYazmaYok, type EklenenSayfalar } from '../defter/ozeteEkle';
+import { ozeteSayfaEkle, SayfaEklemeAgHatasi, SayfaEklemeCakisma, SayfaYazmaYok, type EklenenSayfalar, type EkKaynak } from '../defter/ozeteEkle';
 import { bosSayfaBilgisi, sayfaIziAl, type BosSayfaBilgisi, type Desen, type Yon } from '../defter/bosSayfa';
-import { KalemKaydiBekliyor, sayfaIsiCalistir, SayfaIsiYarim, yeniEklemeIsi, yeniKaldirmaIsi, type SayfaIsi, type SayfaIsiOrtami } from '../defter/bosSayfaIsi';
+import { KalemKaydiBekliyor, sayfaIsiCalistir, SayfaIsiYarim, yeniEklemeIsi, yeniGeriAlIsi, yeniKaldirmaIsi, yeniYapistirmaIsi, type SayfaIsi, type SayfaIsiOrtami } from '../defter/bosSayfaIsi';
+import { bantNotlari } from '../defter/yapistir';
 import { kurdeleKaydir, kurdeleKaydirYerinde, ocrKaydir } from '../kitap/sayfaKaydir';
 import { jsonDegistir, type JsonDrive } from '../drive/jsonDegistir';
 import { topicKey } from '../model/okumaYamasi';
 import { SayfaEkleBalon, type BalonBilgisi } from '../ui/sayfaEkleBalon';
-import { eklemeEngeli, eklemeHedefi, eklemeSonrasiOkunan, isSonrasiSayfa, KALDIR_ONAY, kaldirmaHedefleri, kaldirmaSonrasiOkunan, kitapCiftiSonrasi, okunanTaraflar, sayfaEkleGorunur, varsayilanTaraf, type GorunenSayfa, type KaldirmaHedefi, type OkunanSonrasi, type Taraf } from '../ui/sayfaEkleDurumu';
+import { eklemeEngeli, eklemeHedefi, eklemeSonrasiOkunan, isSonrasiSayfa, KALDIR_ONAY, kaldirmaHedefleri, kaldirmaSonrasiOkunan, kitapCiftiSonrasi, okunanTaraflar, sayfaEkleGorunur, varsayilanTaraf, YAPISTIR_GERI_AL_ONAY, yapistirHedefleri, type GorunenSayfa, type KaldirmaHedefi, type OkunanSonrasi, type Taraf, type YapistirBilgisi, type YapistirHedefi } from '../ui/sayfaEkleDurumu';
 import { isKaydet, isler, isleriTemizle, isSil } from './sayfaIsiDepo';
 import { bekleyenFotoDepo } from '../defter/bekleyenFoto';
 import type { BekleyenFoto, BekleyenJpeg } from '../defter/bekleyenFotoKayit';
@@ -516,6 +517,8 @@ export function initOkuyucu(yer: () => DriveLocation | null): void {
     bilgi: sayfaBalonBilgisi,
     ekle: (y, d, t) => { void bosSayfaEkleBasla(y, d, t); },
     kaldir: h => { void bosSayfaKaldirBasla(h); },
+    yapistir: (h, d, hepsi) => { void yapistirBasla(h, d, hepsi); },
+    geriAl: h => { void yapistirGeriAlBasla(h); },
   });
   addEventListener('online', () => { void sayfaIsleriniSurdur(); });
   pen = new PenInput([scroller, area], {
@@ -1777,8 +1780,15 @@ async function sayfaBalonBilgisi(): Promise<BalonBilgisi> {
   });
   const kaldir = kaldirmaHedefleri(g, (id, i) => { const b = bilgiler.get(id); return b?.yazilabilir ? b.bos.get(i) ?? null : null; });
   const ikiSayfa = mode === 'kitap' && g.length > 1;   // 6.S-4b: the page read can be chosen
+  // 6.S-4c: a file the pen can't write still shows "Deftere yapıştır" (grey, engel) for its landscape pages on screen
+  const yapistirBilgi = (id: string): YapistirBilgisi | null => {
+    const b = bilgiler.get(id);
+    if (!b) return null;
+    if (b.yazilabilir) return b;
+    return { yatay: new Set(g.filter(x => x.dosyaId === id && x.pdfSayfa && (ratios[x.liste] ?? 2) <= 1).map(x => x.pdfSayfa! - 1)), yapistirilmis: new Map() };
+  };
   return { engel, kaldir: sayfaIsiDosyalari.size || ocrPaneliAcik() ? [] : kaldir,
-    taraflar: ikiSayfa ? okunanTaraflar(g) : {}, varsayilan: varsayilanTaraf(g, dokunulanSayfa) };
+    taraflar: ikiSayfa ? okunanTaraflar(g) : {}, varsayilan: varsayilanTaraf(g, dokunulanSayfa), yapistir: yapistirHedefleri(g, yapistirBilgi) };
 }
 
 async function bosSayfaEkleBasla(yon: Yon, desen: Desen, taraf: Taraf): Promise<void> {
@@ -1811,6 +1821,45 @@ async function bosSayfaKaldirBasla(h: KaldirmaHedefi): Promise<void> {
   await sayfaIsiYurut(is, t);
 }
 
+// Task 6.S-4c: "Deftere yapıştır" — the page read (or all landscape pages of its file) gets bands above and below
+// (defter/yapistir.ts): one PDF step, the page count stays. The page read stays on screen, on its side.
+function yapistirSonrasi(h: YapistirHedefi, islemId: string): void {
+  const g = gorunenSayfalar(), i = g.findIndex(x => x.liste === h.liste);
+  kitapSonrasi = mode === 'kitap' && g.length > 1 && i >= 0 ? { islemId, dosya: pages[h.liste]?.ad ?? h.ad, sayfa: h.indeks + 1, taraf: i === 0 ? 'sol' : 'sag' } : null;
+}
+
+async function yapistirBasla(h: YapistirHedefi & { tur: 'yapistir' }, desen: Desen, hepsi: boolean): Promise<void> {
+  const t = topic, b = book;
+  if (!t || !b || !open || sayfaIsiDosyalari.size || ocrPaneliAcik()) return;
+  const p = pages[h.liste], islemId = crypto.randomUUID();
+  yapistirSonrasi(h, islemId);
+  let iz: string | undefined;   // the page's anchor when Drive has a newer version
+  if (!hepsi) try { iz = await sayfaIziAl(new Uint8Array(await getPdf(p.dosyaId!, p.modifiedTime!)), h.indeks); } catch (e) { console.warn('Deftere yapıştır: sayfanın izi alınamadı.', e); }
+  const is = yeniYapistirmaIsi({
+    islemId, fileId: h.dosyaId, dosyaAdi: p.ad ?? h.ad, klasorId: p.klasorId ?? null, kitapId: b.id, konu: topicKey(t.klasor, t.title),
+    yapistir: { indeksler: hepsi ? 'yataylar' : [h.indeks], ...(iz ? { izler: [iz] } : {}), desen }
+  });
+  await sayfaIsiYurut(is, t);
+}
+
+async function yapistirGeriAlBasla(h: YapistirHedefi & { tur: 'geriAl' }): Promise<void> {
+  const t = topic, b = book;
+  if (!t || !b || !open || sayfaIsiDosyalari.size) return;
+  const p = pages[h.liste];
+  // pen writing in the bands goes with the bands: asked first (the file on screen; newer ones → BantNotuVar)
+  let notlar: string[] = [];
+  try { notlar = await bantNotlari(new Uint8Array(await getPdf(p.dosyaId!, p.modifiedTime!)), h.indeks); } catch (e) { console.warn('Deftere yapıştır: bantlardaki notlara bakılamadı.', e); }
+  const key = fileKey(p);
+  if (!notlar.length && penModel.isDirty(key)) notlar = ['?'];   // strokes not saved yet: ask to be safe
+  if (notlar.length && !confirm(YAPISTIR_GERI_AL_ONAY)) return;
+  yapistirSonrasi(h, h.kayit.islemId);
+  const is = yeniGeriAlIsi({
+    islemId: h.kayit.islemId, fileId: h.dosyaId, dosyaAdi: p.ad ?? h.ad, klasorId: p.klasorId ?? null, kitapId: b.id, konu: topicKey(t.klasor, t.title),
+    yapistirGeriAl: { indeks: h.indeks, iz: h.kayit.iz, notlariSil: notlar.length > 0 }
+  });
+  await sayfaIsiYurut(is, t);
+}
+
 function sayfaIsiYuzdesi(y: string | null): void {
   sayfaIsiYuzde = y;
   sayfaEkleDugmesi();
@@ -1823,9 +1872,13 @@ async function kalemBosMu(fileId: string): Promise<void> {
   if ((key && penModel.isDirty(key)) || (rec && !isEmptyDiff(rec))) throw new KalemKaydiBekliyor();
 }
 
+const isKaynagi = (is: SayfaIsi): EkKaynak =>
+  is.tur === 'ekle' ? { bosSayfa: is.ekle! } : is.tur === 'kaldir' ? { bosKaldir: { indeks: is.kaldir!.indeks } }
+    : is.tur === 'yapistir' ? { yapistir: is.yapistir! } : { yapistirGeriAl: is.yapistirGeriAl! };
+
 function sayfaIsiOrtami(loc: DriveLocation, ctx: SayfaIsiBaglami): SayfaIsiOrtami {
   return {
-    pdf: is => ozeteSayfaEkle(is.fileId, is.tur === 'ekle' ? { bosSayfa: is.ekle! } : { bosKaldir: { indeks: is.kaldir!.indeks } }, {
+    pdf: is => ozeteSayfaEkle(is.fileId, isKaynagi(is), {
       yer: loc, deps: uploadDeps, dosyaDrive: bosSahte?.dosyaDrive ?? drivePdfOlusturApi, sirada: (id, job) => uploader.sirada(id, job), degisti: sayfaSurumuGeldi
     }, {
       islemId: is.islemId, kuyrukOncesi: () => kalemBosMu(is.fileId),
@@ -1899,7 +1952,13 @@ async function sayfaIsiSonrasi(t: OpenTopic | null, is: SayfaIsi): Promise<void>
 
 const tekrarDenenebilir = (e: unknown) => e instanceof SayfaIsiYarim || e instanceof SayfaEklemeAgHatasi || e instanceof SayfaEklemeCakisma || e instanceof TypeError;
 
+const IS_BITTI: Record<SayfaIsi['tur'], string> = {
+  ekle: 'Boş sayfa eklendi.', kaldir: 'Boş sayfa kaldırıldı.', yapistir: 'Deftere yapıştırıldı.', yapistirGeriAl: 'Deftere yapıştırma geri alındı.'
+};
+
 function isHataMetni(is: SayfaIsi, e: unknown): string {
+  if (is.tur.startsWith('yapistir') && e instanceof SayfaEklemeAgHatasi) return 'Sayfa Drive\'a yazılamadı (bağlantı ya da Drive sorunu). İnternet bağlantını kontrol edip tekrar dene.';
+  if (is.tur.startsWith('yapistir') && e instanceof SayfaEklemeCakisma) return 'PDF başka bir cihazda değişip duruyor; sayfa değişmedi. Biraz sonra tekrar dene.';
   if (is.tur === 'kaldir' && e instanceof SayfaEklemeAgHatasi) return 'Boş sayfa kaldırılamadı (bağlantı ya da Drive sorunu). İnternet bağlantını kontrol edip tekrar dene.';
   if (is.tur === 'kaldir' && e instanceof SayfaEklemeCakisma) return 'PDF başka bir cihazda değişip duruyor; boş sayfa kaldırılmadı. Biraz sonra tekrar dene.';
   return e instanceof Error && e.message ? e.message : 'Bilinmeyen bir hata oldu.';
@@ -1914,7 +1973,7 @@ async function sayfaIsiYurut(is: SayfaIsi, t: OpenTopic | null): Promise<void> {
   try {
     await ctx.oncesi();       // reading state / cover with the old page numbers go first
     await sayfaIsiCalistir(is, sayfaIsiOrtami(loc, ctx));
-    toast(is.tur === 'ekle' ? 'Boş sayfa eklendi.' : 'Boş sayfa kaldırıldı.');
+    toast(IS_BITTI[is.tur]);
     await sayfaIsiSonrasi(t, is);
   } catch (e) {
     if (e instanceof SessionExpired) return;

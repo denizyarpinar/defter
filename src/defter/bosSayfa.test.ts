@@ -4,7 +4,7 @@ import type { Stroke } from '../kalem/cizgi';
 import { PdfYazilamaz, readDefterStrokes, writeDefterStrokes } from '../kalem/pdfNotlari';
 import { sayfaParmakIzleri } from '../ocr/kayit/parmakIzi';
 import {
-  BOS_DESEN, BOS_ID, bosSayfaBilgisi, sayfaIziAl, bosSayfaEkle, bosSayfaKaldir, BosSayfaDegil, desenCizgileri, SayfaYeriDegisti, type BosEklendi
+  BOS_DESEN, BOS_ID, bosSayfaBilgisi, dikeyBoyut, sayfaIziAl, bosSayfaEkle, bosSayfaKaldir, BosSayfaDegil, desenCizgileri, SayfaYeriDegisti, type BosEklendi
 } from './bosSayfa';
 
 // Task 6.S-4: blank note pages inside a PDF. The PDFs are made here (3 A4 pages with text, a Defter stroke on
@@ -91,13 +91,27 @@ describe('bosSayfaEkle', () => {
     expect(iz[1]).not.toBe(iz[2]);
   });
 
-  it('döndürülmüş (/Rotate 90) komşu: yeni sayfa döndürülmemiş, aynı görünür en-boy', async () => {
+  it('döndürülmüş (/Rotate 90) komşu: yeni sayfa döndürülmemiş; dikey görünürse aynı en-boy, yatay görünürse A4 dikey', async () => {
     const doc = await PDFDocument.create();
-    doc.addPage(A4).setRotation(degrees(90));
-    const r = bytesOf(await bosSayfaEkle(await doc.save(), { komsu: 0, yon: 'sonra', desen: 'duz', islemId: 'r' }));
-    const p = (await PDFDocument.load(r)).getPage(1);
-    expect(p.getRotation().angle).toBe(0);
-    expect(p.getSize()).toEqual({ width: A4[1], height: A4[0] });
+    doc.addPage([A4[1], A4[0]]).setRotation(degrees(90));   // stored landscape, seen upright
+    doc.addPage(A4).setRotation(degrees(90));               // stored upright, seen landscape
+    const b = await doc.save();
+    const dik = (await PDFDocument.load(bytesOf(await bosSayfaEkle(b, { komsu: 0, yon: 'sonra', desen: 'duz', islemId: 'r' })))).getPage(1);
+    expect(dik.getRotation().angle).toBe(0);
+    expect(dik.getSize()).toEqual({ width: A4[0], height: A4[1] });
+    const yat = (await PDFDocument.load(bytesOf(await bosSayfaEkle(b, { komsu: 1, yon: 'sonra', desen: 'duz', islemId: 'r2' })))).getPage(2);
+    expect(yat.getRotation().angle).toBe(0);
+    expect(yat.getSize()).toEqual({ width: A4[0], height: A4[1] });
+  });
+
+  it('6.S-4c dikeyBoyut: yatay ve kare → A4 dikey, dikey → aynen; 16:9 slaytın yanına A4 dikey', async () => {
+    expect(dikeyBoyut({ w: A4[1], h: A4[0] })).toEqual({ w: A4[0], h: A4[1] });
+    expect(dikeyBoyut({ w: 500, h: 500 })).toEqual({ w: A4[0], h: A4[1] });
+    expect(dikeyBoyut({ w: 419.53, h: 595.28 })).toEqual({ w: 419.53, h: 595.28 });
+    const doc = await PDFDocument.create();
+    doc.addPage([960, 540]);
+    const p = (await PDFDocument.load(bytesOf(await bosSayfaEkle(await doc.save(), { komsu: 0, yon: 'once', desen: 'kareli', islemId: 's' })))).getPage(0);
+    expect(p.getSize()).toEqual({ width: A4[0], height: A4[1] });
   });
 
   it('MediaBox (0,0)\'da değil + CropBox: görünür kutu (CropBox) kadar, MediaBox [0 0 w h]', async () => {
