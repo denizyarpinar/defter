@@ -6,7 +6,8 @@
 - `api/oku`: her hata yanıtı `hata` (Türkçe metin, eski sayfalar için aynen) + sabit `kod` (+ gerekirse `sinir`/`kenar`/`durum`/`eksik`); istemci `kod` → kendi dilinde metin, bilinmeyen kod → sunucu metni, kod yok → HTTP durumu (`claudeMotor.ts` `hataMetni`).
 - Kalan Türkçe dize 446 → 0. `// dil-kontrol: yoksay` 55 → 163 (ölçüm/günlük 44, harf tablosu 31, programcı hatası/dev testi 28, Drive adı/arama metni 5 yeni). Dev dosyaları adıyla, gerekçesiyle ayrı (6 dosya, 85 dize: ocr-ai.html sayfası ve `import.meta.env.DEV` araçları).
 - `npm run dil`: kalan dize > 0 ya da tr/en anahtar farkı → çıkış kodu 1. `dil-kontrol.mjs --ekleme` (e): ekleme ekranları EN/TR × 390/820/1280 (foto paneli, dosya paneli, Word reddi, OCR paneli, bekleyen foto toast'ı sahte Drive ile); yeni taşma yok.
-- Commit yok; laptop + iPad denemesi bekleniyor.
+- Commit 8adbd22; faz-6 önizlemesi.
+- iPad hatası (27 Ekim, Deniz): dosya/fotoğraf seçince "The file couldn't be read. Reload the page and try again." (laptop sorunsuz; Chrome ve WebKit'te örnek kitaplıkla üretilemedi). 90dc51a: modül yüklenirken `t()` çağıran 16 sabit fonksiyona çevrildi (`const X = (): string => t(...)`), `npm run dil` bunu da yakalıyor (ERKEN t()); `?olcum=1` ile okuyucunun dört "okunamadı / açılamadı / hazırlanamadı" mesajına gerçek hata eklenir. Sonra iPad'de dosya ve fotoğraf ekleme TR ve EN'de çalıştı (Deniz, 27 Ekim). Mekanizma tam kanıtlanmadı (iPad Safari modül değerlendirme sırası tahmini).
 - **Son güncelleyen:** Claude Code, 27 Ekim 2026.
 
 ---
