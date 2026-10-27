@@ -5,10 +5,11 @@
 - Özet sekmesinde (gerçek özet varken, ilk sayfa çizildikten sonra) şerit: "Yeni ek var: ozet-ek.pdf" / "Güncellenmiş ek: …" + Ekle / Sonra. Ekle: ekin baytları (`getPdf`) → `konuyaDosyaEkle` `{ ozetSonu }`, sabit islemId (`ekIslemId`); ilerleme "Ekleniyor… %N", hata metni panelinkiyle aynı + Tekrar dene (aynı islemId). Başarıda sıradaki ek çıkar, okuyucu `afterFileAdded` ile yenilenir. Sonra: o konu açıkken gizli. Özet şifreli/imzalı: Ekle gri + neden. İşaretler bütün özet dosyalarından okunur (brifing + sorular).
 - "Dosya ekle" paneli ve bant aynı ortamı kullanır (`dosyaEklemeOrtami`, `Okuyucu.ts`). Şerit `FotoDurumKutusu.ekSeritGoster` (`fotoDurum.ts`).
 - (b) K3'te Özet sekmesindeki ek salt okunur: kalem düğmesi gri ("Ek dosya salt okunur"), kalem eke çizmez (`pageAt`), sayfa balonu (boş sayfa, yapıştır, sil) gri + aynı neden. Kalem açıkken eke geçilince kalem kapanır, bekleyen çizgi önceki dosyaya yazılır (betikte denendi).
-- Testler (saf: `siradakiEk`, `ekSaltOkunur`), typecheck, build, `npm run dil` (0) geçti. `node scripts/ozet-ek-kontrol.mjs`: TR + EN × 390/820/1280, ekran görüntüleri `Claude outputs/ek-6.EK2`. Commit yok; gerçek Drive denemesi (laptop + iPad) bekleniyor.
+- Testler (saf: `siradakiEk`, `ekSaltOkunur`), typecheck, build, `npm run dil` (0) geçti. `node scripts/ozet-ek-kontrol.mjs`: TR + EN × 390/820/1280, ekran görüntüleri `Claude outputs/ek-6.EK2`. Gerçek kullanım testleri laptop + iPad'de geçti (Deniz bildirimi, 27 Ekim 2026).
 - Bilinen sınır: salt okunurluk arayüzde (kalem düğmesi, `pageAt`, sayfa balonu); kalem kuyruğu dosya adını bilmiyor.
-- Deniz 6.EK-2'yi kabul etti (27 Ekim 2026). Onaylanan 11 dosya tek commit olarak kaydedilecek; ardından `git fetch . main:faz-6` ve `git push origin faz-6` uygulanacak. Preview Ready olduktan sonra mevcut faz-6 alias'ı bağlanacak. Main push yok; force yok; başarısız adımda durulacak.
-- **Son güncelleyen:** Codex, 27 Ekim 2026 · Kabul ve yayın sırası kaydedildi. Typecheck, build, dil kontrolü ve ilgili 14 test geçti.
+- 6.EK-2 kodu `a6566c692d3b22aafff07b0391581ef843d042f3` olarak commit edildi ve faz-6'ya push edildi. Preview `defter-asg1hu62i-deniz-b571.vercel.app` Ready; `defter-git-faz-6-deniz-b571.vercel.app` alias'ı bu dağıtıma bağlandı ve doğrulandı.
+- Deniz laptop + iPad gerçek kullanım testlerinin geçtiğini bildirdi ve main'in canlıya yayınını açıkça onayladı (27 Ekim 2026). Bu belge kaydı commit edildikten sonra yalnız ileri yönde `git push origin main` yapılacak; force kullanılmayacak. Sıradaki adım: son main commit'inin Production Ready olması ve https://defter-jade.vercel.app adresinin açıldığının doğrulanması.
+- **Son güncelleyen:** Codex, 27 Ekim 2026 · Laptop + iPad test sonucu ve canlı yayın onayı kaydedildi. Typecheck, build, dil kontrolü ve ilgili 14 test daha önce geçti; bu adım yalnız belge güncellemesidir.
 
 ---
 
