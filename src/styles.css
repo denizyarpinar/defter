@@ -497,6 +497,10 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 .fd-ana, .fd-ikinci { flex: none; min-height: 40px; padding: 0 14px; border-radius: 10px; font: 600 14px var(--ui) }
 .fd-ana { border: 1px solid var(--accent); background: var(--accent); color: #fff }
 .fd-ikinci { border: 1px solid rgba(255, 255, 255, .22); background: none; color: inherit }
+/* task 6.EK-2: the summary addition strip; grey "Ekle" when it can't be added, the reason / error under the text */
+.fd-ana:disabled, .fd-ikinci:disabled { opacity: .45; cursor: default }
+.fd-neden, .fd-hata { display: block; margin-top: 2px; font-size: 13px; opacity: .8 }
+.fd-hata { color: #ffb4a2; opacity: 1 }
 .o-scroll { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; overscroll-behavior: contain }
 .o-pages { position: relative; margin: 0 auto }
 .o-page { position: absolute; left: 0; right: 0; background: #cfc8bd; box-shadow: 0 10px 26px rgba(0, 0, 0, .3); overflow: hidden }
@@ -668,6 +672,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 .o-lf .o-ara-el { backface-visibility: hidden; -webkit-backface-visibility: hidden }
 .o-penbtn { flex: none; min-height: 40px; padding: 0 12px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, .22); background: rgba(0, 0, 0, .18); color: #f5ecdf; font: 500 13px var(--ui) }
 .o-penbtn.on { background: #f5ecdf; color: #2a231d }
+.o-penbtn:disabled { opacity: .45; cursor: default }   /* task 6.EK-2: an addition is read only */
 /* task 4.8a: unsaved strokes (kept on the device): a dot on the pen button */
 .o-penbtn { position: relative }
 /* task 6.K5b-3: the reader with no topic open (the desk's "İçindekileri düzenle"): nothing to draw on, search or turn */

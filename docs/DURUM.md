@@ -1,5 +1,17 @@
 # Defter – Durum
 
+## 6.EK-2 – Özet eki bandı + ek salt okunur (27 Ekim 2026, Claude Code)
+
+- Özet sekmesinde (gerçek özet varken, ilk sayfa çizildikten sonra) şerit: "Yeni ek var: ozet-ek.pdf" / "Güncellenmiş ek: …" + Ekle / Sonra. Ekle: ekin baytları (`getPdf`) → `konuyaDosyaEkle` `{ ozetSonu }`, sabit islemId (`ekIslemId`); ilerleme "Ekleniyor… %N", hata metni panelinkiyle aynı + Tekrar dene (aynı islemId). Başarıda sıradaki ek çıkar, okuyucu `afterFileAdded` ile yenilenir. Sonra: o konu açıkken gizli. Özet şifreli/imzalı: Ekle gri + neden. İşaretler bütün özet dosyalarından okunur (brifing + sorular).
+- "Dosya ekle" paneli ve bant aynı ortamı kullanır (`dosyaEklemeOrtami`, `Okuyucu.ts`). Şerit `FotoDurumKutusu.ekSeritGoster` (`fotoDurum.ts`).
+- (b) K3'te Özet sekmesindeki ek salt okunur: kalem düğmesi gri ("Ek dosya salt okunur"), kalem eke çizmez (`pageAt`), sayfa balonu (boş sayfa, yapıştır, sil) gri + aynı neden. Kalem açıkken eke geçilince kalem kapanır, bekleyen çizgi önceki dosyaya yazılır (betikte denendi).
+- Testler (saf: `siradakiEk`, `ekSaltOkunur`), typecheck, build, `npm run dil` (0) geçti. `node scripts/ozet-ek-kontrol.mjs`: TR + EN × 390/820/1280, ekran görüntüleri `Claude outputs/ek-6.EK2`. Commit yok; gerçek Drive denemesi (laptop + iPad) bekleniyor.
+- Bilinen sınır: salt okunurluk arayüzde (kalem düğmesi, `pageAt`, sayfa balonu); kalem kuyruğu dosya adını bilmiyor.
+- Deniz 6.EK-2'yi kabul etti (27 Ekim 2026). Onaylanan 11 dosya tek commit olarak kaydedilecek; ardından `git fetch . main:faz-6` ve `git push origin faz-6` uygulanacak. Preview Ready olduktan sonra mevcut faz-6 alias'ı bağlanacak. Main push yok; force yok; başarısız adımda durulacak.
+- **Son güncelleyen:** Codex, 27 Ekim 2026 · Kabul ve yayın sırası kaydedildi. Typecheck, build, dil kontrolü ve ilgili 14 test geçti.
+
+---
+
 ## 6.EK-1 – Özet ekleri: saf mantık (27 Ekim 2026, Claude Code)
 
 - Başka bir aracın konu klasörüne koyduğu `ozet-ek*.pdf` (ör. `ozet-ek.pdf`, `ozet-ek-2.pdf`, `ozet-ek_x.pdf`; büyük/küçük harf duyarsız, `_cozum.pdf` hariç, sıra `ozet-ek`, `-2`, `-10`) artık bulunuyor: `ozetEkMi`, `ozetEkleri` (`konuKesfi.ts`). `discoverTopic` aynı listeden ekleri sonuca bağlı bir WeakMap'te tutar (`ekleriAl`); `TopicMaterials` aynı, ek istek yok.
@@ -7,7 +19,7 @@
 - `drive.ts`: listelerde `md5Checksum` (ek istek yok). `ozeteEkle.ts`: `ekIsaretleri(ozetBytes)` = özetteki bütün `/DefterEkId`'ler (tek açılış, sıkıştırılmış nesne akışında da; şifreli/imzalı → `PdfYazilamaz`).
 - Yeni `src/defter/ozetEkBandi.ts` (saf): `ekIslemId` = `ozet-ek-<id>-<md5>` (md5 yoksa modifiedTime); `bantKarari` → her ek için `goster` | `guncellendi` (aynı dosyanın eski içeriği özette) | `gizli` (eklenmiş, "Sonra" denmiş, örnek kitaplık, yazma yok, gerçek özet yok, işaretler okunmadı) | `yazilamaz`; `pdfLibYuklensinMi` (K1). CLAUDE.md pdf-lib listesine K1 maddesi eklendi.
 - Testler 1805 (24 yeni: konuKesfi, ozeteEkle, konuyaDosyaEkle (sabit islemId ile ikinci ekleme `zatenVar`, çift sayfa yok), konuyaEkle, dosyaPanelDurumu, ozetEkBandi), typecheck, build, `npm run dil` (0) geçti. Arayüz yok; commit yok.
-- **6.EK-2'ye kalan:** bant arayüzü (Özet sekmesinde, `FotoDurumKutusu` yanında ikinci şerit; Ekle = `konuyaDosyaEkle` `{ ozetSonu: ozetHedefi(…) }` + sabit islemId; başarıda bant kapanır). Okuyucuda Özet olarak gösterilen ek (K3) salt okunur: kalem, sayfa ekle, sayfa sil kapalı. CLAUDE.md'ye 6.EK kural bölümü.
+- **6.EK-2'ye kalan (6.EK-2'de yapıldı):** bant arayüzü (Özet sekmesinde, `FotoDurumKutusu` yanında ikinci şerit; Ekle = `konuyaDosyaEkle` `{ ozetSonu: ozetHedefi(…) }` + sabit islemId; başarıda bant kapanır). Okuyucuda Özet olarak gösterilen ek (K3) salt okunur: kalem, sayfa ekle, sayfa sil kapalı. CLAUDE.md'ye 6.EK kural bölümü.
 - **Son güncelleyen:** Claude Code, 27 Ekim 2026.
 
 ---

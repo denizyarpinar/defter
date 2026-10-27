@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { DriveFile } from '../drive/drive';
-import { bantKarari, ekIslemId, pdfLibYuklensinMi, type BantGirdisi } from './ozetEkBandi';
+import { bantKarari, ekIslemId, ekSaltOkunur, pdfLibYuklensinMi, siradakiEk, type BantGirdisi } from './ozetEkBandi';
 
 // Task 6.EK-1: the pure part of the summary addition band.
 
@@ -69,5 +69,26 @@ describe('pdfLibYuklensinMi (K1)', () => {
     const tam = { ekVar: true, ozetVarMi: true, drive: true, ozetIlkSayfaCizildi: true };
     expect(pdfLibYuklensinMi(tam)).toBe(true);
     for (const k of Object.keys(tam) as (keyof typeof tam)[]) expect(pdfLibYuklensinMi({ ...tam, [k]: false })).toBe(false);
+  });
+});
+
+describe('task 6.EK-2: siradakiEk (one addition at a time)', () => {
+  it('the first by name not hidden; added → the next; all hidden → none', () => {
+    const ekler = [ek('A'), ek('B', MD5, 'ozet-ek-2.pdf'), ek('C', MD5, 'ozet-ek-3.pdf')];
+    expect(siradakiEk(bantKarari(girdi({ ekler })))?.file.id).toBe('A');
+    expect(siradakiEk(bantKarari(girdi({ ekler, isaretler: new Set([`ozet-ek-A-${MD5}`]) })))?.file.id).toBe('B');
+    expect(siradakiEk(bantKarari(girdi({ ekler, sonraDenilenler: new Set([`ozet-ek-A-${MD5}`, `ozet-ek-B-${MD5}`]) })))?.file.id).toBe('C');
+    expect(siradakiEk(bantKarari(girdi({ ekler, ornek: true })))).toBeNull();
+  });
+
+  it('yazilamaz is shown (grey), not skipped', () => {
+    expect(siradakiEk(bantKarari(girdi({ isaretler: 'yazilamaz' })))?.durum).toBe('yazilamaz');
+  });
+});
+
+describe('task 6.EK-2: ekSaltOkunur (the reader never writes to an addition)', () => {
+  it('additions only', () => {
+    expect(['ozet-ek.pdf', 'OZET-EK-2.PDF', 'ozet-ek_x.pdf'].map(ekSaltOkunur)).toEqual([true, true, true]);
+    expect(['ozet.pdf', 'brifing.pdf', 'ozet-ek_cozum.pdf', undefined, ''].map(ekSaltOkunur)).toEqual([false, false, false, false, false]);
   });
 });

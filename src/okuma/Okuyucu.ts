@@ -15,7 +15,7 @@ import { PenInput } from '../kalem/kalemModu';
 import type { PenViewport } from '../kalem/koordinat';
 import { DriveUploader, type UploadDeps, type UploadStatus, type Uploaded } from '../kalem/pdfKayit';
 import { OZET_ADI, type KonuEklemeOrtami, type KonuyaEklendi } from '../defter/konuyaEkle';
-import { ozeteSayfaEkle, SayfaEklemeAgHatasi, SayfaEklemeCakisma, SayfaYazmaYok, type EklenenSayfalar, type EkKaynak, type SilinenYedek } from '../defter/ozeteEkle';
+import { ekIsaretleri, ozeteSayfaEkle, SayfaEklemeAgHatasi, SayfaEklemeCakisma, SayfaYazmaYok, type EklenenSayfalar, type EkKaynak, type SilinenYedek } from '../defter/ozeteEkle';
 import { bosSayfaBilgisi, sayfaIziAl, type BosSayfaBilgisi, type Desen, type Yon } from '../defter/bosSayfa';
 import { KalemKaydiBekliyor, sayfaIsiCalistir, SayfaIsiYarim, yeniEklemeIsi, yeniGeriAlIsi, yeniGeriKoymaIsi, yeniSilmeIsi, yeniYapistirmaIsi, type SayfaIsi, type SayfaIsiOrtami } from '../defter/bosSayfaIsi';
 import { bantNotlari } from '../defter/yapistir';
@@ -29,7 +29,8 @@ import { yedekAl, yedekBuda, yedekleriTemizle, yedekSil, yedekYaz } from './sili
 import { bekleyenFotoDepo } from '../defter/bekleyenFoto';
 import type { BekleyenFoto, BekleyenJpeg } from '../defter/bekleyenFotoKayit';
 import { FotoEkleyici } from '../defter/fotoEkleme';
-import { hazirlikAl, hazirlikEkle, mb, olcumAcik, olcumAl, olcumBaslat, olcumBitir } from '../defter/sureOlcum';
+import { hazirlikAl, hazirlikEkle, mb, olcumAcik, olcumAl, olcumBaslat, olcumBitir, type Olcum } from '../defter/sureOlcum';
+import { bantKarari, ekSaltOkunur, pdfLibYuklensinMi, siradakiEk, type EkKarari } from '../defter/ozetEkBandi';
 import { seritDurumu } from '../defter/fotoEklemeMetin';
 import { DOSYA_ACCEPT, dosyaTuru, ILK_BAYT_SAYISI, type DosyaTuruSonucu } from '../defter/dosyaTuru';
 import type { HazirDosya } from '../defter/dosyaHazirla';
@@ -68,7 +69,8 @@ import {
 import { visiblePages, yenidenDuzenGerekir } from './kitapDuzen';
 import { BookView } from './kitapModu';
 import { buildBookPages, buildSolutionPages, buildTopicPages, type BookPage } from './kitapSayfalari';
-import { MATERIAL_LABEL, availableKinds, defaultKind, discoverTopic, emptyMaterials, type MaterialKind, type TopicMaterials } from './konuKesfi';
+import { MATERIAL_LABEL, availableKinds, defaultKind, discoverTopic, ekleriAl, emptyMaterials, gercekOzet, type MaterialKind, type TopicMaterials } from './konuKesfi';
+import type { EkSahte } from './ekSahte';
 import { discoverSampleTopic, isSampleId } from './ornekKaynak';
 import { autoTopicStatus, cycleStatus, markChapterPage, markTopicPage, type Resume } from './okumaDurumu';
 import { MetinOnbellek } from './metinOnbellek';
@@ -358,6 +360,15 @@ export function initOkuyucu(yer: () => DriveLocation | null): void {
     }));
     // task 6.S-4: window.defterBosSayfaSahte() gives the file on screen a writable copy in memory (screenshots)
     void import('./bosSayfaSahte').then(m => m.installBosSayfaSahte(o => bosSahteKur(m, o)));
+    // task 6.EK-2: window.defterEkSahte({...}) shows the summary addition band in the sample library (screenshots)
+    void import('./ekSahte').then(m => m.installEkSahte(o => {
+      if (o !== undefined) {
+        ekSahteAktif = o ? m.ekSahte(o) : null;
+        ekDurum = null;
+        if (open && topic) void ekBandi(topic);
+      }
+      return ekSahteAktif?.durum ?? null;
+    }));
   }
   // task 6.4c-4: "El yazısını oku" opens the handwriting panel (lazy; the button only with okumaIzni)
   $('#oOku').addEventListener('click', () => {
@@ -545,7 +556,7 @@ export function initOkuyucu(yer: () => DriveLocation | null): void {
   pen = new PenInput([scroller, area], {
     pageAtPoint: (x, y) => {
       for (const [i, m] of mounted) {
-        if (!m.box || !m.vp || !m.pdf || penModel.state(fileKey(m.pdf)) !== 'hazir' || sayfaIsiDosyalari.has(m.pdf.dosyaId!)) continue;   // 6.S-4
+        if (!m.box || !m.vp || !m.pdf || penModel.state(fileKey(m.pdf)) !== 'hazir' || sayfaIsiDosyalari.has(m.pdf.dosyaId!) || ekSaltOkunur(m.pdf.ad)) continue;   // 6.S-4, 6.EK-2
         const r = m.box.getBoundingClientRect();
         if (r.width > 0 && x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return { box: m.box, page: { index: i, viewport: m.vp } };
       }
@@ -553,7 +564,7 @@ export function initOkuyucu(yer: () => DriveLocation | null): void {
     },
     pageAt: box => {
       for (const [i, m] of mounted) {
-        if (m.box === box && m.vp && m.pdf && penModel.state(fileKey(m.pdf)) === 'hazir' && !sayfaIsiDosyalari.has(m.pdf.dosyaId!)) return { index: i, viewport: m.vp };
+        if (m.box === box && m.vp && m.pdf && penModel.state(fileKey(m.pdf)) === 'hazir' && !sayfaIsiDosyalari.has(m.pdf.dosyaId!) && !ekSaltOkunur(m.pdf.ad)) return { index: i, viewport: m.vp };
       }
       return null;
     },
@@ -1007,6 +1018,8 @@ async function openTopic(unit: number, topicIndex: number, resume?: Resume): Pro
   materyalsizMod(null);
   topic = null;
   photoBox.seritGoster(null);
+  photoBox.ekSeritGoster(null);   // task 6.EK-2
+  ekSonra.clear();
   zoom.reset();
   releaseAll();
   clearPages();
@@ -1056,6 +1069,7 @@ async function showMaterial(start?: PageMark | null, kitapTaraf?: Taraf): Promis
   if (!topic || !content || topic.kind === null) return;
   const t = topic, kind = topic.kind, my = ++session;
   materyalsizMod(null);
+  photoBox.ekSeritGoster(null);   // task 6.EK-2: checked again once the list's first page is drawn
   uploadNow();   // task 4.8b: another material / topic
   mainCount = 0;
   zoom.reset();
@@ -1424,14 +1438,7 @@ function openFilePanel(t: OpenTopic, kaynak: DosyaPanelKaynak): void {
       if (om) { om.bilgi.ad = ad; om.bilgi.boyut = mb(bytes.byteLength); om.adimlar.push(...hazirlikAl()); fileMeasureId = islemId; }
       try {
         const [{ konuyaDosyaEkle }, konu] = await Promise.all([import('../defter/konuyaDosyaEkle'), topicFolderId(t)]);
-        const ortam: DosyaEklemeOrtami = {
-          yer: driveLocation(), olusturDrive: drivePdfOlusturApi, yeniDosya: sayfaEklemeOrtami().yeniDosya, konuDegisti: sayfaEklemeOrtami().konuDegisti,
-          altKlasorAc: (konuId, klasor, islemId) => altKlasoruAc(t, konuId, klasor, islemId),
-          // task 6.S-3: pages at the end of a summary: the photos' way (the pen's queue, caches, the open reader's version)
-          ozeteEkle: (fileId, pdf, islemId, y) => ozeteSayfaEkle(fileId, { pdf },
-            { yer: driveLocation(), dosyaDrive: drivePdfOlusturApi, ...sayfaEklemeOrtami() }, { islemId, yukleme: y, ...(om && { olcum: om }) }),
-        };
-        return await konuyaDosyaEkle({ konu, hedef, ad, bytes, islemId }, ortam, { ...(om && { olcum: om }), ...(yukleme && { yukleme }) });
+        return await konuyaDosyaEkle({ konu, hedef, ad, bytes, islemId }, dosyaEklemeOrtami(t, om), { ...(om && { olcum: om }), ...(yukleme && { yukleme }) });
       } catch (e) {
         if (om) { om.bilgi.hata = e instanceof Error ? e.message.slice(0, 80) : 'hata'; olcumBitir(islemId); }
         throw e;
@@ -1447,6 +1454,18 @@ function openFilePanel(t: OpenTopic, kaynak: DosyaPanelKaynak): void {
     kapanis: kapanis.signal,
   };
   import('../ui/dosyaPanel').then(m => m.acDosyaPanel(ctx, kaynak)).catch(e => { console.warn(e); toast(teshisli(dilT('okuyucu.dosyaPaneliAcilamadi'), e)); });
+}
+
+// The adding's Drive side for a topic: the "Dosya ekle" panel and the summary addition band (6.EK-2) use the same.
+// om: ?olcum=1 only
+function dosyaEklemeOrtami(t: OpenTopic, om?: Olcum): DosyaEklemeOrtami {
+  return {
+    yer: driveLocation(), olusturDrive: drivePdfOlusturApi, yeniDosya: sayfaEklemeOrtami().yeniDosya, konuDegisti: sayfaEklemeOrtami().konuDegisti,
+    altKlasorAc: (konuId, klasor, islemId) => altKlasoruAc(t, konuId, klasor, islemId),
+    // task 6.S-3: pages at the end of a summary: the photos' way (the pen's queue, caches, the open reader's version)
+    ozeteEkle: (fileId, pdf, islemId, y) => ozeteSayfaEkle(fileId, { pdf },
+      { yer: driveLocation(), dosyaDrive: drivePdfOlusturApi, ...sayfaEklemeOrtami() }, { islemId, yukleme: y, ...(om && { olcum: om }) }),
+  };
 }
 
 // Task 6.K6a: the topic's missing Uebungen / Oedevler (drive/altKlasorAc.ts, lazy); the lock asked again at "Ekle"
@@ -1516,6 +1535,132 @@ async function photoStrip(t: OpenTopic): Promise<void> {
     simdi: () => { photoBox.seritGoster(null); for (const k of d.kayitlar) photoAdder.sirayaKoy(k); },
     sonra: () => photoBox.seritGoster(null),
   } : null);
+}
+
+// ---- task 6.EK-2: the summary addition band (decisions: defter/ozetEkBandi.ts) ----
+// Another tool's ozet-ek*.pdf: its pages go at the end of the summary with a fixed islemId ("Dosya ekle" → Özet's
+// way, 6.S-3). "Added?" = the summary's /DefterEkId marks, so every device knows; the addition is never written to.
+
+const ekEklendi = new Set<string>();   // islemIds added this session
+const ekSonra = new Set<string>();     // "Sonra" while this topic is open (asked again when it opens again)
+let ekDurum: { t: OpenTopic; islemId: string; yuzde: number | null; hata: string | null; calisiyor: boolean } | null = null;
+let ekSahteAktif: EkSahte | null = null;   // dev only (ekSahte.ts)
+let ekBakilanOturum = -1;                 // the list (session) the band was checked for
+
+// Every PDF page on screen is an addition (K3: the Özet tab shows it when there is no summary)
+function ekGosteriliyor(): boolean {
+  const pdfler = pages.filter(p => pageKind(p) === 'pdf');
+  return pdfler.length > 0 && pdfler.every(p => ekSaltOkunur(p.ad));
+}
+
+// K1: after the list's first page is drawn (never slows the opening), once per list
+function ilkSayfaCizildi(): void {
+  if (ekBakilanOturum === session || !topic) return;
+  ekBakilanOturum = session;
+  void ekBandi(topic);
+}
+
+// Which addition the band offers now (the first by name not hidden). pdf-lib only when pdfLibYuklensinMi; the
+// summary's bytes come from the cache (the list on screen has them).
+async function ekBandi(t: OpenTopic): Promise<void> {
+  const s = ekSahteAktif;
+  const gecerli = () => open && topic === t && t.kind === 'ozet';
+  const ozet = gercekOzet(t.materials).map(m => m.file);
+  const ekler = s ? s.ekler : ekleriAl(t.materials);
+  const drive = !!s || (!isSampleId(folder) && !!driveLocation());
+  if (!gecerli() || !pdfLibYuklensinMi({ ekVar: ekler.length > 0, ozetVarMi: ozet.length > 0, drive, ozetIlkSayfaCizildi: true })) {
+    if (topic === t) photoBox.ekSeritGoster(null);
+    return;
+  }
+  try {
+    const { ozetHedefi } = await import('../defter/dosyaPanelDurumu');
+    const hedef = ozetHedefi(t.materials, pages[focusPage()]?.dosyaId ?? null, null);
+    if (!hedef) { photoBox.ekSeritGoster(null); return; }
+    let isaretler: Set<string> | 'yazilamaz', neden: string | null = null;
+    try {
+      isaretler = s ? s.isaretler() : await ozetIsaretleri(ozet, hedef);
+    } catch (e) {
+      if (!(e instanceof PdfYazilamaz)) throw e;
+      isaretler = 'yazilamaz';
+      neden = e.message;
+    }
+    if (s && isaretler === 'yazilamaz') neden = s.yazilamazNeden;
+    if (!gecerli()) return;
+    const k = siradakiEk(bantKarari({
+      ekler, ozetVarMi: ozet.length > 0, yazmaVar: drive, ornek: !s && isSampleId(folder), isaretler,
+      sonraDenilenler: new Set([...ekSonra, ...ekEklendi]),
+    }));
+    if (k) ekSeridiCiz(t, k, hedef, neden);
+    else photoBox.ekSeritGoster(null);
+  } catch (e) {
+    if (e instanceof SessionExpired) return;
+    console.warn('Özet ekleri: özetin işaretlerine bakılamadı.', e);
+    if (topic === t) photoBox.ekSeritGoster(null);
+  }
+}
+
+// The marks of all the topic's summary files (brifing + sorular: an addition put into either counts). The target
+// can't be written → PdfYazilamaz; another file that can't be read only adds no marks.
+async function ozetIsaretleri(dosyalar: readonly DriveFile[], hedef: DriveFile): Promise<Set<string>> {
+  const out = new Set<string>();
+  for (const f of dosyalar) {
+    try {
+      for (const x of await ekIsaretleri(new Uint8Array(await getPdf(f.id, f.modifiedTime)))) out.add(x);
+    } catch (e) {
+      if (f.id === hedef.id || e instanceof SessionExpired) throw e;
+      console.warn(`Özet ekleri: ${f.name} okunamadı.`, e);
+    }
+  }
+  return out;
+}
+
+function ekSeridiCiz(t: OpenTopic, k: EkKarari, hedef: DriveFile, neden: string | null): void {
+  const d = ekDurum?.t === t && ekDurum.islemId === k.islemId ? ekDurum : null;
+  photoBox.ekSeritGoster({
+    metin: dilT(k.durum === 'guncellendi' ? 'ek.guncellendi' : 'ek.yeni', { ad: k.file.name }),
+    neden: k.durum === 'yazilamaz' ? neden : null,
+    hata: d?.hata ?? null,
+    ekleniyor: d?.calisiyor ? (d.yuzde != null ? dilT('dosya.ekleniyorYuzde', { yuzde: d.yuzde }) : dilT('dosya.ekleniyor')) : null,
+    ekle: k.durum === 'yazilamaz' ? null : () => { void ekEkle(t, k, hedef, neden); },
+    sonra: () => {
+      ekSonra.add(k.islemId);
+      if (ekDurum?.islemId === k.islemId) ekDurum = null;
+      void ekBandi(t);
+    },
+  });
+}
+
+// "Ekle": the addition's pages at the end of the summary ("Dosya ekle" → Özet's way, the same ortam). Done → the band
+// goes on to the next addition and the reader follows (afterFileAdded); an error stays on the band with "Tekrar dene"
+// (the same islemId: no page twice).
+async function ekEkle(t: OpenTopic, k: EkKarari, hedef: DriveFile, neden: string | null): Promise<void> {
+  if (ekDurum?.calisiyor) return;
+  const d: NonNullable<typeof ekDurum> = { t, islemId: k.islemId, yuzde: null, hata: null, calisiyor: true };
+  ekDurum = d;
+  const ciz = () => { if (ekDurum === d && open && topic === t && t.kind === 'ozet') ekSeridiCiz(t, k, hedef, neden); };
+  ciz();
+  const yukleme: YuklemeDinleyici = { ilerleme: (g, tum) => { d.yuzde = tum > 0 ? Math.min(100, Math.round(g / tum * 100)) : null; ciz(); } };
+  const s = ekSahteAktif;
+  try {
+    let r: DosyaEklendi | null = null;
+    if (s) await s.ekle(k.islemId, yukleme);
+    else {
+      const [{ konuyaDosyaEkle }, konu, bytes] = await Promise.all([import('../defter/konuyaDosyaEkle'), topicFolderId(t), getPdf(k.file.id, k.file.modifiedTime)]);
+      r = await konuyaDosyaEkle({ konu, hedef: { ozetSonu: hedef }, ad: k.file.name, bytes: new Uint8Array(bytes), islemId: k.islemId }, dosyaEklemeOrtami(t), { yukleme });
+    }
+    ekEklendi.add(k.islemId);
+    if (ekDurum === d) ekDurum = null;
+    if (r) { agacGecersiz(); await afterFileAdded(t, { ozetSonu: hedef }, r); }
+    else toast((await import('../defter/dosyaPanelDurumu')).eklendiMetni(k.file.name));   // the fake: no pages, no refresh
+    if (open && topic === t) void ekBandi(t);
+  } catch (e) {
+    if (e instanceof SessionExpired) { if (ekDurum === d) ekDurum = null; return; }
+    console.warn('Özet eki eklenemedi.', e);
+    d.calisiyor = false;
+    d.yuzde = null;
+    try { d.hata = (await import('../defter/dosyaPanelDurumu')).hataMetni(e); } catch { d.hata = e instanceof Error ? e.message : String(e); }
+    if (ekDurum === d && open && topic === t) void ekBandi(t);
+  }
 }
 
 // ---- task 5.8g: the open reader after an adding (decisions: eklemeYenileme.ts) ----
@@ -1787,6 +1932,8 @@ function gorunenSayfalar(): GorunenSayfa[] {
 }
 
 function bosBilgiAl(p: BookPage): Promise<BosSayfaBilgisi> {
+  // task 6.EK-2: an addition: no blank page, no paste, no page deleted (grey with the reason, as a file the pen can't write)
+  if (ekSaltOkunur(p.ad)) return Promise.resolve({ yazilabilir: false, mesaj: dilT('ek.saltOkunur') });
   const key = fileKey(p);
   let b = bosBilgi.get(key);
   if (!b) {
@@ -2266,6 +2413,9 @@ function showPages(p: BookPage[], r: number[], scrollTo: number, emptyText: stri
   pages = p;
   ratios = [...r];
   dokunulanSayfa = null;
+  // task 6.EK-2: an addition is read only: the pen goes off (its strokes so far go to their own file, uploadNow)
+  if (penOn && ekGosteriliyor()) setPen(false);
+  renderTools();
   temiz?.bosalt();   // task 6.4e-2: drawn as the original until this list's read pages are known
   if (!pages.length) { setMessage(emptyText); temizDugmesi(); return; }
   setMessage(null);
@@ -2622,6 +2772,7 @@ function mountPdf(i: number, p: BookPage, box: HTMLElement, cssW: number, cssH: 
         if (mine() && canvas === c && !d.cancelled()) {
           eskiBirak();
           baski.prepend(c); box.classList.add('ready');
+          ilkSayfaCizildi();   // task 6.EK-2
           cizilenTemiz = !!t;
           box.classList.toggle('o-temizsayfa', cizilenTemiz);   // a mark only (checks); 6.4e-4: the pen layer is never hidden
           if (t) temizOlc();
@@ -2813,6 +2964,7 @@ const fileKey = (p: BookPage) => `${p.dosyaId}@${p.modifiedTime}`;
 function setPen(on: boolean): void {
   if (on === penOn) return;
   if (on && !pages.some(p => pageKind(p) === 'pdf')) { toast(dilT('okuyucu.kalemPdfYok')); return; }
+  if (on && ekGosteriliyor()) { toast(dilT('ek.saltOkunur')); return; }   // task 6.EK-2
   const listTop = $('#oScroll').getBoundingClientRect().top;
   penOn = on;
   pen.active = on;
@@ -2847,10 +2999,12 @@ function renderTools(): void {
   const kilit = isSampleId(folder) && !bosSahte ? 'ornek' : 'acik';
   toolbar?.set({ preparing: penOn && penModel.loading, dirty, onDevice: pendingStore.ok, canUndo: penModel.canUndo(yerGorunumu), canRedo: penModel.canRedo(yerGorunumu), kayit: { kilit, durum: saveState } });
   // reading mode (no tool bar): a dot on the pen button
-  const btn = document.querySelector<HTMLElement>('#oPenBtn');
+  const btn = document.querySelector<HTMLButtonElement>('#oPenBtn');
   if (btn) {
+    const salt = ekGosteriliyor();   // task 6.EK-2: grey with its reason
+    btn.disabled = salt;
     btn.classList.toggle('bekleyen', dirty);
-    btn.title = dirty ? dilT(pendingStore.ok ? 'okuyucu.kalemBekleyenCihazda' : 'okuyucu.kalemBekleyen') : dilT('okuyucu.kalem');
+    btn.title = salt ? dilT('ek.saltOkunur') : dirty ? dilT(pendingStore.ok ? 'okuyucu.kalemBekleyenCihazda' : 'okuyucu.kalemBekleyen') : dilT('okuyucu.kalem');
   }
 }
 

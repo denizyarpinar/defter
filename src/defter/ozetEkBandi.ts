@@ -1,4 +1,5 @@
 import type { DriveFile } from '../drive/drive';
+import { ozetEkMi } from '../okuma/konuKesfi';
 
 // Task 6.EK-1: the pure part of the "Yeni ek var · Ekle" band (UI: 6.EK-2). Another tool puts ozet-ek*.pdf into the
 // topic folder (konuKesfi.ozetEkleri); "Ekle" puts its pages at the end of the summary (6.S-3's way: konuyaDosyaEkle
@@ -60,3 +61,10 @@ function ekDurumu(g: BantGirdisi, file: DriveFile, islemId: string): EkDurumu {
 export interface PdfLibGirdisi { ekVar: boolean; ozetVarMi: boolean; drive: boolean; ozetIlkSayfaCizildi: boolean }
 
 export const pdfLibYuklensinMi = (g: PdfLibGirdisi): boolean => g.ekVar && g.ozetVarMi && g.drive && g.ozetIlkSayfaCizildi;
+
+// Task 6.EK-2: the band shows one addition at a time, the first (by name) not hidden; added → the next one
+export const siradakiEk = (kararlar: readonly EkKarari[]): EkKarari | null => kararlar.find(k => k.durum !== 'gizli') ?? null;
+
+// Task 6.EK-2: a file shown in the reader that is an addition (K3: no summary, the addition is in the Özet tab) is read
+// only: no pen, no blank page, no paste, no page deleted. Reading, search and handwriting reading stay.
+export const ekSaltOkunur = (ad: string | undefined): boolean => !!ad && ozetEkMi(ad);
