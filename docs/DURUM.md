@@ -1,5 +1,17 @@
 # Defter – Durum
 
+## 6.EK-1 – Özet ekleri: saf mantık (27 Ekim 2026, Claude Code)
+
+- Başka bir aracın konu klasörüne koyduğu `ozet-ek*.pdf` (ör. `ozet-ek.pdf`, `ozet-ek-2.pdf`, `ozet-ek_x.pdf`; büyük/küçük harf duyarsız, `_cozum.pdf` hariç, sıra `ozet-ek`, `-2`, `-10`) artık bulunuyor: `ozetEkMi`, `ozetEkleri` (`konuKesfi.ts`). `discoverTopic` aynı listeden ekleri sonuca bağlı bir WeakMap'te tutar (`ekleriAl`); `TopicMaterials` aynı, ek istek yok.
+- K3: konuda `ozet.pdf` / `brifing.pdf` / `sorular.pdf` yoksa ilk ek Özet sekmesinde gösterilir (`classifyTopic`). Ama Defter ona yazmaz: `ozetKarari` ekleri saymaz (sadece ek varsa "özet yok" → fotoğraflar yeni `ozet.pdf` oluşturur); Dosya ekle paneli de `gercekOzet` kullanır ("Özet" = yeni `ozet.pdf`, ekin sonuna değil).
+- `drive.ts`: listelerde `md5Checksum` (ek istek yok). `ozeteEkle.ts`: `ekIsaretleri(ozetBytes)` = özetteki bütün `/DefterEkId`'ler (tek açılış, sıkıştırılmış nesne akışında da; şifreli/imzalı → `PdfYazilamaz`).
+- Yeni `src/defter/ozetEkBandi.ts` (saf): `ekIslemId` = `ozet-ek-<id>-<md5>` (md5 yoksa modifiedTime); `bantKarari` → her ek için `goster` | `guncellendi` (aynı dosyanın eski içeriği özette) | `gizli` (eklenmiş, "Sonra" denmiş, örnek kitaplık, yazma yok, gerçek özet yok, işaretler okunmadı) | `yazilamaz`; `pdfLibYuklensinMi` (K1). CLAUDE.md pdf-lib listesine K1 maddesi eklendi.
+- Testler 1805 (24 yeni: konuKesfi, ozeteEkle, konuyaDosyaEkle (sabit islemId ile ikinci ekleme `zatenVar`, çift sayfa yok), konuyaEkle, dosyaPanelDurumu, ozetEkBandi), typecheck, build, `npm run dil` (0) geçti. Arayüz yok; commit yok.
+- **6.EK-2'ye kalan:** bant arayüzü (Özet sekmesinde, `FotoDurumKutusu` yanında ikinci şerit; Ekle = `konuyaDosyaEkle` `{ ozetSonu: ozetHedefi(…) }` + sabit islemId; başarıda bant kapanır). Okuyucuda Özet olarak gösterilen ek (K3) salt okunur: kalem, sayfa ekle, sayfa sil kapalı. CLAUDE.md'ye 6.EK kural bölümü.
+- **Son güncelleyen:** Claude Code, 27 Ekim 2026.
+
+---
+
 ## 6.5-4a – Kalan metinler iki dilli (27 Ekim 2026, Claude Code)
 
 - Fotoğraf ekle / Dosya ekle panelleri, köşe düzenleyici, yükleme şeridi ve hata kartı, bekleyen foto toast'ı (EN'de Türkçe çıkıyordu, düzeldi), ekleme/çeviri/alt klasör hata sınıfları, El yazısını oku paneli, okuma kaydı (.ocr.json) hataları, Google giriş hataları sözlükte (280 yeni anahtar, toplam 879). Sınıf adları, `instanceof`, Drive adları, JSON anahtarları, `/Defter…` işaretleri ve yapay zekâ istemi aynı; `.ocr.json`'a hiçbir metin yazılmıyor.

@@ -5,8 +5,9 @@ import { emptyMaterials, type Material, type TopicMaterials } from '../okuma/kon
 import {
   adDurumu, AYNI_AD_METIN, cozumAdaylari, dosyaHedefi, eklendiMetni, ekleDurumu, hataMetni, hedefSecenekleri, islemAnahtari,
   kaynakEtiketi, KLASOR_ACILIR_METIN, ofisBilgi, ORNEK_METIN, ozetHedefi, ozetSecimiGerekli, sayfaYazi, sonaEklendiMetni, tekDosyaYolu,
-  varsayilanHedef, type AdDurumu, type Secenek
+  varsayilanHedef, HEDEF_ETIKETI, type AdDurumu, type Secenek
 } from './dosyaPanelDurumu';
+const HEDEF_ETIKETI_OZET = () => HEDEF_ETIKETI.ozet;
 import { HedefOzetDegil } from './konuyaEkle';
 import { EkPdfYazilamaz, SayfaEklemeAgHatasi, SayfaEklemeCakisma } from './ozeteEkle';
 import { BOS_DOSYA_METIN, boyutMetni } from './dosyaEklemeMetin';
@@ -109,6 +110,17 @@ describe('varsayilanHedef', () => {
     const hic: Secenek[] = hedefSecenekleri(konu({ orijinal: [mat('orijinal.pdf')] }), { Uebungen: false, Oedevler: false })
       .map(x => ({ ...x, secilebilir: false }));
     expect(varsayilanHedef(hic, 'orijinal')).toBeNull();
+  });
+});
+
+describe('task 6.EK-1: an addition shown as the summary is never a target', () => {
+  const ekli = konu({ ozet: [mat('ozet-ek.pdf')] });
+  it('"Özet" makes a new ozet.pdf (name box as without a summary); no ozetSonu', () => {
+    expect(ozetHedefi(ekli, 'id-ozet-ek.pdf', null)).toBeNull();
+    expect(ozetSecimiGerekli(ekli, null)).toBe(false);
+    expect(adDurumu(ekli, 'ozet', '', null, null)).toEqual({ duzenlenebilir: false, ad: 'ozet.pdf', hata: null });
+    expect(dosyaHedefi('ozet', null, ekli, null)).toBe('ozet');
+    expect(hedefSecenekleri(ekli, null).find(x => x.hedef === 'ozet')?.etiket).toBe(HEDEF_ETIKETI_OZET());
   });
 });
 

@@ -187,7 +187,7 @@ Kitaplık/
 - Hata ayıklama: `?defterNot=goster` (katman yok, pdf.js kendisi çizer).
 
 ### pdf-lib
-- Tam sürüm 1.17.1, tembel yüklenir (`await import('pdf-lib')`): kalem modunda, ya da okuma modunda Defter notu veya bekleyen kaydı olan bir dosya açılınca, ya da açık listede sayfalı bir `.ocr.json` kaydı olunca (parmak izi, 6.4e-2; Deniz onayı), ya da "Sayfa ekle" balonu açılınca (6.S-4: kalem yazabilir mi, boş sayfa mı). Diğer dosyalarda hiç yüklenmez; ilk açılış paketine girmez.
+- Tam sürüm 1.17.1, tembel yüklenir (`await import('pdf-lib')`): kalem modunda, ya da okuma modunda Defter notu veya bekleyen kaydı olan bir dosya açılınca, ya da açık listede sayfalı bir `.ocr.json` kaydı olunca (parmak izi, 6.4e-2; Deniz onayı), ya da "Sayfa ekle" balonu açılınca (6.S-4: kalem yazabilir mi, boş sayfa mı), ya da konuda `ozet-ek*.pdf` varsa (6.EK-1, Deniz kararı K1: sadece Drive kitaplığında yazma bağlamıyla, gerçek bir özet varken ve özetin ilk sayfası çizildikten sonra; özetin `/DefterEkId`'lerini okumak için, `pdfLibYuklensinMi`). Diğer dosyalarda hiç yüklenmez; ilk açılış paketine girmez.
 
 ### Cihazda saklama
 - Çizgiler önce cihazda, sonra Drive'a. Kaydedilmemiş çizimler dosya başına net fark olarak IndexedDB'de (`defter-kalem`) tutulur; sadece Drive'a başarılı yüklemeden sonra silinir, hiçbir hatada silinmez.

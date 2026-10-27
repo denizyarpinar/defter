@@ -41,6 +41,13 @@ describe('ozetKarari', () => {
     expect(karar([f('ozet.pdf', { mimeType: FOLDER_MIME })])).toEqual(['yok', []]);
     expect(karar([f('orijinal.pdf'), f('ozet_cozum.pdf'), f('ozet.docx'), f('notlar.pdf')])).toEqual(['yok', []]);
   });
+
+  it('task 6.EK-1: summary additions never count (only an addition → yok: photos make a new ozet.pdf)', () => {
+    expect(karar([f('ozet-ek.pdf')])).toEqual(['yok', []]);
+    expect(karar([f('orijinal.pdf'), f('OZET-EK-2.PDF'), f('ozet-ek_x.pdf')])).toEqual(['yok', []]);
+    expect(karar([f('ozet-ek.pdf'), f('ozet.pdf')])).toEqual(['var', ['ozet.pdf']]);
+    expect(karar([f('ozet-ek.pdf'), f('sorular.pdf'), f('brifing.pdf')])).toEqual(['var', ['brifing.pdf', 'sorular.pdf']]);
+  });
 });
 
 // ---- a fake Drive: R "Kitaplık" → K "kitaplar" → B (book) → C (topic). C2: another topic. ----

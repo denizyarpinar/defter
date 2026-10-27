@@ -38,21 +38,48 @@ function pairSolutions(files: DriveFile[]): Material[] {
     .map(f => ({ file: f, cozum: names.get(key(f.name).slice(0, -'.pdf'.length) + SOLUTION) ?? null }));
 }
 
+// Task 6.EK-1: a summary addition another tool puts into the topic folder (ozet-ek.pdf, ozet-ek-2.pdf, ozet-ek_x.pdf …).
+// Defter never writes to it: its pages go at the end of the summary (the band, 6.EK-2).
+export const ozetEkMi = (name: string): boolean => {
+  const k = key(name);
+  return k.startsWith('ozet-ek') && k.endsWith('.pdf') && !k.endsWith(SOLUTION);
+};
+
+// By name without ".pdf": ozet-ek, ozet-ek-2, ozet-ek-10 (with the extension "-" sorts before ".")
+const ekSirasi = (a: Material, b: Material) =>
+  a.file.name.replace(/\.pdf\s*$/i, '').localeCompare(b.file.name.replace(/\.pdf\s*$/i, ''), 'de', { numeric: true, sensitivity: 'base' });
+const ekler = (top: Material[]) => top.filter(m => ozetEkMi(m.file.name)).sort(ekSirasi);
+
+// The topic folder's summary additions, by name (numbers by value)
+export function ozetEkleri(root: DriveFile[]): DriveFile[] {
+  return ekler(pairSolutions(root)).map(m => m.file);
+}
+
+// The summary files Defter may write to (task 6.EK-1: an addition shown as the summary is not one of them)
+export const gercekOzet = (m: TopicMaterials): Material[] => m.ozet.filter(x => !ozetEkMi(x.file.name));
+
 // root: the topic folder's children; uebungen / oedevler: the children of those folders ([] if missing).
+// Task 6.EK-1: no ozet.pdf, brifing.pdf or sorular.pdf → the first summary addition is shown as the summary.
 export function classifyTopic(root: DriveFile[], uebungen: DriveFile[], oedevler: DriveFile[]): TopicMaterials {
   const top = pairSolutions(root);
   const named = (name: string) => top.find(m => key(m.file.name) === name);
   const one = (m: Material | undefined) => m ? [m] : [];
   const ozet = named('ozet.pdf');
+  const asil = ozet ? [ozet] : [named('brifing.pdf'), named('sorular.pdf')].filter((m): m is Material => !!m);
   return {
     orijinal: one(named('orijinal.pdf')),
-    ozet: ozet ? [ozet] : [named('brifing.pdf'), named('sorular.pdf')].filter((m): m is Material => !!m),
+    ozet: asil.length ? asil : ekler(top).slice(0, 1),
     uebungen: pairSolutions(uebungen).sort(byName),
     oedevler: pairSolutions(oedevler).sort(byName)
   };
 }
 
 export const emptyMaterials = (): TopicMaterials => ({ orijinal: [], ozet: [], uebungen: [], oedevler: [] });
+
+// Task 6.EK-1: the summary additions discoverTopic found, kept with its result (TopicMaterials stays as it is;
+// the listing is already there, no request). Sample library / empty klasor: none.
+const ekBellek = new WeakMap<TopicMaterials, DriveFile[]>();
+export const ekleriAl = (m: TopicMaterials): DriveFile[] => ekBellek.get(m) ?? [];
 
 // Kinds that have files, in tab order.
 export function availableKinds(m: TopicMaterials): MaterialKind[] {
@@ -78,5 +105,7 @@ export async function discoverTopic(resolver: SourceResolver, klasor: string): P
     return folder ? listChildren(folder.id) : Promise.resolve([]);
   };
   const [uebungen, oedevler] = await Promise.all([sub('uebungen'), sub('oedevler')]);
-  return classifyTopic(root, uebungen, oedevler);
+  const m = classifyTopic(root, uebungen, oedevler);
+  ekBellek.set(m, ozetEkleri(root));
+  return m;
 }

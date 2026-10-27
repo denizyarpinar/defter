@@ -2,7 +2,7 @@ import { FOLDER_MIME, listChildren, type DriveFile } from '../drive/drive';
 import { AyniIsimVar, createPdf, type PdfOlusturDrive } from '../drive/pdfOlustur';
 import { PdfSampleNoWrite } from '../drive/pdfYazici';
 import { pdfLib, SAVE_OPTIONS } from '../kalem/pdfNotlari';
-import { classifyTopic } from '../okuma/konuKesfi';
+import { classifyTopic, ozetEkMi } from '../okuma/konuKesfi';
 import { isSampleId } from '../okuma/ornekKaynak';
 import { EK_ID, ozeteSayfaEkle, SayfaYazmaYok, type SayfaEklemeOrtami, type SayfaEklemeSecenek } from './ozeteEkle';
 import { sayfalariEkle, type Jpeg } from './sayfaEkle';
@@ -22,9 +22,10 @@ export const OZET_ADI = 'ozet.pdf';
 export interface OzetDurumu { durum: 'yok' | 'var'; dosyalar: DriveFile[] }
 
 // The same rule as the reader (classifyTopic): ozet.pdf, else brifing.pdf and sorular.pdf; any case.
-// Folders and files in the trash don't count.
+// Folders and files in the trash don't count. Task 6.EK-1: nor do summary additions (ozet-ek*.pdf, never written
+// to): a topic with only an addition has no summary (photos make a new ozet.pdf).
 export function ozetKarari(dosyalar: readonly (DriveFile & { trashed?: boolean })[]): OzetDurumu {
-  const gecerli = dosyalar.filter(f => !f.trashed && f.mimeType !== FOLDER_MIME);
+  const gecerli = dosyalar.filter(f => !f.trashed && f.mimeType !== FOLDER_MIME && !ozetEkMi(f.name));
   const ozet = classifyTopic(gecerli, [], []).ozet.map(m => m.file);
   return { durum: ozet.length ? 'var' : 'yok', dosyalar: ozet };
 }

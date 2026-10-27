@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { FOLDER_MIME, listChildren, type DriveFile } from '../drive/drive';
 import { SourceResolver } from './kaynakCoz';
-import { availableKinds, classifyTopic, defaultKind, discoverTopic } from './konuKesfi';
+import { availableKinds, classifyTopic, defaultKind, discoverTopic, ekleriAl, emptyMaterials, gercekOzet, ozetEkleri, ozetEkMi } from './konuKesfi';
 
 vi.mock('../drive/drive', async importOriginal => ({
   ...await importOriginal<typeof import('../drive/drive')>(),
@@ -66,6 +66,37 @@ describe('classifyTopic', () => {
   });
 });
 
+describe('task 6.EK-1: summary additions (ozet-ek*.pdf)', () => {
+  it('the name rule: starts with ozet-ek, a PDF, any case, never a solution', () => {
+    expect(['ozet-ek.pdf', 'ozet-ek-2.pdf', 'ozet-ek_x.pdf', 'OZET-EK.PDF', ' Ozet-Ek-3.pdf '].map(ozetEkMi)).toEqual([true, true, true, true, true]);
+    expect(['ozet.pdf', 'ozet-ek_cozum.pdf', 'ozet-ek.docx', 'ek-ozet.pdf', 'brifing.pdf'].map(ozetEkMi)).toEqual([false, false, false, false, false]);
+  });
+
+  it('ozetEkleri: only additions, by name (numbers by value); folders and solutions left out', () => {
+    const ekler = ozetEkleri([pdf('ozet-ek-10.pdf'), pdf('ozet.pdf'), pdf('ozet-ek.pdf'), pdf('ozet-ek-2.pdf'), pdf('ozet-ek-2_cozum.pdf'), folder('ozet-ek-9.pdf')]);
+    expect(ekler.map(f => f.name)).toEqual(['ozet-ek.pdf', 'ozet-ek-2.pdf', 'ozet-ek-10.pdf']);
+    expect(ozetEkleri([pdf('orijinal.pdf')])).toEqual([]);
+  });
+
+  it('K3: no ozet / brifing / sorular → the first addition is the summary', () => {
+    const m = classifyTopic([pdf('ozet-ek-2.pdf'), pdf('orijinal.pdf'), pdf('ozet-ek.pdf')], [], []);
+    expect(names(m.ozet)).toEqual([['ozet-ek.pdf', null]]);
+    expect(defaultKind(m)).toBe('ozet');
+    expect(gercekOzet(m)).toEqual([]);   // shown, but not a summary Defter writes to
+  });
+
+  it('a summary there: additions are not in the Özet tab', () => {
+    expect(names(classifyTopic([pdf('ozet-ek.pdf'), pdf('ozet.pdf')], [], []).ozet)).toEqual([['ozet.pdf', null]]);
+    const m = classifyTopic([pdf('ozet-ek.pdf'), pdf('sorular.pdf'), pdf('brifing.pdf')], [], []);
+    expect(names(m.ozet)).toEqual([['brifing.pdf', null], ['sorular.pdf', null]]);
+    expect(gercekOzet(m)).toEqual(m.ozet);
+  });
+
+  it("ekleriAl: nothing for materials discoverTopic didn't make", () => {
+    expect(ekleriAl(emptyMaterials())).toEqual([]);
+  });
+});
+
 describe('defaultKind', () => {
   it('opens Özet first, then Orijinal, then the first found', () => {
     expect(defaultKind(classifyTopic([pdf('orijinal.pdf'), pdf('ozet.pdf')], [], []))).toBe('ozet');
@@ -97,6 +128,18 @@ describe('discoverTopic', () => {
     expect(m && names(m.orijinal)).toEqual([['orijinal.pdf', null]]);
     const listings = mock.mock.calls.filter(([, opts]) => !opts?.name);   // not the path lookups
     expect(listings.length).toBeLessThanOrEqual(3);
+  });
+
+  it("task 6.EK-1: keeps the topic folder's additions with its result (no extra listing)", async () => {
+    const ek = pdf('ozet-ek.pdf');
+    tree[konu.id].push(ek);
+    try {
+      const m = await discoverTopic(new SourceResolver('book'), 'Unite-01/Konu-01');
+      expect(m && ekleriAl(m)).toEqual([ek]);
+      expect(mock.mock.calls.filter(([, opts]) => !opts?.name).length).toBeLessThanOrEqual(3);
+    } finally {
+      tree[konu.id].pop();
+    }
   });
 
   it('returns null when the folder is missing', async () => {

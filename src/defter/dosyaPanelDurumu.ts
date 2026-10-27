@@ -1,7 +1,7 @@
 import { t } from '../dil';
 import type { DriveFile } from '../drive/drive';
 import { AyniIsimVar, PdfDegil } from '../drive/pdfOlustur';
-import { MATERIAL_LABEL, type MaterialKind, type TopicMaterials } from '../okuma/konuKesfi';
+import { gercekOzet, MATERIAL_LABEL, type MaterialKind, type TopicMaterials } from '../okuma/konuKesfi';
 import { BOS_DOSYA_METIN, boyutMetni } from './dosyaEklemeMetin';
 import type { HazirKaynak } from './dosyaHazirla';
 import type { DosyaTuruSonucu } from './dosyaTuru';
@@ -21,6 +21,7 @@ import {
 // Uses what the reader already knows about the topic; the real checks stay in konuyaDosyaEkle.
 // Task 6.S-3: the topic has a summary → "Özet" adds the file's pages at the END of it (ozetSonu, no name box);
 // two summary files (brifing + sorular): the one on screen, else the one chosen in the panel.
+// Task 6.EK-1: a summary addition shown as the summary (gercekOzet) is never a target: "Özet" makes a new ozet.pdf.
 
 export type PanelHedef = 'uebungen' | 'oedevler' | 'cozum' | 'orijinal' | 'ozet';
 export const PANEL_HEDEFLERI: readonly PanelHedef[] = ['uebungen', 'oedevler', 'cozum', 'orijinal', 'ozet'];
@@ -55,7 +56,7 @@ export const ozetSonuEtiketi = (ad: string | null): string => ad ? t('dosya.ozet
 // Task 6.S-3: ozetSonu: the summary file the pages would go to (ozetHedefi), only for the label
 export function hedefSecenekleri(m: TopicMaterials, klasor: KlasorBilgisi | null, klasorAcabilir = false, ozetSonu: DriveFile | null = null): Secenek[] {
   const s = (hedef: PanelHedef, neden: string | null, not: string | null = null): Secenek =>
-    ({ hedef, etiket: hedef === 'ozet' && m.ozet.length ? ozetSonuEtiketi(ozetSonu?.name ?? null) : HEDEF_ETIKETI[hedef], secilebilir: !neden, neden: neden ?? not });
+    ({ hedef, etiket: hedef === 'ozet' && gercekOzet(m).length ? ozetSonuEtiketi(ozetSonu?.name ?? null) : HEDEF_ETIKETI[hedef], secilebilir: !neden, neden: neden ?? not });
   // a folder with files in it exists; an empty list may mean "no folder" or "empty folder"
   const yok = (k: 'uebungen' | 'oedevler') => !m[k].length && klasor !== null && !klasor[k === 'uebungen' ? 'Uebungen' : 'Oedevler'];
   const alt = (k: 'uebungen' | 'oedevler') => !yok(k) ? s(k, null) : klasorAcabilir ? s(k, null, KLASOR_ACILIR_METIN()) : s(k, t('dosya.klasorYok'));
@@ -71,14 +72,14 @@ export function hedefSecenekleri(m: TopicMaterials, klasor: KlasorBilgisi | null
 // Task 6.S-3: which summary file the pages go to. One file → it; several (brifing + sorular) → the one on screen
 // (odakDosyaId), else the one chosen in the panel (secilenId); none → null (the panel asks). No summary → null.
 export function ozetHedefi(m: TopicMaterials, odakDosyaId: string | null, secilenId: string | null): DriveFile | null {
-  const dosyalar = m.ozet.map(x => x.file);
+  const dosyalar = gercekOzet(m).map(x => x.file);
   if (dosyalar.length === 1) return dosyalar[0];
   return dosyalar.find(f => f.id === odakDosyaId) ?? dosyalar.find(f => f.id === secilenId) ?? null;
 }
 
 // The panel shows "Hangi özet dosyasının sonuna?" only when the reader's page doesn't decide it
 export const ozetSecimiGerekli = (m: TopicMaterials, odakDosyaId: string | null): boolean =>
-  m.ozet.length > 1 && !m.ozet.some(x => x.file.id === odakDosyaId);
+  gercekOzet(m).length > 1 && !gercekOzet(m).some(x => x.file.id === odakDosyaId);
 
 // The open tab if it can be chosen, else the first one that can; none: null.
 // Task 6.K6a: no tab open (a topic without materials) → Orijinal first.
@@ -95,7 +96,7 @@ export const AYNI_AD_METIN = (): string => t('dosya.ayniAd');
 export function adDurumu(m: TopicMaterials, hedef: PanelHedef, girilen: string, cozumOf: DriveFile | null, ozetSonu: DriveFile | null = null): AdDurumu {
   if (hedef === 'orijinal') return { duzenlenebilir: false, ad: 'orijinal.pdf', hata: null };
   // pages at the end of the summary: no new name (not chosen yet: no name, "Ekle" stays off)
-  if (hedef === 'ozet' && m.ozet.length) return { duzenlenebilir: false, gizli: true, ad: ozetSonu?.name ?? '', hata: null };
+  if (hedef === 'ozet' && gercekOzet(m).length) return { duzenlenebilir: false, gizli: true, ad: ozetSonu?.name ?? '', hata: null };
   if (hedef === 'ozet') return { duzenlenebilir: false, ad: 'ozet.pdf', hata: null };
   if (hedef === 'cozum') return { duzenlenebilir: false, ad: cozumOf ? cozumAdi(cozumOf) : '', hata: null };
   let ad: string;
@@ -132,7 +133,7 @@ export function ekleDurumu(g: EkleGirdi): { aktif: boolean; metin: string; acikl
 // What konuyaDosyaEkle takes; cozum without a chosen file: null.
 // Task 6.S-3: ozet in a topic with a summary → { ozetSonu } (not chosen yet: null); without one: a new ozet.pdf
 export function dosyaHedefi(hedef: PanelHedef, cozumOf: DriveFile | null, m?: TopicMaterials, ozetSonu: DriveFile | null = null): DosyaHedefi | null {
-  if (hedef === 'ozet' && m?.ozet.length) return ozetSonu ? { ozetSonu } : null;
+  if (hedef === 'ozet' && m && gercekOzet(m).length) return ozetSonu ? { ozetSonu } : null;
   if (hedef !== 'cozum') return hedef;
   return cozumOf ? { cozumOf } : null;
 }

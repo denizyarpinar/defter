@@ -115,6 +115,7 @@ export interface DriveFile {
   name: string;
   mimeType: string;
   modifiedTime: string;   // ISO date; changes when the file content changes
+  md5Checksum?: string;   // task 6.EK-1: the content's checksum (binary files only; not for folders and Google types)
   appProperties?: Record<string, string>;   // task 6.K3: the sample book's folder is marked defterOrnek
   klasorId?: string;   // task 6.4e-2b: the folder it was listed in (listChildren; not read from Drive)
 }
@@ -126,7 +127,7 @@ async function list(q: string, what: string): Promise<DriveFile[]> {
   const out: DriveFile[] = [];
   let pageToken = '';
   do {
-    const params = new URLSearchParams({ q, fields: 'nextPageToken,files(id,name,mimeType,modifiedTime,appProperties)', pageSize: '1000', orderBy: 'name' });
+    const params = new URLSearchParams({ q, fields: 'nextPageToken,files(id,name,mimeType,modifiedTime,md5Checksum,appProperties)', pageSize: '1000', orderBy: 'name' });
     if (pageToken) params.set('pageToken', pageToken);
     const res = await ok(await driveFetch('files?' + params), what);
     const j = await res.json() as { files?: DriveFile[]; nextPageToken?: string };

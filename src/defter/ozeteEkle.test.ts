@@ -1,6 +1,6 @@
 import sharp from 'sharp';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { PDFDict, PDFDocument, PDFName, PDFString, type PDFPage } from 'pdf-lib';
+import { PDFDict, PDFDocument, PDFHexString, PDFName, PDFString, type PDFPage } from 'pdf-lib';
 import { DriveError, FOLDER_MIME } from '../drive/drive';
 import type { DriveLocation } from '../drive/driveLibrary';
 import { YerDisi, yerBelleginiSifirla, type KlasorBilgisi } from '../drive/pdfOlustur';
@@ -10,7 +10,7 @@ import type { Stroke } from '../kalem/cizgi';
 import { DriveUploader, uploadRecord } from '../kalem/pdfKayit';
 import { PdfYazilamaz, readDefterStrokes, writeDefterStrokes } from '../kalem/pdfNotlari';
 import {
-  DosyaBulunamadi, EK_ID, EkPdfYazilamaz, isaretliPdfEkle, ozeteSayfaEkle, PdfDosyasiDegil, SayfaEklemeAgHatasi, SayfaEklemeCakisma,
+  DosyaBulunamadi, EK_ID, ekIsaretleri, EkPdfYazilamaz, isaretliPdfEkle, ozeteSayfaEkle, PdfDosyasiDegil, SayfaEklemeAgHatasi, SayfaEklemeCakisma,
   SayfaYazmaYok, type EklenenSayfalar, type SayfaEklemeOrtami, type SayfaEklemeSecenek, type SilinenYedek
 } from './ozeteEkle';
 import type { Jpeg } from './sayfaEkle';
@@ -341,6 +341,40 @@ describe('task 6.S-3: a PDF\'s pages at the end (isaretliPdfEkle)', () => {
     const e = await isaretliPdfEkle(sifreliEk, ekPdf, 'x').catch(x => x);
     expect(e).toBeInstanceOf(PdfYazilamaz);
     expect(e.message).toContain('sayfa eklenemiyor');
+  });
+});
+
+describe('task 6.EK-1: ekIsaretleri (every /DefterEkId of the summary)', () => {
+  it('none: an empty set', async () => {
+    expect(await ekIsaretleri(baslangic)).toEqual(new Set());
+  });
+
+  it('one adding, then two: each id once, whatever the page count', async () => {
+    const bir = await isaretliPdfEkle(baslangic, ekPdf, 'ozet-ek-A-1');
+    if ('zatenVar' in bir) throw new Error('zatenVar');
+    expect(await ekIsaretleri(bir.bytes)).toEqual(new Set(['ozet-ek-A-1']));
+    const iki = await isaretliPdfEkle(bir.bytes, ekPdf, 'ozet-ek-B-2');
+    if ('zatenVar' in iki) throw new Error('zatenVar');
+    expect(await ekIsaretleri(iki.bytes)).toEqual(new Set(['ozet-ek-A-1', 'ozet-ek-B-2']));
+  });
+
+  it('found in compressed object streams too (the mark is not in the raw bytes) and as a hex string', async () => {
+    const h = await isaretliPdfEkle(baslangic, ekPdf, 'ozet-ek-Z-9');
+    if ('zatenVar' in h) throw new Error('zatenVar');
+    const doc = await PDFDocument.load(h.bytes);
+    doc.getPage(0).node.set(N(EK_ID), PDFHexString.fromText('hex-id'));
+    const sikistirilmis = await doc.save({ useObjectStreams: true });
+    expect(new TextDecoder('latin1').decode(sikistirilmis).includes('ozet-ek-Z-9')).toBe(false);
+    expect(await ekIsaretleri(sikistirilmis)).toEqual(new Set(['hex-id', 'ozet-ek-Z-9']));
+  });
+
+  it("an encrypted / signed summary: PdfYazilamaz (the band's 'yazilamaz')", async () => {
+    const enc = await PDFDocument.load(baslangic);
+    enc.context.trailerInfo.Encrypt = enc.context.register(enc.context.obj({ Filter: 'Standard', V: 2, R: 3, Length: 128, P: -4 }));
+    await expect(ekIsaretleri(await enc.save({ useObjectStreams: false }))).rejects.toThrow(PdfYazilamaz);
+    const sig = await PDFDocument.load(baslangic);
+    sig.catalog.set(N('AcroForm'), sig.context.register(sig.context.obj({ Fields: [sig.context.register(sig.context.obj({ FT: 'Sig', T: PDFString.of('Imza') }))] })));
+    await expect(ekIsaretleri(await sig.save())).rejects.toThrow(PdfYazilamaz);
   });
 });
 

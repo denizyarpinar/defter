@@ -10,7 +10,8 @@ import {
   type DosyaEklemeOrtami, type DosyaHedefi
 } from './konuyaDosyaEkle';
 import { HedefOzetDegil } from './konuyaEkle';
-import type { EklenenSayfalar } from './ozeteEkle';
+import { ekIsaretleri, isaretliPdfEkle, type EklenenSayfalar } from './ozeteEkle';
+import { ekIslemId } from './ozetEkBandi';
 
 // Task 5.10c: a ready PDF into one topic. A fake Drive in memory:
 //   R "Kitaplık" → K "kitaplar" → B (book) → C (topic) → UE "Uebungen", OE "Oedevler";  C2: a topic without subfolders
@@ -487,5 +488,26 @@ describe('task 6.S-3: { ozetSonu } → the pages at the end of the summary', () 
     birak();
     await ilk;
     expect(s.cagri.map(c => c.islemId)).toEqual(['a']);
+  });
+
+  // task 6.EK-1: the band's adding: a fixed islemId (ekIslemId); the summary's pages with the real marking
+  it('a fixed islemId twice (another device, a retry): the second finds its pages, no double pages', async () => {
+    const d = fakeDrive({ 'C/ozet.pdf': 'Z', 'C/ozet-ek.pdf': 'EK' });
+    let ozet = pdf;
+    d.ortam.ozeteEkle = async (fileId, bytes, islemId) => {
+      const h = await isaretliPdfEkle(ozet, bytes, islemId);
+      const zatenVardi = 'zatenVar' in h;
+      if (!zatenVardi) ozet = h.bytes;
+      return { fileId, islemId, eskiSayfa: h.eskiSayfa, yeniSayfa: zatenVardi ? h.sayfa : h.yeniSayfa, modifiedTime: 't', headRevisionId: 'r', bytes: ozet, zatenVardi } satisfies EklenenSayfalar;
+    };
+    const ek = d.file('EK');
+    const islemId = ekIslemId({ ...ek, md5Checksum: '0123456789abcdef0123456789abcdef' });
+    const ilk = await ekle(d, { ozetSonu: d.file('Z') }, ek.name, { islemId });
+    const ikinci = await ekle(d, { ozetSonu: d.file('Z') }, ek.name, { islemId });
+    expect([ilk.eskiSayfa, ilk.yeniSayfa]).toEqual([2, 4]);
+    expect([ikinci.eskiSayfa, ikinci.yeniSayfa]).toEqual([2, 4]);
+    expect((await PDFDocument.load(ozet)).getPageCount()).toBe(4);
+    expect([...await ekIsaretleri(ozet)]).toEqual([islemId]);
+    expect(d.yazmalar()).toEqual([]);   // the addition itself: never written to
   });
 });

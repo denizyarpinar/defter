@@ -11,7 +11,7 @@ import { hazirlaGorsel } from '../defter/gorsel';
 import { GorselHatasi } from '../defter/gorselHesap';
 import { listeAdi, listeBilgisi, listeBoyutMetni } from '../defter/gorselListesi';
 import type { DosyaEklendi, DosyaHedefi } from '../defter/konuyaDosyaEkle';
-import type { MaterialKind, TopicMaterials } from '../okuma/konuKesfi';
+import { gercekOzet, type MaterialKind, type TopicMaterials } from '../okuma/konuKesfi';
 import { closePdf, pdfjs } from '../okuma/pdf';
 import { hazirlikEkle, mb, olcumAcik } from '../defter/sureOlcum';
 import { gorunurAlaniDuzelt } from './gorunurAlan';
@@ -161,7 +161,7 @@ export function acDosyaPanel(b: DosyaPanelBaglam, kaynak: DosyaPanelKaynak): voi
   // 6.S-3: brifing + sorular and neither on screen: which one gets the pages
   const ozetSatir = el('label', 'fp-seclbl dp-cozum', t('dosya.hangiOzet'));
   const ozetSec = el('select', 'fp-sec');
-  ozetSec.append(new Option(t('dosya.dosyaSec'), ''), ...b.materials.ozet.map(x => new Option(x.file.name, x.file.id)));
+  ozetSec.append(new Option(t('dosya.dosyaSec'), ''), ...gercekOzet(b.materials).map(x => new Option(x.file.name, x.file.id)));
   ozetSec.onchange = () => { ozetSecilen = ozetSec.value || null; hata = null; ciz(); };
   ozetSatir.append(ozetSec);
 

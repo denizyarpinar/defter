@@ -4,7 +4,7 @@ import type { DriveLocation } from '../drive/driveLibrary';
 import { tekrarlanabilir, YerDisi, yerBellegiBoyutu, yerBellegiDurumu, yerKontrol, type PdfOlusturDrive } from '../drive/pdfOlustur';
 import { PdfConflict, PdfSampleNoWrite, uploadPdf, type YuklemeDinleyici } from '../drive/pdfYazici';
 import type { UploadDeps } from '../kalem/pdfKayit';
-import type { PDFDocument } from 'pdf-lib';
+import type { PDFDocument, PDFPage } from 'pdf-lib';
 import { pdfLib, SAVE_OPTIONS, yazilabilirAc } from '../kalem/pdfNotlari';
 import { isSampleId } from '../okuma/ornekKaynak';
 import { bosSayfaEkle, type BosSayfaIstek } from './bosSayfa';
@@ -99,13 +99,27 @@ export type EkKaynak = { jpegler: readonly Jpeg[] } | { pdf: Uint8Array }
 type Hazir = { bytes: Uint8Array; eskiSayfa: number; yeniSayfa: number; indeks?: number; silinen?: SilinenYedek; sonaEklendi?: boolean }
   | { zatenVar: true; sayfa: number; eskiSayfa: number; indeks?: number };
 
+// A page's /DefterEkId (null: not added by Defter)
+function ekIdi(L: Lib, doc: PDFDocument, p: PDFPage): string | null {
+  const v = doc.context.lookup(p.node.get(L.PDFName.of(EK_ID)));
+  return v instanceof L.PDFString || v instanceof L.PDFHexString ? v.decodeText() : null;
+}
+
 // Pages already marked with islemId (an earlier try of this adding)
 function isaretliSay(L: Lib, doc: PDFDocument, islemId: string): number {
-  const key = L.PDFName.of(EK_ID);
-  return doc.getPages().filter(p => {
-    const v = doc.context.lookup(p.node.get(key));
-    return (v instanceof L.PDFString || v instanceof L.PDFHexString) && v.decodeText() === islemId;
-  }).length;
+  return doc.getPages().filter(p => ekIdi(L, doc, p) === islemId).length;
+}
+
+// Task 6.EK-1: every /DefterEkId in the summary (one opening; read only). Opened as for writing, so an encrypted /
+// signed summary throws PdfYazilamaz as an adding would (the band shows 'yazilamaz').
+export async function ekIsaretleri(ozetBytes: Uint8Array): Promise<Set<string>> {
+  const { L, doc } = await yazilabilirAc(ozetBytes, MESAJLAR);
+  const out = new Set<string>();
+  for (const p of doc.getPages()) {
+    const id = ekIdi(L, doc, p);
+    if (id) out.add(id);
+  }
+  return out;
 }
 
 // The photos as pages at the end, each marked with islemId. Already there (same islemId) → zatenVar.
