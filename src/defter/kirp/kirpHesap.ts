@@ -26,7 +26,7 @@ export function alan(p: readonly Nokta[]): number {
 // Any 4 points → top-left, top-right, bottom-right, bottom-left. Sorted by angle around the
 // centre (clockwise on screen), then rotated so the point with the smallest x + y comes first.
 export function koseleriSirala(p: readonly Nokta[]): Kose4 {
-  if (p.length !== 4) throw new RangeError(`4 köşe gerekli, ${p.length} geldi`);
+  if (p.length !== 4) throw new RangeError(`4 köşe gerekli, ${p.length} geldi`);   // dil-kontrol: yoksay
   const cx = (p[0].x + p[1].x + p[2].x + p[3].x) / 4;
   const cy = (p[0].y + p[1].y + p[2].y + p[3].y) / 4;
   const s = [...p].sort((a, b) => Math.atan2(a.y - cy, a.x - cx) - Math.atan2(b.y - cy, b.x - cx));

@@ -8,6 +8,7 @@ import { dosyaTuru, ILK_BAYT_SAYISI } from './dosyaTuru';
 import { HedefOzetDegil, ozetKarari } from './konuyaEkle';
 import type { EklenenSayfalar } from './ozeteEkle';
 import { mb, olc, zamanliDrive, type Olcum } from './sureOlcum';
+import { t } from '../dil';
 
 // Task 5.10c: "Dosya ekle" without UI: a ready PDF into the right place of one topic (CLAUDE.md → Faz 5 → Yeni dosya).
 // - orijinal → orijinal.pdf in the topic folder; ozet → ozet.pdf there (only if the topic has no summary at all)
@@ -34,17 +35,17 @@ const COZUM = '_cozum.pdf';
 // ---- errors (Turkish, say what to do) ----
 
 export class AdGecersiz extends Error {
-  constructor() { super('Dosya adı boş. Dosyaya bir ad verip tekrar dene.'); }
+  constructor() { super(t('ekHata.adBos')); }
 }
 
 export class AdCozumGibi extends Error {
-  constructor(ad: string) { super(`"${ad}" adı _cozum ile bitiyor; böyle bir dosya çözüm sayılır ve listede görünmez. Çözüm eklemek için "Çözüm ekle"yi seç ya da adı değiştir.`); }
+  constructor(ad: string) { super(t('ekHata.adCozumGibi', { ad })); }
 }
 
 export class KlasorYok extends Error {
   readonly klasor: AltKlasor;
   constructor(klasor: AltKlasor) {
-    super(`Bu konuda ${klasor} klasörü yok, dosya eklenmedi. Klasörü Drive'da konunun içinde oluşturup tekrar dene.`);
+    super(t('ekHata.klasorYok', { klasor }));
     this.klasor = klasor;
   }
 }
@@ -52,21 +53,21 @@ export class KlasorYok extends Error {
 export class OzetZatenVar extends Error {
   readonly dosyalar: readonly DriveFile[];
   constructor(dosyalar: readonly DriveFile[]) {
-    super("Bu konuda özet zaten var. Dosya ekle'de 'Özetin sonuna ekle' seç.");
+    super(t('ekHata.ozetZatenVar'));
     this.dosyalar = dosyalar;
   }
 }
 
 export class HedefBulunamadi extends Error {
-  constructor(ad: string) { super(`"${ad}" bu konuda bulunamadı, çözümü eklenmedi. Konuyu yeniden açıp tekrar dene.`); }
+  constructor(ad: string) { super(t('ekHata.hedefBulunamadi', { ad })); }
 }
 
 export class EklemeSuruyor extends Error {
-  constructor() { super('Bu dosya şu an ekleniyor, bitmesini bekle.'); }
+  constructor() { super(t('ekHata.eklemeSuruyor')); }
 }
 
 export class PdfHazirlanamadi extends Error {
-  constructor() { super('Bu PDF\'in başında fazladan veri var ve şifreli, imzalı ya da bozuk olduğu için düzeltilemiyor. Dosyayı bir PDF programında yeniden kaydedip tekrar dene.'); }
+  constructor() { super(t('ekHata.pdfHazirlanamadi')); }
 }
 
 // ---- pure: the name ----
@@ -113,7 +114,7 @@ export interface HazirPdf { bytes: Uint8Array; uyari?: 'kalemYazamaz' }
 
 export async function pdfHazirla(ad: string, bytes: Uint8Array): Promise<HazirPdf> {
   const tur = dosyaTuru(ad, '', bytes.subarray(0, ILK_BAYT_SAYISI));
-  if (tur.tur !== 'pdf') throw new PdfDegil('seçilen dosya bir PDF değil');
+  if (tur.tur !== 'pdf') throw new PdfDegil(t('ekHata.pdfDegil.secilen'));
   if (tur.alt === 'onEkli') {
     let doc;
     try { ({ doc } = await yazilabilirAc(bytes)); } catch (e) { throw e instanceof PdfYazilamaz ? new PdfHazirlanamadi() : e; }
@@ -209,8 +210,8 @@ async function sonaEkle(istek: DosyaEkleIstek, x: DriveFile, o: DosyaEklemeOrtam
   const om = secenek.olcum;
   const ozeteEkle = o.ozeteEkle;
   if (!ozeteEkle) throw new DosyaYazmaYok();
-  const hazir = await olc(om, 'pdfHazirla (PDF kontrolü)', () => pdfHazirla(istek.ad, istek.bytes), { grup: 'pdf', ek: h => ({ boyut: mb(h.bytes.byteLength) }) });
-  const kok = await olc(om, 'drive klasör listesi', () => (o.liste ?? listChildren)(istek.konu), { grup: 'istek' });
+  const hazir = await olc(om, 'pdfHazirla (PDF kontrolü)', () => pdfHazirla(istek.ad, istek.bytes), { grup: 'pdf', ek: h => ({ boyut: mb(h.bytes.byteLength) }) });   // dil-kontrol: yoksay
+  const kok = await olc(om, 'drive klasör listesi', () => (o.liste ?? listChildren)(istek.konu), { grup: 'istek' });   // dil-kontrol: yoksay
   if (!ozetKarari(kok).dosyalar.some(f => f.id === x.id)) throw new HedefOzetDegil();
   const s = await ozeteEkle(x.id, hazir.bytes, istek.islemId, secenek.yukleme);
   return { kind: 'sonaEklendi', fileId: x.id, ad: x.name, bytes: s.bytes, eskiSayfa: s.eskiSayfa, yeniSayfa: s.yeniSayfa };
@@ -221,8 +222,8 @@ async function ekle(
 ): Promise<DosyaEklendi> {
   const { olcum: om, yukleme: _y, ...secenek } = tumSecenek;
   const { konu, hedef, islemId } = istek;
-  const liste = (id: string) => olc(om, 'drive klasör listesi', () => (o.liste ?? listChildren)(id), { grup: 'istek' });
-  const hazir = await olc(om, 'pdfHazirla (PDF kontrolü)', () => pdfHazirla(istek.ad, istek.bytes), { grup: 'pdf', ek: h => ({ boyut: mb(h.bytes.byteLength) }) });
+  const liste = (id: string) => olc(om, 'drive klasör listesi', () => (o.liste ?? listChildren)(id), { grup: 'istek' });   // dil-kontrol: yoksay
+  const hazir = await olc(om, 'pdfHazirla (PDF kontrolü)', () => pdfHazirla(istek.ad, istek.bytes), { grup: 'pdf', ek: h => ({ boyut: mb(h.bytes.byteLength) }) });   // dil-kontrol: yoksay
 
   const kok = await liste(konu);
   let parentId: string, ad: string;
@@ -247,7 +248,7 @@ async function ekle(
       if (mevcut) parentId = mevcut.id;
       else if (ac) {
         // the folder first, then the file; a retry (same islemId) finds the folder, never a second one
-        parentId = await olc(om, 'alt klasör aç', () => ac(konu, k, islemId), { grup: 'istek' });
+        parentId = await olc(om, 'alt klasör aç', () => ac(konu, k, islemId), { grup: 'istek' });   // dil-kontrol: yoksay
         o.konuDegisti?.();
       } else altKlasorYok(y.klasor);
     }
@@ -256,7 +257,7 @@ async function ekle(
   let yeni;
   try {
     const drive = om ? zamanliDrive(o.olusturDrive, om) : o.olusturDrive;
-    yeni = await olc(om, '= createPdf (kontroller + yükleme)', () => createPdf(drive, o.yer, parentId, ad, hazir.bytes, { ...secenek, defterIslem: islemId }), { grup: 'toplam' });
+    yeni = await olc(om, '= createPdf (kontroller + yükleme)', () => createPdf(drive, o.yer, parentId, ad, hazir.bytes, { ...secenek, defterIslem: islemId }), { grup: 'toplam' });   // dil-kontrol: yoksay
   } catch (e) {
     // the same name: our own earlier try (answer lost) → done; anybody else's file → the error
     if (e instanceof AyniIsimVar && await bizimMi(o.olusturDrive, e.mevcutId, islemId, hazir.bytes)) {

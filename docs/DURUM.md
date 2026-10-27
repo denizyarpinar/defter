@@ -1,5 +1,16 @@
 # Defter – Durum
 
+## 6.5-4a – Kalan metinler iki dilli (27 Ekim 2026, Claude Code)
+
+- Fotoğraf ekle / Dosya ekle panelleri, köşe düzenleyici, yükleme şeridi ve hata kartı, bekleyen foto toast'ı (EN'de Türkçe çıkıyordu, düzeldi), ekleme/çeviri/alt klasör hata sınıfları, El yazısını oku paneli, okuma kaydı (.ocr.json) hataları, Google giriş hataları sözlükte (280 yeni anahtar, toplam 879). Sınıf adları, `instanceof`, Drive adları, JSON anahtarları, `/Defter…` işaretleri ve yapay zekâ istemi aynı; `.ocr.json`'a hiçbir metin yazılmıyor.
+- `api/oku`: her hata yanıtı `hata` (Türkçe metin, eski sayfalar için aynen) + sabit `kod` (+ gerekirse `sinir`/`kenar`/`durum`/`eksik`); istemci `kod` → kendi dilinde metin, bilinmeyen kod → sunucu metni, kod yok → HTTP durumu (`claudeMotor.ts` `hataMetni`).
+- Kalan Türkçe dize 446 → 0. `// dil-kontrol: yoksay` 55 → 163 (ölçüm/günlük 44, harf tablosu 31, programcı hatası/dev testi 28, Drive adı/arama metni 5 yeni). Dev dosyaları adıyla, gerekçesiyle ayrı (6 dosya, 85 dize: ocr-ai.html sayfası ve `import.meta.env.DEV` araçları).
+- `npm run dil`: kalan dize > 0 ya da tr/en anahtar farkı → çıkış kodu 1. `dil-kontrol.mjs --ekleme` (e): ekleme ekranları EN/TR × 390/820/1280 (foto paneli, dosya paneli, Word reddi, OCR paneli, bekleyen foto toast'ı sahte Drive ile); yeni taşma yok.
+- Commit yok; laptop + iPad denemesi bekleniyor.
+- **Son güncelleyen:** Claude Code, 27 Ekim 2026.
+
+---
+
 ## 6.5-3 – Okuyucu iki dilli (26 Ekim 2026, Claude Code)
 
 - Okuyucu, kalem çubuğu, İçindekiler düzenleme, çöpe atma + Geri al, sayfa balonu (boş sayfa / deftere yapıştır / sil), temiz yazı düğmesi, boş konu, okuyucu araması ve bunların hata sınıfları sözlükte (302 yeni anahtar, toplam 599). Sınıf adları, `instanceof`, Drive adları, JSON anahtarları ve `/Defter…` işaretleri aynı.

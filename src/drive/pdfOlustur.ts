@@ -2,6 +2,7 @@ import { isSampleId } from '../okuma/ornekKaynak';
 import { DriveError, driveFetch, FOLDER_MIME, ok, qv } from './drive';
 import type { DriveLocation } from './driveLibrary';
 import { multipartPdfBody, readResult, RESUMABLE_LIMIT, resumableUpload, UPLOAD, type UploadResult } from './pdfYazici';
+import { t } from '../dil';
 
 // Creates a NEW PDF in Drive (Faz 5, task 5.5). Nothing in the app calls this yet (5.7 will).
 // Rules (CLAUDE.md → Faz 5 → Yeni dosya):
@@ -31,35 +32,35 @@ export interface PdfOlusturDrive {
 // ---- errors (Turkish, say what to do) ----
 
 export class DosyaYazmaYok extends Error {
-  constructor() { super('Drive kitaplığı açık değil, dosya oluşturulmadı. Google ile giriş yap ve kitaplığın yüklenmesini bekle.'); }
+  constructor() { super(t('ekHata.dosyaYazmaYok')); }
 }
 
 export class PdfDegil extends Error {
-  constructor(neden: string) { super(`Sadece PDF dosyası oluşturulabilir: ${neden}. Dosyayı PDF olarak hazırlayıp tekrar dene.`); }
+  constructor(neden: string) { super(t('ekHata.pdfDegil', { neden })); }
 }
 
 export class YerDisi extends Error {
-  constructor() { super('Bu klasöre dosya oluşturulamaz. Yeni dosyalar sadece Drive\'daki Kitaplık/kitaplar/<kitap>/ klasörü ve alt klasörlerine konur.'); }
+  constructor() { super(t('ekHata.yerDisi')); }
 }
 
 export class YetkiYok extends Error {
-  constructor() { super('Bu klasöre dosya ekleme iznin yok. Drive\'da klasörün sahibi ya da düzenleyicisi olduğundan emin ol.'); }
+  constructor() { super(t('ekHata.yetkiYok')); }
 }
 
 export class AyniIsimVar extends Error {
   readonly mevcutId: string;
   constructor(ad: string, mevcutId: string) {
-    super(`Bu klasörde "${ad}" adında bir dosya zaten var; üzerine yazılmadı. Var olan dosyayı kullan ya da başka bir ad seç.`);
+    super(t('ekHata.ayniIsimVar', { ad }));
     this.mevcutId = mevcutId;
   }
 }
 
 export class IdAlinamadi extends Error {
-  constructor() { super('Drive yeni dosya için kimlik vermedi, dosya oluşturulmadı. Biraz bekleyip tekrar dene.'); }
+  constructor() { super(t('ekHata.idAlinamadi')); }
 }
 
 export class DosyaOlusturAgHatasi extends Error {
-  constructor() { super('PDF Drive\'a yüklenemedi (bağlantı ya da Drive sorunu). İnternet bağlantını kontrol edip tekrar dene; tekrar denemede ikinci dosya oluşmaz.'); }
+  constructor() { super(t('ekHata.dosyaAg')); }
 }
 
 // Drive says a file with this id already exists (an earlier try did arrive).
@@ -69,7 +70,7 @@ export class IdZatenVar extends Error {
 
 // ---- the real Drive ----
 
-const WHAT = 'PDF oluşturulurken';
+const WHAT = t('ekHata.pdfOlusturulurken');
 const FIELDS = 'id,modifiedTime,headRevisionId';
 
 // Upload answers: "already exists" (409, or the text in the error) → IdZatenVar, other errors → DriveError.
@@ -141,11 +142,11 @@ const ayniAd = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();   
 export const tekrarlanabilir = (e: unknown) => e instanceof TypeError || (e instanceof DriveError && (e.status === 429 || e.status >= 500));
 
 function pdfMi(ad: string, bytes: Uint8Array): void {
-  if (!ad.trim() || ad !== ad.trim()) throw new PdfDegil('dosya adı boş ya da başında/sonunda boşluk var');
-  if (ad.includes('/')) throw new PdfDegil('dosya adında "/" olamaz');
-  if (!/\.pdf$/i.test(ad) || ad.length <= 4) throw new PdfDegil('dosya adı .pdf ile bitmeli');
+  if (!ad.trim() || ad !== ad.trim()) throw new PdfDegil(t('ekHata.pdfDegil.adBosluk'));
+  if (ad.includes('/')) throw new PdfDegil(t('ekHata.pdfDegil.egik'));
+  if (!/\.pdf$/i.test(ad) || ad.length <= 4) throw new PdfDegil(t('ekHata.pdfDegil.uzanti'));
   const head = String.fromCharCode(...bytes.subarray(0, 5));
-  if (head !== '%PDF-') throw new PdfDegil('içerik bir PDF değil');
+  if (head !== '%PDF-') throw new PdfDegil(t('ekHata.pdfDegil.icerik'));
 }
 
 // Task 6.2e-2: folders whose place was checked this session (<kitap> and the folders under it) → their

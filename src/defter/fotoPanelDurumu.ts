@@ -1,6 +1,8 @@
 import type { DriveFile } from '../drive/drive';
 import type { BekleyenJpeg } from './bekleyenFotoKayit';
 import { OZET_ADI, ozetKarari } from './konuyaEkle';
+import { t } from '../dil';
+import { boyut } from '../dil/bicim';
 
 // Task 5.8a: the pure part of the "Fotoğraf ekle" panel (no DOM, so it can be tested):
 // order of the photos, which file the pages would go to, whether "Ekle" can be pressed.
@@ -38,17 +40,16 @@ export interface Hedef {
 export function hedefHesapla(g: HedefGirdi): Hedef {
   const { durum, dosyalar } = ozetKarari(g.ozetDosyalari);
   const n = g.yeniSayfa;
-  const kac = (k: number) => `${k} sayfa`;
   if (durum === 'yok') {
-    const metin = n ? `Bu konuda özet yok: yeni ${OZET_ADI} oluşturulacak (${kac(n)})` : `Bu konuda özet yok: fotoğraflardan yeni ${OZET_ADI} oluşturulacak`;
+    const metin = n ? t('foto.hedef.yeniSayfali', { ad: OZET_ADI, n }) : t('foto.hedef.yeni', { ad: OZET_ADI });
     return { tur: 'yok', dosyalar: [], hedef: null, eskiSayfa: 0, metin };
   }
   const bul = (id?: string | null) => id ? dosyalar.find(f => f.id === id) : undefined;
   const hedef = dosyalar.length === 1 ? dosyalar[0] : bul(g.seciliId) ?? bul(g.acikDosyaId) ?? dosyalar[0];
   const eski = g.sayfaSayisi(hedef.id);
-  const metin = !n ? `${hedef.name} dosyasının sonuna eklenecek`
-    : eski === undefined ? `${hedef.name} dosyasının sonuna eklenecek (${kac(n)})`
-    : `${hedef.name} dosyasının sonuna eklenecek: ${eski} → ${eski + n} sayfa`;
+  const metin = !n ? t('foto.hedef.sona', { ad: hedef.name })
+    : eski === undefined ? t('foto.hedef.sonaSayfali', { ad: hedef.name, n })
+    : t('foto.hedef.sonaEskiYeni', { ad: hedef.name, eski, n: eski + n });
   return { tur: dosyalar.length === 1 ? 'tek' : 'secim', dosyalar, hedef, eskiSayfa: eski, metin };
 }
 
@@ -59,26 +60,23 @@ export interface EkleDurumGirdi {
 }
 
 export function ekleDurumu(g: EkleDurumGirdi): { aktif: boolean; aciklama: string | null } {
-  if (g.ornek) return { aktif: false, aciklama: 'Örnek kitaplıkta Drive\'a ekleme yok. Bu sadece taslağın görünümü.' };
+  if (g.ornek) return { aktif: false, aciklama: t('ekleme.ornekTaslak') };
   return { aktif: g.hazirSayisi > 0 && !g.hazirlaniyor, aciklama: null };
 }
 
-// "412 KB", "1,2 MB" (Turkish decimal comma)
-export function boyutYazi(bayt: number): string {
-  if (bayt < 1024 * 1024) return `${Math.max(1, Math.round(bayt / 1024))} KB`;
-  return `${(bayt / 1024 / 1024).toFixed(1).replace('.', ',')} MB`;
-}
+// "412 KB", "1,2 MB" (tr) / "1.2 MB" (en): bicim.ts
+export const boyutYazi = (bayt: number): string => boyut(bayt);
 
 // Task 6.2c: the thumbnail's "Renk düzelt" toggle (no: the photo's number in the panel)
 export function renkEtiketi(acik: boolean, no: number): string {
-  return acik ? `${no}. fotoğraf: renk düzeltiliyor – kapat` : `${no}. fotoğraf: renk düzeltme kapalı – aç`;
+  return t(acik ? 'foto.renkAcik' : 'foto.renkKapali', { no });
 }
 
 // Task 6.4c-2: "Temiz yazıya çevir" per photo; off by default (reading costs money: only when asked)
 export const TEMIZ_YAZI_VARSAYILAN = false;
 
 export function temizEtiketi(acik: boolean, no: number): string {
-  return acik ? `${no}. fotoğraf: temiz yazıya çevrilecek – kapat` : `${no}. fotoğraf: temiz yazıya çevrilmeyecek – aç`;
+  return t(acik ? 'foto.temizAcik' : 'foto.temizKapali', { no });
 }
 
 // The flag goes into the record only when on (records stay as before when the trial is off)

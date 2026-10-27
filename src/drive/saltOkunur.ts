@@ -5,7 +5,7 @@ import { driveFetch } from './drive';
 // saltOkunurSar puts the same guard around any fetcher.
 
 export class SaltOkunurIhlal extends Error {
-  constructor(ne: string) { super(`Salt okunur araç: ${ne} isteği engellendi. Bu araç Drive'a yazmaz; kodu kontrol et.`); }
+  constructor(ne: string) { super(`Salt okunur araç: ${ne} isteği engellendi. Bu araç Drive'a yazmaz; kodu kontrol et.`); }   // dil-kontrol: yoksay
 }
 
 export type Getirici = (path: string, init?: RequestInit) => Promise<Response>;
@@ -14,7 +14,7 @@ export function saltOkunurSar(f: Getirici): Getirici {
   return (path, init = {}) => {
     const method = (init.method ?? 'GET').toUpperCase();
     if (method !== 'GET') return Promise.reject(new SaltOkunurIhlal(method));
-    if (init.body != null) return Promise.reject(new SaltOkunurIhlal('Gövdeli (body)'));
+    if (init.body != null) return Promise.reject(new SaltOkunurIhlal('Gövdeli (body)'));   // dil-kontrol: yoksay
     return f(path, { ...init, method: 'GET' });
   };
 }

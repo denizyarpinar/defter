@@ -73,7 +73,7 @@ installKalemOlcumWindow();
 
 // dev only (task 5.3, 5.8c): ?gorselTest=1 photo → JPEG trial panel; writes nothing, not in the build
 if (import.meta.env.DEV && new URLSearchParams(location.search).get('gorselTest') === '1') {
-  import('./defter/gorselTest').then(m => m.acGorselTest()).catch(e => toast(`Görsel testi açılamadı: ${e}`));
+  import('./defter/gorselTest').then(m => m.acGorselTest()).catch(e => toast(`Görsel testi açılamadı: ${e}`));   // dil-kontrol: yoksay
 }
 
 const MODE_FROM_DATA: Record<ModeKey, LightMode> = { otomatik: 'auto', gunduz: 'day', aksam: 'night' };
@@ -123,15 +123,15 @@ if (import.meta.env.DEV) void import('./arama/ocrDizinOlc').then(m => m.installO
 if (import.meta.env.DEV) void import('./defter/bekleyenFotoDene').then(m => m.installBekleyenFoto());
 // dev only (task 5.8b): ?kirpTest=1 compares two page-cropping methods on real photos; writes nothing
 if (import.meta.env.DEV && new URLSearchParams(location.search).get('kirpTest') === '1') {
-  import('./defter/kirp/kirpTest').then(m => m.acKirpTest()).catch(e => toast(`Kırpma testi açılamadı: ${e}`));
+  import('./defter/kirp/kirpTest').then(m => m.acKirpTest()).catch(e => toast(`Kırpma testi açılamadı: ${e}`));   // dil-kontrol: yoksay
 }
 // dev only (task 6.H2b): ?kalemTest=1 draws pen records (or samples) the old and the new way side by side; writes nothing
 if (import.meta.env.DEV && new URLSearchParams(location.search).get('kalemTest') === '1') {
-  import('./kalem/kalemTest').then(m => m.acKalemTest()).catch(e => toast(`Kalem testi açılamadı: ${e}`));
+  import('./kalem/kalemTest').then(m => m.acKalemTest()).catch(e => toast(`Kalem testi açılamadı: ${e}`));   // dil-kontrol: yoksay
 }
 // dev only (task 6.2a): ?filtreTest=1 shows document filters A–D side by side on real photos; writes nothing
 if (import.meta.env.DEV && new URLSearchParams(location.search).get('filtreTest') === '1') {
-  import('./defter/filtre/filtreTest').then(m => m.acFiltreTest()).catch(e => toast(`Filtre testi açılamadı: ${e}`));
+  import('./defter/filtre/filtreTest').then(m => m.acFiltreTest()).catch(e => toast(`Filtre testi açılamadı: ${e}`));   // dil-kontrol: yoksay
 }
 
 function olay(o: KitaplikOlayi): void {
@@ -795,9 +795,9 @@ async function boot(): Promise<void> {
   try {
     await Promise.race([
       Promise.all([
-        document.fonts.load('700 20px Figtree', 'AZ ÂÜİĞŞÇÖ'),
-        document.fonts.load('600 20px "Cormorant Garamond"', 'AZ ÂÜİĞŞÇÖ'),
-        document.fonts.load('700 20px "Cormorant Garamond"', 'AZ ÂÜİĞŞÇÖ')
+        document.fonts.load('700 20px Figtree', 'AZ ÂÜİĞŞÇÖ'),   // dil-kontrol: yoksay
+        document.fonts.load('600 20px "Cormorant Garamond"', 'AZ ÂÜİĞŞÇÖ'),   // dil-kontrol: yoksay
+        document.fonts.load('700 20px "Cormorant Garamond"', 'AZ ÂÜİĞŞÇÖ')   // dil-kontrol: yoksay
       ]),
       new Promise(r => setTimeout(r, 2500))
     ]);
@@ -829,8 +829,8 @@ async function boot(): Promise<void> {
   // dev only: ?export=oda downloads the room for Blender (Faz 2)
   if (import.meta.env.DEV && new URLSearchParams(location.search).get('export') === 'oda') {
     scene.exportRoom()
-      .then(() => toast('oda-kaynak.glb indirildi. blender/assets/ klasörüne taşı.'))
-      .catch(() => toast('Oda dışa aktarılamadı. Konsoldaki hataya bak.'));
+      .then(() => toast('oda-kaynak.glb indirildi. blender/assets/ klasörüne taşı.'))   // dil-kontrol: yoksay
+      .catch(() => toast('Oda dışa aktarılamadı. Konsoldaki hataya bak.'));   // dil-kontrol: yoksay
   }
 
   initPanel(d, {

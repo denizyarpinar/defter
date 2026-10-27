@@ -2,6 +2,8 @@
 // One entry per read page. The page's text is never stored whole: hamMetin / duzeltilmisMetin build it
 // from the parts. Unknown fields (at every level) are kept: the checked objects are passed on as they are.
 // A broken file or a newer surum is an error: nothing is written over it.
+import { t } from '../../dil';
+
 
 export const OCR_RENKLER = ['siyah', 'mavi', 'kirmizi', 'yesil', 'kursun', 'diger'] as const;
 export type OcrRenk = typeof OCR_RENKLER[number];
@@ -38,10 +40,10 @@ export interface OcrKayit { tur: 'defter-ocr'; surum: 1; kaynak: OcrKaynak; sayf
 export const OCR_SURUM = 1;
 
 export class OcrKayitBozuk extends Error {
-  constructor(neden: string) { super(`Okuma kaydı (.ocr.json) bozuk: ${neden}. Dosyaya yazılmadı; Drive'da dosyayı düzelt ya da çöpe at.`); }
+  constructor(neden: string) { super(t('ocrKayit.bozuk', { neden })); }
 }
 export class OcrKayitYeniSurum extends Error {
-  constructor(surum: number) { super(`Okuma kaydı daha yeni bir sürümle yazılmış (surum ${surum}). Dosyaya yazılmadı; uygulamayı yenile.`); }
+  constructor(surum: number) { super(t('ocrKayit.yeniSurum', { surum })); }
 }
 
 export const yaziSatiriMi = (s: OcrSatir): s is OcrYaziSatiri => 'parcalar' in s;
@@ -52,41 +54,41 @@ const nesne = (x: unknown): x is Record<string, unknown> => !!x && typeof x === 
 const girintiMi = (x: unknown) => Number.isInteger(x) && (x as number) >= 0;
 
 function parcaKontrol(p: unknown, yer: string): void {
-  if (!nesne(p)) throw new OcrKayitBozuk(`${yer} nesne değil`);
-  if (typeof p.metin !== 'string') throw new OcrKayitBozuk(`${yer}.metin yok`);
-  if (!OCR_RENKLER.includes(p.renk as OcrRenk)) throw new OcrKayitBozuk(`${yer}.renk bilinmiyor`);
-  if (p.tur !== undefined && p.tur !== 'yazi' && p.tur !== 'formul') throw new OcrKayitBozuk(`${yer}.tur bilinmiyor`);
-  if (p.ustuCizili !== undefined && typeof p.ustuCizili !== 'boolean') throw new OcrKayitBozuk(`${yer}.ustuCizili yanlış`);
-  if (p.duzeltme !== undefined && typeof p.duzeltme !== 'string') throw new OcrKayitBozuk(`${yer}.duzeltme yanlış`);
-  if (p.elle !== undefined && typeof p.elle !== 'boolean') throw new OcrKayitBozuk(`${yer}.elle yanlış`);
+  if (!nesne(p)) throw new OcrKayitBozuk(t('ocrKayit.nesneDegil', { yer }));
+  if (typeof p.metin !== 'string') throw new OcrKayitBozuk(t('ocrKayit.alanYok', { alan: `${yer}.metin` }));
+  if (!OCR_RENKLER.includes(p.renk as OcrRenk)) throw new OcrKayitBozuk(t('ocrKayit.alanBilinmiyor', { alan: `${yer}.renk` }));
+  if (p.tur !== undefined && p.tur !== 'yazi' && p.tur !== 'formul') throw new OcrKayitBozuk(t('ocrKayit.alanBilinmiyor', { alan: `${yer}.tur` }));
+  if (p.ustuCizili !== undefined && typeof p.ustuCizili !== 'boolean') throw new OcrKayitBozuk(t('ocrKayit.alanYanlis', { alan: `${yer}.ustuCizili` }));
+  if (p.duzeltme !== undefined && typeof p.duzeltme !== 'string') throw new OcrKayitBozuk(t('ocrKayit.alanYanlis', { alan: `${yer}.duzeltme` }));
+  if (p.elle !== undefined && typeof p.elle !== 'boolean') throw new OcrKayitBozuk(t('ocrKayit.alanYanlis', { alan: `${yer}.elle` }));
 }
 
 function satirKontrol(s: unknown, yer: string): void {
-  if (!nesne(s) || !girintiMi(s.girinti)) throw new OcrKayitBozuk(`${yer}.girinti yanlış`);
+  if (!nesne(s) || !girintiMi(s.girinti)) throw new OcrKayitBozuk(t('ocrKayit.alanYanlis', { alan: `${yer}.girinti` }));
   if (Array.isArray(s.parcalar)) { s.parcalar.forEach((p, i) => parcaKontrol(p, `${yer}.parcalar[${i}]`)); return; }
-  if (typeof s.cizim !== 'string') throw new OcrKayitBozuk(`${yer} ne parçalı satır ne çizim`);
+  if (typeof s.cizim !== 'string') throw new OcrKayitBozuk(t('ocrKayit.satirTuru', { yer }));
 }
 
 // One page entry (also used before a page is written)
 export function sayfaKontrol(s: unknown, yer = 'sayfa'): asserts s is OcrSayfa {
-  if (!nesne(s)) throw new OcrKayitBozuk(`${yer} nesne değil`);
-  if (!Number.isInteger(s.sayfa) || (s.sayfa as number) < 1) throw new OcrKayitBozuk(`${yer}.sayfa yanlış`);
+  if (!nesne(s)) throw new OcrKayitBozuk(t('ocrKayit.nesneDegil', { yer }));
+  if (!Number.isInteger(s.sayfa) || (s.sayfa as number) < 1) throw new OcrKayitBozuk(t('ocrKayit.alanYanlis', { alan: `${yer}.sayfa` }));
   for (const k of ['parmakIzi', 'model', 'okunma'] as const) {
-    if (typeof s[k] !== 'string' || !s[k]) throw new OcrKayitBozuk(`${yer}.${k} yok`);
+    if (typeof s[k] !== 'string' || !s[k]) throw new OcrKayitBozuk(t('ocrKayit.alanYok', { alan: `${yer}.${k}` }));
   }
-  if (!OCR_DONDURME.includes(s.dondurme as OcrDondurme)) throw new OcrKayitBozuk(`${yer}.dondurme yanlış`);
-  if (!Array.isArray(s.satirlar)) throw new OcrKayitBozuk(`${yer}.satirlar yok`);
+  if (!OCR_DONDURME.includes(s.dondurme as OcrDondurme)) throw new OcrKayitBozuk(t('ocrKayit.alanYanlis', { alan: `${yer}.dondurme` }));
+  if (!Array.isArray(s.satirlar)) throw new OcrKayitBozuk(t('ocrKayit.alanYok', { alan: `${yer}.satirlar` }));
   s.satirlar.forEach((x, i) => satirKontrol(x, `${yer}.satirlar[${i}]`));
 }
 
 // Parsed JSON → the record (the same objects, unknown fields included), or an error
 export function kayitOku(x: unknown): OcrKayit {
-  if (!nesne(x) || x.tur !== 'defter-ocr') throw new OcrKayitBozuk('tur "defter-ocr" değil');
+  if (!nesne(x) || x.tur !== 'defter-ocr') throw new OcrKayitBozuk(t('ocrKayit.turDegil'));
   if (typeof x.surum === 'number' && x.surum > OCR_SURUM) throw new OcrKayitYeniSurum(x.surum);
-  if (x.surum !== OCR_SURUM) throw new OcrKayitBozuk('surum yanlış');
+  if (x.surum !== OCR_SURUM) throw new OcrKayitBozuk(t('ocrKayit.alanYanlis', { alan: 'surum' }));
   const k = x.kaynak;
-  if (!nesne(k) || typeof k.id !== 'string' || !k.id || typeof k.ad !== 'string') throw new OcrKayitBozuk('kaynak yanlış');
-  if (!Array.isArray(x.sayfalar)) throw new OcrKayitBozuk('sayfalar yok');
+  if (!nesne(k) || typeof k.id !== 'string' || !k.id || typeof k.ad !== 'string') throw new OcrKayitBozuk(t('ocrKayit.alanYanlis', { alan: 'kaynak' }));
+  if (!Array.isArray(x.sayfalar)) throw new OcrKayitBozuk(t('ocrKayit.alanYok', { alan: 'sayfalar' }));
   x.sayfalar.forEach((s, i) => sayfaKontrol(s, `sayfalar[${i}]`));
   return x as unknown as OcrKayit;
 }
@@ -103,7 +105,7 @@ function birlestirParcalar(metinler: string[]): string {
 
 function satirMetni(s: OcrSatir, duzeltilmis: boolean): string {
   const bas = '  '.repeat(s.girinti);
-  if (!yaziSatiriMi(s)) return `${bas}[çizim: ${s.cizim}]`;
+  if (!yaziSatiriMi(s)) return `${bas}[çizim: ${s.cizim}]`;   // search text, not shown (ocrDizinOlc matches "[çizim:"). dil-kontrol: yoksay
   return bas + birlestirParcalar(s.parcalar.map(p => duzeltilmis && p.duzeltme !== undefined ? p.duzeltme : p.metin));
 }
 

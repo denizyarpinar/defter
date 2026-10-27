@@ -1,4 +1,5 @@
 import { MAX_CANVAS_PIKSEL, MAX_KENAR } from './ayarlar';
+import { t } from '../dil';
 
 // Task 5.3: the pure part of preparing a photo (no DOM, so it can be tested): target size and
 // which error to show. The browser part is gorsel.ts.
@@ -7,7 +8,7 @@ export interface Boyut { width: number; height: number }
 
 // Longest edge at most maxKenar, never enlarged, aspect kept, and never over maxPiksel.
 export function hedefBoyut(w: number, h: number, maxKenar = MAX_KENAR, maxPiksel = MAX_CANVAS_PIKSEL): Boyut {
-  if (!(w > 0 && h > 0 && Number.isFinite(w) && Number.isFinite(h))) throw new RangeError(`Geçersiz görsel boyutu: ${w}×${h}`);
+  if (!(w > 0 && h > 0 && Number.isFinite(w) && Number.isFinite(h))) throw new RangeError(`Geçersiz görsel boyutu: ${w}×${h}`);   // dil-kontrol: yoksay
   let k = Math.min(1, maxKenar / Math.max(w, h));
   if (w * k * h * k > maxPiksel) k *= Math.sqrt(maxPiksel / (w * k * h * k));
   const out = { width: Math.max(1, Math.round(w * k)), height: Math.max(1, Math.round(h * k)) };
@@ -29,14 +30,13 @@ export function hataTuru(f: DosyaBilgisi): GorselHataTuru {
   return 'acilamadi';
 }
 
-const ACILAMADI = 'Bu fotoğraf açılamadı. Fotoğraflar uygulamasından paylaşmayı ya da JPEG seçmeyi dene.';
 
 export function hataMesaji(tur: GorselHataTuru): string {
   switch (tur) {
     case 'heic':
-    case 'acilamadi': return ACILAMADI;
-    case 'resimDegil': return 'Bu dosya bir fotoğraf değil. JPEG ya da PNG seç.';
-    case 'bos': return 'Dosya boş. Fotoğrafı tekrar seç.';
+    case 'acilamadi': return t('gorsel.acilamadi');
+    case 'resimDegil': return t('gorsel.resimDegil');
+    case 'bos': return t('gorsel.bos');
   }
 }
 

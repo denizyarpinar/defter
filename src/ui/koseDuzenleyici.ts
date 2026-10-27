@@ -1,4 +1,5 @@
 import type { Onizleme } from '../defter/gorsel';
+import { t } from '../dil';
 import { GorselHatasi } from '../defter/gorselHesap';
 import type { Kose4, Nokta } from '../defter/kirp/kirpHesap';
 import {
@@ -62,12 +63,12 @@ export function acKoseDuzenleyici(kap: HTMLElement, g: KoseDuzenleyiciGirdi): Ko
   kok.className = 'kd';
   kok.setAttribute('role', 'dialog');
   kok.setAttribute('aria-modal', 'true');
-  kok.setAttribute('aria-label', `Köşeleri düzelt – ${g.ad}`);
+  kok.setAttribute('aria-label', t('kose.baslik', { ad: g.ad }));
   const sahne = document.createElement('div');
   sahne.className = 'kd-sahne';
   const yukleniyor = document.createElement('p');
   yukleniyor.className = 'kd-yukleniyor';
-  yukleniyor.textContent = 'Hazırlanıyor…';
+  yukleniyor.textContent = t('kose.hazirlaniyor');
   const katman = svg('svg', 'kd-svg');
   const karart = svg('path', 'kd-karart');
   karart.setAttribute('fill-rule', 'evenodd');
@@ -82,9 +83,9 @@ export function acKoseDuzenleyici(kap: HTMLElement, g: KoseDuzenleyiciGirdi): Ko
   const ipucu = document.createElement('p');
   ipucu.className = 'kd-ipucu';
   ipucu.setAttribute('aria-live', 'polite');
-  const otomatik = dugme('kd-otomatik', 'Otomatik');
-  const vazgec = dugme('kd-vazgec', 'Vazgeç');
-  const uygula = dugme('kd-uygula', 'Uygula');
+  const otomatik = dugme('kd-otomatik', t('kose.otomatik'));
+  const vazgec = dugme('kd-vazgec', t('genel.vazgec'));
+  const uygula = dugme('kd-uygula', t('kose.uygula'));
   const alt = document.createElement('div');
   alt.className = 'kd-alt';
   alt.append(otomatik, vazgec, uygula);
@@ -130,9 +131,7 @@ export function acKoseDuzenleyici(kap: HTMLElement, g: KoseDuzenleyiciGirdi): Ko
     });
     uygula.disabled = !gc.gecerli;
     otomatik.disabled = !g.otoKoseler;
-    ipucu.textContent = gc.gecerli ? 'Köşeleri sayfanın köşelerine sürükle.'
-      : gc.neden === 'kucuk' ? 'Alan çok küçük. Köşeleri birbirinden uzaklaştır.'
-      : 'Dörtgen içe göçük. Köşeleri sayfanın köşelerine taşı.';
+    ipucu.textContent = t(gc.gecerli ? 'kose.ipucu' : gc.neden === 'kucuk' ? 'kose.kucuk' : 'kose.gocuk');
     buyutecCiz();
   }
 
@@ -263,7 +262,7 @@ export function acKoseDuzenleyici(kap: HTMLElement, g: KoseDuzenleyiciGirdi): Ko
     yerlesim();
   }).catch(e => {
     if (kapandi) return;
-    toast(e instanceof GorselHatasi ? `${g.ad}: ${e.message}` : `${g.ad} açılamadı. Tekrar dene.`);
+    toast(e instanceof GorselHatasi ? `${g.ad}: ${e.message}` : t('kose.acilamadi', { ad: g.ad }));
     if (!(e instanceof GorselHatasi)) console.warn('Önizleme hazırlanamadı.', e);
     kapat();
   });

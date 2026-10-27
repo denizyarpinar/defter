@@ -6,6 +6,7 @@ import { toast } from '../ui/toast';
 import { okuApi } from './claudeMotor';
 import { FotoOkumaKuyrugu, OKUNAMADI, type FotoOkumaSonucu } from './fotoOkuma';
 import { driveOcrApi, kayitOkuDrive, sayfaYaz } from './kayit/kayitDrive';
+import { t } from '../dil';
 
 // Task 6.4c-2: "Temiz yazıya çevir" with the real engine (api/oku) and the real record (Drive).
 // Loaded only when api/oku says acik (6.4c-4; Okuyucu.ts → FotoEkleyici.bitti).
@@ -13,7 +14,7 @@ import { driveOcrApi, kayitOkuDrive, sayfaYaz } from './kayit/kayitDrive';
 let yer: DriveLocation | null = null;
 const kuyruk = new FotoOkumaKuyrugu(() => {
   const loc = yer;
-  if (!loc) throw new Error('Drive kitaplığı açık değil.');
+  if (!loc) throw new Error(t('fotoOkuma.driveYok'));
   const drive = driveOcrApi(loc);
   return {
     oku: jpeg => okuApi(jpeg, { token: currentToken() }),
@@ -24,7 +25,7 @@ const kuyruk = new FotoOkumaKuyrugu(() => {
 });
 
 export function fotoOku(k: BekleyenFoto, r: KonuyaEklendi, loc: DriveLocation | null): Promise<FotoOkumaSonucu | void> {
-  if (!loc) { toast(`${OKUNAMADI} (Drive kitaplığı açık değil)`); return Promise.resolve(); }
+  if (!loc) { toast(`${OKUNAMADI} (${t('fotoOkuma.driveYokKisa')})`); return Promise.resolve(); }
   yer = loc;
   return kuyruk.ekle(k, r).catch(e => { console.warn('Temiz yazı tamamlanmadı.', e); toast(OKUNAMADI); });
 }

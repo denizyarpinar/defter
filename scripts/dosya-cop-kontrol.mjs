@@ -15,8 +15,10 @@ import { chromium } from 'playwright-core';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = 4188;
-const URL = `http://localhost:${PORT}/?demo&lang=tr`;
-const OUT = process.argv[2] ?? 'C:\\Users\\yarpi\\iCloudDrive\\uni_plan_claude_code\\Claude outputs\\kitap-6.K6b';
+// 6.5-4a: DIL=en node scripts/dosya-cop-kontrol.mjs → the English interface (default Turkish); the checks use ids, not texts
+const LANG = process.env.DIL === 'en' ? 'en' : 'tr';
+const URL = `http://localhost:${PORT}/?demo&lang=${LANG}`;
+const OUT = process.argv.slice(2).find(a => !a.startsWith('--')) ?? 'C:\\Users\\yarpi\\iCloudDrive\\uni_plan_claude_code\\Claude outputs\\kitap-6.K6b';
 
 const wait = (ms) => new Promise(r => setTimeout(r, ms));
 
@@ -107,7 +109,7 @@ try {
 
     // the book to the desk (library search), its contents page → "İçindekileri düzenle" → "Bitti" → a topic
     await page.keyboard.press('/');
-    await page.locator('#aramaPaneli .ap-kutu').fill('programlamaya');
+    await page.locator('#aramaPaneli .ap-kutu').fill('program');   // 6.5-4a: matches the TR and the EN title
     await page.waitForFunction(() => document.querySelectorAll('#aramaPaneli .ap-satir').length > 0, null, { timeout: 10_000 });
     await page.locator('#aramaPaneli .ap-satir').first().click();
     await page.waitForSelector('#reader.show', { timeout: 15_000 });

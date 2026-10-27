@@ -13,6 +13,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
+    "dil": "node scripts/dil-kontrol.mjs --sadece-sayim",
     "screenshots": "npm run build && node scripts/screenshots.mjs",
     "demo-pdf": "node scripts/demo-pdf-uret.mjs",
     "sayfa-ornek": "node scripts/sayfa-ekle-ornek.mjs",

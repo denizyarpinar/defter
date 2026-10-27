@@ -72,6 +72,6 @@ export function kitapPlani(g: KitapGirdisi): KitapPlani {
 
 // One line each, for the ?olcum=1 box
 export function planMetni(p: KitapPlani): string {
-  const satir = (o: PlanOgesi) => o.tur === 'rafKaydi' ? `raf: ${o.kitapId} → ${o.rafId} (kitaplik.json)` : `${o.tur === 'klasor' ? 'klasör' : 'dosya'}: kitaplar/${o.yol}`;
-  return [`plan: ${p.ogeler.length} öğe${p.engel ? ` · engel: ${p.engel}` : ''}`, ...p.ogeler.map((o, i) => `${i + 1}. ${satir(o)}`)].join('\n');
+  const satir = (o: PlanOgesi) => o.tur === 'rafKaydi' ? `raf: ${o.kitapId} → ${o.rafId} (kitaplik.json)` : `${o.tur === 'klasor' ? 'klasör' : 'dosya'}: kitaplar/${o.yol}`;   // dil-kontrol: yoksay
+  return [`plan: ${p.ogeler.length} öğe${p.engel ? ` · engel: ${p.engel}` : ''}`, ...p.ogeler.map((o, i) => `${i + 1}. ${satir(o)}`)].join('\n');   // dil-kontrol: yoksay
 }

@@ -45,10 +45,10 @@ export function cozumAdaylari(m: TopicMaterials): CozumAdayi[] {
     m[k].filter(x => !x.cozum).map(x => ({ file: x.file, etiket: `${MATERIAL_LABEL[k]} · ${x.file.name.replace(/\.pdf$/i, '')}` })));
 }
 
-export const KLASOR_ACILIR_METIN = '(klasör ilk dosyada açılır)';
+export const KLASOR_ACILIR_METIN = t('dosya.klasorAcilir');
 
 // Task 6.S-3: the "Özet" row when the topic has a summary (ad: the target file; not chosen yet: without it)
-export const ozetSonuEtiketi = (ad: string | null): string => ad ? `Özetin sonuna ekle (${ad})` : 'Özetin sonuna ekle';
+export const ozetSonuEtiketi = (ad: string | null): string => ad ? t('dosya.ozetSonuAdli', { ad }) : t('dosya.ozetSonu');
 
 // Task 6.K6a: klasorAcabilir (validated Drive context): a missing Uebungen / Oedevler can be chosen, the folder is made with the
 // first file (a note says so); locked: grey as before
@@ -58,12 +58,12 @@ export function hedefSecenekleri(m: TopicMaterials, klasor: KlasorBilgisi | null
     ({ hedef, etiket: hedef === 'ozet' && m.ozet.length ? ozetSonuEtiketi(ozetSonu?.name ?? null) : HEDEF_ETIKETI[hedef], secilebilir: !neden, neden: neden ?? not });
   // a folder with files in it exists; an empty list may mean "no folder" or "empty folder"
   const yok = (k: 'uebungen' | 'oedevler') => !m[k].length && klasor !== null && !klasor[k === 'uebungen' ? 'Uebungen' : 'Oedevler'];
-  const alt = (k: 'uebungen' | 'oedevler') => !yok(k) ? s(k, null) : klasorAcabilir ? s(k, null, KLASOR_ACILIR_METIN) : s(k, '(klasör yok)');
+  const alt = (k: 'uebungen' | 'oedevler') => !yok(k) ? s(k, null) : klasorAcabilir ? s(k, null, KLASOR_ACILIR_METIN) : s(k, t('dosya.klasorYok'));
   return [
     alt('uebungen'),
     alt('oedevler'),
-    s('cozum', cozumAdaylari(m).length ? null : 'Çözümü olmayan dosya yok'),
-    s('orijinal', m.orijinal.length ? 'Bu konuda orijinal var' : null),
+    s('cozum', cozumAdaylari(m).length ? null : t('dosya.cozumsuzYok')),
+    s('orijinal', m.orijinal.length ? t('dosya.orijinalVar') : null),
     s('ozet', null),
   ];
 }
@@ -89,7 +89,7 @@ export function varsayilanHedef(secenekler: readonly Secenek[], acikSekme: Mater
 
 export interface AdDurumu { duzenlenebilir: boolean; ad: string; hata: string | null; gizli?: boolean }   // gizli: no name box (6.S-3)
 
-export const AYNI_AD_METIN = 'Bu adda dosya var, adı değiştir';
+export const AYNI_AD_METIN = t('dosya.ayniAd');
 
 // girilen: the name box (Übungen / Ödevler); cozumOf: the file chosen for "Çözüm"; ozetSonu: ozetHedefi (6.S-3)
 export function adDurumu(m: TopicMaterials, hedef: PanelHedef, girilen: string, cozumOf: DriveFile | null, ozetSonu: DriveFile | null = null): AdDurumu {
@@ -120,10 +120,10 @@ export interface EkleGirdi {
   yuzde?: number | null;     // task 6.S-3: the upload's progress (pages at the end of a summary)
 }
 
-export const ORNEK_METIN = 'Örnek kitaplıkta Drive\'a ekleme yok. Bu sadece taslağın görünümü.';
+export const ORNEK_METIN = t('ekleme.ornekTaslak');
 
 export function ekleDurumu(g: EkleGirdi): { aktif: boolean; metin: string; aciklama: string | null } {
-  const metin = g.ekleniyor ? (g.yuzde != null ? `Ekleniyor… %${g.yuzde}` : 'Ekleniyor…') : g.hataVar ? 'Tekrar dene' : 'Ekle';
+  const metin = g.ekleniyor ? (g.yuzde != null ? t('dosya.ekleniyorYuzde', { yuzde: g.yuzde }) : t('dosya.ekleniyor')) : g.hataVar ? t('genel.tekrarDene') : t('ekleme.ekle');
   if (g.ornek) return { aktif: false, metin, aciklama: ORNEK_METIN };
   const aktif = !!g.secenek?.secilebilir && !!g.ad.ad && !g.ad.hata && !g.ekleniyor && !g.hazirDegil;
   return { aktif, metin, aciklama: null };
@@ -142,15 +142,15 @@ export function dosyaHedefi(hedef: PanelHedef, cozumOf: DriveFile | null, m?: To
 export const islemAnahtari = (hedef: PanelHedef, ad: string, cozumOf: DriveFile | null, ozetSonu: DriveFile | null = null): string =>
   `${hedef}|${hedef === 'cozum' ? cozumOf?.id ?? '' : hedef === 'ozet' && ozetSonu ? `sonu:${ozetSonu.id}` : key(ad)}`;
 
-export const kaynakEtiketi = (k: HazirKaynak): string => k === 'pdf' ? 'PDF' : 'Görsel → PDF';
+export const kaynakEtiketi = (k: HazirKaynak): string => k === 'pdf' ? 'PDF' : t('dosya.gorselPdf');
 
-export const sayfaYazi = (n: number | null | undefined): string => n == null ? '? sayfa' : `${n} sayfa`;
+export const sayfaYazi = (n: number | null | undefined): string => n == null ? t('dosya.sayfaBilinmiyor') : t('genel.sayfaSayisi', { n });
 
 // Task 6.S-3: n pages went at the end of the summary file ad
-export const sonaEklendiMetni = (n: number, ad: string): string => `Eklendi: ${n} sayfa → ${ad} (sonuna)`;
+export const sonaEklendiMetni = (n: number, ad: string): string => t('dosya.sonaEklendi', { n, ad });
 
 export function eklendiMetni(ad: string, uyari?: 'kalemYazamaz'): string {
-  return uyari === 'kalemYazamaz' ? `Eklendi: ${ad} · Kalem bu dosyaya çizim yazamaz (şifreli ya da imzalı PDF).` : `Eklendi: ${ad}`;
+  return uyari === 'kalemYazamaz' ? t('dosya.eklendiKalemYok', { ad }) : t('dosya.eklendi', { ad });
 }
 
 // konuyaDosyaEkle's own errors already say what to do; the others get the photo flow's short reason
@@ -159,7 +159,7 @@ export function hataMetni(e: unknown): string {
     AltKlasorAdiFarkli, AltKlasorAcilamadi, AltKlasorAgHatasi, AltKlasorIzinYok,
     EkPdfYazilamaz, HedefOzetDegil, SayfaEklemeCakisma, SayfaEklemeAgHatasi, DosyaBulunamadi, PdfYazilamaz];   // 6.S-3: at the end of a summary
   if (kendi.some(c => e instanceof c)) return (e as Error).message;
-  return `Dosya eklenemedi: ${kisaNeden(e)}.`;
+  return t('dosya.eklenemedi', { neden: kisaNeden(e) });
 }
 
 // ---- task 6.1c: one Word / PowerPoint file → converted in the panel (no lock since 6.1e) ----
@@ -187,8 +187,8 @@ export type CeviriDurumu = 'cevriliyor' | 'hazir' | 'hata';
 // "ders-notu.docx · 123 KB · Word → PDF · Çevriliyor… 12 sn"; ready: "… · 3 sayfa"; error: "… · Çevrilemedi"
 // sayfa (hazir): undefined = being counted, null = not readable
 export function ofisBilgi(g: { ad: string; bayt: number; alt: OfisCeviriAlt; durum: CeviriDurumu; sn?: number; sayfa?: number | null }): string {
-  const son = g.durum === 'cevriliyor' ? `Çevriliyor… ${g.sn ?? 0} sn`
-    : g.durum === 'hata' ? 'Çevrilemedi'
-    : g.sayfa === undefined ? 'sayfa sayılıyor…' : sayfaYazi(g.sayfa);
+  const son = g.durum === 'cevriliyor' ? t('dosya.cevriliyor', { sn: g.sn ?? 0 })
+    : g.durum === 'hata' ? t('dosya.cevrilemedi')
+    : g.sayfa === undefined ? t('dosya.sayfaSayiliyor') : sayfaYazi(g.sayfa);
   return [g.ad, boyutYazi(g.bayt), OFIS_ETIKETI[g.alt], son].join(' · ');
 }

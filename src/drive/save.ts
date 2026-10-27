@@ -2,6 +2,7 @@ import { libraryToJson } from '../model/serialize';
 import type { Book, Library } from '../model/types';
 import { createJson, readJson, updateJson } from './drive';
 import type { DriveLocation } from './driveLibrary';
+import { t } from '../dil';
 
 // Writes changes back to Drive, 1.5 s after the last change.
 // Always reads the latest file first and changes only our fields (raflar + oda, or kapak).
@@ -80,8 +81,8 @@ export class DriveSaver {
         this.waiting.delete(key);
         if (!this.waiting.size) this.ui.saved();
       } catch (e) {
-        const msg = e instanceof TypeError ? 'Kaydedilemedi: internet bağlantısı yok gibi görünüyor.'
-          : e instanceof Error ? e.message : 'Kaydedilemedi.';
+        const msg = e instanceof TypeError ? t('kayit.internetYok')
+          : e instanceof Error ? e.message : t('kayit.kaydedilemedi');
         this.ui.failed(msg, () => this.run(key, job));
       }
     });
@@ -91,7 +92,7 @@ export class DriveSaver {
   private async saveLibrary(): Promise<void> {
     const ours = libraryToJson(this.data.library);
     if (!this.loc.libraryFileId) {
-      this.loc.libraryFileId = await createJson(this.loc.rootId, 'kitaplik.json', ours, 'kitaplik.json oluşturulurken');
+      this.loc.libraryFileId = await createJson(this.loc.rootId, 'kitaplik.json', ours, t('kayit.kitaplikOlusturulurken'));
       return;
     }
     const latest = await readJson(this.loc.libraryFileId, 'kitaplik.json okunurken');

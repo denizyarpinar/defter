@@ -6,6 +6,7 @@ import { isSampleId } from '../../okuma/ornekKaynak';
 import { kayitBirlestir, sayfaBirlestir } from './birlestir';
 import { duzeltmeUygula, type DuzeltmeHedefi } from './elleDuzelt';
 import { bosKayit, kayitOku, ocrDosyaAdi, sayfaKontrol, OcrKayitBozuk, type OcrKayit, type OcrParca, type OcrSayfa } from './sema';
+import { t } from '../../dil';
 
 // Task 6.4c-1: the reading record of one PDF in Drive (`<pdf name>.ocr.json` in the PDF's folder).
 // - Found by appProperties { defter: "1", defterOcr: "1", defterOcrKaynak: <pdf id> } in that folder, not trashed.
@@ -34,13 +35,13 @@ export interface OcrDrive {
 export const MAX_TUR = 3;
 
 export class OcrKayitCakisma extends Error {
-  constructor() { super('Okuma kaydı bu arada başka bir cihazda değişti, üç denemede de yazılamadı. Biraz sonra tekrar dene.'); }
+  constructor() { super(t('ocrKayit.cakisma')); }
 }
 export class OcrOrnekYazmaYok extends Error {
-  constructor() { super('Örnek kitaplıkta okuma kaydı tutulmaz. Kendi notların için Google ile giriş yap.'); }
+  constructor() { super(t('ocrKayit.ornek')); }
 }
 
-const WHAT = 'Okuma kaydı';
+
 
 export function driveOcrApi(yer: DriveLocation): OcrDrive {
   return {
@@ -52,18 +53,18 @@ export function driveOcrApi(yer: DriveLocation): OcrDrive {
         `appProperties has { key='defterOcrKaynak' and value='${qv(k.id)}' }`
       ].join(' and ');
       const params = new URLSearchParams({ q, fields: 'files(id,createdTime)', orderBy: 'createdTime', pageSize: '100' });
-      const res = await ok(await driveFetch('files?' + params), `${WHAT} aranırken`);
+      const res = await ok(await driveFetch('files?' + params), t('ocrKayit.aranirken'));
       return ((await res.json()) as { files?: OcrDosya[] }).files ?? [];
     },
     async durum(id) {
-      const res = await ok(await driveFetch(`files/${encodeURIComponent(id)}?fields=modifiedTime,headRevisionId`), `${WHAT} okunurken`);
+      const res = await ok(await driveFetch(`files/${encodeURIComponent(id)}?fields=modifiedTime,headRevisionId`), t('ocrKayit.okunurken'));
       const j = await res.json() as Partial<OcrDurum>;
       return { modifiedTime: j.modifiedTime ?? '', headRevisionId: j.headRevisionId ?? '' };
     },
     async oku(id) {
-      return (await ok(await driveFetch(`files/${encodeURIComponent(id)}?alt=media`), `${WHAT} okunurken`)).text();
+      return (await ok(await driveFetch(`files/${encodeURIComponent(id)}?alt=media`), t('ocrKayit.okunurken'))).text();
     },
-    yaz: (id, kayit) => updateJson(id, kayit, `${WHAT} yazılırken`),
+    yaz: (id, kayit) => updateJson(id, kayit, t('ocrKayit.yazilirken')),
     async olustur(k, kayit) {
       const boundary = 'defter' + Math.random().toString(36).slice(2);
       const meta = {
@@ -74,7 +75,7 @@ export function driveOcrApi(yer: DriveLocation): OcrDrive {
         + `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(kayit, null, 2)}\r\n--${boundary}--`;
       const res = await ok(await driveFetch(`${UPLOAD}files?uploadType=multipart&fields=id`, {
         method: 'POST', headers: { 'Content-Type': `multipart/related; boundary=${boundary}` }, body
-      }), `${WHAT} oluşturulurken`);
+      }), t('ocrKayit.olusturulurken'));
       return ((await res.json()) as { id: string }).id;
     },
     async yerKontrol(klasorId) { await yerKontrol(drivePdfOlusturApi, yer, klasorId); }
@@ -92,9 +93,9 @@ const sirala = (d: OcrDosya[]) => [...d].sort((a, b) => a.createdTime.localeComp
 
 function cozumle(metin: string, pdfId: string): OcrKayit {
   let x: unknown;
-  try { x = JSON.parse(metin); } catch { throw new OcrKayitBozuk('geçerli JSON değil'); }
+  try { x = JSON.parse(metin); } catch { throw new OcrKayitBozuk(t('ocrKayit.jsonDegil')); }
   const k = kayitOku(x);
-  if (k.kaynak.id !== pdfId) throw new OcrKayitBozuk('başka bir PDF’in kaydı');
+  if (k.kaynak.id !== pdfId) throw new OcrKayitBozuk(t('ocrKayit.baskaPdf'));
   return k;
 }
 
@@ -102,7 +103,7 @@ function cozumle(metin: string, pdfId: string): OcrKayit {
 async function kopyalarla(drive: OcrDrive, kayit: OcrKayit, digerleri: OcrDosya[], pdfId: string): Promise<OcrKayit> {
   for (const d of digerleri) {
     try { kayit = kayitBirlestir(kayit, cozumle(await drive.oku(d.id), pdfId)); }
-    catch (e) { console.warn(`${WHAT}: kopya ${d.id} birleştirilmedi: ${e instanceof Error ? e.message : String(e)}`); }
+    catch (e) { console.warn(`Okuma kaydı: kopya ${d.id} birleştirilmedi: ${e instanceof Error ? e.message : String(e)}`); }
   }
   return kayit;
 }
@@ -159,7 +160,7 @@ export async function sayfaYaz(drive: OcrDrive, k: OcrKaynakDosya, sayfa: OcrSay
 }
 
 export class OcrKayitYok extends Error {
-  constructor() { super("Okuma kaydı Drive'da bulunamadı. Sayfaları kontrol et ile yenileyip tekrar dene."); }
+  constructor() { super(t('ocrKayit.yok')); }
 }
 
 // Task 6.4e-3: a hand correction of one part (elleDuzelt.ts) on the existing record, the same way as sayfaYaz

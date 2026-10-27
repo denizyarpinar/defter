@@ -3,6 +3,7 @@ import { DriveError, FOLDER_MIME, type DriveFile } from './drive';
 import type { KokCocuk } from './kok';
 import type { KurulumOgesi, YeniOgeMeta } from './kurulum';
 import { IdZatenVar, tekrarlanabilir } from './pdfOlustur';
+import { t } from '../dil';
 
 // Task 6.K6a: a topic's Uebungen / Oedevler folder, made when the first file of that kind is added
 // (CLAUDE.md → Faz 6.K6a). kitapOlustur's / K5a's ways:
@@ -40,16 +41,16 @@ export interface AltKlasorSecenek { kilitAcik: boolean; bekleMs?: number; deneme
 // ---- errors (Turkish, say what to do) ----
 
 export class AltKlasorAdiFarkli extends Error {
-  constructor(ad: string, klasor: AltKlasor) { super(`Bu konuda ${ad} adlı bir klasör var; Drive'da adını ${klasor} yap ve tekrar dene. Hiçbir şey yazılmadı.`); }
+  constructor(ad: string, klasor: AltKlasor) { super(t('altKlasor.adiFarkli', { ad, klasor })); }
 }
 export class AltKlasorAcilamadi extends Error {
-  constructor(ne: string) { super(`Klasör açılmadı: ${ne}. Hiçbir şey yazılmadı; sayfayı yenileyip tekrar dene.`); }
+  constructor(ne: string) { super(t('altKlasor.acilamadi', { ne })); }
 }
 export class AltKlasorAgHatasi extends Error {
-  constructor() { super('Klasör açılamadı: Drive\'a bağlanılamadı ya da Drive meşgul. İnternetini kontrol edip tekrar dene; çift klasör oluşmaz.'); }
+  constructor() { super(t('altKlasor.ag')); }
 }
 export class AltKlasorIzinYok extends Error {
-  constructor() { super('Drive yazmaya izin vermedi. Tekrar giriş yapıp Drive iznini onayla.'); }
+  constructor() { super(t('altKlasor.izinYok')); }
 }
 
 // ---- memory (this session) ----
@@ -61,7 +62,7 @@ const denenen = new Set<string>();             // islemId|klasor: a create was s
 export function altKlasorBelleginiSifirla(): void { acilanlar.clear(); idler.clear(); denenen.clear(); }
 
 // The names the reader doesn't know but a person would mean the same by (NFC, any case)
-const UMLAUTLU: Record<AltKlasor, string> = { Uebungen: 'übungen', Oedevler: 'ödevler' };
+const UMLAUTLU: Record<AltKlasor, string> = { Uebungen: 'übungen', Oedevler: 'ödevler' };   // dil-kontrol: yoksay
 const umlautlu = (f: DriveFile, klasor: AltKlasor) => f.mimeType === FOLDER_MIME && f.name.normalize('NFC').trim().toLowerCase() === UMLAUTLU[klasor];
 
 export async function altKlasorAc(drive: AltKlasorDrive, i: AltKlasorIstek, s: AltKlasorSecenek): Promise<string> {
@@ -89,20 +90,20 @@ export async function altKlasorAc(drive: AltKlasorDrive, i: AltKlasorIstek, s: A
 // topic → … → the book's folder (as many steps as its path has parts) → the root's kitaplar/
 async function zincir(drive: AltKlasorDrive, i: AltKlasorIstek): Promise<void> {
   const kitaplarId = (await drive.kokCocuklari(i.kokId)).find(c => c.name === 'kitaplar' && c.mimeType === FOLDER_MIME)?.id;
-  if (!kitaplarId) throw new AltKlasorAcilamadi('kitaplığın kökünde "kitaplar" klasörü yok');
+  if (!kitaplarId) throw new AltKlasorAcilamadi(t('altKlasor.ne.kitaplarYok'));
   const adim = i.konuYolu.split('/').filter(p => p.trim()).length;
-  if (!adim || i.konuId === i.kitapKlasorId) throw new AltKlasorAcilamadi('konunun klasörü bilinmiyor');
+  if (!adim || i.konuId === i.kitapKlasorId) throw new AltKlasorAcilamadi(t('altKlasor.ne.konuBilinmiyor'));
   let id = i.konuId;
   for (let n = 0; n < adim; n++) {
     const o = await drive.oge(id);
-    if (!o || o.trashed || o.mimeType !== FOLDER_MIME) throw new AltKlasorAcilamadi('konunun klasörü Drive\'da bulunamadı');
+    if (!o || o.trashed || o.mimeType !== FOLDER_MIME) throw new AltKlasorAcilamadi(t('altKlasor.ne.konuYok'));
     const ust = o.parents?.[0];
-    if (!ust || ust === i.kokId || ust === kitaplarId) throw new AltKlasorAcilamadi('konunun klasörü kitabın içinde değil');
+    if (!ust || ust === i.kokId || ust === kitaplarId) throw new AltKlasorAcilamadi(t('altKlasor.ne.kitapDisi'));
     id = ust;
   }
-  if (id !== i.kitapKlasorId) throw new AltKlasorAcilamadi('konunun klasörü bu kitabın içinde değil');
+  if (id !== i.kitapKlasorId) throw new AltKlasorAcilamadi(t('altKlasor.ne.buKitapDisi'));
   const kitap = await drive.oge(i.kitapKlasorId);
-  if (!kitap || kitap.trashed || !kitap.parents?.includes(kitaplarId)) throw new AltKlasorAcilamadi('kitabın klasörü kitaplığın "kitaplar" klasöründe değil');
+  if (!kitap || kitap.trashed || !kitap.parents?.includes(kitaplarId)) throw new AltKlasorAcilamadi(t('altKlasor.ne.kitapYeri'));
 }
 
 const bekle = (ms: number) => new Promise(r => setTimeout(r, ms));
@@ -112,7 +113,7 @@ async function olustur(drive: AltKlasorDrive, i: AltKlasorIstek, s: AltKlasorSec
   let id = idler.get(anahtar);
   if (!id) {
     id = (await drive.yeniIdler(1))[0];
-    if (!id) throw new AltKlasorAcilamadi('klasör kimliği alınamadı');
+    if (!id) throw new AltKlasorAcilamadi(t('altKlasor.ne.kimlik'));
     idler.set(anahtar, id);
   }
   // an earlier try (this islemId) that arrived
@@ -131,7 +132,7 @@ async function olustur(drive: AltKlasorDrive, i: AltKlasorIstek, s: AltKlasorSec
     } catch (e) {
       if (e instanceof IdZatenVar) {
         const f = await drive.oge(id);
-        if (!f) throw new AltKlasorAcilamadi(`${i.klasor} için Drive "zaten var" dedi ama bulunamadı`);
+        if (!f) throw new AltKlasorAcilamadi(t('altKlasor.ne.zatenVarYok', { klasor: i.klasor }));
         bizimMi(f, i);
         return id;
       }
@@ -145,9 +146,9 @@ async function olustur(drive: AltKlasorDrive, i: AltKlasorIstek, s: AltKlasorSec
 // An item Drive has with our id: ours only with our name, islemId and parent, not in the trash
 function bizimMi(f: KurulumOgesi & { trashed?: boolean }, i: AltKlasorIstek): void {
   if (f.name !== i.klasor || f.appProperties?.defterIslem !== i.islemId || (f.parents && !f.parents.includes(i.konuId))) {
-    throw new AltKlasorAcilamadi(`${i.klasor} için alınan kimlik başka bir dosyada`);
+    throw new AltKlasorAcilamadi(t('altKlasor.ne.kimlikBaska', { klasor: i.klasor }));
   }
-  if (f.trashed) throw new AltKlasorAcilamadi(`${i.klasor} Drive'da çöpe atılmış`);
+  if (f.trashed) throw new AltKlasorAcilamadi(t('altKlasor.ne.copte', { klasor: i.klasor }));
 }
 
 // ---- the real Drive (lazy: kitapOlustur's requests) ----

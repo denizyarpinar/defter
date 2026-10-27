@@ -5,8 +5,8 @@
 
 // Letters NFD does not take apart (or that turn into two letters); the rest lose their marks (é → e)
 const OZEL: Record<string, string> = {
-  'ä': 'ae', 'ö': 'oe', 'ü': 'ue', 'Ä': 'Ae', 'Ö': 'Oe', 'Ü': 'Ue', 'ß': 'ss', 'ẞ': 'SS',
-  'ğ': 'g', 'Ğ': 'G', 'ı': 'i', 'İ': 'I', 'ş': 's', 'Ş': 'S', 'ç': 'c', 'Ç': 'C',
+  'ä': 'ae', 'ö': 'oe', 'ü': 'ue', 'Ä': 'Ae', 'Ö': 'Oe', 'Ü': 'Ue', 'ß': 'ss', 'ẞ': 'SS',   // dil-kontrol: yoksay
+  'ğ': 'g', 'Ğ': 'G', 'ı': 'i', 'İ': 'I', 'ş': 's', 'Ş': 'S', 'ç': 'c', 'Ç': 'C',   // dil-kontrol: yoksay
   'æ': 'ae', 'Æ': 'Ae', 'ø': 'o', 'Ø': 'O', 'œ': 'oe', 'Œ': 'Oe', 'ł': 'l', 'Ł': 'L'
 };
 

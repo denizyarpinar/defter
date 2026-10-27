@@ -271,7 +271,7 @@ export function kitapSihirbaziAc(b: SihirbazBaglam): void {
     for (const k of [adKutu, metin]) k.removeEventListener('blur', klavye.sifirla);
     kok.remove();
     klavye.durdur();
-    gorunurAlaniDuzelt('kitap sihirbazı kapandı');
+    gorunurAlaniDuzelt('kitap sihirbazı kapandı');   // dil-kontrol: yoksay
   }
 
   function tus(e: KeyboardEvent): void {

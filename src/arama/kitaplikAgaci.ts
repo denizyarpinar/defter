@@ -9,6 +9,7 @@ import { bookUnits } from '../model/units';
 import { splitPath } from '../okuma/kaynakCoz';
 import { MATERIAL_KINDS, classifyTopic, type MaterialKind } from '../okuma/konuKesfi';
 import { adAnahtari, dosyaAnahtari } from './adEsle';
+import { t } from '../dil';
 
 // Task 6.3d: the Kitaplık tree in memory, for the library search. Every PDF under kitaplar/<kitap>/ with
 // its book, topic (kitap.json) and material (the reader's rule: konuKesfi.classifyTopic). Reads only.
@@ -223,7 +224,7 @@ async function kitaplardanTara(getir: Getirici, bookFolderIds: ReadonlyMap<strin
     const t0 = performance.now();
     const r = await Promise.all(parcala(seviye).map(g => listele<HamDosya>(getir,
       `${parentsKosulu(g)} and (mimeType = '${FOLDER_MIME}' or mimeType = '${PDF_MIME}') and trashed = false`, ALANLAR,
-      { pageSize: 1000, enFazlaSayfa: Infinity, ne: 'Kitaplık klasörleri okunurken' })));
+      { pageSize: 1000, enFazlaSayfa: Infinity, ne: t('arama.klasorlerOkunurken') })));
     const katman = { ms: 0, istek: 0, klasor: 0, pdf: 0 };
     seviye = [];
     for (const x of r) {

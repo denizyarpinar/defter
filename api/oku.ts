@@ -78,7 +78,14 @@ export function sinirSifirla(): void { istekler.clear(); }
 
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' } });
-const hata = (status: number, mesaj: string, ek: Record<string, unknown> = {}) => json(status, { hata: mesaj, ...ek });
+// Task 6.5-4a: `hata` stays the Turkish text (older pages show it as it is); `kod` is a fixed code the page
+// turns into its own language (claudeMotor.ts). Values a text needs travel in their own fields (kenar, durum, eksik).
+export type HataKodu =
+  | 'giris_yok' | 'giris_gecersiz' | 'google_ulasilamadi' | 'giris_baska' | 'sahip_degil' | 'drive_ulasilamadi'
+  | 'yontem' | 'ayar_eksik' | 'hiz_siniri' | 'cok_buyuk' | 'json_degil' | 'model_bilinmiyor' | 'gorsel_yok'
+  | 'base64_degil' | 'jpeg_degil' | 'kenar_buyuk' | 'model_ulasilamadi' | 'model_hata' | 'model_bozuk'
+  | 'model_reddetti' | 'model_yarida' | 'model_bicim';
+const hata = (status: number, kod: HataKodu, mesaj: string, ek: Record<string, unknown> = {}) => json(status, { hata: mesaj, kod, ...ek });
 
 // Short 403 reason codes for the page; they never carry a value (no e-mail, no token).
 export type RedNedeni = 'email-yok' | 'email-dogrulanmamis' | 'sahip-degil';
@@ -157,22 +164,22 @@ async function sahipDogrula(request: Request, deps: OkuDeps): Promise<{ eposta: 
   const { env } = deps;
   const yetki = request.headers.get('authorization') ?? '';
   const token = /^Bearer (\S+)$/.exec(yetki)?.[1];
-  if (!token) return { cevap: hata(401, 'Google girişi yok. Tekrar giriş yap.') };
+  if (!token) return { cevap: hata(401, 'giris_yok', 'Google girişi yok. Tekrar giriş yap.') };
   let bilgi: { aud?: string; email?: string; email_verified?: string | boolean; expires_in?: string | number };
   try {
     const r = await deps.fetch(`https://oauth2.googleapis.com/tokeninfo?access_token=${encodeURIComponent(token)}`);
-    if (!r.ok) return { cevap: hata(401, 'Google girişi doğrulanamadı. Tekrar giriş yap.') };
+    if (!r.ok) return { cevap: hata(401, 'giris_gecersiz', 'Google girişi doğrulanamadı. Tekrar giriş yap.') };
     bilgi = await r.json() as typeof bilgi;
   } catch {
-    return { cevap: hata(502, 'Google doğrulamasına ulaşılamadı. Bağlantını kontrol et ve tekrar dene.') };
+    return { cevap: hata(502, 'google_ulasilamadi', 'Google doğrulamasına ulaşılamadı. Bağlantını kontrol et ve tekrar dene.') };
   }
   if (bilgi.aud !== env.VITE_GOOGLE_CLIENT_ID || !(Number(bilgi.expires_in) > 0)) {
-    return { cevap: hata(401, 'Google girişi bu uygulamaya ait değil ya da süresi dolmuş. Tekrar giriş yap.') };
+    return { cevap: hata(401, 'giris_baska', 'Google girişi bu uygulamaya ait değil ya da süresi dolmuş. Tekrar giriş yap.') };
   }
   // field names only (no values), so the page can show what tokeninfo returned
   const alanlar = Object.keys(bilgi).sort();
   const red = (neden: RedNedeni, ek: Record<string, unknown> = {}) =>
-    ({ cevap: hata(403, 'El yazısı okuma sadece sahip hesabıyla kullanılabilir.', { neden, alanlar, ...ek }) });
+    ({ cevap: hata(403, 'sahip_degil', 'El yazısı okuma sadece sahip hesabıyla kullanılabilir.', { neden, alanlar, ...ek }) });
   let eposta = typeof bilgi.email === 'string' ? epostaNormal(bilgi.email) : '';
   let kaynak: 'tokeninfo' | 'drive' = 'tokeninfo';
   if (eposta) {
@@ -187,7 +194,7 @@ async function sahipDogrula(request: Request, deps: OkuDeps): Promise<{ eposta: 
         if (typeof about.user?.emailAddress === 'string') { eposta = epostaNormal(about.user.emailAddress); kaynak = 'drive'; }
       }
     } catch {
-      return { cevap: hata(502, 'Drive’dan hesap bilgisi alınamadı. Bağlantını kontrol et ve tekrar dene.') };
+      return { cevap: hata(502, 'drive_ulasilamadi', 'Drive’dan hesap bilgisi alınamadı. Bağlantını kontrol et ve tekrar dene.') };
     }
     if (!eposta) return red('email-yok');
   }
@@ -209,10 +216,10 @@ export async function durumIstegi(request: Request, deps: OkuDeps): Promise<Resp
 export async function okuIstegi(request: Request, deps: OkuDeps): Promise<Response> {
   const { env } = deps;
   if (request.method === 'GET') return durumIstegi(request, deps);
-  if (request.method !== 'POST') return hata(405, 'Sadece POST.');
+  if (request.method !== 'POST') return hata(405, 'yontem', 'Sadece POST.');
 
   const eksik = AYARLAR.filter(k => !env[k]);
-  if (eksik.length) return hata(500, `Sunucu ayarı eksik: ${eksik.join(', ')}. Vercel'de development (vercel dev), preview ya da production ortamına ekle, sonra vercel dev'i yeniden başlat ya da yeniden yayınla.`);
+  if (eksik.length) return hata(500, 'ayar_eksik', `Sunucu ayarı eksik: ${eksik.join(', ')}. Vercel'de development (vercel dev), preview ya da production ortamına ekle, sonra vercel dev'i yeniden başlat ya da yeniden yayınla.`, { eksik });
 
   // 1. Google sign-in: the token must belong to this app and to the owner
   const d = await sahipDogrula(request, deps);
@@ -222,27 +229,27 @@ export async function okuIstegi(request: Request, deps: OkuDeps): Promise<Respon
   // 2. simple rate limit
   const simdi = deps.simdi();
   const son = (istekler.get(eposta) ?? []).filter(t => simdi - t < SINIR.pencereMs);
-  if (son.length >= SINIR.istek) { istekler.set(eposta, son); return hata(429, 'Dakikada en fazla 10 istek. Bir dakika bekle.'); }
+  if (son.length >= SINIR.istek) { istekler.set(eposta, son); return hata(429, 'hiz_siniri', 'Dakikada en fazla 10 istek. Bir dakika bekle.', { sinir: SINIR.istek }); }
   son.push(simdi); istekler.set(eposta, son);
 
   // 3. body: { model, gorsel (base64 JPEG) }
-  if (Number(request.headers.get('content-length') ?? 0) > MAX_GOVDE) return hata(413, 'Görsel çok büyük (en fazla 3 MB JPEG).');
+  if (Number(request.headers.get('content-length') ?? 0) > MAX_GOVDE) return hata(413, 'cok_buyuk', 'Görsel çok büyük (en fazla 3 MB JPEG).');
   const metin = await request.text();
-  if (metin.length > MAX_GOVDE) return hata(413, 'Görsel çok büyük (en fazla 3 MB JPEG).');
+  if (metin.length > MAX_GOVDE) return hata(413, 'cok_buyuk', 'Görsel çok büyük (en fazla 3 MB JPEG).');
   let govde: { model?: unknown; gorsel?: unknown };
-  try { govde = JSON.parse(metin); } catch { return hata(400, 'İstek okunamadı (JSON değil).'); }
+  try { govde = JSON.parse(metin); } catch { return hata(400, 'json_degil', 'İstek okunamadı (JSON değil).'); }
   const model = govde.model;
   if (typeof model !== 'string' || !(OKU_MODELLER as readonly string[]).includes(model)) {
-    return hata(400, `Bilinmeyen model. İzin verilenler: ${OKU_MODELLER.join(', ')}.`);
+    return hata(400, 'model_bilinmiyor', `Bilinmeyen model. İzin verilenler: ${OKU_MODELLER.join(', ')}.`);
   }
-  if (typeof govde.gorsel !== 'string' || !govde.gorsel) return hata(400, 'Görsel yok.');
+  if (typeof govde.gorsel !== 'string' || !govde.gorsel) return hata(400, 'gorsel_yok', 'Görsel yok.');
   const gorsel = govde.gorsel;
-  if (gorsel.length * 3 / 4 > MAX_JPEG + 4) return hata(413, 'Görsel çok büyük (en fazla 3 MB JPEG).');
+  if (gorsel.length * 3 / 4 > MAX_JPEG + 4) return hata(413, 'cok_buyuk', 'Görsel çok büyük (en fazla 3 MB JPEG).');
   const bayt = base64Coz(gorsel);
-  if (!bayt) return hata(400, 'Görsel okunamadı (base64 değil).');
+  if (!bayt) return hata(400, 'base64_degil', 'Görsel okunamadı (base64 değil).');
   const boyut = jpegBoyutu(bayt);
-  if (!boyut) return hata(415, 'Sadece JPEG görsel gönderilebilir.');
-  if (Math.max(boyut.w, boyut.h) > MAX_KENAR) return hata(413, `Görselin uzun kenarı en fazla ${MAX_KENAR} px olabilir.`);
+  if (!boyut) return hata(415, 'jpeg_degil', 'Sadece JPEG görsel gönderilebilir.');
+  if (Math.max(boyut.w, boyut.h) > MAX_KENAR) return hata(413, 'kenar_buyuk', `Görselin uzun kenarı en fazla ${MAX_KENAR} px olabilir.`, { kenar: MAX_KENAR });
 
   // 4. Claude (structured output → JSON); no fallback: the measurement is for the named model
   const basla = deps.simdi();
@@ -266,18 +273,18 @@ export async function okuIstegi(request: Request, deps: OkuDeps): Promise<Respon
       })
     });
   } catch {
-    return hata(502, 'Modele ulaşılamadı. Bağlantını kontrol et ve tekrar dene.');
+    return hata(502, 'model_ulasilamadi', 'Modele ulaşılamadı. Bağlantını kontrol et ve tekrar dene.');
   }
-  if (!cevap.ok) return hata(502, `Model isteği başarısız (durum ${cevap.status}).`);
+  if (!cevap.ok) return hata(502, 'model_hata', `Model isteği başarısız (durum ${cevap.status}).`, { durum: cevap.status });
 
   let mesaj: { stop_reason?: string; content?: { type: string; text?: string }[]; usage?: { input_tokens?: number; output_tokens?: number } };
-  try { mesaj = await cevap.json() as typeof mesaj; } catch { return hata(502, 'Model yanıtı okunamadı (bozuk JSON).'); }
-  if (mesaj.stop_reason === 'refusal') return hata(422, 'Model bu sayfayı okumayı reddetti. Başka bir sayfa dene.');
-  if (mesaj.stop_reason === 'max_tokens') return hata(502, 'Model yanıtı yarıda kesildi (çok uzun sayfa).');
+  try { mesaj = await cevap.json() as typeof mesaj; } catch { return hata(502, 'model_bozuk', 'Model yanıtı okunamadı (bozuk JSON).'); }
+  if (mesaj.stop_reason === 'refusal') return hata(422, 'model_reddetti', 'Model bu sayfayı okumayı reddetti. Başka bir sayfa dene.');
+  if (mesaj.stop_reason === 'max_tokens') return hata(502, 'model_yarida', 'Model yanıtı yarıda kesildi (çok uzun sayfa).');
   const yazi = (mesaj.content ?? []).filter(b => b.type === 'text').map(b => b.text ?? '').join('');
   let sonuc: unknown;
-  try { sonuc = JSON.parse(yazi); } catch { return hata(502, 'Model yanıtı okunamadı (bozuk JSON). Tekrar dene.'); }
-  if (!sonucGecerli(sonuc)) return hata(502, 'Model yanıtı beklenen biçimde değil. Tekrar dene.');
+  try { sonuc = JSON.parse(yazi); } catch { return hata(502, 'model_bozuk', 'Model yanıtı okunamadı (bozuk JSON). Tekrar dene.'); }
+  if (!sonucGecerli(sonuc)) return hata(502, 'model_bicim', 'Model yanıtı beklenen biçimde değil. Tekrar dene.');
 
   const govdeSonuc: OkuSonuc = {
     satirlar: satirlariNormallestir(sonuc.satirlar),

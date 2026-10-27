@@ -77,7 +77,7 @@ export function installGorunurAlan(): void {
   vv?.addEventListener('resize', () => {
     const oncekiAcik = alanDurumu.klavyeAcik;
     klavyeDurumu();
-    if (klavyeKapandiMi({ oncekiAcik, vvH: vv.height, enBuyukH: alanDurumu.enBuyukH })) gorunurAlaniDuzelt('klavye kapandı');
+    if (klavyeKapandiMi({ oncekiAcik, vvH: vv.height, enBuyukH: alanDurumu.enBuyukH })) gorunurAlaniDuzelt('klavye kapandı');   // dil-kontrol: yoksay
   });
   document.addEventListener('focusout', () => gorunurAlaniDuzelt('focusout'));
   addEventListener('pageshow', () => gorunurAlaniDuzelt('pageshow'));

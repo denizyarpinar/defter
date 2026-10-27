@@ -47,8 +47,8 @@ export class SayfaEklemeHatasi extends Error {
   }
 }
 
-const BOS = 'Eklenecek fotoğraf yok. En az bir fotoğraf seç.';
-const bozuk = (i: number) => `${i + 1}. fotoğraf okunamadı. O fotoğrafı tekrar seç.`;
+const BOS = () => t('ekHata.fotoYok');
+const bozuk = (i: number) => t('ekHata.fotoBozuk', { no: i + 1 });
 
 // A whole JPEG: starts with SOI (FF D8) and ends with EOI (FF D9). pdf-lib only reads the header,
 // so a cut-off file would otherwise end up as a half-grey page.
@@ -59,7 +59,7 @@ function jpegMi(b: Uint8Array): boolean {
 
 // All photos are checked before anything is added, so a broken one leaves no half-done file.
 export async function sayfalariEkle(doc: PDFDocument, jpegler: readonly Jpeg[]): Promise<void> {
-  if (jpegler.length === 0) throw new SayfaEklemeHatasi(BOS);
+  if (jpegler.length === 0) throw new SayfaEklemeHatasi(BOS());
   jpegler.forEach((j, i) => { if (!jpegMi(j.bytes)) throw new SayfaEklemeHatasi(bozuk(i)); });
   const gomulu = [];
   for (const [i, j] of jpegler.entries()) {

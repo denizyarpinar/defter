@@ -1,5 +1,6 @@
 import { DriveError, qv } from './drive';
 import { saltOkunurFetch, type Getirici } from './saltOkunur';
+import { t } from '../dil';
 
 // Task 6.3d: Drive queries for the library search. Reads only: every request goes through a read-only
 // fetcher (saltOkunur.ts), GET only. Drive's fullText finds whole words only (6.3a); names are matched
@@ -24,8 +25,8 @@ export const fullTextKelimeleri = (q: string) => q.replace(/"/g, ' ').split(/\s+
 // Task 6.4c-3: a word's two spellings for fullText (Drive does not fold ä = ae; measured): "Einrückung" ↔
 // "Einrueckung", "Fuß" ↔ "Fuss". A word with ä/ö/ü/ß → the ae/oe/ue/ss form; one with ae/oe/ue/ss → the
 // umlaut form (every one of them: "Quelle" → "Qülle" just finds nothing). Otherwise the word alone.
-const AE: Record<string, string> = { 'ä': 'ae', 'ö': 'oe', 'ü': 'ue', 'ß': 'ss', 'Ä': 'Ae', 'Ö': 'Oe', 'Ü': 'Ue' };
-const UMLAUT: Record<string, string> = { ae: 'ä', oe: 'ö', ue: 'ü', ss: 'ß', a: 'Ä', o: 'Ö', u: 'Ü' };
+const AE: Record<string, string> = { 'ä': 'ae', 'ö': 'oe', 'ü': 'ue', 'ß': 'ss', 'Ä': 'Ae', 'Ö': 'Oe', 'Ü': 'Ue' };   // dil-kontrol: yoksay
+const UMLAUT: Record<string, string> = { ae: 'ä', oe: 'ö', ue: 'ü', ss: 'ß', a: 'Ä', o: 'Ö', u: 'Ü' };   // dil-kontrol: yoksay
 export function yazimlar(w: string): string[] {
   const alt = /[äöüßÄÖÜ]/u.test(w) ? w.replace(/[äöüßÄÖÜ]/gu, c => AE[c])
     : w.replace(/[aou]e|ss/giu, c => /^[AOU]/u.test(c) ? UMLAUT[c[0].toLowerCase()] : UMLAUT[c.toLowerCase()]);
@@ -91,7 +92,7 @@ export async function driveMetinAra(q: string, klasorIdleri: readonly string[], 
   const t0 = performance.now();
   const sorgular = parcala(klasorIdleri).map(g => fullTextSorgusu(q, g, { yazimlar: o.elYazisi })).filter((s): s is string => !!s);
   const r = await Promise.all(sorgular.map(s => listele<MetinDosyasi>(getir, s, o.elYazisi ? 'id,parents,appProperties' : 'id', {
-    pageSize: METIN_SAYFA, enFazlaSayfa: METIN_EN_FAZLA_SAYFA, ne: 'Kitaplıkta aranırken', signal,
+    pageSize: METIN_SAYFA, enFazlaSayfa: METIN_EN_FAZLA_SAYFA, ne: t('arama.kitaplikta'), signal,
   })));
   const dosyalar = r.flatMap(x => x.dosyalar);
   const sonuc: MetinSonucu = {

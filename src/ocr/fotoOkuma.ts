@@ -3,6 +3,7 @@ import type { KonuyaEklendi } from '../defter/konuyaEkle';
 import { OkumaHatasi, type OkunanSayfa } from './claudeMotor';
 import type { OcrKaynakDosya } from './kayit/kayitDrive';
 import type { OcrSayfa } from './kayit/sema';
+import { t } from '../dil';
 
 // Task 6.4c-2: "Temiz yazıya çevir" while adding photos. Runs only after the photos are on Drive (the
 // adding's success, FotoEkleyici.bitti), one photo after the other. The fingerprint comes from the JPEG
@@ -10,7 +11,7 @@ import type { OcrSayfa } from './kayit/sema';
 // (parmakIzi.ts) without downloading the PDF (fotoOkuma.test.ts proves it). Never throws: a failed reading
 // leaves the photo on its page and only says so.
 
-export const OKUNAMADI = 'Okunamadı, okuyucudan tekrar dene';
+export const OKUNAMADI = t('fotoOkuma.okunamadi');
 export const BEKLE_429_MS = 60_000;
 
 export async function sha256Hex(b: Uint8Array): Promise<string> {
@@ -70,7 +71,7 @@ export async function temizYaziyaCevir(k: BekleyenFoto, r: KonuyaEklendi, d: Fot
       }
     }
     if (hatalar.length) d.bildir(`${OKUNAMADI} (${hatalar.join(' · ')})`);
-    else if (sonuc.okunan) d.bildir(`Temiz yazı kaydedildi: ${sonuc.okunan} sayfa (${r.ad})`);
+    else if (sonuc.okunan) d.bildir(t('fotoOkuma.kaydedildi', { n: sonuc.okunan, ad: r.ad }));
   } catch (e) {
     console.warn('Temiz yazı tamamlanmadı.', e);
   }

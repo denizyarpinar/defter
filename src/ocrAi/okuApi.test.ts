@@ -254,6 +254,16 @@ describe('api/oku', () => {
     const r = await sonuc(await okuIstegi(istek(), deps));
     expect(r.status).toBe(502);
     expect(String(r.govde.hata)).toBe('Model isteği başarısız (durum 401).');
+    expect(r.govde.kod).toBe('model_hata');   // 6.5-4a: the fixed code next to the old text
+    expect(r.govde.durum).toBe(401);
+  });
+
+  it('6.5-4a: every error answer keeps hata (text) and adds kod', async () => {
+    const yok = await sonuc(await okuIstegi(istek(undefined, null), kur([]).deps));
+    expect(yok.govde).toMatchObject({ kod: 'giris_yok', hata: 'Google girişi yok. Tekrar giriş yap.' });
+    const tokeninfo = await sonuc(await okuIstegi(istek(), kur([new Response('{}', { status: 400 })]).deps));
+    expect(tokeninfo.govde).toMatchObject({ kod: 'giris_gecersiz' });
+    expect(typeof tokeninfo.govde.hata).toBe('string');
   });
 
   it('ret (refusal): 422', async () => {

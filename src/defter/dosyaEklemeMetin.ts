@@ -4,6 +4,8 @@ import { DosyaYazmaYok, YerDisi, YetkiYok } from '../drive/pdfOlustur';
 import { MAX_DOSYA_MB } from './ayarlar';
 import type { DosyaTuruSonucu } from './dosyaTuru';
 import { hataMesaji } from './gorselHesap';
+import { t } from '../dil';
+import { sayi } from '../dil/bicim';
 
 // Task 5.10b: the texts of "Dosya ekle" (no DOM, so it can be tested).
 
@@ -11,13 +13,14 @@ const OFIS_ADI = new Map([['word', 'Word'], ['powerpoint', 'PowerPoint'], ['keyn
 
 export function ofisMetni(alt?: string): string {
   const adi = (alt && OFIS_ADI.get(alt)) || 'Word/PowerPoint';
-  return `${adi} dosyaları eklenemiyor. Dosyayı PDF olarak kaydedip ekle.`;
+  return t('dosya.ofisEklenemez', { adi });
 }
 
-export const DESTEKLENMEYEN_METIN = 'Bu dosya türü desteklenmiyor. PDF ya da görsel (JPEG, PNG) seç.';
+// The language is fixed for the page's life (a change reloads), so these can be computed once
+export const DESTEKLENMEYEN_METIN = t('dosya.desteklenmiyor');
 // "Dosya ekle"'s own text (the photo flow keeps hataMesaji('bos'))
-export const BOS_DOSYA_METIN = 'Dosya boş. Başka bir dosya seç.';
-export const BOZUK_PDF_METIN = 'Bu PDF açılamıyor, dosya bozuk olabilir.';
+export const BOS_DOSYA_METIN = t('dosya.bos');
+export const BOZUK_PDF_METIN = t('dosya.bozukPdf');
 
 // Why the file can't be added; pdf and gorsel: null (they can)
 export function turMetni(s: DosyaTuruSonucu): string | null {
@@ -30,18 +33,18 @@ export function turMetni(s: DosyaTuruSonucu): string | null {
 export const heicAcilamadiMetni = (): string => hataMesaji('heic');
 
 const MB = 1_000_000;
-// one decimal, Turkish comma; rounded up so an oversized file never shows the limit itself
-const mbYazi = (n: number) => String(Math.ceil(n * 10 - 1e-9) / 10).replace('.', ',');
+// one decimal (bicim.ts: comma in Turkish); rounded up so an oversized file never shows the limit itself
+const mbYazi = (n: number) => sayi(Math.ceil(n * 10 - 1e-9) / 10, 1);
 
 // "Dosya çok büyük: 62,4 MB, sınır 50 MB"; within the limit: null
 export function boyutMetni(bayt: number, maxMb = MAX_DOSYA_MB): string | null {
   if (bayt <= maxMb * MB) return null;
-  return `Dosya çok büyük: ${mbYazi(bayt / MB)} MB, sınır ${mbYazi(maxMb)} MB`;
+  return t('dosya.cokBuyuk', { boyut: mbYazi(bayt / MB), sinir: mbYazi(maxMb) });
 }
 
 // ---- task 6.1c: Word / PowerPoint conversion in the panel ----
 
-export const CEVIRI_BEKLENMEYEN_METIN = 'Dosya çevrilemedi: beklenmeyen bir hata oldu. Tekrar çevir; olmazsa sayfayı yenileyip dene.';
+export const CEVIRI_BEKLENMEYEN_METIN = t('dosya.ceviriBeklenmeyen');
 
 export interface OfisHataMetni { metin: string; tekrarCevir: boolean }
 

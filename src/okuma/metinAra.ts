@@ -34,7 +34,7 @@ export interface Eslesme {
 export const EN_AZ_HARF = 2;   // shorter queries find nothing (one letter would mark the whole page)
 const ALT_PAY = 0.2;           // part of the item's height below the baseline (descenders)
 
-const OZEL: Record<string, string> = { 'ä': 'ae', 'ö': 'oe', 'ü': 'ue', 'ß': 'ss', 'ı': 'i', '‐': '-', '‑': '-' };
+const OZEL: Record<string, string> = { 'ä': 'ae', 'ö': 'oe', 'ü': 'ue', 'ß': 'ss', 'ı': 'i', '‐': '-', '‑': '-' };   // dil-kontrol: yoksay
 const BOSLUK = /\s/u;
 const ISARET = /\p{M}/u;
 

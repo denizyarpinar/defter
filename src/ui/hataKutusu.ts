@@ -1,5 +1,7 @@
 // ?fps=1 (task 3.7): errors on screen, because the iPad has no console. The last 5, closable.
 // Without ?fps=1 nothing is added, not even the listeners.
+import { t } from '../dil';
+
 
 export const MAX_ERRORS = 5;
 
@@ -24,7 +26,7 @@ export function installErrorBox(): void {
   const close = document.createElement('button');
   close.type = 'button';
   close.textContent = '×';
-  close.setAttribute('aria-label', 'Hataları kapat');
+  close.setAttribute('aria-label', t('hataKutusu.kapat'));
   close.addEventListener('click', () => { list = []; box.hidden = true; });
   box.append(close, ul);
   document.body.append(box);

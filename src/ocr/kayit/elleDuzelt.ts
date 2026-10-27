@@ -1,4 +1,5 @@
 import { yaziSatiriMi, type OcrKayit, type OcrParca, type OcrSayfa } from './sema';
+import { t } from '../../dil';
 
 // Task 6.4e-3: a word of the read text corrected by hand in the "El yazısını oku" panel. Free, no API call.
 // - metin (as written) never changes; duzeltme = (the correction there is, else metin) with that word changed,
@@ -44,7 +45,7 @@ function kelimeKoy(metin: string, i: number, yeni: string): string {
 }
 
 export class KelimeBos extends Error {
-  constructor() { super('Kelime boş olamaz. Doğrusunu yaz ya da Vazgeç.'); }
+  constructor() { super(t('ocrPanel.kelimeBos')); }
 }
 
 // The i-th word's core becomes `yeni` (white space inside collapsed to one space)
@@ -78,7 +79,7 @@ export const elleSayisi = (s: Pick<OcrSayfa, 'satirlar'>): number =>
 
 export const tekrarOkuUyarisi = (s: Pick<OcrSayfa, 'satirlar'>): string | null => {
   const n = elleSayisi(s);
-  return n ? `Bu sayfada ${n} elle düzeltme var, tekrar okursan silinir.` : null;
+  return n ? t('ocrPanel.tekrarOkuUyari', { n }) : null;
 };
 
 // Which part of which reading: the page's fingerprint + reading time, the part's place, its metin and the
@@ -86,7 +87,7 @@ export const tekrarOkuUyarisi = (s: Pick<OcrSayfa, 'satirlar'>): string | null =
 export interface DuzeltmeHedefi { parmakIzi: string; okunma: string; satir: number; parca: number; metin: string; gosterilen: string }
 
 export class OcrSayfaDegisti extends Error {
-  constructor() { super('Sayfa bu arada yeniden okunmuş ya da başka yerde düzeltilmiş. Sayfaları kontrol et ile yenileyip tekrar dene.'); }
+  constructor() { super(t('ocrKayit.sayfaDegisti')); }
 }
 
 // The latest record (just read from Drive) with the part changed; the page read again (another okunma) or

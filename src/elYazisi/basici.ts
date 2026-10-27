@@ -17,18 +17,18 @@ export type Stil = typeof STILLER[number];
 export interface TukenmezAyar { buyut: number; doku: [number, number, number]; esik: Record<string, [number, number]>; tonlar: Record<string, [number, number, number]> }
 
 export class AtlasStilYok extends Error {
-  constructor(ne: string) { super(`El yazısı atlasında ${ne} yok. Paketi yeniden üret (uret.py paket) ve yükle.`); }
+  constructor(ne: string) { super(`El yazısı atlasında ${ne} yok. Paketi yeniden üret (uret.py paket) ve yükle.`); }   // dil-kontrol: yoksay
 }
 
 export function kagitRengi(atlas: Pick<ElYazisiAtlas, 'stiller'>): [number, number, number] {
   const k = atlas.stiller.kagit;
-  if (!Array.isArray(k) || k.length !== 3) throw new AtlasStilYok('kâğıt rengi (stiller.kagit)');
+  if (!Array.isArray(k) || k.length !== 3) throw new AtlasStilYok('kâğıt rengi (stiller.kagit)');   // dil-kontrol: yoksay
   return k as [number, number, number];
 }
 
 export function tukenmezAyar(atlas: Pick<ElYazisiAtlas, 'stiller'>): TukenmezAyar {
   const t = atlas.stiller.tukenmez as Partial<TukenmezAyar> | undefined;
-  if (!t || !t.buyut || !t.doku || !t.esik || !t.tonlar) throw new AtlasStilYok('tükenmez stili (stiller.tukenmez)');
+  if (!t || !t.buyut || !t.doku || !t.esik || !t.tonlar) throw new AtlasStilYok('tükenmez stili (stiller.tukenmez)');   // dil-kontrol: yoksay
   return t as TukenmezAyar;
 }
 
@@ -124,7 +124,7 @@ export interface Glif {
 export function tukenmezKaplama(g: AtlasD, renk: string, t: TukenmezAyar): Float32Array {
   const k = Math.round(t.buyut);
   const esik = t.esik[renk];
-  if (!esik) throw new AtlasStilYok(`"${renk}" rengi için tükenmez eşiği`);
+  if (!esik) throw new AtlasStilYok(`"${renk}" rengi için tükenmez eşiği`);   // dil-kontrol: yoksay
   const [e0, e1] = esik;
   const [d0, d1, q] = t.doku;
   const U = lanczosBuyut(g, g.w * k, g.h * k);
@@ -152,7 +152,7 @@ export function tukenmezKaplama(g: AtlasD, renk: string, t: TukenmezAyar): Float
 export function tukenmezGlif(g: AtlasD, taban: number, renk: string, atlas: Pick<ElYazisiAtlas, 'stiller'>): Glif {
   const t = tukenmezAyar(atlas);
   const ton = t.tonlar[renk];
-  if (!ton) throw new AtlasStilYok(`"${renk}" rengi için tükenmez tonu`);
+  if (!ton) throw new AtlasStilYok(`"${renk}" rengi için tükenmez tonu`);   // dil-kontrol: yoksay
   const kap = tukenmezKaplama(g, renk, t);
   const rgba = new Uint8ClampedArray(g.w * g.h * 4);
   for (let i = 0; i < kap.length; i++) {

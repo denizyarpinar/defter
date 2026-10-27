@@ -13,6 +13,10 @@ export function boyut(bayt: number): string {
   return `${sayi(bayt / (1024 * 1024), 1)} MB`;
 }
 
+// date + time: the reading time of an OCR page (okunanMetin.ts)
+export const tarihSaat = (d: Date): string =>
+  new Intl.DateTimeFormat(yerel(), { dateStyle: 'short', timeStyle: 'medium' }).format(d);
+
 export const tarih = (d: Date): string =>
   new Intl.DateTimeFormat(yerel(), { day: 'numeric', month: 'long', year: 'numeric' }).format(d);
 

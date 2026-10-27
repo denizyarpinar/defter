@@ -4,6 +4,7 @@ import { driveFetch, ok } from './drive';
 import type { DriveLocation } from './driveLibrary';
 import { DosyaYazmaYok, drivePdfOlusturApi, yerKontrol } from './pdfOlustur';
 import { RESUMABLE_LIMIT, UPLOAD } from './pdfYazici';
+import { t } from '../dil';
 
 // Task 6.1b: Word / PowerPoint → PDF with Drive (core only, no UI yet; 6.1c adds the panel).
 // Rules (CLAUDE.md → Faz 6):
@@ -18,7 +19,7 @@ import { RESUMABLE_LIMIT, UPLOAD } from './pdfYazici';
 
 export const GOOGLE_DOC = 'application/vnd.google-apps.document';
 export const GOOGLE_SLIDES = 'application/vnd.google-apps.presentation';
-export const GECICI_ON_EK = '~çeviri – ';
+export const GECICI_ON_EK = '~çeviri – ';   // dil-kontrol: yoksay
 export const SUPURME_YASI_MS = 60 * 60 * 1000;
 export const SUPURME_EN_FAZLA = 20;
 
@@ -52,11 +53,11 @@ function kaynakMimesi(ad: string, mime: string): string {
 // ---- errors (Turkish, say what to do) ----
 
 export class OfisDesteklenmiyor extends Error {
-  constructor(ad: string) { super(`"${ad}" PDF'e çevrilemez. Sadece Word (docx, doc, odt, rtf) ve PowerPoint (pptx, ppt, odp) çevrilir; dosyayı PDF olarak kaydedip ekle.`); }
+  constructor(ad: string) { super(t('ofis.desteklenmiyor', { ad })); }
 }
 
 export class OfisCokBuyuk extends Error {
-  constructor() { super('Bu dosyanın PDF\'i Drive\'ın 10 MB sınırını aşıyor, çevrilemedi. Dosyayı kendi bilgisayarında PDF olarak kaydedip ekle.'); }
+  constructor() { super(t('ofis.cokBuyuk')); }
 }
 
 // neden: izin = the Google permission (scope) is not enough ("Tekrar çevir" can't help);
@@ -67,9 +68,8 @@ export class OfisYuklenemedi extends Error {
   readonly durum?: number;
   readonly neden: OfisYuklenemediNeden;
   constructor(durum?: number, neden: OfisYuklenemediNeden = durum ? 'sunucu' : 'ag') {
-    super(neden === 'izin'
-      ? 'Google izni (kapsam) çevirme için yetmiyor. Dur ve Deniz\'e söyle; yeni izin istenmez.'
-      : `Dosya Drive'da çevrilemedi: bağlantı ya da Drive sorunu${durum ? ` (hata ${durum})` : ''}. İnternet bağlantını kontrol edip tekrar dene.`);
+    super(neden === 'izin' ? t('ofis.izin')
+      : t('ofis.yuklenemedi', { durum: durum ? t('ofis.hataKodu', { durum }) : '' }));
     this.durum = durum;
     this.neden = neden;
   }
@@ -78,17 +78,17 @@ export class OfisYuklenemedi extends Error {
 export class OfisCevrilemedi extends Error {
   readonly durum?: number;
   constructor(durum?: number) {
-    super(`Drive bu dosyayı PDF'e çeviremedi${durum ? ` (hata ${durum})` : ''}. Dosya bozuk ya da eski bir biçimde olabilir; Word/PowerPoint'te açıp PDF olarak kaydet ve ekle.`);
+    super(t('ofis.cevrilemedi', { durum: durum ? t('ofis.hataKodu', { durum }) : '' }));
     this.durum = durum;
   }
 }
 
 export class OfisIptal extends Error {
-  constructor() { super('Çevirme iptal edildi.'); }
+  constructor() { super(t('ofis.iptal')); }
 }
 
 export class OfisGeciciDegil extends Error {
-  constructor() { super('Bu dosya uygulamanın geçici çeviri dosyası değil; çöpe atılmadı.'); }
+  constructor() { super(t('ofis.geciciDegil')); }
 }
 
 // ---- options ----
@@ -103,7 +103,7 @@ const fileUrl = (id: string) => `files/${encodeURIComponent(id)}`;
 
 // ---- trashing (the only exception to "nothing is deleted") ----
 
-const COP = 'Geçici çeviri dosyası çöpe atılırken';
+const COP = t('ofis.copeAtilirken');
 
 // Reads the file first; trashes it only if it is our temporary Google file and not trashed yet.
 export async function copeAtGecici(id: string): Promise<void> {
@@ -124,7 +124,7 @@ export async function supurGecici(simdi: number): Promise<number> {
   const q = `appProperties has { key='defterGecici' and value='1' } and (mimeType='${GOOGLE_DOC}' or mimeType='${GOOGLE_SLIDES}')`
     + ` and trashed=false and createdTime < '${new Date(sinir).toISOString()}'`;
   const params = new URLSearchParams({ q, fields: 'files(id,name,mimeType,createdTime)', pageSize: String(SUPURME_EN_FAZLA) });
-  const res = await ok(await driveFetch('files?' + params), 'Eski geçici çeviri dosyaları aranırken');
+  const res = await ok(await driveFetch('files?' + params), t('ofis.eskiAranirken'));
   const files = (await res.json() as { files?: { id: string; name?: string; createdTime?: string }[] }).files ?? [];
   let n = 0;
   for (const f of files.slice(0, SUPURME_EN_FAZLA)) {

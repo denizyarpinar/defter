@@ -55,7 +55,7 @@ async function chooseRoom(scene: Scene, room: Room, onToast: (msg: string) => vo
   const q = new URLSearchParams(location.search);
   if (q.get('oda') !== 'eski' && q.get('export') !== 'oda') {
     const ctl = new AbortController();
-    const timer = setTimeout(() => ctl.abort(new Error('zaman aşımı (15 sn)')), BAKED_TIMEOUT_MS);
+    const timer = setTimeout(() => ctl.abort(new Error('zaman aşımı (15 sn)')), BAKED_TIMEOUT_MS);   // dil-kontrol: yoksay
     try {
       const baked = await Promise.race([
         loadBakedRoom(scene, room, ctl.signal),

@@ -43,7 +43,7 @@ export class FotoEkleyici {
   // olcumBaslangic: when "Ekle" was pressed (performance.now, only with ?olcum=1)
   async baslat(g: YeniKayitGirdisi, olcumBaslangic?: number): Promise<BekleyenFoto> {
     const k = yeniKayit(g, this.simdi());
-    const o = olcumAcik() ? this.olcumKur(k, 'Fotoğraf ekleme', olcumBaslangic) : undefined;
+    const o = olcumAcik() ? this.olcumKur(k, 'Fotoğraf ekleme', olcumBaslangic) : undefined;   // dil-kontrol: yoksay
     try {
       await olc(o, 'cihaza kaydet (IndexedDB)', () => this.b.depo.kaydet(k), { grup: 'cihaz' });
     } catch (e) {
@@ -67,7 +67,7 @@ export class FotoEkleyici {
   sirayaKoy(k: BekleyenFoto): boolean {
     if (this.sirada.has(k.islemId)) return false;
     this.sirada.set(k.islemId, { foto: k.jpegler.length, asama: { tur: 'sirada' } });
-    olcumAl(k.islemId)?.isaret('sıraya girdi');
+    olcumAl(k.islemId)?.isaret('sıraya girdi');   // dil-kontrol: yoksay
     this.bildir();
     const p = this.zincir.then(() => this.calistir(k));
     this.zincir = p.catch(() => undefined);
@@ -102,21 +102,21 @@ export class FotoEkleyici {
     const { depo, ui } = this.b;
     const id = eski.islemId;
     // "Tekrar dene" / "Şimdi ekle": a measurement from here
-    const o = olcumAl(id) ?? (olcumAcik() ? this.olcumKur(eski, 'Fotoğraf ekleme (tekrar)') : undefined);
-    const sira = o?.isaretler.get('sıraya girdi');
-    if (o && sira !== undefined) o.adim('foto sırası (önceki eklemeler)', o.gecen() - sira, 'sira');
+    const o = olcumAl(id) ?? (olcumAcik() ? this.olcumKur(eski, 'Fotoğraf ekleme (tekrar)') : undefined);   // dil-kontrol: yoksay
+    const sira = o?.isaretler.get('sıraya girdi');   // dil-kontrol: yoksay
+    if (o && sira !== undefined) o.adim('foto sırası (önceki eklemeler)', o.gecen() - sira, 'sira');   // dil-kontrol: yoksay
     const bitir = (hata: string) => { if (o) { o.bilgi.hata = hata; olcumBitir(id); } };
     this.asama(id, { tur: 'hazirlaniyor' });
     try {
       let k: BekleyenFoto | null;
       try {
-        k = await olc(o, 'cihaz: durum güncelle', () => depo.durumGuncelle(id, x => yuklemeBasla(x, this.simdi())), { grup: 'cihaz' });
+        k = await olc(o, 'cihaz: durum güncelle', () => depo.durumGuncelle(id, x => yuklemeBasla(x, this.simdi())), { grup: 'cihaz' });   // dil-kontrol: yoksay
       } catch (e) {
-        bitir('durum yazılamadı');
+        bitir('durum yazılamadı');   // dil-kontrol: yoksay
         ui.hata(eski, kartMetni(kisaNeden(e)));
         return;
       }
-      if (!k) { bitir('kayıt yok'); return; }   // no record: an earlier run finished it
+      if (!k) { bitir('kayıt yok'); return; }   // no record: an earlier run finished it · dil-kontrol: yoksay
       let r;
       try {
         const yukleme = {

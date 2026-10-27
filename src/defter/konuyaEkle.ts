@@ -7,6 +7,7 @@ import { isSampleId } from '../okuma/ornekKaynak';
 import { EK_ID, ozeteSayfaEkle, SayfaYazmaYok, type SayfaEklemeOrtami, type SayfaEklemeSecenek } from './ozeteEkle';
 import { sayfalariEkle, type Jpeg } from './sayfaEkle';
 import { mb, olc, zamanliDrive } from './sureOlcum';
+import { t } from '../dil';
 
 // Task 5.7: photos for one topic, one entry point (CLAUDE.md → Faz 5 → Yeni dosya).
 // - The topic has a summary (ozet.pdf, or brifing.pdf / sorular.pdf): the pages go at its end (5.6).
@@ -37,13 +38,13 @@ export async function ozetDurumu(konuKlasorId: string, liste: (id: string) => Pr
 export class OzetSecilmeli extends Error {
   readonly dosyalar: DriveFile[];
   constructor(dosyalar: DriveFile[]) {
-    super(`Bu konuda birden çok özet dosyası var (${dosyalar.map(f => f.name).join(', ')}). Hangisine ekleneceğini seç.`);
+    super(t('ekHata.ozetSecilmeli', { dosyalar: dosyalar.map(f => f.name).join(', ') }));
     this.dosyalar = dosyalar;
   }
 }
 
 export class HedefOzetDegil extends Error {
-  constructor() { super('Seçilen dosya bu konunun özeti değil, sayfa eklenmedi. Konunun özet dosyalarından birini seç.'); }
+  constructor() { super(t('ekHata.hedefOzetDegil')); }
 }
 
 // ---- a new PDF from the photos, its pages marked ----
@@ -95,7 +96,7 @@ export async function konuyaFotografEkle(
   };
 
   const om = secenek.olcum;   // task 6.2e-1: only with ?olcum=1
-  const { durum, dosyalar } = await olc(om, 'drive konu klasörü listesi', () => ozetDurumu(konuKlasorId, id => (o.liste ?? listChildren)(id)), { grup: 'istek' });
+  const { durum, dosyalar } = await olc(om, 'drive konu klasörü listesi', () => ozetDurumu(konuKlasorId, id => (o.liste ?? listChildren)(id)), { grup: 'istek' });   // dil-kontrol: yoksay
   if (durum === 'var') {
     const hedef = secenek.hedefFileId ? dosyalar.find(f => f.id === secenek.hedefFileId)
       : dosyalar.length === 1 ? dosyalar[0] : undefined;
@@ -109,7 +110,7 @@ export async function konuyaFotografEkle(
   let yeni;
   try {
     const yer = o.yer;
-    yeni = await olc(om, '= createPdf (kontroller + yükleme)', () => createPdf(om ? zamanliDrive(o.olusturDrive, om) : o.olusturDrive, yer, konuKlasorId, OZET_ADI, bytes, secenek), { grup: 'toplam' });
+    yeni = await olc(om, '= createPdf (kontroller + yükleme)', () => createPdf(om ? zamanliDrive(o.olusturDrive, om) : o.olusturDrive, yer, konuKlasorId, OZET_ADI, bytes, secenek), { grup: 'toplam' });   // dil-kontrol: yoksay
   } catch (e) {
     // ozet.pdf appeared meanwhile (another device / our own earlier try): add to it, same islemId
     if (e instanceof AyniIsimVar) {

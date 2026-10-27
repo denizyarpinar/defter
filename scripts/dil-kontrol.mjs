@@ -15,6 +15,12 @@
 //     the trash dialog (ui/copOnay.ts in the page, nothing written), an empty topic (routed into the sample book).
 //     Overflow as in (b), the reader included, and the rows of the material bar (#oBar) and the pen bar (#oTools).
 //     `--okuyucu`: only (a), (c) and (d).
+// (e) Task 6.5-4a: adding (dev server, ?demo, no Drive): the Fotoğraf ekle panel, the Dosya ekle panel, an adding error
+//     (a Word file in the sample library), the El yazısını oku panel (its module in the page, no account: its own
+//     "sign in first" error) and the pending-photo toast (a fake GIS + Drive as dil-drive-kontrol.mjs, one record put
+//     in IndexedDB first). EN and TR at 390 / 820 / 1280, overflow as in (b). `--ekleme`: only (a), (c) and (e).
+// Task 6.5-4a: (a) fails (exit code 1) when a Turkish string is left or tr.ts / en.ts have different keys.
+//     `npm run dil` = `--sadece-sayim`: (a) and (c) only, no browser.
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
@@ -28,13 +34,24 @@ const DEV = `http://localhost:${DEV_PORT}`;
 const args = process.argv.slice(2);
 const SADECE_SAYIM = args.includes('--sadece-sayim');
 const SADECE_OKUYUCU = args.includes('--okuyucu');
-const OUT = args.find(a => !a.startsWith('--')) ?? 'C:\\Users\\yarpi\\iCloudDrive\\uni_plan_claude_code\\Claude outputs\\dil-6.5-3';
+const SADECE_EKLEME = args.includes('--ekleme');
+const OUT = args.find(a => !a.startsWith('--')) ?? 'C:\\Users\\yarpi\\iCloudDrive\\uni_plan_claude_code\\Claude outputs\\dil-6.5-4a';
 const TR_HARF = /[çğıöşüÇĞİÖŞÜ]/;
 
 // ---- (a) Turkish string literals ----
 
 // dev / measurement files: their texts stay Turkish (Deniz's tools)
 const HARIC = [/\.test\.ts$/, /^src[\\/]dil[\\/]/, /olcum/i, /Dene\.ts$/, /Sahte\.ts$/, /atlas/i, /Test\.ts$/];
+// Task 6.5-4a: dev files by name, each with why it never reaches the app's screen (counted apart, never fails)
+const DEV_DOSYALARI = {
+  'src/ocrAi/deneme.ts': 'only ocr-ai.html (dev page, not a build input: vite builds index.html only)',
+  'src/ocrAi/gorsel.ts': 'only ocrAi/deneme.ts',
+  'src/ocr/score.ts': 'only ocrAi/deneme.ts',
+  'src/ocr/kayit/kayitDeneSec.ts': 'only ocr/kayit/kayitDene.ts, loaded by ocrAi/deneme.ts',
+  'src/arama/dizinOlc.ts': 'main.ts: if (import.meta.env.DEV) import(...) (window.defterDizinOlc)',
+  'src/arama/ocrDizinOlc.ts': 'main.ts: if (import.meta.env.DEV) import(...) (window.defterOcrDizinOlc)',
+};
+const devSayi = new Map();
 
 function dosyalar(dir) {
   const out = [];
@@ -115,6 +132,8 @@ function turkceDizeler() {
   for (const p of dosyalar(join(ROOT, 'src'))) {
     const rel = relative(ROOT, p);
     if (HARIC.some(r => r.test(rel))) continue;
+    const yol = rel.replace(/\\/g, '/');
+    if (DEV_DOSYALARI[yol]) { devSayi.set(yol, literaller(readFileSync(p, 'utf8')).length); continue; }
     const src = readFileSync(p, 'utf8');
     const satirlar = src.split('\n');
     for (const l of literaller(src)) {
@@ -134,7 +153,20 @@ for (const d of dizeler) console.log(`  ${d.yer}  ${d.metin}`);
 console.log('\n  Dosya başına (çoktan aza):');
 for (const [f, n] of [...dosyaSayisi].sort((a, b) => b[1] - a[1])) console.log(`  ${String(n).padStart(4)}  ${f}`);
 console.log(`\n  TOPLAM: ${dizeler.length} dize, ${dosyaSayisi.size} dosya`);
-console.log(`  YOKSAYILAN ("// dil-kontrol: yoksay"): ${yoksayilan.length} dize${yoksayilan.length ? ' — ' + yoksayilan.join(', ') : ''}\n`);
+console.log(`  YOKSAYILAN ("// dil-kontrol: yoksay"): ${yoksayilan.length} dize${yoksayilan.length ? ' — ' + yoksayilan.join(', ') : ''}`);
+console.log(`  DEV DOSYASI (sayılmaz): ${[...devSayi.values()].reduce((a, b) => a + b, 0)} dize, ${devSayi.size} dosya`);
+for (const [f, n] of devSayi) console.log(`    ${String(n).padStart(3)}  ${f} — ${DEV_DOSYALARI[f]}`);
+
+// tr.ts and en.ts: the same keys (the type catches a missing en key, not an extra one)
+const anahtarlar = (f) => new Set([...readFileSync(join(ROOT, 'src', 'dil', f), 'utf8').matchAll(/^  '([^']+)':/gm)].map(m => m[1]));
+const trA = anahtarlar('tr.ts'), enA = anahtarlar('en.ts');
+const sadeceTr = [...trA].filter(k => !enA.has(k)), sadeceEn = [...enA].filter(k => !trA.has(k));
+console.log(`  ANAHTAR: tr ${trA.size}, en ${enA.size}${sadeceTr.length ? ' · sadece tr: ' + sadeceTr.join(', ') : ''}${sadeceEn.length ? ' · sadece en: ' + sadeceEn.join(', ') : ''}`);
+if (dizeler.length || sadeceTr.length || sadeceEn.length) {
+  process.exitCode = 1;
+  console.log(`  HATA: ${dizeler.length} Türkçe dize kaldı${sadeceTr.length + sadeceEn.length ? `, ${sadeceTr.length + sadeceEn.length} anahtar farkı` : ''}. Çevir (t()) ya da gerçekten ekranda değilse "// dil-kontrol: yoksay".`);
+}
+console.log('');
 
 // ---- (c) the sample library's English layer ----
 
@@ -162,7 +194,7 @@ function katmanKontrolu() {
   console.log('');
 }
 katmanKontrolu();
-if (SADECE_SAYIM) process.exit(0);
+if (SADECE_SAYIM) process.exit(process.exitCode ?? 0);
 
 // ---- (b) screenshots + overflow ----
 
@@ -371,13 +403,132 @@ async function okuyucuEkranlari(lang, w) {
     await page.close();
   }
 }
+// ---- (e) adding (6.5-4a) ----
+
+// a notebook-like page as a JPEG (made here, no real notes)
+const { default: sharp } = await import('sharp');
+const sayfaJpeg = async (n) => sharp(Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1600"><rect width="100%" height="100%" fill="#fbfaf4"/>${
+  Array.from({ length: 30 }, (_, i) => `<line x1="80" x2="1120" y1="${120 + i * 48}" y2="${120 + i * 48}" stroke="#c9d6e8" stroke-width="2"/>`).join('')
+}<text x="100" y="100" font-size="56" fill="#234">Seite ${n}</text></svg>`)).jpeg({ quality: 85 }).toBuffer();
+const JPEGLER = [await sayfaJpeg(1), await sayfaJpeg(2)];
+const dosya = (name, mimeType, buffer) => ({ name, mimeType, buffer });
+
+async function eklemeEkranlari(lang, w) {
+  const page = await okuyucuAc(lang, w);
+  const ek = (ad) => join(OUT, `ekleme-${ad}-${lang}-${w}.png`);
+  const kaydet = async (ad, ekstra = {}) => {
+    await page.screenshot({ path: ek(ad) });
+    tablo.push({ ekran: `ekleme ${ad} ${lang} ${w}`, tasan: await page.evaluate(tasanlar, true), ...ekstra });
+  };
+  try {
+    // Fotoğraf ekle: two photos, prepared in the panel (sample library: a preview, Ekle off)
+    await page.setInputFiles('#oFotoInput', JPEGLER.map((b, i) => dosya(`seite-${i + 1}.jpg`, 'image/jpeg', b)));
+    await page.waitForFunction(() => document.querySelectorAll('#fotoPanel .fp-oge').length === 2 && !!document.querySelector('#fotoPanel .fp-durum')?.hidden, null, { timeout: 30_000 });
+    await page.waitForTimeout(500);
+    await kaydet('foto', { kitap: await page.locator('#fotoPanel .fp-hedef').textContent() });
+    await page.locator('#fotoPanel .fp-vazgec').click();
+    await page.waitForTimeout(500);
+
+    // Dosya ekle: two images → one PDF
+    await page.setInputFiles('#oDosyaInput', JPEGLER.map((b, i) => dosya(`blatt-${i + 1}.jpg`, 'image/jpeg', b)));
+    await page.waitForFunction(() => document.querySelectorAll('#dosyaPanel .fp-oge').length === 2, null, { timeout: 30_000 });
+    await page.waitForTimeout(800);
+    await kaydet('dosya', { kitap: await page.locator('#dosyaPanel .dp-bilgi, #dosyaPanel .fp-durum').first().textContent().catch(() => '') });
+    await page.locator('#dosyaPanel .fp-vazgec').first().click();
+    await page.waitForTimeout(500);
+
+    // an adding error: a Word file in the sample library → refused with a toast
+    await page.setInputFiles('#oDosyaInput', [dosya('notlar.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', Buffer.from('PK\u0003\u0004 deneme'))]);
+    await page.waitForFunction(() => (document.querySelector('#toast')?.textContent ?? '').includes('PDF'), null, { timeout: 15_000 });
+    await page.waitForTimeout(400);
+    await kaydet('hata', { kitap: await page.locator('#toast').textContent() });
+
+    // El yazısını oku: the panel's module in the page (no account, nothing sent); "Sayfaları kontrol et" → its own error
+    await page.evaluate(async () => {
+      const m = await import('/src/ocr/okuyucuPanel.ts');
+      // an open file as the reader would give it (no token: "Sayfaları kontrol et" stops before any request)
+      const snap = { file: 'demo-ozet', version: '1', content: {}, pages: [{ page: { ad: 'ozet.pdf', pdfSayfa: 1 }, index: 0 }], focus: 0, yer: {}, go() {} };
+      m.installReaderOcr(() => snap).ac();
+    });
+    await page.locator('#reader-ocr-search [data-prepare]').click();
+    await page.waitForFunction(() => (document.querySelector('#reader-ocr-search [data-status]')?.textContent ?? '') !== '', null, { timeout: 10_000 });
+    await page.waitForTimeout(300);
+    await kaydet('ocr', { kitap: await page.locator('#reader-ocr-search [data-status]').textContent() });
+  } catch (e) {
+    tablo.push({ ekran: `ekleme HATA ${lang} ${w}`, tasan: [`HATA: ${e.message.split('\n')[0]}`] });
+    await page.screenshot({ path: ek('hata-betik') }).catch(() => {});
+  } finally {
+    await page.close();
+  }
+}
+
+// the pending-photo toast: a fake GIS + Drive (empty library), one waiting record in IndexedDB, then sign in
+const GIS = `window.google = { accounts: { oauth2: {
+  initTokenClient: options => ({ requestAccessToken: () => {
+    options.callback({ access_token: 'fake-local-test', expires_in: 3600, scope: 'https://www.googleapis.com/auth/drive.file' });
+  } }),
+  hasGrantedAllScopes: (response, requested) => response.scope.split(' ').includes(requested)
+} } };`;
+const KITAPLIK_JSON = { surum: 1, raflar: [{ id: 'raf-1', ad: 'Raf 1', kitaplar: [] }], oda: { duvar: '#d8cfc0', zemin: '#7a5a3c', mod: 'auto' } };
+
+async function bekleyenToast(lang, w) {
+  const context = await browser.newContext({ viewport: { width: w, height: BOYUT[w] }, deviceScaleFactor: 2, hasTouch: w < 1280 });
+  const ad = join(OUT, `ekleme-bekleyen-${lang}-${w}.png`);
+  const yazma = [];
+  await context.route('https://accounts.google.com/**', route => route.fulfill({ contentType: 'application/javascript', body: GIS }));
+  await context.route('https://www.googleapis.com/**', async route => {
+    const req = route.request(), url = new URL(req.url());
+    const json = body => route.fulfill({ contentType: 'application/json', body: JSON.stringify(body) });
+    if (req.method() !== 'GET') { yazma.push(`${req.method()} ${url.pathname}`); return route.fulfill({ status: 403, contentType: 'application/json', body: '{}' }); }
+    if (url.pathname.endsWith('/about')) return json({ user: { displayName: 'Yerel deneme' } });
+    if (url.pathname.endsWith('/files/library-json')) {
+      if (url.searchParams.get('alt') === 'media') return json(KITAPLIK_JSON);
+      return json({ id: 'library-json', modifiedTime: '2026-10-27T10:00:00.000Z' });
+    }
+    if (url.pathname.endsWith('/files')) {
+      const q = url.searchParams.get('q') || '';
+      if (q.includes("key='defterKok'")) return json({ files: [{ id: 'library-root', name: 'Defter Library', mimeType: 'application/vnd.google-apps.folder' }] });
+      if (q.includes("'library-root' in parents")) return json({ files: [
+        { id: 'books', name: 'kitaplar', mimeType: 'application/vnd.google-apps.folder' },
+        { id: 'library-json', name: 'kitaplik.json', mimeType: 'application/json' },
+      ] });
+      return json({ files: [] });
+    }
+    return route.fulfill({ status: 404, body: '{}' });
+  });
+  const page = await context.newPage();
+  page.on('pageerror', e => console.error('Sayfa hatası:', e.message));
+  try {
+    await page.goto(`${DEV}/?lang=${lang}`);
+    await page.locator('#loading').waitFor({ state: 'hidden', timeout: 60_000 });
+    // one record with two photos, as "Ekle" saves it (the bytes are a tiny JPEG; it is never uploaded here)
+    await page.evaluate(async () => {
+      const [{ bekleyenFotoDepo }, { yeniKayit }] = await Promise.all([import('/src/defter/bekleyenFoto.ts'), import('/src/defter/bekleyenFotoKayit.ts')]);
+      const j = () => ({ bytes: new Uint8Array([0xff, 0xd8, 0xff, 0xd9]), width: 1, height: 1 });
+      await bekleyenFotoDepo.kaydet(yeniKayit({ kitapAdi: 'Mathe 1', konuKlasorId: 'konu-x', konuBaslik: 'Graphen', hedefAd: 'ozet.pdf', jpegler: [j(), j()] }, new Date().toISOString()));
+    });
+    await page.locator('#loginGoogle').click();
+    await page.locator('#bosKitaplik:not([hidden])').waitFor({ timeout: 30_000 });
+    await page.waitForFunction(() => /\d/.test(document.querySelector('#toast')?.textContent ?? ''), null, { timeout: 15_000 });
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: ad });
+    tablo.push({ ekran: `ekleme bekleyen ${lang} ${w}`, tasan: [...await page.evaluate(tasanlar), ...yazma.map(y => `DRIVE'A YAZMA: ${y}`)],
+      kitap: await page.locator('#toast').textContent() });
+  } catch (e) {
+    tablo.push({ ekran: `ekleme bekleyen HATA ${lang} ${w}`, tasan: [`HATA: ${e.message.split('\n')[0]}`] });
+    await page.screenshot({ path: ad }).catch(() => {});
+  } finally {
+    await context.close();
+  }
+}
+
 mkdirSync(OUT, { recursive: true });
-const server = SADECE_OKUYUCU ? null : await startPreview();
+const server = SADECE_OKUYUCU || SADECE_EKLEME ? null : await startPreview();
 const dev = await startDev();
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 const tablo = [];
 try {
-  for (const lang of SADECE_OKUYUCU ? [] : ['en', 'tr']) {
+  for (const lang of SADECE_OKUYUCU || SADECE_EKLEME ? [] : ['en', 'tr']) {
     for (const w of [390, 820, 1280]) {
       const page = await browser.newPage({ viewport: { width: w, height: BOYUT[w] }, deviceScaleFactor: 2 });
       page.on('pageerror', e => console.error('Sayfa hatası:', e.message));
@@ -440,7 +591,10 @@ try {
       await p2.close();
     }
   }
-  for (const lang of ['en', 'tr']) for (const w of [390, 820, 1180, 1280]) await okuyucuEkranlari(lang, w);
+  if (!SADECE_EKLEME) for (const lang of ['en', 'tr']) for (const w of [390, 820, 1180, 1280]) await okuyucuEkranlari(lang, w);
+  if (!SADECE_OKUYUCU) {
+    for (const lang of ['en', 'tr']) for (const w of [390, 820, 1280]) { await eklemeEkranlari(lang, w); await bekleyenToast(lang, w); }
+  }
 } finally {
   await browser.close();
   server?.kill();

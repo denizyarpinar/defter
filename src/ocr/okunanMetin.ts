@@ -1,5 +1,7 @@
 import { duzenlenebilir, kelimeler, yazildigiGibi } from './kayit/elleDuzelt';
 import { yaziSatiriMi, type OcrParca, type OcrSayfa } from './kayit/sema';
+import { t } from '../dil';
+import { tarihSaat } from '../dil/bicim';
 
 // Task 6.4c-2: the read text of one page, plain, in the "El yazısını oku" panel (the real "Temiz yazı" view is 6.4e).
 // Parts in their ink colour, indent per level, struck-through parts, formulas in mono, drawings as a note.
@@ -21,7 +23,7 @@ export function okunanMetinCiz(s: OcrSayfa, o: OkunanMetinSecenek = {}): HTMLEle
     p.style.paddingLeft = `${satir.girinti * 1.5}em`;
     if (!yaziSatiriMi(satir)) {
       p.style.cssText += ';color:#777;font-style:italic';
-      p.textContent = `[çizim: ${satir.cizim}]`;
+      p.textContent = t('ocrPanel.cizim', { cizim: satir.cizim });
     } else {
       satir.parcalar.forEach((parca, i) => {
         if (i) p.append(' ');
@@ -31,17 +33,17 @@ export function okunanMetinCiz(s: OcrSayfa, o: OkunanMetinSecenek = {}): HTMLEle
         if (o.duzenle && duzenlenebilir(parca)) kelimeKoy(e, parca, { satir: si, parca: i }, o.duzenle);
         else {
           e.textContent = parca.metin;
-          if (parca.duzeltme) { e.title = `Düzeltme: ${parca.duzeltme}`; noktali(e, parca.ustuCizili); }
+          if (parca.duzeltme) { e.title = t('ocrPanel.duzeltme', { metin: parca.duzeltme }); noktali(e, parca.ustuCizili); }
         }
         p.append(e);
       });
     }
     kutu.append(p);
   });
-  if (!s.satirlar.length) kutu.textContent = '(Sayfada okunan satır yok.)';
+  if (!s.satirlar.length) kutu.textContent = t('ocrPanel.satirYok');
   const alt = document.createElement('small');
   alt.style.cssText = 'display:block;color:#777;margin-top:4px';
-  alt.textContent = `${s.model} · ${new Date(s.okunma).toLocaleString('tr-TR')}`;
+  alt.textContent = `${s.model} · ${tarihSaat(new Date(s.okunma))}`;
   kutu.append(alt);
   return kutu;
 }
@@ -54,7 +56,7 @@ const noktali = (e: HTMLElement, cizili?: boolean) => {
 // The shown text word by word; the core of each word is a tap target (punctuation around it is plain text)
 function kelimeKoy(e: HTMLElement, parca: OcrParca, yer: Omit<KelimeYeri, 'kelime'>, duzenle: NonNullable<OkunanMetinSecenek['duzenle']>): void {
   // a correction by the model (not by hand): the whole part as before
-  if (parca.duzeltme !== undefined && !parca.elle) { e.title = `yazıldığı gibi: ${parca.metin}`; noktali(e); }
+  if (parca.duzeltme !== undefined && !parca.elle) { e.title = t('ocrPanel.yazildigiGibi', { ham: parca.metin }); noktali(e); }
   kelimeler(parca).forEach((k, i) => {
     if (i) e.append(' ');
     if (k.bas) e.append(k.bas);
@@ -66,7 +68,7 @@ function kelimeKoy(e: HTMLElement, parca: OcrParca, yer: Omit<KelimeYeri, 'kelim
       w.setAttribute('role', 'button');
       w.style.cssText = 'cursor:pointer;border-radius:3px';
       const ham = yazildigiGibi(parca, i);
-      if (ham !== null) { w.title = `yazıldığı gibi: ${ham}`; noktali(w); }
+      if (ham !== null) { w.title = t('ocrPanel.yazildigiGibi', { ham }); noktali(w); }
       const ac = () => duzenle({ ...yer, kelime: i }, w);
       w.addEventListener('click', ac);
       w.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); ac(); } });

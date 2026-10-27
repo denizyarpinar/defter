@@ -114,7 +114,7 @@ uniform float uCarpanGunduz, uCarpanAksam, uKarisim, uKoyulas;`)
     box.setFromObject(mesh).getCenter(c);
     if (box.min.z > CLOCK_POS.z + 0.027 && Math.hypot(c.x - CLOCK_POS.x, c.y - CLOCK_POS.y) < 0.3) clockHands.push(mesh);
   });
-  if (!walls.size || !floors.size || !bulbPos) throw new Error('oda.glb: duvar, zemin ya da ampul bulunamadı');
+  if (!walls.size || !floors.size || !bulbPos) throw new Error('oda.glb: duvar, zemin ya da ampul bulunamadı');   // dil-kontrol: yoksay
   if (clockHands.length !== 2) console.warn(`Defter: oda.glb'de saat ibresi ${clockHands.length} bulundu (2 bekleniyordu).`);
   for (const h of clockHands) h.visible = false;
   const cg = new Group(); cg.position.copy(CLOCK_POS); R.add(cg);

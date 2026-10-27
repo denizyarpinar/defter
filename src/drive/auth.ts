@@ -3,6 +3,7 @@
 // scope list decides the active mode, kept here in one place.
 
 import { KAPSAM_DAR, KAPSAM_TAM, kapsamOku, type AktifKapsam } from './kapsam';
+import { t } from '../dil';
 
 const GIS_SRC = 'https://accounts.google.com/gsi/client';
 
@@ -16,21 +17,15 @@ export class AuthError extends Error {
   }
 }
 
-// Turkish message that tells the user what to do.
+// A message in the chosen language that tells the user what to do.
 export function authErrorMessage(code: AuthErrorCode): string {
   switch (code) {
-    case 'no-client-id':
-      return 'Google Client ID eksik. .env.local dosyasına VITE_GOOGLE_CLIENT_ID ekle, sonra npm run dev\'i yeniden başlat.';
-    case 'load-failed':
-      return 'Google giriş servisi yüklenemedi. İnternet bağlantını kontrol et ve sayfayı yenile.';
-    case 'popup-blocked':
-      return 'Tarayıcı Google penceresini engelledi. Adres çubuğundan bu siteye açılır pencere izni ver ve tekrar dene.';
+    case 'no-client-id': return t('giris.hata.clientId');
+    case 'load-failed': return t('giris.hata.yuklenemedi');
+    case 'popup-blocked': return t('giris.hata.pencere');
     case 'popup-closed':
-    case 'denied':
-      return 'Giriş tamamlanmadı, izin verilmedi. Google "erişim engellendi" dediyse hesabın test kullanıcısı değildir: '
-        + 'Google Cloud → OAuth izin ekranı → Test users bölümüne hesabını ekle.';
-    default:
-      return 'Google ile giriş sırasında bir sorun oldu. Biraz sonra tekrar dene.';
+    case 'denied': return t('giris.hata.izin');
+    default: return t('giris.hata.diger');
   }
 }
 

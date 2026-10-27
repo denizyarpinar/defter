@@ -1,5 +1,7 @@
 // Task 5.8f: under the reader's material bar: "2 fotoğraf ekleniyor…", one card per failed adding
 // ([Tekrar dene] [Sonra]) and the strip of the topic's waiting photos ([Şimdi ekle] [Sonra]).
+import { t } from '../dil';
+
 
 const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: string) => {
   const e = document.createElement(tag);
@@ -46,8 +48,8 @@ export class FotoDurumKutusu {
     this.kartKaldir(islemId);
     const kart = el('div', 'fd-kart');
     kart.append(el('p', 'fd-metin', metin),
-      dugme('fd-ana', 'Tekrar dene', () => { this.kartKaldir(islemId); tekrar(); }),
-      dugme('fd-ikinci', 'Sonra', () => this.kartKaldir(islemId)));
+      dugme('fd-ana', t('genel.tekrarDene'), () => { this.kartKaldir(islemId); tekrar(); }),
+      dugme('fd-ikinci', t('foto.sonra'), () => this.kartKaldir(islemId)));
     this.kartMap.set(islemId, kart);
     this.kartlar.append(kart);
     this.yenile();
@@ -64,7 +66,7 @@ export class FotoDurumKutusu {
   // null: hidden
   seritGoster(s: { metin: string; simdi: () => void; sonra: () => void } | null): void {
     if (!s) this.serit.replaceChildren();
-    else this.serit.replaceChildren(el('p', 'fd-metin', s.metin), dugme('fd-ana', 'Şimdi ekle', s.simdi), dugme('fd-ikinci', 'Sonra', s.sonra));
+    else this.serit.replaceChildren(el('p', 'fd-metin', s.metin), dugme('fd-ana', t('foto.simdiEkle'), s.simdi), dugme('fd-ikinci', t('foto.sonra'), s.sonra));
     this.serit.hidden = !s;
     this.yenile();
   }

@@ -128,7 +128,7 @@ function doldur(d: Dokunus): void {
 export function dokunusSatiri(d: Dokunus): string {
   const kaynak = Object.entries(d.moveKaynak).map(([k, n]) => `${k} ${n}`).join(', ');
   const click = !d.click ? 'click: YOK'
-    : d.click.kontrol === d.kontrol ? 'click: VAR' : `click: VAR (başka: ${d.click.kontrol ?? d.click.hedef})`;
+    : d.click.kontrol === d.kontrol ? 'click: VAR' : `click: VAR (başka: ${d.click.kontrol ?? d.click.hedef})`;   // dil-kontrol: yoksay
   return [
     `#${d.no} ${d.cihaz}${d.ham ? ` (${d.ham})` : ''}`,
     d.kontrol ?? `kontrol yok: ${d.hedef}`,

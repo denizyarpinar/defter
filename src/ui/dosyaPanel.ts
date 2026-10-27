@@ -17,6 +17,7 @@ import { hazirlikEkle, mb, olcumAcik } from '../defter/sureOlcum';
 import { gorunurAlaniDuzelt } from './gorunurAlan';
 import { panelKlavyeTakibi } from './klavyeKaydirma';
 import { toast } from './toast';
+import { t } from '../dil';
 
 // Task 5.10e: "Dosya ekle" panel over the reader. The file is already
 // prepared (dosyaHazirla); here only: where it goes and its name. "Ekle" goes straight to Drive
@@ -123,7 +124,7 @@ export function acDosyaPanel(b: DosyaPanelBaglam, kaynak: DosyaPanelKaynak): voi
   kart.setAttribute('role', 'dialog');
   kart.setAttribute('aria-modal', 'true');
   kart.setAttribute('aria-labelledby', 'dpBaslik');
-  const baslik = el('h2', 'fp-baslik', `Dosya ekle – ${b.konuAdi}`);
+  const baslik = el('h2', 'fp-baslik', t('dosya.baslik', { konu: b.konuAdi }));
   baslik.id = 'dpBaslik';
   const bilgi = el('p', 'dp-bilgi');
   const liste = el('ol', 'fp-liste');
@@ -132,10 +133,10 @@ export function acDosyaPanel(b: DosyaPanelBaglam, kaynak: DosyaPanelKaynak): voi
   input.accept = 'image/*';
   input.multiple = true;
   input.hidden = true;
-  const arti = dugme('fp-arti', '+ Fotoğraf ekle');
+  const arti = dugme('fp-arti', t('dosya.artiGorsel'));
 
   const hedefler = el('fieldset', 'dp-hedefler');
-  hedefler.append(el('legend', 'dp-baslik2', 'Nereye?'));
+  hedefler.append(el('legend', 'dp-baslik2', t('dosya.nereye')));
   const radyolar = new Map<PanelHedef, { input: HTMLInputElement; satir: HTMLLabelElement; etiket: HTMLElement; neden: HTMLElement }>();
   for (const s of hedefSecenekleri(b.materials, null, b.klasorAcabilir, ozetSonu())) {
     const satir = el('label', 'dp-hedef');
@@ -151,20 +152,20 @@ export function acDosyaPanel(b: DosyaPanelBaglam, kaynak: DosyaPanelKaynak): voi
     radyolar.set(s.hedef, { input, satir, etiket, neden });
   }
 
-  const cozumSatir = el('label', 'fp-seclbl dp-cozum', 'Hangi dosyanın çözümü?');
+  const cozumSatir = el('label', 'fp-seclbl dp-cozum', t('dosya.hangiCozum'));
   const cozumSec = el('select', 'fp-sec');
-  cozumSec.append(new Option('Dosya seç…', ''), ...adaylar.map(a => new Option(a.etiket, a.file.id)));
+  cozumSec.append(new Option(t('dosya.dosyaSec'), ''), ...adaylar.map(a => new Option(a.etiket, a.file.id)));
   cozumSec.onchange = () => { cozumOf = adaylar.find(a => a.file.id === cozumSec.value)?.file ?? null; ciz(); };
   cozumSatir.append(cozumSec);
 
   // 6.S-3: brifing + sorular and neither on screen: which one gets the pages
-  const ozetSatir = el('label', 'fp-seclbl dp-cozum', 'Hangi özet dosyasının sonuna?');
+  const ozetSatir = el('label', 'fp-seclbl dp-cozum', t('dosya.hangiOzet'));
   const ozetSec = el('select', 'fp-sec');
-  ozetSec.append(new Option('Dosya seç…', ''), ...b.materials.ozet.map(x => new Option(x.file.name, x.file.id)));
+  ozetSec.append(new Option(t('dosya.dosyaSec'), ''), ...b.materials.ozet.map(x => new Option(x.file.name, x.file.id)));
   ozetSec.onchange = () => { ozetSecilen = ozetSec.value || null; hata = null; ciz(); };
   ozetSatir.append(ozetSec);
 
-  const adSatir = el('label', 'dp-ad', 'Ad');
+  const adSatir = el('label', 'dp-ad', t('dosya.ad'));
   const adKutu = el('input');
   adKutu.type = 'text';
   adKutu.autocomplete = 'off';
@@ -175,9 +176,9 @@ export function acDosyaPanel(b: DosyaPanelBaglam, kaynak: DosyaPanelKaynak): voi
   uyari.setAttribute('aria-live', 'polite');
 
   const not = el('p', 'fp-not');
-  const vazgec = dugme('fp-vazgec', 'Vazgeç');
-  const ekle = dugme('fp-ekle', 'Ekle');
-  const tekrarCevir = dugme('fp-vazgec', 'Tekrar çevir');
+  const vazgec = dugme('fp-vazgec', t('genel.vazgec'));
+  const ekle = dugme('fp-ekle', t('ekleme.ekle'));
+  const tekrarCevir = dugme('fp-vazgec', t('dosya.tekrarCevir'));
   tekrarCevir.hidden = true;
   const alt = el('div', 'fp-alt');
   alt.append(vazgec, tekrarCevir, ekle);
@@ -212,13 +213,13 @@ export function acDosyaPanel(b: DosyaPanelBaglam, kaynak: DosyaPanelKaynak): voi
       img.alt = '';
       const resim = el('div', 'fp-resim');
       resim.append(img);
-      const sol = dugme('fp-ok', '‹', `${i + 1}. görseli sola taşı`);
+      const sol = dugme('fp-ok', '‹', t('dosya.solaTasi', { no: i + 1 }));
       sol.disabled = i === 0 || ekleniyor;
       sol.onclick = () => listeDegisti(tasi(gorseller, i, -1));
-      const sag = dugme('fp-ok', '›', `${i + 1}. görseli sağa taşı`);
+      const sag = dugme('fp-ok', '›', t('dosya.sagaTasi', { no: i + 1 }));
       sag.disabled = i === n - 1 || ekleniyor;
       sag.onclick = () => listeDegisti(tasi(gorseller, i, 1));
-      const x = dugme('fp-cikar', '×', `${i + 1}. görseli çıkar`);
+      const x = dugme('fp-cikar', '×', t('dosya.cikar', { no: i + 1 }));
       x.disabled = ekleniyor;
       x.onclick = () => { URL.revokeObjectURL(o.url); listeDegisti(cikar(gorseller, i)); };
       const oklar = el('div', 'fp-oklar');
@@ -234,11 +235,11 @@ export function acDosyaPanel(b: DosyaPanelBaglam, kaynak: DosyaPanelKaynak): voi
       bilgi.textContent = ofisBilgi({ ad: ofis.dosya.name, bayt: ofis.dosya.size, alt: ofis.alt, durum: ceviri ?? 'cevriliyor', sn: ceviriSn, sayfa });
     } else if (hazir) {
       bilgi.textContent = [hazir.ad, boyutYazi(hazir.bytes.byteLength), kaynakEtiketi(hazir.kaynak),
-        sayfa === undefined ? 'sayfa sayılıyor…' : sayfaYazi(sayfa)].join(' · ');
+        sayfa === undefined ? t('dosya.sayfaSayiliyor') : sayfaYazi(sayfa)].join(' · ');
     } else {
       const parca = [listeBilgisi(gorseller.length)];
-      if (calisiyor) parca.push(`Hazırlanıyor ${Math.min(biten + 1, toplam)}/${toplam}`);
-      else if (!gorseller.length) parca.push('Henüz görsel yok');
+      if (calisiyor) parca.push(t('foto.hazirlaniyorN', { i: Math.min(biten + 1, toplam), n: toplam }));
+      else if (!gorseller.length) parca.push(t('dosya.henuzGorselYok'));
       bilgi.textContent = parca.join(' · ');
       girilen = listeAdi(gorseller[0]?.ad, girilen, adElle);
       cizListe();
@@ -276,7 +277,7 @@ export function acDosyaPanel(b: DosyaPanelBaglam, kaynak: DosyaPanelKaynak): voi
     ekle.disabled = !e.aktif;
     ekle.textContent = e.metin;
     vazgec.disabled = ekleniyor;
-    const notMetni = e.aciklama ?? hata ?? ceviriHata?.metin ?? (hedef ? null : 'Bu dosya bu konuda hiçbir yere eklenemiyor.');
+    const notMetni = e.aciklama ?? hata ?? ceviriHata?.metin ?? (hedef ? null : t('dosya.hedefYok'));
     not.textContent = notMetni ?? '';
     not.hidden = !notMetni;
     not.classList.toggle('fp-hata', !e.aciklama && !!(hata ?? ceviriHata));
@@ -303,14 +304,14 @@ export function acDosyaPanel(b: DosyaPanelBaglam, kaynak: DosyaPanelKaynak): voi
         surum++;
       } catch (e) {
         if (kapandi) break;
-        toast(e instanceof GorselHatasi ? `${f.name}: ${e.message}` : `${f.name} hazırlanamadı. Başka bir görsel seç.`);
+        toast(e instanceof GorselHatasi ? `${f.name}: ${e.message}` : t('dosya.gorselHazirlanamadi', { ad: f.name }));
         if (!(e instanceof GorselHatasi)) console.warn('Görsel hazırlanamadı.', e);
       }
       biten++;
       ciz();
     }
     calisiyor = false;
-    if (t0 !== null) hazirlikEkle({ ad: 'panel: görseller hazır', ms: performance.now() - t0, grup: 'panel', ek: { gorsel: toplam } });
+    if (t0 !== null) hazirlikEkle({ ad: 'panel: görseller hazır', ms: performance.now() - t0, grup: 'panel', ek: { gorsel: toplam } });   // dil-kontrol: yoksay
     if (!kapandi) ciz();
   }
 
@@ -357,7 +358,7 @@ export function acDosyaPanel(b: DosyaPanelBaglam, kaynak: DosyaPanelKaynak): voi
       const t0 = olcumAcik() ? performance.now() : null;
       const { fotograflardanPdf } = await import('../defter/sayfaEkle');
       yapilanPdf = { surum: s, bytes: await fotograflardanPdf(gorseller.map(g => ({ bytes: g.jpeg }))) };
-      if (t0 !== null) hazirlikEkle({ ad: 'görsellerden PDF (pdf-lib)', ms: performance.now() - t0, grup: 'pdf', ek: { gorsel: gorseller.length, boyut: mb(yapilanPdf.bytes.byteLength) } });
+      if (t0 !== null) hazirlikEkle({ ad: 'görsellerden PDF (pdf-lib)', ms: performance.now() - t0, grup: 'pdf', ek: { gorsel: gorseller.length, boyut: mb(yapilanPdf.bytes.byteLength) } });   // dil-kontrol: yoksay
     }
     return yapilanPdf.bytes;
   }
@@ -375,7 +376,7 @@ export function acDosyaPanel(b: DosyaPanelBaglam, kaynak: DosyaPanelKaynak): voi
     adKutu.removeEventListener('blur', klavye.sifirla);
     kok.remove();
     klavye.durdur();
-    gorunurAlaniDuzelt('dosya paneli kapandı');   // task 5.10g-ek2: the page back to the top (as the photo panel)
+    gorunurAlaniDuzelt('dosya paneli kapandı');   // task 5.10g-ek2: the page back to the top (as the photo panel). dil-kontrol: yoksay
   }
 
   function tus(e: KeyboardEvent): void {

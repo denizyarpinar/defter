@@ -25,5 +25,5 @@ export function slowestRender(now = performance.now()): number | null {
 // "canvas 6 · 18.4 MP · en yavaş çizim 142 ms"
 export function canvasLine(now = performance.now()): string {
   const slow = slowestRender(now);
-  return `canvas ${canvases} · ${(pixels / 1e6).toFixed(1)} MP · en yavaş çizim ${slow === null ? '–' : Math.round(slow) + ' ms'}`;
+  return `canvas ${canvases} · ${(pixels / 1e6).toFixed(1)} MP · en yavaş çizim ${slow === null ? '–' : Math.round(slow) + ' ms'}`;   // dil-kontrol: yoksay
 }

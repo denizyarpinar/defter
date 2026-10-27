@@ -27,7 +27,7 @@ function createFpsCounter(): FpsCounter | null {
 
   let frames = 0, worst = 0, last = 0;
   const show = () => {
-    el.textContent = (frames ? `${frames} fps · en yavaş kare ${worst.toFixed(0)} ms` : '0 fps · beklemede') + '\n' + canvasLine();
+    el.textContent = (frames ? `${frames} fps · en yavaş kare ${worst.toFixed(0)} ms` : '0 fps · beklemede') + '\n' + canvasLine();   // dil-kontrol: yoksay
     frames = 0; worst = 0;
   };
   // updates once a second on its own timer, so an idle scene still shows 0

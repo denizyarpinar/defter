@@ -14,6 +14,8 @@ import { yaziSatiriMi, type OcrKayit, type OcrParca, type OcrSayfa } from './kay
 import { okunanMetinCiz, type KelimeYeri } from './okunanMetin';
 import { aramaMetni, ReaderOcrSearch, type SearchPage } from './okuyucuArama';
 import { MAX_BAYT, MAX_KENAR, PdfSayfaGorselleri } from './sayfaGorseli';
+import { t, type Anahtar } from '../dil';
+import { htmlDoldur } from '../dil/html';
 
 // Task 6.4c-0 (Codex) → 6.4c-2: the reader's handwriting panel. 6.4c-4: opened by the reader's "El yazısını oku"
 // button (shown only when api/oku says acik: okumaIzni.ts), closed with × or when no readable PDF is open.
@@ -33,7 +35,7 @@ export interface ReaderSnapshot {
   go(index: number): void;
 }
 
-const DURUM: Record<string, string> = { metin: 'basılı metin var, okunmaz', okundu: 'okundu', okunacak: 'okunacak' };
+const DURUM: Record<string, Anahtar> = { metin: 'ocrPanel.durum.metin', okundu: 'ocrPanel.durum.okundu', okunacak: 'ocrPanel.durum.okunacak' };
 
 // The page drawn with pdf.js as a JPEG (long edge ≤ 2000, ≤ 2.9 MB)
 async function cizJpeg(content: PageContent, page: BookPage): Promise<Uint8Array> {
@@ -43,10 +45,10 @@ async function cizJpeg(content: PageContent, page: BookPage): Promise<Uint8Array
     canvas.width = Math.min(MAX_KENAR, Math.ceil(v.width * scale)); canvas.height = Math.min(MAX_KENAR, Math.ceil(v.height * scale));
     await content.drawPdf(page, canvas).promise;
     for (const q of [0.92, 0.8, 0.7]) {
-      const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob(b => b ? resolve(b) : reject(new Error('Görüntü hazırlanamadı.')), 'image/jpeg', q));
+      const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob(b => b ? resolve(b) : reject(new Error(t('ocrPanel.goruntuYok'))), 'image/jpeg', q));
       if (blob.size <= MAX_BAYT) return new Uint8Array(await blob.arrayBuffer());
     }
-    throw new Error('Sayfa görseli 3 MB altına indirilemedi.');
+    throw new Error(t('ocrPanel.ucMb'));
   } finally { canvas.width = canvas.height = 0; }
 }
 
@@ -62,22 +64,22 @@ export interface OkumaPaneliSecenek {
 export function installReaderOcr(snapshot: () => ReaderSnapshot | null, o: OkumaPaneliSecenek = {}): OkumaPaneli {
   if (kurulu) return kurulu;
   const host = document.createElement('div'); host.id = 'reader-ocr-search'; host.hidden = true;
-  host.setAttribute('role', 'dialog'); host.setAttribute('aria-label', 'El yazısını oku');
+  host.setAttribute('role', 'dialog'); host.setAttribute('aria-label', t('ocrPanel.baslik'));
   host.style.cssText = 'position:fixed;bottom:12px;left:12px;right:12px;max-height:55vh;overflow:auto;z-index:10000;background:white;color:#17202a;padding:12px;border:2px solid #567;border-radius:10px;font:15px/1.5 system-ui';
-  host.innerHTML = `<div style="display:flex;align-items:center;gap:8px"><b style="flex:1">El yazısını oku</b>
-    <button data-close type="button" aria-label="Kapat" style="min-width:40px;min-height:40px">×</button></div>
-    <p>Açık dosyada en fazla 5 sayfa. Sayfa görseli Claude'a (Anthropic) gönderilir; okunan metin dosyanın yanındaki .ocr.json'a kaydedilir.
-    Basılı metni olan sayfalar gönderilmez.</p>
-    <p data-file></p><label>PDF sayfa numaraları (ör. 1,3,5) <input data-pages inputmode="numeric" style="max-width:150px"></label>
-    <button data-prepare>Sayfaları kontrol et</button>
-    <p data-count>Okunacak sayfa sayısı henüz hesaplanmadı.</p>
+  host.innerHTML = `<div style="display:flex;align-items:center;gap:8px"><b style="flex:1" data-t="ocrPanel.baslik"></b>
+    <button data-close type="button" data-t-aria="genel.kapat" style="min-width:40px;min-height:40px">×</button></div>
+    <p data-t="ocrPanel.aciklama"></p>
+    <p data-file></p><label><span data-t="ocrPanel.sayfalar"></span> <input data-pages inputmode="numeric" style="max-width:150px"></label>
+    <button data-prepare data-t="ocrPanel.kontrol"></button>
+    <p data-count data-t="ocrPanel.sayiYok"></p>
     <div data-list></div>
-    <button data-start disabled>Oku</button>
-    <button data-cancel>İptal</button>
+    <button data-start disabled data-t="ocrPanel.oku"></button>
+    <button data-cancel data-t="ocrPanel.iptal"></button>
     <p data-status role="status" aria-live="polite"></p>
     <div data-text></div>
-    <label>Aranacak kelime <input data-query type="search"></label><button data-search>Ara</button>
+    <label><span data-t="ocrPanel.arananKelime"></span> <input data-query type="search"></label><button data-search data-t="genel.ara"></button>
     <div data-results></div>`;
+  htmlDoldur(host);
   document.body.append(host);
   const el = <T extends HTMLElement>(key: string) => host.querySelector<T>(`[data-${key}]`)!;
   let search: ReaderOcrSearch | undefined, bound: ReaderSnapshot | null = null;
@@ -97,8 +99,8 @@ export function installReaderOcr(snapshot: () => ReaderSnapshot | null, o: Okuma
     invalid = true; search.forget(); el('results').replaceChildren(); el('list').replaceChildren(); el('text').replaceChildren();
     el<HTMLButtonElement>('start').disabled = true;
     duzenKapat(); yazim = null;
-    el('count').textContent = 'Eski sayfa seçimi geçersiz.';
-    status('Dosya/sürüm veya oturum değişti. Sayfaları tekrar kontrol et.');
+    el('count').textContent = t('ocrPanel.eskiSecim');
+    status(t('ocrPanel.degisti'));
   };
   window.addEventListener('defter-auth-change', () => { epoch++; invalidate(); });
   window.addEventListener('pagehide', () => { epoch++; invalidate(); });
@@ -109,7 +111,7 @@ export function installReaderOcr(snapshot: () => ReaderSnapshot | null, o: Okuma
   setInterval(() => {
     const now = snapshot();
     if (!now && !working && acik) kapat();
-    el('file').textContent = now ? `Açık dosya: ${now.pages[0]?.page.ad ?? now.file}; PDF sayfaları 1–${now.pages.length}` : 'Okunabilir Drive PDF\'i açık değil.';
+    el('file').textContent = now ? t('ocrPanel.acikDosya', { ad: now.pages[0]?.page.ad ?? now.file, n: now.pages.length }) : t('ocrPanel.pdfYok');
     // a new file: the page in view as the default
     if (now && now.file !== lastFile && !working) {
       lastFile = now.file;
@@ -117,7 +119,7 @@ export function installReaderOcr(snapshot: () => ReaderSnapshot | null, o: Okuma
     }
     if (search && !valid()) invalidate();
   }, 250);
-  const verify = async () => { if (!valid()) throw new Error('Dosya/oturum değişti.'); };
+  const verify = async () => { if (!valid()) throw new Error(t('ocrPanel.oturumDegisti')); };
   const setButtons = () => {
     for (const key of ['prepare', 'search']) el<HTMLButtonElement>(key).disabled = working;
     el<HTMLButtonElement>('start').disabled = working || !search?.pages.some(p => p.state === 'okunacak') || !valid();
@@ -127,20 +129,20 @@ export function installReaderOcr(snapshot: () => ReaderSnapshot | null, o: Okuma
     if (working) return;
     working = true; setButtons();
     try { await fn(); }
-    catch (e) { status(e instanceof Error ? e.message : 'İşlem tamamlanmadı.'); }
+    catch (e) { status(e instanceof Error ? e.message : t('ocrPanel.tamamlanmadi')); }
     finally { working = false; drawList(); setButtons(); }
   };
   const showText = (p: SearchPage) => {
     duzenKapat();
     el('text').replaceChildren();
     if (!p.record) return;
-    const h = document.createElement('strong'); h.textContent = `Okunan metin · PDF s.${p.number}`;
+    const h = document.createElement('strong'); h.textContent = t('ocrPanel.okunanMetin', { no: p.number });
     const duzenle = o.duzenlenebilir?.() && yazim ? { duzenle: (yer: KelimeYeri, w: HTMLElement) => duzenAc(p, yer, w) } : {};
     el('text').append(h, okunanMetinCiz(p.record, duzenle));
     if ('duzenle' in duzenle) {
       const ipucu = document.createElement('small');
       ipucu.style.cssText = 'display:block;color:#555';
-      ipucu.textContent = 'Yanlış okunan kelimeye dokunup düzeltebilirsin.';
+      ipucu.textContent = t('ocrPanel.duzeltIpucu');
       el('text').append(ipucu);
     }
   };
@@ -152,7 +154,7 @@ export function installReaderOcr(snapshot: () => ReaderSnapshot | null, o: Okuma
     if (!duzenKutu) return;
     duzenKutu.remove(); duzenKutu = null;
     host.style.top = ''; host.style.bottom = '12px';
-    gorunurAlaniDuzelt('el yazısı düzeltme');
+    gorunurAlaniDuzelt('el yazısı düzeltme');   // dil-kontrol: yoksay
   }
   const parcaAl = (s: OcrSayfa, yer: KelimeYeri): OcrParca | null => {
     const satir = s.satirlar[yer.satir];
@@ -167,24 +169,24 @@ export function installReaderOcr(snapshot: () => ReaderSnapshot | null, o: Okuma
     kutu.id = 'ocrDuzelt';
     kutu.style.cssText = 'display:inline-flex;flex-wrap:wrap;gap:4px;align-items:center;margin:2px 4px;padding:4px;border:1px solid #567;border-radius:6px;background:#eef3f8;color:#17202a';
     const input = document.createElement('input');
-    input.value = k.oz; input.setAttribute('aria-label', 'Doğru kelime');
+    input.value = k.oz; input.setAttribute('aria-label', t('ocrPanel.dogruKelime'));
     input.autocapitalize = 'off'; input.spellcheck = false;
     input.style.cssText = 'font:16px system-ui;width:10em;min-height:36px';   // 16px: iOS does not zoom
     const dugme = (metin: string) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = metin; b.style.minHeight = '36px'; return b; };
-    const kaydetB = dugme('Kaydet'), vazgecB = dugme('Vazgeç');
+    const kaydetB = dugme(t('ocrPanel.kaydet')), vazgecB = dugme(t('genel.vazgec'));
     kutu.append(input, kaydetB, vazgecB);
     const ham = yazildigiGibi(parca, yer.kelime);
     let geriB: HTMLButtonElement | null = null;
-    if (ham !== null) { geriB = dugme('Geri al'); geriB.title = `yazıldığı gibi: ${ham}`; kutu.append(geriB); }
+    if (ham !== null) { geriB = dugme(t('genel.geriAl')); geriB.title = t('ocrPanel.yazildigiGibi', { ham }); kutu.append(geriB); }
     const hedef: DuzeltmeHedefi = { parmakIzi: rec.parmakIzi, okunma: rec.okunma, satir: yer.satir, parca: yer.parca, metin: parca.metin, gosterilen: gosterilen(parca) };
     const kilit = (k: boolean) => { input.disabled = k; for (const b of kutu.querySelectorAll('button')) b.disabled = k; };
     const kaydet = (degistir: (x: OcrParca) => OcrParca, ne: string) => action(async () => {
-      if (!yazim) throw new Error('Önce sayfaları tekrar kontrol et.');
+      if (!yazim) throw new Error(t('ocrPanel.onceTekrar'));
       if (degistir(parca) === parca) { duzenKapat(); return; }   // nothing changed: no write
       kilit(true);
       try {
         await verify();
-        status('Düzeltme kaydediliyor…');
+        status(t('ocrPanel.duzeltmeKaydediliyor'));
         const r = await duzeltmeYaz(yazim.drive, yazim.kaynak, hedef, degistir);
         const yeni = r.kayit.sayfalar.find(x => x.parmakIzi === rec.parmakIzi && x.okunma === rec.okunma);
         if (yeni && valid()) { p.record = yeni; p.text = aramaMetni(yeni); }
@@ -194,12 +196,12 @@ export function installReaderOcr(snapshot: () => ReaderSnapshot | null, o: Okuma
       } finally { if (duzenKutu === kutu) kilit(false); }
     });
     const kaydetElle = () => {
-      if (!input.value.trim()) { status('Kelime boş olamaz. Doğrusunu yaz ya da Vazgeç.'); return; }
-      void kaydet(x => kelimeDegistir(x, yer.kelime, input.value), 'Düzeltme kaydedildi. Temiz yazı ve arama yeni kelimeyi kullanır.');
+      if (!input.value.trim()) { status(t('ocrPanel.kelimeBos')); return; }
+      void kaydet(x => kelimeDegistir(x, yer.kelime, input.value), t('ocrPanel.duzeltmeKaydedildi'));
     };
     kaydetB.onclick = kaydetElle;
     vazgecB.onclick = () => duzenKapat();
-    if (geriB) geriB.onclick = () => void kaydet(x => kelimeGeriAl(x, yer.kelime), 'Elle düzeltme kaldırıldı.');
+    if (geriB) geriB.onclick = () => void kaydet(x => kelimeGeriAl(x, yer.kelime), t('ocrPanel.duzeltmeKaldirildi'));
     input.addEventListener('keydown', e => {
       if (e.key === 'Enter') { e.preventDefault(); kaydetElle(); }
       else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); duzenKapat(); }
@@ -215,12 +217,12 @@ export function installReaderOcr(snapshot: () => ReaderSnapshot | null, o: Okuma
     el('list').replaceChildren(...(search?.pages ?? []).map(p => {
       const row = document.createElement('div');
       row.style.cssText = 'display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:4px 0';
-      const t = document.createElement('span'); t.textContent = `s.${p.number} · ${DURUM[p.state ?? 'okunacak']}`;
-      row.append(t);
+      const etiket = document.createElement('span'); etiket.textContent = t('ocrPanel.satir', { no: p.number, durum: t(DURUM[p.state ?? 'okunacak']) });
+      row.append(etiket);
       if (p.state === 'okundu') {
-        const show = document.createElement('button'); show.textContent = 'Göster';
+        const show = document.createElement('button'); show.textContent = t('ocrPanel.goster');
         show.onclick = () => showText(p);
-        const again = document.createElement('button'); again.textContent = 'Tekrar oku'; again.dataset.again = String(p.number);
+        const again = document.createElement('button'); again.textContent = t('ocrPanel.tekrarOku'); again.dataset.again = String(p.number);
         again.onclick = () => {
           const uyari = p.record && tekrarOkuUyarisi(p.record);   // task 6.4e-3
           if (uyari && !confirm(uyari)) return;
@@ -232,31 +234,31 @@ export function installReaderOcr(snapshot: () => ReaderSnapshot | null, o: Okuma
     }));
   };
   const read = (again: number[] = []) => action(async () => {
-    if (!search || !valid()) throw new Error('Önce sayfaları tekrar kontrol et.');
-    status('Okunuyor…'); await search.start(again);
+    if (!search || !valid()) throw new Error(t('ocrPanel.onceTekrar'));
+    status(t('ocrPanel.okunuyor')); await search.start(again);
     const last = search.pages.filter(p => p.record).at(-1);
     if (last) showText(again.length ? search.pages.find(p => p.number === again[0]) ?? last : last);
-    status('Okundu ve kaydedildi. Model bazı kelimeleri yanlış okuyabilir.');
+    status(t('ocrPanel.okundu'));
   });
 
   el('prepare').onclick = () => void action(async () => {
-    const now = snapshot(); if (!now || !currentToken()) throw new Error('Önce Google ile giriş yap ve bir Drive PDF\'i aç.');
+    const now = snapshot(); if (!now || !currentToken()) throw new Error(t('ocrPanel.girisYap'));
     const numbers = el<HTMLInputElement>('pages').value.split(',').map(x => Number(x.trim()));
-    if (numbers.some(n => !Number.isInteger(n) || n < 1)) throw new Error('Sayfaları 1,3,5 biçiminde yaz.');
+    if (numbers.some(n => !Number.isInteger(n) || n < 1)) throw new Error(t('ocrPanel.bicim'));
     const selected = numbers.map(number => {
       const found = now.pages.find(p => (p.page.pdfSayfa ?? 1) === number);
-      if (!found || pageKind(found.page) !== 'pdf') throw new Error(`s.${number} açık dosyada yok veya PDF sayfası değil.`);
+      if (!found || pageKind(found.page) !== 'pdf') throw new Error(t('ocrPanel.sayfaYok', { no: number }));
       return { number, index: found.index };
     });
     bound = now; boundEpoch = epoch; invalid = false;
     el('text').replaceChildren(); el('results').replaceChildren();
-    status('Dosya ve okuma kaydı hazırlanıyor…');
+    status(t('ocrPanel.hazirlaniyor'));
     const page = (p: SearchPage) => now.pages.find(x => x.index === p.index)!.page;
     // the file once: its bytes (PDF cache), fingerprints, the record, its folder
     const gorseller = await PdfSayfaGorselleri.ac(new Uint8Array(await getPdf(now.file, now.version)));
     await verify();
-    const meta = await (await ok(await driveFetch(`files/${encodeURIComponent(now.file)}?fields=name,parents`), 'Dosya bilgisi okunurken')).json() as { name?: string; parents?: string[] };
-    if (!meta.parents?.[0]) throw new Error('Dosyanın klasörü bulunamadı. Kitaplığı yenileyip tekrar dene.');
+    const meta = await (await ok(await driveFetch(`files/${encodeURIComponent(now.file)}?fields=name,parents`), t('okuyucuArama.dosyaBilgisi'))).json() as { name?: string; parents?: string[] };
+    if (!meta.parents?.[0]) throw new Error(t('ocrPanel.klasorYok'));
     const kaynak: OcrKaynakDosya = { id: now.file, ad: meta.name ?? page({ number: 1, index: selected[0].index }).ad ?? 'dosya.pdf', klasorId: meta.parents[0] };
     const drive = driveOcrApi(now.yer);
     yazim = null;
@@ -273,22 +275,22 @@ export function installReaderOcr(snapshot: () => ReaderSnapshot | null, o: Okuma
         return { sayfa: p.number, parmakIzi: g.parmakIzi, model: o.model, okunma: new Date().toISOString(), dondurme: 0, satirlar: o.satirlar } satisfies OcrSayfa;
       },
       save: async (_p, reading) => { await sayfaYaz(drive, kaynak, reading); o.okundu?.(kaynak.id); },
-      progress: (d, t, p) => status(`Okunuyor ${d}/${t} (s.${p.number})…`)
+      progress: (d, toplam, p) => status(t('ocrPanel.ilerleme', { i: d, n: toplam, no: p.number }))
     });
     const count = await search.prepare(selected);
-    el('count').textContent = `Okunacak: ${count} sayfa · okundu: ${search.pages.filter(p => p.state === 'okundu').length} · basılı metinli (atlanır): ${search.pages.filter(p => p.state === 'metin').length}.`;
+    el('count').textContent = t('ocrPanel.sayilar', { n: count, okundu: search.pages.filter(p => p.state === 'okundu').length, metin: search.pages.filter(p => p.state === 'metin').length });
     const first = search.pages.find(p => p.record);
     if (first) showText(first);
-    status(count ? 'Sayıyı kontrol edip Oku düğmesine bas.' : 'Okunacak yeni sayfa yok; okunanları Göster ya da Tekrar oku.');
+    status(t(count ? 'ocrPanel.okuyaBas' : 'ocrPanel.yeniYok'));
   });
   el('start').onclick = () => void read();
-  el('cancel').onclick = () => { search?.cancel(); status('İptal edildi. Yeni sayfa gönderilmeyecek; okunup kaydedilenler kaldı.'); };
+  el('cancel').onclick = () => { search?.cancel(); status(t('ocrPanel.iptalEdildi')); };
   el('search').onclick = () => void action(async () => {
-    el('results').replaceChildren(); if (!search) throw new Error('Önce sayfaları kontrol et.');
+    el('results').replaceChildren(); if (!search) throw new Error(t('ocrPanel.onceKontrol'));
     const matches = await search.matches(el<HTMLInputElement>('query').value);
-    status(`${matches.length} eşleşen sayfa. Model bazı kelimeleri yanlış/eksik okuyabilir.`);
+    status(t('ocrPanel.eslesen', { n: matches.length }));
     for (const match of matches) {
-      const button = document.createElement('button'); button.textContent = `PDF s.${match.page.number} · ${match.ocr ? 'okunan metin' : 'basılı metin'}: ${match.excerpt}`;
+      const button = document.createElement('button'); button.textContent = t('ocrPanel.sonuc', { no: match.page.number, tur: t(match.ocr ? 'ocrPanel.okunanTur' : 'ocrPanel.basiliTur'), metin: match.excerpt });
       button.style.cssText = 'display:block;text-align:left;margin:8px 0;white-space:normal';
       button.onclick = () => void action(async () => { await verify(); bound!.go(match.page.index); kapat(); });
       el('results').append(button);

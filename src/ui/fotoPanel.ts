@@ -10,6 +10,7 @@ import { hazirlikEkle, olcumAcik } from '../defter/sureOlcum';
 import { gorunurAlaniDuzelt } from './gorunurAlan';
 import { acKoseDuzenleyici, type KoseDuzenleyici } from './koseDuzenleyici';
 import { toast } from './toast';
+import { t } from '../dil';
 
 // Task 5.8a: "Fotoğraf ekle" panel over the reader. Photos are prepared one at a time (iPad memory).
 // Task 5.8c: the page is cropped by default; each thumbnail has a crop / whole-photo toggle.
@@ -92,7 +93,7 @@ export function acFotoPanel(b: FotoPanelBaglam, dosyalar: File[]): void {
   kart.setAttribute('role', 'dialog');
   kart.setAttribute('aria-modal', 'true');
   kart.setAttribute('aria-labelledby', 'fpBaslik');
-  const baslik = el('h2', 'fp-baslik', `Fotoğraf ekle – ${b.konuAdi}`);
+  const baslik = el('h2', 'fp-baslik', t('foto.baslik', { konu: b.konuAdi }));
   baslik.id = 'fpBaslik';
   const durum = el('p', 'fp-durum');
   durum.setAttribute('aria-live', 'polite');
@@ -102,11 +103,11 @@ export function acFotoPanel(b: FotoPanelBaglam, dosyalar: File[]): void {
   input.accept = 'image/*';
   input.multiple = true;
   input.hidden = true;
-  const arti = dugme('fp-arti', '+ Fotoğraf');
+  const arti = dugme('fp-arti', t('foto.arti'));
   const hedefSatir = el('div', 'fp-hedef');
   const not = el('p', 'fp-not');
-  const vazgec = dugme('fp-vazgec', 'Vazgeç');
-  const ekle = dugme('fp-ekle', 'Ekle');
+  const vazgec = dugme('fp-vazgec', t('genel.vazgec'));
+  const ekle = dugme('fp-ekle', t('ekleme.ekle'));
   const alt = el('div', 'fp-alt');
   alt.append(vazgec, ekle);
   kart.append(baslik, durum, liste, arti, input, hedefSatir, not, alt);
@@ -116,7 +117,7 @@ export function acFotoPanel(b: FotoPanelBaglam, dosyalar: File[]): void {
   const hedef = () => hedefHesapla({ ozetDosyalari: b.ozetDosyalari, acikDosyaId: b.acikDosyaId, seciliId, sayfaSayisi: b.sayfaSayisi, yeniSayfa: ogeler.length });
 
   function ciz(): void {
-    durum.textContent = calisiyor ? `Hazırlanıyor ${Math.min(biten + 1, toplam)}/${toplam}` : ogeler.length ? '' : 'Henüz fotoğraf yok.';
+    durum.textContent = calisiyor ? t('foto.hazirlaniyorN', { i: Math.min(biten + 1, toplam), n: toplam }) : ogeler.length ? '' : t('foto.henuzYok');
     durum.hidden = !durum.textContent;
     liste.replaceChildren(...ogeler.map((o, i) => {
       const li = el('li', 'fp-oge');
@@ -124,22 +125,22 @@ export function acFotoPanel(b: FotoPanelBaglam, dosyalar: File[]): void {
       const img = el('img');
       img.src = o.url;
       img.alt = '';
-      const duzelt = dugme('fp-duzelt', '', `${i + 1}. fotoğraf: köşeleri düzelt`);
+      const duzelt = dugme('fp-duzelt', '', t('foto.koseDuzelt', { no: i + 1 }));
       duzelt.append(img);
       duzelt.disabled = o.mesgul;
       duzelt.onclick = () => void koseDuzelt(o);
-      const sol = dugme('fp-ok', '‹', `${i + 1}. fotoğrafı sola taşı`);
+      const sol = dugme('fp-ok', '‹', t('foto.solaTasi', { no: i + 1 }));
       sol.disabled = i === 0;
       sol.onclick = () => { ogeler = tasi(ogeler, i, -1); ciz(); };
-      const sag = dugme('fp-ok', '›', `${i + 1}. fotoğrafı sağa taşı`);
+      const sag = dugme('fp-ok', '›', t('foto.sagaTasi', { no: i + 1 }));
       sag.disabled = i === ogeler.length - 1;
       sag.onclick = () => { ogeler = tasi(ogeler, i, 1); ciz(); };
-      const x = dugme('fp-cikar', '×', `${i + 1}. fotoğrafı çıkar`);
+      const x = dugme('fp-cikar', '×', t('foto.cikar', { no: i + 1 }));
       x.onclick = () => { URL.revokeObjectURL(o.url); ogeler = cikar(ogeler, i); ciz(); };
       const oklar = el('div', 'fp-oklar');
       oklar.append(sol, sag);
       const kirp = o.hazir.kip === 'kirp';
-      const gecis = dugme('fp-kirp', '', kirp ? `${i + 1}. fotoğraf: sayfa kırpılıyor – tüm fotoğrafa geç` : `${i + 1}. fotoğraf: tüm fotoğraf – sayfayı kırp`);
+      const gecis = dugme('fp-kirp', '', t(kirp ? 'foto.kirpAcik' : 'foto.kirpKapali', { no: i + 1 }));
       gecis.innerHTML = kirp ? SIMGE_KIRP : SIMGE_TUMU;
       gecis.setAttribute('aria-pressed', String(kirp));
       gecis.disabled = o.mesgul;
@@ -147,7 +148,7 @@ export function acFotoPanel(b: FotoPanelBaglam, dosyalar: File[]): void {
       const renk = dugme('fp-renk', '', renkEtiketi(o.renk, i + 1));
       renk.innerHTML = o.renk ? SIMGE_RENK : SIMGE_RENK_YOK;
       renk.setAttribute('aria-pressed', String(o.renk));
-      renk.title = 'Renk düzelt';
+      renk.title = t('foto.renkDuzelt');
       renk.disabled = o.mesgul;
       renk.onclick = () => void renkDegistir(o);
       const resim = el('div', 'fp-resim');
@@ -156,30 +157,30 @@ export function acFotoPanel(b: FotoPanelBaglam, dosyalar: File[]): void {
         const temiz = dugme('fp-temiz', '', temizEtiketi(o.temiz, i + 1));
         temiz.innerHTML = SIMGE_TEMIZ(o.temiz);
         temiz.setAttribute('aria-pressed', String(o.temiz));
-        temiz.title = 'Temiz yazıya çevir';
+        temiz.title = t('foto.temizCevir');
         temiz.disabled = o.mesgul;
         temiz.onclick = () => { o.temiz = !o.temiz; ciz(); };
         resim.append(temiz);
       }
-      if (o.hazir.kirpilamadi && !kirp) resim.append(el('span', 'fp-rozet', 'Kırpılamadı'));
-      else if (o.elle && kirp) resim.append(el('span', 'fp-rozet fp-rozet-elle', 'elle'));
+      if (o.hazir.kirpilamadi && !kirp) resim.append(el('span', 'fp-rozet', t('foto.kirpilamadi')));
+      else if (o.elle && kirp) resim.append(el('span', 'fp-rozet fp-rozet-elle', t('foto.elle')));
       li.append(resim, el('span', 'fp-no', String(i + 1)), x, oklar, el('small', 'fp-boyut', boyutYazi(o.hazir.gorsel.yeniBoyut)));
       return li;
     }));
     const h = hedef();
     if (h.tur === 'secim') {
       const sec = el('select', 'fp-sec');
-      sec.setAttribute('aria-label', 'Hangi özet dosyasına eklensin');
+      sec.setAttribute('aria-label', t('foto.hangiOzet'));
       sec.append(...h.dosyalar.map(f => new Option(f.name, f.id)));
       sec.value = h.hedef!.id;
       sec.onchange = () => { seciliId = sec.value; ciz(); };
-      const lbl = el('label', 'fp-seclbl', 'Hedef dosya');
+      const lbl = el('label', 'fp-seclbl', t('foto.hedefDosya'));
       lbl.append(sec);
       hedefSatir.replaceChildren(lbl, el('span', '', h.metin));
     } else hedefSatir.replaceChildren(el('span', '', h.metin));
     const e = ekleDurumu({ ornek: b.ornek, hazirSayisi: ogeler.length, hazirlaniyor: calisiyor || ogeler.some(o => o.mesgul) });
     ekle.disabled = !e.aktif || kaydediliyor;
-    ekle.textContent = kaydediliyor ? 'Kaydediliyor…' : 'Ekle';
+    ekle.textContent = kaydediliyor ? t('foto.kaydediliyor') : t('ekleme.ekle');
     const notMetni = e.aciklama ?? hataMetni;
     not.textContent = notMetni ?? '';
     not.hidden = !notMetni;
@@ -203,14 +204,14 @@ export function acFotoPanel(b: FotoPanelBaglam, dosyalar: File[]): void {
         ogeler.push({ hazir: h, file: f, ad: f.name, url: jpegUrl(h), mesgul: false, otoKoseler: h.koseler, elle: false, renk: RENK_DUZELT_VARSAYILAN, temiz: TEMIZ_YAZI_VARSAYILAN });
       } catch (e) {
         if (kapandi) break;
-        toast(e instanceof GorselHatasi ? `${f.name}: ${e.message}` : `${f.name} hazırlanamadı. Başka bir fotoğraf seç.`);
+        toast(e instanceof GorselHatasi ? `${f.name}: ${e.message}` : t('foto.hazirlanamadiBaska', { ad: f.name }));
         if (!(e instanceof GorselHatasi)) console.warn('Fotoğraf hazırlanamadı.', e);
       }
       biten++;
       ciz();
     }
     calisiyor = false;
-    if (t0 !== null) hazirlikEkle({ ad: 'panel: fotoğraflar hazır', ms: performance.now() - t0, grup: 'panel', ek: { foto: toplam } });
+    if (t0 !== null) hazirlikEkle({ ad: 'panel: fotoğraflar hazır', ms: performance.now() - t0, grup: 'panel', ek: { foto: toplam } });   // dil-kontrol: yoksay
     if (!kapandi) ciz();
   }
 
@@ -259,7 +260,7 @@ export function acFotoPanel(b: FotoPanelBaglam, dosyalar: File[]): void {
       o.renk = renk;
     } catch (e) {
       if (kapandi) return;
-      toast(e instanceof GorselHatasi ? `${o.ad}: ${e.message}` : `${o.ad} hazırlanamadı. Tekrar dene.`);
+      toast(e instanceof GorselHatasi ? `${o.ad}: ${e.message}` : t('foto.hazirlanamadiTekrar', { ad: o.ad }));
       if (!(e instanceof GorselHatasi)) console.warn('Fotoğraf hazırlanamadı.', e);
     } finally {
       o.mesgul = false;
@@ -275,7 +276,7 @@ export function acFotoPanel(b: FotoPanelBaglam, dosyalar: File[]): void {
     ogeler = [];
     removeEventListener('keydown', tus, true);
     kok.remove();
-    gorunurAlaniDuzelt('fotoğraf paneli kapandı');   // task 5.10g-ek2: as the file panel (iPad)
+    gorunurAlaniDuzelt('fotoğraf paneli kapandı');   // task 5.10g-ek2: as the file panel (iPad) · dil-kontrol: yoksay
   }
 
   function tus(e: KeyboardEvent): void {
@@ -299,12 +300,12 @@ export function acFotoPanel(b: FotoPanelBaglam, dosyalar: File[]): void {
     hataMetni = null;
     ciz();
     console.info('Fotoğraf ekle:', ogeler.map((o, i) =>
-      `${i + 1}. ${o.ad} ${o.hazir.gorsel.width}×${o.hazir.gorsel.height} ${boyutYazi(o.hazir.gorsel.yeniBoyut)} ${kirpYazi(o.hazir.kip, o.hazir.kirpilamadi, o.elle)}${o.hazir.renkDuzelt ? ' renk düzeltildi' : ''}`).join(' · '));
+      `${i + 1}. ${o.ad} ${o.hazir.gorsel.width}×${o.hazir.gorsel.height} ${boyutYazi(o.hazir.gorsel.yeniBoyut)} ${kirpYazi(o.hazir.kip, o.hazir.kirpilamadi, o.elle)}${o.hazir.renkDuzelt ? ' renk düzeltildi' : ''}`).join(' · '));   // dil-kontrol: yoksay
     try {
       await b.ekle(ogeler.map(o => temizYaziIsareti({ ...o.hazir.gorsel, renkDuzelt: o.hazir.renkDuzelt }, !!b.temizYazi && o.temiz)), h.hedef);
     } catch (e) {
       kaydediliyor = false;
-      hataMetni = e instanceof Error ? e.message : 'Fotoğraflar kaydedilemedi. Tekrar dene.';
+      hataMetni = e instanceof Error ? e.message : t('foto.kaydedilemedi');
       if (!kapandi) ciz();
       return;
     }

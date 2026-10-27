@@ -1,4 +1,5 @@
 import type { HazirGorsel } from './gorsel';
+import { t, type Anahtar } from '../dil';
 
 // Task 5.8e: one adding of photos waiting on the device (the pure part; the store is bekleyenFoto.ts).
 // Saved when "Ekle" is pressed, before any network; removed only after the pages are on Drive.
@@ -44,7 +45,7 @@ const kopya = (j: BekleyenJpeg): BekleyenJpeg => {
 };
 
 export function yeniKayit(g: YeniKayitGirdisi, simdi: string, islemId: string = crypto.randomUUID()): BekleyenFoto {
-  if (g.jpegler.length === 0) throw new Error('Bekleyen kayıtta fotoğraf yok.');
+  if (g.jpegler.length === 0) throw new Error('Bekleyen kayıtta fotoğraf yok.');   // dil-kontrol: yoksay
   const k: BekleyenFoto = {
     islemId, olusturma: simdi, guncelleme: simdi,
     kitapAdi: g.kitapAdi, konuKlasorId: g.konuKlasorId, konuBaslik: g.konuBaslik, hedefAd: g.hedefAd,
@@ -56,7 +57,7 @@ export function yeniKayit(g: YeniKayitGirdisi, simdi: string, islemId: string = 
 
 export class GecisHatasi extends Error {
   constructor(readonly islemId: string, readonly durum: BekleyenDurum, readonly hedef: BekleyenDurum) {
-    super(`Bekleyen kayıt ${islemId}: ${durum} → ${hedef} geçişi yok.`);
+    super(`Bekleyen kayıt ${islemId}: ${durum} → ${hedef} geçişi yok.`);   // kisaNeden shows its own text. dil-kontrol: yoksay
     this.name = 'GecisHatasi';
   }
 }
@@ -84,15 +85,15 @@ export const toplamBoyut = (ks: readonly BekleyenFoto[]): number => ks.reduce((t
 
 export type DepoHataTuru = 'idb-yok' | 'kota' | 'diger';
 
-const MESAJ: Record<DepoHataTuru, string> = {
-  'idb-yok': 'Bu tarayıcı fotoğrafları cihazda saklayamıyor (gizli sekme olabilir). Uygulamayı normal sekmede aç.',
-  kota: 'Cihazda yer kalmadı; fotoğraflar kaydedilemedi. Biraz yer aç ve tekrar dene.',
-  diger: 'Fotoğraflar cihaza kaydedilemedi. Sayfayı yenileyip tekrar dene.',
+const MESAJ: Record<DepoHataTuru, Anahtar> = {
+  'idb-yok': 'bekleyen.idbYok',
+  kota: 'bekleyen.kota',
+  diger: 'bekleyen.diger',
 };
 
 export class BekleyenFotoHatasi extends Error {
   constructor(readonly tur: DepoHataTuru, readonly neden?: unknown) {
-    super(MESAJ[tur]);
+    super(t(MESAJ[tur]));
     this.name = 'BekleyenFotoHatasi';
   }
 }

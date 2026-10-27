@@ -132,16 +132,16 @@ export const yeniKitapIslemi = (islemId: string, plan: KitapPlani): KitapIslemi 
 // Nothing has reached Drive yet (a new name can be chosen with a new operation)
 export const hicYazilmadi = (i: KitapIslemi): boolean => !i.denenen.size && !i.tamam.size && !i.rafTamam;
 
-const ogeAdi = (o: PlanOgesi) => o.tur === 'rafKaydi' ? 'raf kaydı (kitaplik.json)' : `kitaplar/${o.yol}`;
+const ogeAdi = (o: PlanOgesi) => o.tur === 'rafKaydi' ? 'raf kaydı (kitaplik.json)' : `kitaplar/${o.yol}`;   // dil-kontrol: yoksay
 
 // For the ?olcum=1 box
 export function islemOzeti(i: KitapIslemi): string {
   const n = i.plan.ogeler.length;
   const bitti = i.tamam.size + (i.rafTamam ? 1 : 0);
   return [
-    `işlem: ${i.islemId}`,
+    `işlem: ${i.islemId}`,   // dil-kontrol: yoksay
     `durum: ${bitti}/${n}`,
-    `vardı: ${i.vardi.length ? i.vardi.map(k => ogeAdi(i.plan.ogeler[k])).join(', ') : 'yok'}`,
+    `vardı: ${i.vardi.length ? i.vardi.map(k => ogeAdi(i.plan.ogeler[k])).join(', ') : 'yok'}`,   // dil-kontrol: yoksay
     `raf: ${i.kitaplikYok ? 'yok (kitaplik.json yok, Yeni gelenler)' : i.rafTamam ? i.rafa ?? 'yok (raf yok)' : '-'}`
   ].join('\n');
 }

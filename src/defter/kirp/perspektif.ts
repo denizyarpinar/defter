@@ -8,16 +8,16 @@ import { cikisBoyutu, homografi, type Kose4 } from './kirpHesap';
 export function duzelt(src: HTMLCanvasElement, k: Kose4, maxKenar = MAX_KENAR): HTMLCanvasElement {
   const { width: W, height: H } = cikisBoyutu(k, maxKenar);
   const M = homografi([{ x: 0, y: 0 }, { x: W, y: 0 }, { x: W, y: H }, { x: 0, y: H }], k);
-  if (!M) throw new Error('Köşelerden dönüşüm hesaplanamadı');
+  if (!M) throw new Error('Köşelerden dönüşüm hesaplanamadı');   // dil-kontrol: yoksay
   const sctx = src.getContext('2d', { willReadFrequently: true });
-  if (!sctx) throw new Error('Canvas açılamadı');
+  if (!sctx) throw new Error('Canvas açılamadı');   // dil-kontrol: yoksay
   const sw = src.width, sh = src.height;
   const s = sctx.getImageData(0, 0, sw, sh).data;
   const out = document.createElement('canvas');
   out.width = W;
   out.height = H;
   const octx = out.getContext('2d');
-  if (!octx) throw new Error('Canvas açılamadı');
+  if (!octx) throw new Error('Canvas açılamadı');   // dil-kontrol: yoksay
   const img = octx.createImageData(W, H);
   const d = img.data;
   for (let y = 0; y < H; y++) {
@@ -48,6 +48,6 @@ export function duzelt(src: HTMLCanvasElement, k: Kose4, maxKenar = MAX_KENAR): 
 
 export async function jpeg(c: HTMLCanvasElement): Promise<Blob> {
   const blob = await new Promise<Blob | null>(res => c.toBlob(res, 'image/jpeg', JPEG_KALITE));
-  if (!blob) throw new Error('JPEG oluşturulamadı');
+  if (!blob) throw new Error('JPEG oluşturulamadı');   // dil-kontrol: yoksay
   return blob;
 }

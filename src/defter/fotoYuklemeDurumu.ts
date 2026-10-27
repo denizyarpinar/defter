@@ -1,4 +1,5 @@
 import { durumMetni } from './fotoEklemeMetin';
+import { t } from '../dil';
 
 // Task 6.2e-2: the status strip's text while photos go to Drive (no DOM, so it can be tested).
 // One entry per adding, in the queue's order: waiting, being prepared (checks, pdf-lib) or uploading.
@@ -29,9 +30,9 @@ export function yuklemeDurumMetni(eklemeler: readonly SiradakiEkleme[]): string 
   const parca: string[] = [];
   if (calisan) {
     const a = calisan.asama;
-    if (a.tur === 'yukleniyor') parca.push(a.yuzde === null ? 'Fotoğraflar yükleniyor…' : `Fotoğraflar yükleniyor… %${a.yuzde}`);
-    else parca.push(durumMetni(calisan.foto) ?? 'Fotoğraflar ekleniyor…');
+    if (a.tur === 'yukleniyor') parca.push(a.yuzde === null ? t('foto.yukleniyor') : t('foto.yukleniyorYuzde', { yuzde: a.yuzde }));
+    else parca.push(durumMetni(calisan.foto) ?? t('foto.ekleniyor'));
   }
-  if (sirada) parca.push(`${sirada} fotoğraf sırada`);
+  if (sirada) parca.push(t('foto.sirada', { n: sirada }));
   return parca.length ? parca.join(' · ') : null;
 }

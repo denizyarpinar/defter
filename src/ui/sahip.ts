@@ -7,10 +7,10 @@ export function genitive(name: string): string {
   const first = name.trim().split(/\s+/)[0] || name;
   if (dil() === 'en') return /s$/i.test(first) ? `${first}'` : `${first}'s`;
   const lower = first.toLocaleLowerCase('tr-TR');
-  const vowels = [...lower].filter(c => 'aeıioöuü'.includes(c));
+  const vowels = [...lower].filter(c => 'aeıioöuü'.includes(c));   // dil-kontrol: yoksay
   const last = vowels.at(-1) ?? 'e';
-  const v = 'aı'.includes(last) ? 'ı' : 'ei'.includes(last) ? 'i' : 'ou'.includes(last) ? 'u' : 'ü';
-  return `${first}'${'aeıioöuü'.includes(lower.at(-1)!) ? 'n' : ''}${v}n`;
+  const v = 'aı'.includes(last) ? 'ı' : 'ei'.includes(last) ? 'i' : 'ou'.includes(last) ? 'u' : 'ü';   // dil-kontrol: yoksay
+  return `${first}'${'aeıioöuü'.includes(lower.at(-1)!) ? 'n' : ''}${v}n`;   // dil-kontrol: yoksay
 }
 
 // "Deniz'in kitaplığından" / "From Deniz's library"; null owner = the sample library

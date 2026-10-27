@@ -55,7 +55,7 @@ export interface EklenenSayfalar {
 // Task 6.S-4d: the deleted page, for the device's backup (written before the upload)
 export interface SilinenYedek extends Capa { indeks: number; sayfaBytes: Uint8Array; eskiSayfa: number; ayniIzVar: boolean }
 
-// ---- errors (in the chosen language, say what to do; the extra file's EK_MESAJLAR follow in 6.5-4) ----
+// ---- errors (in the chosen language, say what to do) ----
 
 export class SayfaEklemeCakisma extends Error {
   constructor() { super(t('sayfaIsi.hata.cakisma')); }
@@ -82,9 +82,9 @@ export class EkPdfYazilamaz extends Error {}
 
 // The extra file is only read (its pages copied), never written: a signature is no reason to refuse it
 const EK_MESAJLAR = {
-  sifreli: 'Bu PDF şifreli, özete eklenemiyor. Şifresiz bir kopyasını seçip tekrar dene.',
-  okunamadi: 'Bu PDF okunamadı, özete eklenemiyor. Dosya bozuk olabilir; bir PDF programında açılıp açılmadığına bak.',
-  bos: 'Bu PDF\'te sayfa yok, özete eklenecek bir şey yok. Başka bir dosya seç.'
+  get sifreli() { return t('ekHata.ekSifreli'); },
+  get okunamadi() { return t('ekHata.ekOkunamadi'); },
+  get bos() { return t('ekHata.ekBos'); }
 };
 
 // ---- pure: pages + their mark ----

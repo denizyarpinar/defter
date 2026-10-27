@@ -8,7 +8,7 @@ import { saltOkunurFetch } from './saltOkunur';
 //   So a "Defter Library" made in a narrow test never hides the owner's real Kitaplık.
 // The choice is pure (kokSec, kokTamMi) and tested; kokBul asks Drive.
 
-export const ROOT_NAME = 'Kitaplık';
+export const ROOT_NAME = 'Kitaplık';   // dil-kontrol: yoksay
 export const KOK_ADI = 'Defter Library';
 
 export type KokModu = 'tam' | 'dar';

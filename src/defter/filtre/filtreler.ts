@@ -148,5 +148,5 @@ export const FILTRELER: readonly Filtre[] = [
   { id: 'B', ad: 'Arka plan (renkli)', uygula: arkaPlanDuzelt },
   { id: 'C', ad: 'Gri belge', uygula: griBelge },
   { id: 'D', ad: 'Siyah-beyaz', uygula: siyahBeyaz },
-  { id: 'E', ad: 'Renk düzelt', uygula: g => renkDuzelt(g) }
+  { id: 'E', ad: 'Renk düzelt', uygula: g => renkDuzelt(g) }   // dil-kontrol: yoksay
 ];

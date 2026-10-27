@@ -47,7 +47,7 @@ async function coz(file: File): Promise<Kaynak> {
 export async function hazirlaGorsel(file: File): Promise<HazirGorsel> {
   if (file.size === 0) throw new GorselHatasi('bos');
   const z = zamanOlc(), t0 = z ? performance.now() : 0;
-  const src = await zamanlaA(z, 'okuma+çözme', () => coz(file));
+  const src = await zamanlaA(z, 'okuma+çözme', () => coz(file));   // dil-kontrol: yoksay
   try {
     const g = (await tumunuHazirla(src, file, false, z)).gorsel;   // "Dosya ekle" too: never filtered
     if (z) hazirlikYaz(file, z, t0, g, { kip: 'tumu' });
@@ -85,7 +85,7 @@ function renkDuzeltTuvale(canvas: HTMLCanvasElement): boolean {
 interface Hazir { gorsel: HazirGorsel; renkDuzelt: boolean }
 
 async function jpegHazirla(canvas: HTMLCanvasElement, src: Kaynak, file: File, renk: boolean, z?: Record<string, number> | null): Promise<Hazir> {
-  const renkDuzelt = renk && zamanla(z, 'renk düzelt', () => renkDuzeltTuvale(canvas));
+  const renkDuzelt = renk && zamanla(z, 'renk düzelt', () => renkDuzeltTuvale(canvas));   // dil-kontrol: yoksay
   return { gorsel: await zamanlaA(z, 'JPEG', () => jpegBilgisi(canvas, src, file)), renkDuzelt };
 }
 
@@ -103,7 +103,7 @@ async function tumunuHazirla(src: Kaynak, file: File, renk = false, z?: Record<s
     ctx.imageSmoothingQuality = 'high';
     ctx.fillStyle = '#fff';   // JPEG has no transparency: a see-through PNG would turn black
     ctx.fillRect(0, 0, width, height);
-    zamanla(z, 'küçültme', () => ctx.drawImage(src.image, 0, 0, width, height));
+    zamanla(z, 'küçültme', () => ctx.drawImage(src.image, 0, 0, width, height));   // dil-kontrol: yoksay
     return await jpegHazirla(canvas, src, file, renk, z);
   } finally {
     canvas.width = canvas.height = 0;
@@ -131,7 +131,7 @@ async function kirpiliHazirla(src: Kaynak, file: File, k: Kose4, renk = false, z
     ctx.imageSmoothingQuality = 'high';
     ctx.fillStyle = '#fff';
     ctx.fillRect(0, 0, p.width, p.height);
-    out = zamanla(z, 'kırpma+perspektif', () => {
+    out = zamanla(z, 'kırpma+perspektif', () => {   // dil-kontrol: yoksay
       ctx.drawImage(src.image, p.sx, p.sy, p.sw, p.sh, 0, 0, p.width, p.height);
       return duzelt(canvas, p.koseler, MAX_KENAR);
     });
@@ -181,7 +181,7 @@ export async function hazirlaKirpli(file: File, kip: KirpKip, onceki?: KirpKarar
   const renk = secenek.renkDuzelt === true;
   if (file.size === 0) throw new GorselHatasi('bos');
   const z = zamanOlc(), t0 = z ? performance.now() : 0;
-  const src = await zamanlaA(z, 'okuma+çözme', () => coz(file));
+  const src = await zamanlaA(z, 'okuma+çözme', () => coz(file));   // dil-kontrol: yoksay
   const yaz = (r: KirpliGorsel): KirpliGorsel => {
     if (z) hazirlikYaz(file, z, t0, r.gorsel, { kip: r.kip, renk: r.renkDuzelt, yeniden: onceki ? 'evet' : undefined });
     return r;

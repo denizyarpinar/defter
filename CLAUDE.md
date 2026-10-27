@@ -28,6 +28,7 @@ Durum ve sıradaki adım: docs/DURUM.md (Codex de aynı dosyayı kullanır).
 - `npm run dev` → yerelde çalıştır (http://localhost:5173)
 - `npm run build` → yayın sürümünü üret
 - `npm run typecheck` → TypeScript hatalarını kontrol et (`tsc --noEmit`)
+- `npm run dil` → kalan Türkçe dize 0 ve tr/en anahtarları aynı olmalı (yoksa çıkış kodu 1; 6.5-4a). Ekranda olmayan dize: satır sonunda `// dil-kontrol: yoksay`.
 - Bir görevi bitmiş saymadan önce `npm run typecheck` ve `npm run build` hatasız geçmeli.
 
 ## Klasör yapısı
