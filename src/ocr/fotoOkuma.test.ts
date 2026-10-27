@@ -80,11 +80,11 @@ describe('temizYaziyaCevir', () => {
     const r = await temizYaziyaCevir(kayit([{ bytes: a, width: 1, height: 1, temizYazi: true }, { bytes: b, width: 1, height: 1, temizYazi: true }]), sonuc(), d);
     expect(r).toEqual({ okunan: 1, atlanan: 0, hata: 1 });
     expect(yazilan.map(x => x.s.sayfa)).toEqual([26]);
-    expect(bildirim).toEqual([`${OKUNAMADI} (s.25: Model isteği başarısız (durum 502).)`]);
+    expect(bildirim).toEqual([`${OKUNAMADI()} (s.25: Model isteği başarısız (durum 502).)`]);
 
     const yazHata = deps({ async yaz() { throw new Error('Drive'); } });
     await expect(temizYaziyaCevir(kayit([{ bytes: a, width: 1, height: 1, temizYazi: true }]), sonuc(), yazHata.d)).resolves.toEqual({ okunan: 0, atlanan: 0, hata: 1 });
-    expect(yazHata.bildirim[0]).toContain(OKUNAMADI);
+    expect(yazHata.bildirim[0]).toContain(OKUNAMADI());
   });
 
   it('429: waits a minute, tries once more', async () => {

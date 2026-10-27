@@ -11,7 +11,7 @@ import { t } from '../dil';
 // (parmakIzi.ts) without downloading the PDF (fotoOkuma.test.ts proves it). Never throws: a failed reading
 // leaves the photo on its page and only says so.
 
-export const OKUNAMADI = t('fotoOkuma.okunamadi');
+export const OKUNAMADI = (): string => t('fotoOkuma.okunamadi');
 export const BEKLE_429_MS = 60_000;
 
 export async function sha256Hex(b: Uint8Array): Promise<string> {
@@ -70,7 +70,7 @@ export async function temizYaziyaCevir(k: BekleyenFoto, r: KonuyaEklendi, d: Fot
         console.warn(`Temiz yazı: s.${sayfa} okunamadı.`, e);
       }
     }
-    if (hatalar.length) d.bildir(`${OKUNAMADI} (${hatalar.join(' · ')})`);
+    if (hatalar.length) d.bildir(`${OKUNAMADI()} (${hatalar.join(' · ')})`);
     else if (sonuc.okunan) d.bildir(t('fotoOkuma.kaydedildi', { n: sonuc.okunan, ad: r.ad }));
   } catch (e) {
     console.warn('Temiz yazı tamamlanmadı.', e);

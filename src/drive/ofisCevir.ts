@@ -103,18 +103,18 @@ const fileUrl = (id: string) => `files/${encodeURIComponent(id)}`;
 
 // ---- trashing (the only exception to "nothing is deleted") ----
 
-const COP = t('ofis.copeAtilirken');
+const COP = (): string => t('ofis.copeAtilirken');
 
 // Reads the file first; trashes it only if it is our temporary Google file and not trashed yet.
 export async function copeAtGecici(id: string): Promise<void> {
-  const res = await ok(await driveFetch(`${fileUrl(id)}?fields=id,mimeType,trashed,appProperties`), COP);
+  const res = await ok(await driveFetch(`${fileUrl(id)}?fields=id,mimeType,trashed,appProperties`), COP());
   const j = await res.json() as { mimeType?: string; trashed?: boolean; appProperties?: Record<string, string> };
   if (j.appProperties?.defterGecici !== '1' || !googleTuruMu(j.mimeType) || j.trashed !== false) throw new OfisGeciciDegil();
   await ok(await driveFetch(`${fileUrl(id)}?fields=id`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json; charset=UTF-8' },
     body: JSON.stringify({ trashed: true })
-  }), COP);
+  }), COP());
 }
 
 // Temporary files older than 1 hour (at most 20) → trash. Returns how many were trashed.

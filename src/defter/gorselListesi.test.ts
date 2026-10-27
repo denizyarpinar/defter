@@ -21,15 +21,15 @@ describe('secimKarari', () => {
     expect(secimKarari([s('a.pdf', 'desteklenmeyen', 'bozukPdf')])).toEqual({ tur: 'tek' });
   });
   it('PDF + images: "add the PDF alone"', () => {
-    expect(secimKarari([jpg('a.jpg'), s('b.pdf', 'pdf')])).toEqual({ tur: 'ret', metin: KARISIK_METIN });
-    expect(secimKarari([s('b.pdf', 'pdf', 'onEkli'), jpg('a.jpg')])).toEqual({ tur: 'ret', metin: KARISIK_METIN });
+    expect(secimKarari([jpg('a.jpg'), s('b.pdf', 'pdf')])).toEqual({ tur: 'ret', metin: KARISIK_METIN() });
+    expect(secimKarari([s('b.pdf', 'pdf', 'onEkli'), jpg('a.jpg')])).toEqual({ tur: 'ret', metin: KARISIK_METIN() });
   });
   it('several PDFs: one at a time', () => {
-    expect(secimKarari([s('a.pdf', 'pdf'), s('b.pdf', 'pdf')])).toEqual({ tur: 'ret', metin: COK_PDF_METIN });
+    expect(secimKarari([s('a.pdf', 'pdf'), s('b.pdf', 'pdf')])).toEqual({ tur: 'ret', metin: COK_PDF_METIN() });
   });
   it('an Office / broken / unknown file among several: its name + its own text', () => {
     expect(secimKarari([jpg('a.jpg'), s('not.docx', 'ofis', 'word')])).toEqual({ tur: 'ret', metin: `not.docx: ${ofisMetni('word')}` });
-    expect(secimKarari([s('a.pdf', 'pdf'), s('x.pdf', 'desteklenmeyen', 'bozukPdf')])).toEqual({ tur: 'ret', metin: `x.pdf: ${BOZUK_PDF_METIN}` });
+    expect(secimKarari([s('a.pdf', 'pdf'), s('x.pdf', 'desteklenmeyen', 'bozukPdf')])).toEqual({ tur: 'ret', metin: `x.pdf: ${BOZUK_PDF_METIN()}` });
   });
   it('6.1c: a convertible Word file among several is still refused (conversion: one file only)', () => {
     const docx = { ad: 'not.docx', tur: { tur: 'ofis' as const, alt: 'word', cevrilebilir: true } };

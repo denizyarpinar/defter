@@ -44,7 +44,7 @@ describe('hedefSecenekleri', () => {
   });
   it('task 6.K6a: a missing folder with the lock open: can be chosen, with a note; locked: grey as before', () => {
     const acik = hedefSecenekleri(emptyMaterials(), { Uebungen: false, Oedevler: true }, true);
-    expect(sec(acik, 'uebungen')).toMatchObject({ secilebilir: true, neden: KLASOR_ACILIR_METIN });
+    expect(sec(acik, 'uebungen')).toMatchObject({ secilebilir: true, neden: KLASOR_ACILIR_METIN() });
     expect(sec(acik, 'oedevler')).toMatchObject({ secilebilir: true, neden: null });
     const kilitli = hedefSecenekleri(emptyMaterials(), { Uebungen: false, Oedevler: false }, false);
     expect(sec(kilitli, 'uebungen')).toMatchObject({ secilebilir: false, neden: '(klasör yok)' });
@@ -62,7 +62,7 @@ describe('hedefSecenekleri', () => {
     expect(adDurumu(m, 'orijinal', 'Vorlesung 3.pdf', null)).toEqual({ duzenlenebilir: false, ad: 'orijinal.pdf', hata: null });
     expect(adDurumu(m, 'ozet', 'Zusammenfassung.pdf', null)).toEqual({ duzenlenebilir: false, ad: 'ozet.pdf', hata: null });
     expect(adDurumu(m, 'uebungen', 'Blatt 3', null)).toEqual({ duzenlenebilir: true, ad: 'Blatt 3.pdf', hata: null });
-    expect(adDurumu(konu({ oedevler: [mat('HA1.pdf')] }), 'oedevler', 'ha1', null).hata).toBe(AYNI_AD_METIN);   // no "(2)"
+    expect(adDurumu(konu({ oedevler: [mat('HA1.pdf')] }), 'oedevler', 'ha1', null).hata).toBe(AYNI_AD_METIN());   // no "(2)"
     expect(hedefYeri('orijinal', '', [])).toEqual({ klasor: 'kok', ad: 'orijinal.pdf' });
     expect(hedefYeri('ozet', '', [])).toEqual({ klasor: 'kok', ad: 'ozet.pdf' });
     expect(hedefYeri('uebungen', 'Blatt 3.pdf', [])).toEqual({ klasor: 'Uebungen', ad: 'Blatt 3.pdf' });
@@ -171,10 +171,10 @@ describe('adDurumu', () => {
     expect(adDurumu(m, 'uebungen', ' Blatt02 ', null)).toEqual({ duzenlenebilir: true, ad: 'Blatt02.pdf', hata: null });
   });
   it('the same name in that folder (any case, solutions too): a warning', () => {
-    expect(adDurumu(m, 'uebungen', 'blatt01.PDF', null).hata).toBe(AYNI_AD_METIN);
+    expect(adDurumu(m, 'uebungen', 'blatt01.PDF', null).hata).toBe(AYNI_AD_METIN());
     expect(adDurumu(m, 'uebungen', 'Blatt01_cozum.pdf', null).hata).toContain('_cozum');
     expect(adDurumu(m, 'oedevler', 'Blatt01.pdf', null).hata).toBeNull();   // another folder
-    expect(adDurumu(m, 'oedevler', 'odev1', null).hata).toBe(AYNI_AD_METIN);
+    expect(adDurumu(m, 'oedevler', 'odev1', null).hata).toBe(AYNI_AD_METIN());
   });
   it('empty name / _cozum name: the error texts of konuyaDosyaEkle', () => {
     expect(adDurumu(m, 'uebungen', '   ', null)).toMatchObject({ ad: '', hata: 'Dosya adı boş. Dosyaya bir ad verip tekrar dene.' });
@@ -190,12 +190,12 @@ describe('ekleDurumu', () => {
     expect(ekleDurumu(g)).toEqual({ aktif: true, metin: 'Ekle', aciklama: null });
   });
   it('sample library: never active, with the reason', () => {
-    expect(ekleDurumu({ ...g, ornek: true })).toEqual({ aktif: false, metin: 'Ekle', aciklama: ORNEK_METIN });
+    expect(ekleDurumu({ ...g, ornek: true })).toEqual({ aktif: false, metin: 'Ekle', aciklama: ORNEK_METIN() });
   });
   it('passive: grey target, no target, name error, no solution file chosen, while adding', () => {
     expect(ekleDurumu({ ...g, secenek: { ...ok, secilebilir: false } }).aktif).toBe(false);
     expect(ekleDurumu({ ...g, secenek: null }).aktif).toBe(false);
-    expect(ekleDurumu({ ...g, ad: { ...ad, hata: AYNI_AD_METIN } }).aktif).toBe(false);
+    expect(ekleDurumu({ ...g, ad: { ...ad, hata: AYNI_AD_METIN() } }).aktif).toBe(false);
     expect(ekleDurumu({ ...g, ad: { ...ad, ad: '' } }).aktif).toBe(false);
     expect(ekleDurumu({ ...g, ekleniyor: true })).toMatchObject({ aktif: false, metin: 'Ekleniyor…' });
   });
@@ -262,7 +262,7 @@ describe('tekDosyaYolu (6.1c)', () => {
     expect(tekDosyaYolu({ tur: 'desteklenmeyen' }, acik)).toEqual({ yol: 'hazirla' });
   });
   it('empty or over 50 MB: refused before converting (the texts of dosyaHazirla)', () => {
-    expect(tekDosyaYolu(docx, { ...acik, bayt: 0 })).toEqual({ yol: 'ret', metin: BOS_DOSYA_METIN });
+    expect(tekDosyaYolu(docx, { ...acik, bayt: 0 })).toEqual({ yol: 'ret', metin: BOS_DOSYA_METIN() });
     expect(tekDosyaYolu(pptx, { ...acik, bayt: 62_400_000 })).toEqual({ yol: 'ret', metin: boyutMetni(62_400_000) });
     expect(tekDosyaYolu(pptx, { ...acik, bayt: 40_000_000 })).toEqual({ yol: 'ofis', alt: 'powerpoint' });
   });

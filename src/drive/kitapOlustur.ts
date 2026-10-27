@@ -73,7 +73,7 @@ export class KitapOlusturBeklenmedik extends Error {
 
 // ---- the real Drive ----
 
-const WHAT = t('hata.kitap.ne');
+const WHAT = (): string => t('hata.kitap.ne');
 const ID_GRUBU = 1000;   // generateIds gives at most 1000 at a time
 
 export const driveKitapOlusturApi: KitapOlusturDrive = {
@@ -82,9 +82,9 @@ export const driveKitapOlusturApi: KitapOlusturDrive = {
     const idler: string[] = [];
     while (idler.length < n) {
       const k = Math.min(ID_GRUBU, n - idler.length);
-      const res = await ok(await driveFetch(`files/generateIds?count=${k}&space=drive&type=files`), WHAT);
+      const res = await ok(await driveFetch(`files/generateIds?count=${k}&space=drive&type=files`), WHAT());
       const ids = (await res.json() as { ids?: string[] }).ids ?? [];
-      if (ids.length !== k) throw new DriveError(500, WHAT);
+      if (ids.length !== k) throw new DriveError(500, WHAT());
       idler.push(...ids);
     }
     return idler;
@@ -92,7 +92,7 @@ export const driveKitapOlusturApi: KitapOlusturDrive = {
   async oge(id) {
     const res = await driveFetch(`files/${encodeURIComponent(id)}?fields=id,name,parents,appProperties,trashed`);
     if (res.status === 404) return null;
-    return await (await ok(res, WHAT)).json() as KurulumOgesi & { trashed?: boolean };
+    return await (await ok(res, WHAT())).json() as KurulumOgesi & { trashed?: boolean };
   },
   async islemAra(islemId) {
     const q = `appProperties has { key='defterIslem' and value='${qv(islemId)}' } and trashed = false`;
@@ -101,7 +101,7 @@ export const driveKitapOlusturApi: KitapOlusturDrive = {
     do {
       const params = new URLSearchParams({ q, fields: 'nextPageToken,files(id,name)', pageSize: '1000' });
       if (pageToken) params.set('pageToken', pageToken);
-      const j = await (await ok(await driveFetch('files?' + params), WHAT)).json() as { files?: KurulumOgesi[]; nextPageToken?: string };
+      const j = await (await ok(await driveFetch('files?' + params), WHAT())).json() as { files?: KurulumOgesi[]; nextPageToken?: string };
       out.push(...(j.files ?? []));
       pageToken = j.nextPageToken ?? '';
     } while (pageToken);

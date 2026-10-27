@@ -19,7 +19,9 @@
 //     (a Word file in the sample library), the El yazısını oku panel (its module in the page, no account: its own
 //     "sign in first" error) and the pending-photo toast (a fake GIS + Drive as dil-drive-kontrol.mjs, one record put
 //     in IndexedDB first). EN and TR at 390 / 820 / 1280, overflow as in (b). `--ekleme`: only (a), (c) and (e).
-// Task 6.5-4a: (a) fails (exit code 1) when a Turkish string is left or tr.ts / en.ts have different keys.
+// Task 6.5-4a: (a) fails (exit code 1) when a Turkish string is left or tr.ts / en.ts have different keys,
+//     or when a module calls t() / dilT() while it loads (`const X = t(...)` at the top level): iPad Safari can run a
+//     lazily imported module before src/dil is ready ("The file couldn't be read" on iPad). Such a text is a function.
 //     `npm run dil` = `--sadece-sayim`: (a) and (c) only, no browser.
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync } from 'node:fs';
@@ -157,14 +159,25 @@ console.log(`  YOKSAYILAN ("// dil-kontrol: yoksay"): ${yoksayilan.length} dize$
 console.log(`  DEV DOSYASI (sayılmaz): ${[...devSayi.values()].reduce((a, b) => a + b, 0)} dize, ${devSayi.size} dosya`);
 for (const [f, n] of devSayi) console.log(`    ${String(n).padStart(3)}  ${f} — ${DEV_DOSYALARI[f]}`);
 
+// t() while a module loads: a top-level const/let whose value calls t( / dilT( (an arrow function is fine)
+const ERKEN_T = /^(export )?(const|let|var) [A-Za-z_$]+(: [^=]+)? = (?!(async )?(\([^)]*\)|[A-Za-z_$]+)(: [^=]+)? =>)[^;]*\b(t|dilT)\(/;
+const erkenT = [];
+for (const p of dosyalar(join(ROOT, 'src'))) {
+  const rel = relative(ROOT, p).replace(/\\/g, '/');
+  if (/\.test\.ts$/.test(rel)) continue;
+  // a getter (get x() { return t(...) }) is read when shown: fine
+  readFileSync(p, 'utf8').split('\n').forEach((s, i) => { if (ERKEN_T.test(s) && !/\bget \w+\(\)/.test(s)) erkenT.push(`${rel}:${i + 1}`); });
+}
+console.log(`  ERKEN t() (modül yüklenirken): ${erkenT.length}${erkenT.length ? ' — ' + erkenT.join(', ') : ''}`);
+
 // tr.ts and en.ts: the same keys (the type catches a missing en key, not an extra one)
 const anahtarlar = (f) => new Set([...readFileSync(join(ROOT, 'src', 'dil', f), 'utf8').matchAll(/^  '([^']+)':/gm)].map(m => m[1]));
 const trA = anahtarlar('tr.ts'), enA = anahtarlar('en.ts');
 const sadeceTr = [...trA].filter(k => !enA.has(k)), sadeceEn = [...enA].filter(k => !trA.has(k));
 console.log(`  ANAHTAR: tr ${trA.size}, en ${enA.size}${sadeceTr.length ? ' · sadece tr: ' + sadeceTr.join(', ') : ''}${sadeceEn.length ? ' · sadece en: ' + sadeceEn.join(', ') : ''}`);
-if (dizeler.length || sadeceTr.length || sadeceEn.length) {
+if (dizeler.length || sadeceTr.length || sadeceEn.length || erkenT.length) {
   process.exitCode = 1;
-  console.log(`  HATA: ${dizeler.length} Türkçe dize kaldı${sadeceTr.length + sadeceEn.length ? `, ${sadeceTr.length + sadeceEn.length} anahtar farkı` : ''}. Çevir (t()) ya da gerçekten ekranda değilse "// dil-kontrol: yoksay".`);
+  console.log(`  HATA: ${dizeler.length} Türkçe dize kaldı${sadeceTr.length + sadeceEn.length ? `, ${sadeceTr.length + sadeceEn.length} anahtar farkı` : ''}${erkenT.length ? `, ${erkenT.length} erken t() (fonksiyona çevir: const X = () => t(...))` : ''}. Çevir (t()) ya da gerçekten ekranda değilse "// dil-kontrol: yoksay".`);
 }
 console.log('');
 

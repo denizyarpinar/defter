@@ -44,7 +44,7 @@ export function pdfAdi(ad: string): string {
 }
 
 export async function dosyaHazirla(file: File, araclar: HazirlaAraclari = VARSAYILAN): Promise<HazirDosya> {
-  if (file.size === 0) throw new DosyaHazirlanamadi('bos', BOS_DOSYA_METIN);
+  if (file.size === 0) throw new DosyaHazirlanamadi('bos', BOS_DOSYA_METIN());
   const boyut = boyutMetni(file.size);
   if (boyut) throw new DosyaHazirlanamadi('boyut', boyut);
 

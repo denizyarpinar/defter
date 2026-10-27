@@ -17,15 +17,15 @@ export function ofisMetni(alt?: string): string {
 }
 
 // The language is fixed for the page's life (a change reloads), so these can be computed once
-export const DESTEKLENMEYEN_METIN = t('dosya.desteklenmiyor');
+export const DESTEKLENMEYEN_METIN = (): string => t('dosya.desteklenmiyor');
 // "Dosya ekle"'s own text (the photo flow keeps hataMesaji('bos'))
-export const BOS_DOSYA_METIN = t('dosya.bos');
-export const BOZUK_PDF_METIN = t('dosya.bozukPdf');
+export const BOS_DOSYA_METIN = (): string => t('dosya.bos');
+export const BOZUK_PDF_METIN = (): string => t('dosya.bozukPdf');
 
 // Why the file can't be added; pdf and gorsel: null (they can)
 export function turMetni(s: DosyaTuruSonucu): string | null {
   if (s.tur === 'ofis') return ofisMetni(s.alt);
-  if (s.tur === 'desteklenmeyen') return s.alt === 'bozukPdf' ? BOZUK_PDF_METIN : DESTEKLENMEYEN_METIN;
+  if (s.tur === 'desteklenmeyen') return s.alt === 'bozukPdf' ? BOZUK_PDF_METIN() : DESTEKLENMEYEN_METIN();
   return null;
 }
 
@@ -44,7 +44,7 @@ export function boyutMetni(bayt: number, maxMb = MAX_DOSYA_MB): string | null {
 
 // ---- task 6.1c: Word / PowerPoint conversion in the panel ----
 
-export const CEVIRI_BEKLENMEYEN_METIN = t('dosya.ceviriBeklenmeyen');
+export const CEVIRI_BEKLENMEYEN_METIN = (): string => t('dosya.ceviriBeklenmeyen');
 
 export interface OfisHataMetni { metin: string; tekrarCevir: boolean }
 
@@ -58,5 +58,5 @@ export function ofisHataMetni(e: unknown): OfisHataMetni | null {
     return { metin: (e as Error).message, tekrarCevir: false };
   }
   if (e instanceof TypeError) return { metin: new OfisYuklenemedi().message, tekrarCevir: true };   // fetch failed: no connection
-  return { metin: CEVIRI_BEKLENMEYEN_METIN, tekrarCevir: true };
+  return { metin: CEVIRI_BEKLENMEYEN_METIN(), tekrarCevir: true };
 }

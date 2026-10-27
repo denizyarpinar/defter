@@ -60,7 +60,7 @@ describe('dosyaHazirla: order and refusals', () => {
     const a = sahteAraclar();
     const e = await hata(dosyaHazirla(dosya('bos.pdf', 'application/pdf'), a));
     expect(e.neden).toBe('bos');
-    expect(e.message).toBe(BOS_DOSYA_METIN);
+    expect(e.message).toBe(BOS_DOSYA_METIN());
     expect(a.gorselHazirla).not.toHaveBeenCalled();
   });
 
@@ -99,8 +99,8 @@ describe('dosyaHazirla: order and refusals', () => {
 
   it('unknown bytes → unsupported; .pdf without %PDF- → broken PDF', async () => {
     const a = sahteAraclar();
-    expect((await hata(dosyaHazirla(dosya('notlar.txt', 'text/plain', b('merhaba dunya')), a))).message).toBe(DESTEKLENMEYEN_METIN);
-    expect((await hata(dosyaHazirla(dosya('ders.pdf', 'application/pdf', b('<html>')), a))).message).toBe(BOZUK_PDF_METIN);
+    expect((await hata(dosyaHazirla(dosya('notlar.txt', 'text/plain', b('merhaba dunya')), a))).message).toBe(DESTEKLENMEYEN_METIN());
+    expect((await hata(dosyaHazirla(dosya('ders.pdf', 'application/pdf', b('<html>')), a))).message).toBe(BOZUK_PDF_METIN());
     expect(a.gorselHazirla).not.toHaveBeenCalled();
   });
 });

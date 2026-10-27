@@ -45,7 +45,7 @@ export function cozumAdaylari(m: TopicMaterials): CozumAdayi[] {
     m[k].filter(x => !x.cozum).map(x => ({ file: x.file, etiket: `${MATERIAL_LABEL[k]} · ${x.file.name.replace(/\.pdf$/i, '')}` })));
 }
 
-export const KLASOR_ACILIR_METIN = t('dosya.klasorAcilir');
+export const KLASOR_ACILIR_METIN = (): string => t('dosya.klasorAcilir');
 
 // Task 6.S-3: the "Özet" row when the topic has a summary (ad: the target file; not chosen yet: without it)
 export const ozetSonuEtiketi = (ad: string | null): string => ad ? t('dosya.ozetSonuAdli', { ad }) : t('dosya.ozetSonu');
@@ -58,7 +58,7 @@ export function hedefSecenekleri(m: TopicMaterials, klasor: KlasorBilgisi | null
     ({ hedef, etiket: hedef === 'ozet' && m.ozet.length ? ozetSonuEtiketi(ozetSonu?.name ?? null) : HEDEF_ETIKETI[hedef], secilebilir: !neden, neden: neden ?? not });
   // a folder with files in it exists; an empty list may mean "no folder" or "empty folder"
   const yok = (k: 'uebungen' | 'oedevler') => !m[k].length && klasor !== null && !klasor[k === 'uebungen' ? 'Uebungen' : 'Oedevler'];
-  const alt = (k: 'uebungen' | 'oedevler') => !yok(k) ? s(k, null) : klasorAcabilir ? s(k, null, KLASOR_ACILIR_METIN) : s(k, t('dosya.klasorYok'));
+  const alt = (k: 'uebungen' | 'oedevler') => !yok(k) ? s(k, null) : klasorAcabilir ? s(k, null, KLASOR_ACILIR_METIN()) : s(k, t('dosya.klasorYok'));
   return [
     alt('uebungen'),
     alt('oedevler'),
@@ -89,7 +89,7 @@ export function varsayilanHedef(secenekler: readonly Secenek[], acikSekme: Mater
 
 export interface AdDurumu { duzenlenebilir: boolean; ad: string; hata: string | null; gizli?: boolean }   // gizli: no name box (6.S-3)
 
-export const AYNI_AD_METIN = t('dosya.ayniAd');
+export const AYNI_AD_METIN = (): string => t('dosya.ayniAd');
 
 // girilen: the name box (Übungen / Ödevler); cozumOf: the file chosen for "Çözüm"; ozetSonu: ozetHedefi (6.S-3)
 export function adDurumu(m: TopicMaterials, hedef: PanelHedef, girilen: string, cozumOf: DriveFile | null, ozetSonu: DriveFile | null = null): AdDurumu {
@@ -107,7 +107,7 @@ export function adDurumu(m: TopicMaterials, hedef: PanelHedef, girilen: string, 
   }
   if (key(ad).endsWith('_cozum.pdf')) return { duzenlenebilir: true, ad, hata: new AdCozumGibi(ad).message };
   const ayni = m[hedef].some(x => [x.file, x.cozum].some(f => f && key(f.name) === key(ad)));
-  return { duzenlenebilir: true, ad, hata: ayni ? AYNI_AD_METIN : null };
+  return { duzenlenebilir: true, ad, hata: ayni ? AYNI_AD_METIN() : null };
 }
 
 export interface EkleGirdi {
@@ -120,11 +120,11 @@ export interface EkleGirdi {
   yuzde?: number | null;     // task 6.S-3: the upload's progress (pages at the end of a summary)
 }
 
-export const ORNEK_METIN = t('ekleme.ornekTaslak');
+export const ORNEK_METIN = (): string => t('ekleme.ornekTaslak');
 
 export function ekleDurumu(g: EkleGirdi): { aktif: boolean; metin: string; aciklama: string | null } {
   const metin = g.ekleniyor ? (g.yuzde != null ? t('dosya.ekleniyorYuzde', { yuzde: g.yuzde }) : t('dosya.ekleniyor')) : g.hataVar ? t('genel.tekrarDene') : t('ekleme.ekle');
-  if (g.ornek) return { aktif: false, metin, aciklama: ORNEK_METIN };
+  if (g.ornek) return { aktif: false, metin, aciklama: ORNEK_METIN() };
   const aktif = !!g.secenek?.secilebilir && !!g.ad.ad && !g.ad.hata && !g.ekleniyor && !g.hazirDegil;
   return { aktif, metin, aciklama: null };
 }
@@ -174,7 +174,7 @@ export type TekDosyaYolu = { yol: 'ofis'; alt: OfisCeviriAlt } | { yol: 'hazirla
 export function tekDosyaYolu(tur: DosyaTuruSonucu, o: { drive: boolean; bayt: number }): TekDosyaYolu {
   if (tur.tur !== 'ofis' || !tur.cevrilebilir || !o.drive) return { yol: 'hazirla' };
   if (tur.alt !== 'word' && tur.alt !== 'powerpoint') return { yol: 'hazirla' };
-  if (o.bayt === 0) return { yol: 'ret', metin: BOS_DOSYA_METIN };
+  if (o.bayt === 0) return { yol: 'ret', metin: BOS_DOSYA_METIN() };
   const boyut = boyutMetni(o.bayt);
   if (boyut) return { yol: 'ret', metin: boyut };
   return { yol: 'ofis', alt: tur.alt };

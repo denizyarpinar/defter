@@ -56,6 +56,7 @@ import { installOkuyucuKaydirma } from '../ui/okuyucuKaydirma';
 import { setCanvasStats } from '../ui/tani';
 import { ST } from '../ui/reader';
 import { toast } from '../ui/toast';
+import { errorText } from '../ui/hataKutusu';
 import { CanvasBudget, deviceLimits, shareBudget } from './canvasButcesi';
 import { SingleFlight } from './cizimKuyrugu';
 import { getPdf, putPdf } from './pdfOnbellek';
@@ -1321,8 +1322,11 @@ function openPhotoPanel(files: File[]): void {
       await photoAdder.baslat({ kitapAdi: b.id, konuKlasorId, konuBaslik: t.title, hedefFileId: hedef?.id, hedefAd: hedef?.name ?? OZET_ADI, jpegler }, basildi);
     }
   };
-  import('../ui/fotoPanel').then(m => m.acFotoPanel(ctx, files)).catch(e => { console.warn(e); toast(dilT('okuyucu.fotoPaneliAcilamadi')); });
+  import('../ui/fotoPanel').then(m => m.acFotoPanel(ctx, files)).catch(e => { console.warn(e); toast(teshisli(dilT('okuyucu.fotoPaneliAcilamadi'), e)); });
 }
+
+// Task 6.5-4a: with ?olcum=1 the real error follows the toast (the iPad has no console; the plain text stays without it)
+const teshisli = (metin: string, e: unknown): string => olcumAcik() ? `${metin} (${errorText(e)})` : metin;
 
 // Task 5.10g: what the chosen files are (first bytes) → images: the panel's list; one other file:
 // dosyaHazirla's way (5.10e, unchanged); a mix / several PDFs: a toast
@@ -1340,7 +1344,7 @@ async function chooseFiles(files: File[]): Promise<void> {
     ilk = turler[0].tur;
   } catch (e) {
     console.warn('Dosya okunamadı.', e);
-    toast(dilT('okuyucu.dosyaOkunamadi'));
+    toast(teshisli(dilT('okuyucu.dosyaOkunamadi'), e));
     return;
   }
   if (topic !== t || !open) return;
@@ -1361,7 +1365,7 @@ async function prepareFile(file: File, tur: DosyaTuruSonucu): Promise<void> {
       yol = tekDosyaYolu(tur, { drive: !!driveLocation() && !isSampleId(folder), bayt: file.size });
     } catch (e) {
       console.warn(e);
-      toast(dilT('okuyucu.dosyaHazirlanamadi'));
+      toast(teshisli(dilT('okuyucu.dosyaHazirlanamadi'), e));
       return;
     }
     if (topic !== t || !open) return;
@@ -1382,7 +1386,7 @@ async function prepareFile(file: File, tur: DosyaTuruSonucu): Promise<void> {
     }
   } catch (e) {
     console.warn('Dosya hazırlanamadı.', e);
-    toast(dilT('okuyucu.dosyaHazirlanamadi'));
+    toast(teshisli(dilT('okuyucu.dosyaHazirlanamadi'), e));
     return;
   } finally {
     photoBox.durum(null);
@@ -1442,7 +1446,7 @@ function openFilePanel(t: OpenTopic, kaynak: DosyaPanelKaynak): void {
     },
     kapanis: kapanis.signal,
   };
-  import('../ui/dosyaPanel').then(m => m.acDosyaPanel(ctx, kaynak)).catch(e => { console.warn(e); toast(dilT('okuyucu.dosyaPaneliAcilamadi')); });
+  import('../ui/dosyaPanel').then(m => m.acDosyaPanel(ctx, kaynak)).catch(e => { console.warn(e); toast(teshisli(dilT('okuyucu.dosyaPaneliAcilamadi'), e)); });
 }
 
 // Task 6.K6a: the topic's missing Uebungen / Oedevler (drive/altKlasorAc.ts, lazy); the lock asked again at "Ekle"

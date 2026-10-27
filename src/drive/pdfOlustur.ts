@@ -70,7 +70,7 @@ export class IdZatenVar extends Error {
 
 // ---- the real Drive ----
 
-const WHAT = t('ekHata.pdfOlusturulurken');
+const WHAT = (): string => t('ekHata.pdfOlusturulurken');
 const FIELDS = 'id,modifiedTime,headRevisionId';
 
 // Upload answers: "already exists" (409, or the text in the error) → IdZatenVar, other errors → DriveError.
@@ -78,12 +78,12 @@ async function yuklemeYaniti(res: Response): Promise<Response> {
   if (res.ok) return res;
   const text = await res.text().catch(() => '');
   if (res.status === 409 || /already exists/i.test(text)) throw new IdZatenVar();
-  throw new DriveError(res.status, WHAT);
+  throw new DriveError(res.status, WHAT());
 }
 
 export const drivePdfOlusturApi: PdfOlusturDrive = {
   async klasorBilgisi(id) {
-    const res = await ok(await driveFetch(`files/${encodeURIComponent(id)}?fields=id,name,mimeType,trashed,parents,capabilities/canAddChildren`), WHAT);
+    const res = await ok(await driveFetch(`files/${encodeURIComponent(id)}?fields=id,name,mimeType,trashed,parents,capabilities/canAddChildren`), WHAT());
     const j = await res.json() as { id?: string; name?: string; mimeType?: string; trashed?: boolean; parents?: string[]; capabilities?: { canAddChildren?: boolean } };
     return {
       id: j.id ?? id, name: j.name ?? '', mimeType: j.mimeType ?? '', trashed: j.trashed === true,
@@ -96,14 +96,14 @@ export const drivePdfOlusturApi: PdfOlusturDrive = {
     do {
       const params = new URLSearchParams({ q: `'${qv(parentId)}' in parents and trashed = false`, fields: 'nextPageToken,files(id,name)', pageSize: '1000' });
       if (pageToken) params.set('pageToken', pageToken);
-      const j = await (await ok(await driveFetch('files?' + params), WHAT)).json() as { files?: KlasorOgesi[]; nextPageToken?: string };
+      const j = await (await ok(await driveFetch('files?' + params), WHAT())).json() as { files?: KlasorOgesi[]; nextPageToken?: string };
       out.push(...(j.files ?? []));
       pageToken = j.nextPageToken ?? '';
     } while (pageToken);
     return out;
   },
   async yeniId() {
-    const res = await ok(await driveFetch('files/generateIds?count=1&space=drive&type=files'), WHAT);
+    const res = await ok(await driveFetch('files/generateIds?count=1&space=drive&type=files'), WHAT());
     const id = (await res.json() as { ids?: string[] }).ids?.[0];
     if (!id) throw new IdAlinamadi();
     return id;
@@ -121,7 +121,7 @@ export const drivePdfOlusturApi: PdfOlusturDrive = {
     return resumableUpload(`${UPLOAD}files?uploadType=resumable&fields=${FIELDS}`, 'POST', JSON.stringify(meta), bytes, yuklemeYaniti);
   },
   async dosyaBilgisi(id) {
-    const res = await ok(await driveFetch(`files/${encodeURIComponent(id)}?fields=${FIELDS},size,appProperties`), WHAT);
+    const res = await ok(await driveFetch(`files/${encodeURIComponent(id)}?fields=${FIELDS},size,appProperties`), WHAT());
     const j = await res.json() as Partial<OlusanPdf> & { size?: string; appProperties?: Record<string, string> };
     return { id: j.id ?? id, modifiedTime: j.modifiedTime ?? '', headRevisionId: j.headRevisionId ?? '', size: j.size, appProperties: j.appProperties };
   }

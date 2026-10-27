@@ -7,8 +7,8 @@ import { t } from '../dil';
 // What the chosen files lead to, the default name, the panel's info line, the size text.
 // Order / remove: tasi / cikar of fotoPanelDurumu.ts.
 
-export const KARISIK_METIN = t('dosya.karisik');
-export const COK_PDF_METIN = t('dosya.cokPdf');
+export const KARISIK_METIN = (): string => t('dosya.karisik');
+export const COK_PDF_METIN = (): string => t('dosya.cokPdf');
 
 export interface SecilenDosya { ad: string; tur: DosyaTuruSonucu }
 
@@ -22,7 +22,7 @@ export function secimKarari(secilen: readonly SecilenDosya[]): SecimKarari {
   // several: an Office / unsupported one first (its own text says what to do), then the PDFs
   const kotu = secilen.find(s => turMetni(s.tur));
   if (kotu) return { tur: 'ret', metin: `${kotu.ad}: ${turMetni(kotu.tur)}` };
-  return { tur: 'ret', metin: secilen.every(s => s.tur.tur === 'pdf') ? COK_PDF_METIN : KARISIK_METIN };
+  return { tur: 'ret', metin: secilen.every(s => s.tur.tur === 'pdf') ? COK_PDF_METIN() : KARISIK_METIN() };
 }
 
 // Not changed by hand: the first image's name + .pdf (follows the order); changed: what was typed

@@ -25,7 +25,7 @@ const kuyruk = new FotoOkumaKuyrugu(() => {
 });
 
 export function fotoOku(k: BekleyenFoto, r: KonuyaEklendi, loc: DriveLocation | null): Promise<FotoOkumaSonucu | void> {
-  if (!loc) { toast(`${OKUNAMADI} (${t('fotoOkuma.driveYokKisa')})`); return Promise.resolve(); }
+  if (!loc) { toast(`${OKUNAMADI()} (${t('fotoOkuma.driveYokKisa')})`); return Promise.resolve(); }
   yer = loc;
-  return kuyruk.ekle(k, r).catch(e => { console.warn('Temiz yazı tamamlanmadı.', e); toast(OKUNAMADI); });
+  return kuyruk.ekle(k, r).catch(e => { console.warn('Temiz yazı tamamlanmadı.', e); toast(OKUNAMADI()); });
 }

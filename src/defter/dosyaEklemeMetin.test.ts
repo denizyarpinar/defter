@@ -33,14 +33,14 @@ describe('turMetni', () => {
   it('office, unsupported, broken PDF', () => {
     expect(turMetni({ tur: 'ofis', alt: 'powerpoint' })).toBe(ofisMetni('powerpoint'));
     expect(turMetni({ tur: 'desteklenmeyen' })).toBe('Bu dosya türü desteklenmiyor. PDF ya da görsel (JPEG, PNG) seç.');
-    expect(turMetni({ tur: 'desteklenmeyen' })).toBe(DESTEKLENMEYEN_METIN);
+    expect(turMetni({ tur: 'desteklenmeyen' })).toBe(DESTEKLENMEYEN_METIN());
     expect(turMetni({ tur: 'desteklenmeyen', alt: 'bozukPdf' })).toBe('Bu PDF açılamıyor, dosya bozuk olabilir.');
   });
 
   it('a .pdf with random bytes → bozukPdf and its text', () => {
     const s = dosyaTuru('ders.pdf', 'application/pdf', new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]));
     expect(s).toEqual({ tur: 'desteklenmeyen', alt: 'bozukPdf' });
-    expect(turMetni(s)).toBe(BOZUK_PDF_METIN);
+    expect(turMetni(s)).toBe(BOZUK_PDF_METIN());
   });
 
   it('HEIC the browser can\'t open: the photo flow\'s text', () => {
@@ -105,7 +105,7 @@ describe('ofisHataMetni (6.1c)', () => {
   });
   it('no connection (fetch TypeError): the upload text; anything else: a Turkish fallback', () => {
     expect(ofisHataMetni(new TypeError('Failed to fetch'))).toEqual({ metin: new OfisYuklenemedi().message, tekrarCevir: true });
-    expect(ofisHataMetni(new Error('boom'))).toEqual({ metin: CEVIRI_BEKLENMEYEN_METIN, tekrarCevir: true });
-    expect(ofisHataMetni('x')).toEqual({ metin: CEVIRI_BEKLENMEYEN_METIN, tekrarCevir: true });
+    expect(ofisHataMetni(new Error('boom'))).toEqual({ metin: CEVIRI_BEKLENMEYEN_METIN(), tekrarCevir: true });
+    expect(ofisHataMetni('x')).toEqual({ metin: CEVIRI_BEKLENMEYEN_METIN(), tekrarCevir: true });
   });
 });

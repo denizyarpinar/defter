@@ -73,7 +73,7 @@ export interface KokDrive {
   kokCocuklari(id: string): Promise<KokCocuk[]>;
 }
 
-const WHAT = t('hata.kok.ne');
+const WHAT = (): string => t('hata.kok.ne');
 
 async function liste(q: string, fields: string, orderBy?: string): Promise<Array<KokAday & { mimeType: string }>> {
   const out: Array<KokAday & { mimeType: string }> = [];
@@ -82,7 +82,7 @@ async function liste(q: string, fields: string, orderBy?: string): Promise<Array
     const params = new URLSearchParams({ q, fields: `nextPageToken,files(${fields})`, pageSize: '1000' });
     if (orderBy) params.set('orderBy', orderBy);
     if (pageToken) params.set('pageToken', pageToken);
-    const res = await ok(await saltOkunurFetch('files?' + params), WHAT);
+    const res = await ok(await saltOkunurFetch('files?' + params), WHAT());
     const j = await res.json() as { files?: Array<KokAday & { mimeType: string }>; nextPageToken?: string };
     out.push(...(j.files ?? []));
     pageToken = j.nextPageToken ?? '';

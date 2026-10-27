@@ -10,7 +10,7 @@ export interface LoginHandlers {
 }
 
 const $ = <T extends HTMLElement>(s: string) => document.querySelector<T>(s)!;
-let label = t('giris.google');
+let label: string | null = null;   // null: t('giris.google') (never t() while the module loads; 6.5-4a)
 
 export function initLogin(h: LoginHandlers): void {
   $('#loginGoogle').addEventListener('click', h.onGoogle);
@@ -39,7 +39,7 @@ export function hideLogin(): void {
 export function setLoginBusy(busy: boolean): void {
   const b = $<HTMLButtonElement>('#loginGoogle');
   b.disabled = busy;
-  b.querySelector('span')!.textContent = busy ? t('giris.baglaniyor') : label;
+  b.querySelector('span')!.textContent = busy ? t('giris.baglaniyor') : label ?? t('giris.google');
 }
 
 export function setLoginError(msg: string | null): void {

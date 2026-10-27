@@ -73,22 +73,22 @@ export class OrnekKaynakYok extends Error {
 
 // ---- the real Drive ----
 
-const WHAT = t('hata.kurulum.ne');
+const WHAT = (): string => t('hata.kurulum.ne');
 
 // Create answers: "already exists" (409, or the text in the error) → IdZatenVar, other errors → DriveError.
 async function olusturmaYaniti(res: Response): Promise<Response> {
   if (res.ok) return res;
   const text = await res.text().catch(() => '');
   if (res.status === 409 || /already exists/i.test(text)) throw new IdZatenVar();
-  throw new DriveError(res.status, WHAT);
+  throw new DriveError(res.status, WHAT());
 }
 
 export const driveKurulumApi: KurulumDrive = {
   ...driveKokApi,
   async yeniId() {
-    const res = await ok(await driveFetch('files/generateIds?count=1&space=drive&type=files'), WHAT);
+    const res = await ok(await driveFetch('files/generateIds?count=1&space=drive&type=files'), WHAT());
     const id = (await res.json() as { ids?: string[] }).ids?.[0];
-    if (!id) throw new DriveError(500, WHAT);
+    if (!id) throw new DriveError(500, WHAT());
     return id;
   },
   async olustur(meta, icerik) {
@@ -117,17 +117,17 @@ export const driveKurulumApi: KurulumDrive = {
   async islemleAra(ebeveynId, ad, islemId) {
     const q = `'${qv(ebeveynId)}' in parents and name = '${qv(ad)}' and appProperties has { key='defterIslem' and value='${qv(islemId)}' } and trashed = false`;
     const params = new URLSearchParams({ q, fields: 'files(id,name)', pageSize: '10' });
-    const j = await (await ok(await driveFetch('files?' + params), WHAT)).json() as { files?: KurulumOgesi[] };
+    const j = await (await ok(await driveFetch('files?' + params), WHAT())).json() as { files?: KurulumOgesi[] };
     return j.files ?? [];
   },
   async cocukAra(ebeveynId, ad) {
     const q = `'${qv(ebeveynId)}' in parents and name = '${qv(ad)}' and trashed = false`;
     const params = new URLSearchParams({ q, fields: 'files(id,name,appProperties)', pageSize: '10' });
-    const j = await (await ok(await driveFetch('files?' + params), WHAT)).json() as { files?: KurulumOgesi[] };
+    const j = await (await ok(await driveFetch('files?' + params), WHAT())).json() as { files?: KurulumOgesi[] };
     return j.files ?? [];
   },
   async ogeBilgisi(id) {
-    const res = await ok(await driveFetch(`files/${encodeURIComponent(id)}?fields=id,name,parents,appProperties`), WHAT);
+    const res = await ok(await driveFetch(`files/${encodeURIComponent(id)}?fields=id,name,parents,appProperties`), WHAT());
     return await res.json() as KurulumOgesi;
   }
 };
