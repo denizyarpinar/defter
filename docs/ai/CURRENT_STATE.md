@@ -24,8 +24,9 @@ Son güncelleyen: Codex, 1 Kasım 2026 · 6.6-0 canlıya çıkış
 - İş bölümü: plan/TASK.md Claude, net kod Codex, kontrol kodu yazmayan araç. Aynı anda tek araç; araç değişmeden checkpoint commit.
 
 ## Sıradaki
-1. 6.6-2: birden çok özet.
-2. Faz 7: quiz/özet (LLM API).
+1. 6.6-5 dil değişince giriş sayfasına atma + 6.6-6 1 saat sonra oturum düşmesi (auth; ek kontrol + geri alma planı; Deniz sıra seçimi bekleniyor). Plan: FAZ6_6_PLAN.md.
+2. 6.6-2: birden çok özet.
+3. Faz 7: quiz/özet (LLM API).
 
 ## Açık riskler (ayrıntı: arsiv/CLAUDE_eski.md "Sonra bakılabilir")
 - ozet.pdf her fotoğraf/kalem kaydında baştan yükleniyor (22 MB ≈ 26 sn); çözüm Faz 5 kararını değiştirir.
