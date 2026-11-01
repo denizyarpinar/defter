@@ -24,7 +24,7 @@ Eski belgeler `docs/ai/arsiv/` içindedir; yalnız görev gerektirince ilgili b�
 
 ## Değişmez kurallar
 - Aşağıdaki Drive adları/yolları uzak veriyi tanımlar, yerel repo yolu değildir; faz ayrıntıları arşivin ilgili bölümündedir.
-- Drive dosyaları kopyalanmaz, taşınmaz, silinmez; Faz 1: yalnız `kitaplik.json` ve `kitap.json` içindeki `kapak` yazılır. Faz 5: Drive'daki `kitaplar/<kitap>/` altında yeni PDF ve PDF sonuna sayfa ekleme izinli.
+- Drive dosyaları kopyalanmaz, taşınmaz, silinmez (yalnız çöpe atma, geçici çeviri dosyası ve Geri allı sayfa silme istisnaları: `docs/ai/DECISIONS.md` D12, D17); Faz 1: yalnız `kitaplik.json` ve `kitap.json` içindeki `kapak` yazılır. Faz 5: Drive'daki `kitaplar/<kitap>/` altında yeni PDF ve PDF sonuna sayfa ekleme izinli.
 - Drive'daki `Kitaplık/` içinde `kitaplik.json` yoksa ilk raf/oda değişikliğinde bir kez oluşturulur. Diğer oluşturma istisnaları yalnız Faz 5 PDF, Faz 6.K uygulama kökü/kurulum ve aşağıdakilerdir; başka JSON oluşturulmaz.
 - 6.4c: PDF'in klasöründe `<pdf adı>.ocr.json` oluşturulur/güncellenir; appProperties `defter=1`, `defterOcr=1`, `defterOcrKaynak=<pdf id>`.
 - 6.4d-3: kitaplık kökünde yalnız `_sistem/el-yazisi/` ve yalnız `el-yazisi-atlas.png`, `el-yazisi-atlas.json` oluşturulur; varsa aynı id güncellenir. Yalnız kullanıcı `atlas-yukle.html` geliştirme sayfasında düğmeye basınca.
