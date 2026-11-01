@@ -42,7 +42,7 @@ Defter turns one Google Drive folder into a personal library. Every course or to
 | ![Adding notebook photos](docs/foto-ekle.png) | **Add your notebook** — photograph handwritten pages; Defter finds the page, straightens it and appends it to the topic's summary PDF. PDFs and images can be added to a topic as well. |
 | ![Library search](docs/arama.png) | **Search** — find books, topics and files by name, and words inside your PDFs (Drive's full-text search), and in handwriting that has been read. In the reader, search the open file: matches are highlighted and you jump between them. |
 
-- **Google sign-in, no server** — Google Identity Services in the browser; the access token is kept in memory only.
+- **Google sign-in, no server** — Google Identity Services in the browser; the access token is kept in memory and this tab's sessionStorage until expiry, never in localStorage. This preserves sign-in across language reloads; signing out removes the saved token.
 - **Saves back to Drive carefully** — shelf layout and room settings are written 1.5 s after the last change, after re-reading the latest file, touching only the fields Defter owns. Unknown fields are preserved. The Phase 6 code also supports library creation and confirmed trash / undo actions; files are not permanently deleted by the app.
 - **Made for iPad** — touch gestures, no accidental page zoom, installable to the home screen.
 - **Reading handwriting (owner, on request)** — *El yazısını oku* in the reader (and *Temiz yazıya çevir* when adding photos) sends up to five notebook pages to Claude and saves the transcript next to the PDF as `<name>.ocr.json`. Nothing is read automatically, so no money is spent unasked; the buttons appear only for the owner's account when the server has its Anthropic key.
@@ -177,7 +177,7 @@ flowchart LR
     UI["UI<br/>top bar, panel, reader"]
     Scene["3D scene<br/>three.js"]
     Model["Data model<br/>parse · validate · serialize"]
-    Auth["auth.ts<br/>token in memory"]
+    Auth["auth.ts<br/>token in memory + tab sessionStorage until expiry"]
     Drive["drive.ts<br/>fetch wrapper"]
   end
   GIS["Google Identity Services<br/>(sign-in popup)"]
@@ -316,7 +316,7 @@ To deploy on Vercel, import the repository, set `VITE_GOOGLE_CLIENT_ID` as an en
 
 Defter is my first larger project, and I built it together with **[Claude Code](https://claude.com/claude-code)**, Anthropic's AI coding agent.
 
-The product and architecture decisions are mine: the idea, the study-room concept and a clickable prototype I approved before writing the app, the Drive folder structure and JSON data model, the "no server, token only in memory" approach, and the rules for what the app may write to Drive. I split the work into small tasks, reviewed the plan for each one, and tested every step myself.
+The product and architecture decisions are mine: the idea, the study-room concept and a clickable prototype I approved before writing the app, the Drive folder structure and JSON data model, the "no server, token in memory and this tab's sessionStorage until expiry, never localStorage" approach, and the rules for what the app may write to Drive. I split the work into small tasks, reviewed the plan for each one, and tested every step myself.
 
 Most of the code was written by Claude Code from those plans. Working this way taught me a lot about three.js, OAuth and the Drive API, and about describing software precisely enough that it can be built.
 

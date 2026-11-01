@@ -21,6 +21,6 @@ The outer bookcase size stays at five shelves; the actual shelf count is configu
 - Vite + TypeScript, native DOM, no UI framework (`package.json`, `index.html`, `src/main.ts`, `tsconfig.json`).
 - Three.js / WebGL, Blender-generated room models and day/evening lightmaps (`package.json`, `src/scene/renderer.ts`, `src/scene/bakedRoom.ts`, `blender/bake.py`).
 - PDF.js for reading; pdf-lib for PDF edits; perfect-freehand for pen strokes (`package.json`, `src/okuma/pdf.ts`, `src/kalem/pdfNotlari.ts`, `src/kalem/cizgiSekli.ts`).
-- Google Identity Services token client; Drive REST API v3; normally drive.file, owner mode can request full drive scope; tokens stay in memory (`src/drive/auth.ts`, `src/drive/kapsam.ts`, `src/drive/drive.ts`).
+- Google Identity Services token client; Drive REST API v3; normally drive.file, owner mode can request full drive scope; tokens stay in memory and this tab's sessionStorage until expiry, never localStorage (6.6-5b; `src/drive/auth.ts`, `src/drive/kapsam.ts`, `src/drive/drive.ts`).
 - Vercel serves the Vite build; the OCR function `/api/oku` verifies the owner and calls Anthropic. The app is not entirely static (`vercel.json`, `api/oku.ts`, `src/ocr/claudeMotor.ts`).
 - Installable manifest; local PDF cache in IndexedDB (`public/manifest.webmanifest`, `src/okuma/pdfOnbellek.ts`). Full offline operation is not verified.

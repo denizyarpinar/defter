@@ -4,7 +4,7 @@ import { gidisPlani } from './arama/aramaPaneliDurumu';
 import { agacAl, agacGecersiz } from './arama/kitaplikAgaci';
 import { kitaplikAra, type KitaplikSonucu } from './arama/kitaplikAra';
 import { ornekAgac, type OrnekAgaci } from './arama/ornekAgac';
-import { AuthError, aktifKapsam, isSignedIn, kapsamDurumu, prepareAuth, rememberUser, rememberedUser, setSahip, signIn, signOut } from './drive/auth';
+import { AuthError, aktifKapsam, dropToken, isSignedIn, kapsamDurumu, oturumGeriYukle, prepareAuth, rememberUser, rememberedUser, setSahip, signIn, signOut } from './drive/auth';
 import { darZorlaUrl, girisKapsami, includeGranted, sahipMi, sahipZorlaYok, tamErisimDugmesi } from './drive/kapsam';
 import { getUser, setAccountHint, setSessionExpiredHandler } from './drive/drive';
 import { LibraryNotFound, loadDriveLibrary, sonKok, type DriveLocation } from './drive/driveLibrary';
@@ -502,26 +502,32 @@ async function googleSignIn(chooseAccount = false): Promise<void> {
     const signedIn = signIn({ hint: remembered?.email, chooseAccount, kapsam, includeGranted: includeGranted(DAR_ZORLA) });
     if (fromSample) { updateUserBox({ kind: 'none' }); void useData(emptyLibrary(), null, null); }   // no sample books while signing in
     await signedIn;
-    if (durum.tur !== 'giriliyor' && durum.tur !== 'drive') return;   // the sample library was chosen meanwhile
-    const user = await getUser();
-    rememberUser(user);              // name + e-mail only; the token stays in memory
-    setAccountHint(user.email);
-    girisEposta = user.email;
-    const sahip = sahipMi(user.email, SAHIP_EPOSTA, SAHIP_YOK);
-    setSahip(sahip);
-    ownerName = user.name;
-    updateUserBox({ kind: 'user', name: user.name });
-    olay({ tur: 'girisBasarili' });
-    toast(t('giris.hosgeldin', { ad: user.name }));
-    // signing in again after the session expired: the Drive library is already here (state 'drive')
-    if (!gorunum(durum).yukleniyor) return;
-    // the owner with drive.file only: offer full access (no popup here, only on the card's tap)
-    if (tamErisimDugmesi({ sahip, aktif: aktifKapsam() })) { olay({ tur: 'tamErisimGerekli' }); return; }
-    await loadFromDrive();
+    await girisSonrasi();
   } catch (e) {
     // our errors carry a Turkish message; a failed fetch (TypeError) means no connection
     olay({ tur: 'girisHata', mesaj: errorText(e) });
   }
+}
+
+// Same post-token flow for a popup and a restored session; restoring never shows a welcome toast.
+async function girisSonrasi(restored = false): Promise<void> {
+  if (durum.tur !== 'giriliyor' && durum.tur !== 'drive' && !(restored && durum.tur === 'yukleniyor')) return;
+  const user = await getUser();
+  rememberUser(user);              // name + e-mail only; token storage is owned by auth.ts
+  setAccountHint(user.email);
+  girisEposta = user.email;
+  const sahip = sahipMi(user.email, SAHIP_EPOSTA, SAHIP_YOK);
+  setSahip(sahip);
+  ownerName = user.name;
+  updateUserBox({ kind: 'user', name: user.name });
+  if (!restored) {
+    olay({ tur: 'girisBasarili' });
+    toast(t('giris.hosgeldin', { ad: user.name }));
+  }
+  // Signing in after expiry can leave the already loaded Drive library in place.
+  if (!gorunum(durum).yukleniyor) return;
+  if (tamErisimDugmesi({ sahip, aktif: aktifKapsam() })) { olay({ tur: 'tamErisimGerekli' }); return; }
+  await loadFromDrive();
 }
 
 // "Tam erişimi aç": the popup opens right on the tap; earlier grants included (also with ?kapsam=dar)
@@ -569,7 +575,7 @@ setRememberedName(rememberedUser()?.name ?? null);
 setAccountHint(rememberedUser()?.email);
 // ?demo (portfolio link): skip the card and open the sample library right away
 if (startWithSample) updateUserBox({ kind: 'sample' });
-showState();
+// Initial state is shown after startup restoration below; a valid session never paints the login card.
 prepareAuth().catch((e: unknown) => { if (e instanceof AuthError) olay({ tur: 'girisHata', mesaj: e.message }); });
 
 initReader(() => {
@@ -873,3 +879,12 @@ async function boot(): Promise<void> {
 }
 
 ready = boot();
+if (!startWithSample && oturumGeriYukle()) {
+  // Both transitions are synchronous, before rendering or waiting for getUser.
+  olay({ tur: 'girisBasladi' });
+  olay({ tur: 'girisBasarili' });
+  void girisSonrasi(true).catch((e: unknown) => {
+    dropToken('restore');
+    olay({ tur: 'oturumDoldu', mesaj: errorText(e) });
+  });
+} else showState();

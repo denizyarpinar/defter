@@ -20,6 +20,7 @@ const words = new Set([
   'tamErisimGerekli', 'tamErisimBasladi', 'tamErisimVerildi', 'tamErisimHata',
   'hicbir', 'yenile', 'driveYaz', 'writerYok', 'fileYok', 'yazildi', 'timeout', '401', '401-2',
   'Failed to fetch', 'Load failed', 'NetworkError', '[gizlendi]',
+  'gecerli', 'suresiDolmus', 'yok', 'bozuk', 'kapali', 'restore', 'signOut', 'gis.denied', 'gis.error',
 ]);
 const safe = (value: unknown): string | number | boolean | null => {
   if (typeof value === 'string') return words.has(value) ? value : '[gizlendi]';
@@ -38,7 +39,7 @@ function details(input: Detail): Detail {
 
 const events = new Set(['page.open', 'signIn.start', 'gis.success', 'gis.denied', 'gis.error', 'dropToken', 'signOut',
   'authorized.refresh', 'authorized.401', 'onExpired', 'state', 'googleSignIn', 'loadFromDrive',
-  'dilDegistir', 'dilDriveYaz', 'dilTercihiUygula', 'dilSec']);
+  'dilDegistir', 'dilDriveYaz', 'dilTercihiUygula', 'dilSec', 'token.restore', 'token.store', 'token.clear']);
 
 if (enabled) {
   try {

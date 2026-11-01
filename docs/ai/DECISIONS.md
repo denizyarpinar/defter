@@ -6,7 +6,7 @@ Bu dosya AGENTS.md "Değişmez kurallar" ile çelişirse mimari konuda bu dosya 
 
 ## Temel
 - D01 – Yapı: Vite + TypeScript, düz DOM, UI framework yok; 3D three.js. Neden: küçük paket, iPad'de hız, öğrenmesi kolay.
-- D02 – Sunucu yok; tek istisna Vercel fonksiyonu `api/oku.ts` (OCR). Google girişi GIS token client, client secret yok; token yalnız bellekte. Neden: kullanıcı verisi sunucuya uğramasın.
+- D02 – Sunucu yok; tek istisna Vercel fonksiyonu `api/oku.ts` (OCR). Google girişi GIS token client, client secret yok; token bellekte + yalnız bu sekmenin sessionStorage'ında, süresine kadar (6.6-5b); localStorage'a asla yazılmaz. Neden: kullanıcı verisi sunucuya uğramasın; dil yenilemesinde oturum korunsun.
 - D03 – Veri kullanıcının Drive'ında; uygulama katalog + okuyucu. Kendi veritabanı yok. Neden: dosyalar kullanıcının kalır, uygulama laptopa bağımlı olmaz.
 - D04 – Görünüm kaynağı `referans/prototip.html`; değiştirilmez, davranış oradan alınır.
 
@@ -32,7 +32,7 @@ Bu dosya AGENTS.md "Değişmez kurallar" ile çelişirse mimari konuda bu dosya 
 - D19 – Word/PPT: Drive'da Google biçimine çevir → PDF export → geçici dosya çöpe (D12).
 
 ## Cihazda saklama
-- D20 – IndexedDB: PDF önbelleği (id + modifiedTime, 500 MB), bekleyen kalem kayıtları, fotoğraflar, temiz yazı depoları, sayfa işi, silinen sayfa yedeği (7 gün / 5). localStorage yalnız tercihler (token asla). Çıkışta hesap verileri silinir.
+- D20 – IndexedDB: PDF önbelleği (id + modifiedTime, 500 MB), bekleyen kalem kayıtları, fotoğraflar, temiz yazı depoları, sayfa işi, silinen sayfa yedeği (7 gün / 5). localStorage yalnız tercihler (token asla). Token bellekte + yalnız bu sekmenin sessionStorage'ında, süresine kadar (6.6-5b); çıkış, token reddi ve geçerlilik kontrolünde süresi dolmuş kayıt silinir. Çıkışta hesap verileri silinir.
 
 ## El yazısı (OCR) ve Temiz yazı
 - D21 – Okuma motoru Claude API, yalnız `api/oku` üzerinden; varsayılan Haiku 5.5. Sadece sahip hesabı, sadece kullanıcı isteyince (otomatik okuma yok), istek/boyut sınırlı. Anahtar yalnız Vercel env. Neden: maliyet ve gizlilik.

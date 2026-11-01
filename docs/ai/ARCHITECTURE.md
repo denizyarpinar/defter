@@ -35,7 +35,7 @@ Kaynak kod incelemesi: 1 Kasım 2026. Aşağıdaki yollar repo köküne göredir
 ## 3. Ana akışlar
 ### Giriş ve Drive erişimi
 - `index.html` → `src/main.ts`: `boot` sahneyi kurar; `googleSignIn` kullanıcı eyleminden `signIn` çağırır (`src/drive/auth.ts`).
-- `prepareAuth` GIS betiğini yükler ve token client oluşturur. Token yalnız bellektedir; hatırlanan ad/e-posta ayrı yerel kayıttadır (`src/drive/auth.ts`).
+- `prepareAuth` GIS betiğini yükler ve token client oluşturur. Token bellekte ve yalnız bu sekmenin sessionStorage'ında süresine kadar tutulur; `oturumGeriYukle` geçerli kaydı açılışta geri alır (6.6-5b). Token localStorage'a yazılmaz; hatırlanan ad/e-posta ayrı yerel kayıttadır (`src/drive/auth.ts`, `src/drive/oturumSakla.ts`).
 - `girisKapsami` normal kullanıcıya drive.file, hatırlanan sahip hesabına full drive seçer; aktif kapsam token yanıtından belirlenir. Sahibe ayrıca tam erişim düğmesi sunulur (`src/drive/kapsam.ts`, `src/drive/auth.ts`, `src/main.ts`).
 - `driveFetch` Authorization ekler; 401'de token yenileyip bir kez tekrar dener. Kullanıcı bilgisi Drive about üzerinden okunur (`src/drive/drive.ts`).
 - `loadDriveLibrary` → `kokBul`: dar kapsamda defterKok işaretli kök; tam kapsamda önce eski Kitaplık klasörü (`src/drive/driveLibrary.ts`, `src/drive/kok.ts`).

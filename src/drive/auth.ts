@@ -1,10 +1,11 @@
-// Google sign-in with the GIS token client. The access token lives only in memory (never localStorage).
+// Google sign-in with GIS. Token: memory + this tab's sessionStorage until expiry, never localStorage (6.6-5b).
 // Task 6.K1: the permission (drive.file or full drive) is chosen per request (kapsam.ts); the token's own
 // scope list decides the active mode, kept here in one place.
 
 import { KAPSAM_DAR, KAPSAM_TAM, kapsamOku, type AktifKapsam } from './kapsam';
 import { t } from '../dil';
 import { gunlukYaz } from './authGunlugu';
+import { oturumOku, oturumSil, oturumYaz, tokenSaklamaAcik, type SessionStore } from './oturumSakla';
 
 const GIS_SRC = 'https://accounts.google.com/gsi/client';
 
@@ -42,6 +43,34 @@ let istenen: AktifKapsam = 'dar';
 let dahilEt = true;
 let sahip: boolean | null = null;
 
+const TOKEN_SAKLA = true;
+const storageEnabled = (): boolean => tokenSaklamaAcik(TOKEN_SAKLA, typeof location === 'undefined' ? '' : location.search);
+const sessionStore = (): SessionStore | null => { try { return sessionStorage; } catch { return null; } };
+
+function clearStoredToken(source: string): void {
+  if (!storageEnabled()) return;
+  oturumSil(sessionStore());
+  gunlukYaz('token.clear', { kaynak: source });
+}
+
+// Called explicitly at startup, never while this module loads. No popup or GIS request.
+export function oturumGeriYukle(): boolean {
+  if (!storageEnabled()) { gunlukYaz('token.restore', { sonuc: 'kapali' }); return false; }
+  const restored = oturumOku(sessionStore(), Date.now());
+  gunlukYaz('token.restore', { sonuc: restored.sonuc });
+  if (!restored.oturum) {
+    if (restored.sonuc !== 'yok') clearStoredToken('restore');
+    return false;
+  }
+  const session = restored.oturum;
+  token = { value: session.value, expiresAt: session.expiresAt };
+  aktif = session.aktif;
+  scopes = session.scopes;
+  istenen = aktif;
+  dahilEt = new URLSearchParams(typeof location === 'undefined' ? '' : location.search).get('kapsam') !== 'dar';
+  return true;
+}
+
 function loadGis(): Promise<void> {
   if (window.google?.accounts?.oauth2) return Promise.resolve();
   gisLoading ??= new Promise<void>((resolve, reject) => {
@@ -65,14 +94,19 @@ export async function prepareAuth(): Promise<void> {
     callback: r => {
       const p = pending; pending = null;
       const k = r.access_token ? (google.accounts.oauth2.hasGrantedAllScopes(r, KAPSAM_TAM) ? 'tam' : kapsamOku(r.scope)) : null;
-      if (r.error || !r.access_token || !k) { gunlukYaz('gis.denied'); p?.reject(new AuthError('denied')); return; }
+      if (r.error || !r.access_token || !k) { clearStoredToken('gis.denied'); gunlukYaz('gis.denied'); p?.reject(new AuthError('denied')); return; }
       gunlukYaz('gis.success', { expires_in: r.expires_in });
       token = { value: r.access_token, expiresAt: Date.now() + r.expires_in * 1000 };
       aktif = k;
       scopes = (r.scope ?? '').split(/\s+/).filter(Boolean);
+      if (storageEnabled()) {
+        oturumYaz({ ...token, aktif, scopes }, sessionStore());
+        gunlukYaz('token.store');
+      }
       p?.resolve(r.access_token);
     },
     error_callback: e => {
+      clearStoredToken('gis.error');
       gunlukYaz('gis.error', { tur: e.type });
       const p = pending; pending = null;
       p?.reject(new AuthError(e.type === 'popup_failed_to_open' ? 'popup-blocked' : e.type === 'popup_closed' ? 'popup-closed' : 'unknown'));
@@ -133,12 +167,17 @@ export function rememberedUser(): RememberedUser | null {
 
 // Token if it is still valid for at least a minute, else null.
 export function currentToken(): string | null {
-  return token && Date.now() < token.expiresAt - 60_000 ? token.value : null;
+  if (token && Date.now() >= token.expiresAt - 60_000) {
+    clearStoredToken('suresiDolmus');
+    return null;
+  }
+  return token?.value ?? null;
 }
 
 export const isSignedIn = () => token !== null;
 
 export function signOut(kaynak = 'kullanici'): void {
+  clearStoredToken('signOut');
   gunlukYaz('signOut', { kaynak });
   if (import.meta.env.DEV) window.dispatchEvent(new Event('defter-auth-change'));
   const t = token?.value;
@@ -149,6 +188,7 @@ export function signOut(kaynak = 'kullanici'): void {
 
 // The token was rejected by Drive (expired early): forget it.
 export function dropToken(kaynak = 'unknown'): void {
+  clearStoredToken(kaynak);
   gunlukYaz('dropToken', { kaynak });
   if (import.meta.env.DEV) window.dispatchEvent(new Event('defter-auth-change'));
   token = null;
