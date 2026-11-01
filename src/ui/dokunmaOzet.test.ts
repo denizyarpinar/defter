@@ -23,6 +23,57 @@ function dokunus(t: number, pointerType: string, touchType: string, n: number, i
 }
 
 describe('dokunuslariAyir / dokunusSatiri', () => {
+  it('reports initial and maximum pointer size and touch radii, including copied output', () => {
+    const events = [
+      o(0, 'pointerdown', { pointerType: 'touch', pointerId: 1, width: 22, height: 22 }),
+      o(1, 'touchstart', { touchType: 'direct', kalan: 1, radiusX: 11, radiusY: 11 }),
+      o(20, 'pointermove', { pointerId: 1, width: 58, height: 61 }),
+      o(21, 'touchmove', { kalan: 1, radiusX: 29, radiusY: 30 }),
+      o(40, 'pointerup', { pointerId: 1, width: 1, height: 1 }),
+      o(41, 'touchend', { kalan: 0, radiusX: 10, radiusY: 10 }),
+    ];
+    const line = dokunmaSatirlari(events)[0];
+    expect(line).toContain('boyut ilk 22x22 maks 58x61 | r maks 29x30');
+    expect(dokunmaMetni(events)).toContain(line);
+  });
+
+  it('keeps old events without measurements unchanged', () => {
+    const line = dokunmaSatirlari(dokunus(0, 'mouse', '', 0, null, true))[0];
+    expect(line).toBe(`#1 fare (mouse) | ${KAYDET} | down→up 140 ms | touchmove 0 | click: VAR`);
+  });
+
+  it('reports signed vertical movement or no movement from the reader scroller', () => {
+    for (const [endY, expected] of [[104, 'kaydı 84 px'], [20, 'kaymadı'], [0, 'kaydı -20 px']] as const) {
+      const events = [
+        o(0, 'pointerdown', { pointerId: 1, kaydirma: [50, 20] }),
+        o(10, 'pointerup', { pointerId: 1, kaydirma: [90, endY] }),
+        o(11, 'click', { kaydirma: [90, 999] }),
+      ];
+      expect(dokunmaSatirlari(events)[0]).toContain(expected);
+    }
+  });
+
+  it('shows the nearest pen before or after, including a pen inside the gesture, within two seconds', () => {
+    const events = [
+      ...dokunus(0, 'pen', 'stylus', 0, null, false),
+      ...dokunus(500, 'touch', 'direct', 0, null, false),
+      ...dokunus(800, 'pen', 'stylus', 0, null, false),
+      ...dokunus(1000, 'touch', 'direct', 0, null, false),
+      ...dokunus(4000, 'touch', 'direct', 0, null, false),
+    ];
+    const ds = dokunuslariAyir(events);
+    expect(dokunusSatiri(ds[1])).toContain('kalem +300 ms');
+    expect(dokunusSatiri(ds[3])).toContain('kalem −200 ms');
+    expect(dokunusSatiri(ds[4])).not.toContain('kalem ');
+    const overlap = [
+      o(0, 'pointerdown', { pointerType: 'touch', pointerId: 1 }),
+      o(120, 'pointerdown', { pointerType: 'pen', pointerId: 2 }),
+      o(140, 'pointerup', { pointerId: 2 }),
+      o(200, 'pointerup', { pointerId: 1 }),
+    ];
+    expect(dokunmaSatirlari(overlap)[0]).toContain('kalem +120 ms');
+  });
+
   it('a finger tap on a button: click VAR, nothing cancelled', () => {
     const [d] = dokunuslariAyir(dokunus(0, 'touch', 'direct', 3, null, true));
     expect(d.cihaz).toBe('parmak');

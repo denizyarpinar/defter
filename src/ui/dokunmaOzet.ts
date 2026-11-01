@@ -5,14 +5,20 @@ import type { IptalKaynagi } from './dokunmaIz';
 // "kalem (touch/stylus) | button#oKalem "Kalem" | down→up 140 ms | touchmove 23 (23 iptal: okuyucuKaydirma 23) | click: YOK".
 // Pure, no DOM.
 
-export type DokunmaTuru = 'pointerdown' | 'pointerup' | 'pointercancel' | 'touchstart' | 'touchmove' | 'touchend' | 'touchcancel' | 'click';
+export type DokunmaTuru = 'pointerdown' | 'pointermove' | 'pointerup' | 'pointercancel' | 'touchstart' | 'touchmove' | 'touchend' | 'touchcancel' | 'click';
 
 export interface DokunmaOlayi {
   t: number;                    // ms from the first event logged
   tur: DokunmaTuru | 'iptal';   // iptal: a cancel of ours (kaynak), just before its preventDefault
   pointerType?: string;
   pointerId?: number;
-  touchType?: string;           // touches[0].touchType: direct | stylus
+  touchType?: string;           // changedTouches: direct | stylus
+  touchId?: number;
+  width?: number;
+  height?: number;
+  radiusX?: number;
+  radiusY?: number;
+  kaydirma?: [number, number];  // host.scroller: [scrollLeft, scrollTop]
   force?: number;               // touch force / pointer pressure
   kalan?: number;               // touch events: touches still down after this one
   hedef: string;                // tag#id.class
@@ -37,6 +43,7 @@ export interface Dokunus {
   touchcancel: number;
   click: { hedef: string; kontrol: string | null } | null;
   olaylar: DokunmaOlayi[];
+  kalemMs?: number;             // nearest pen down minus this touch's down
 }
 
 export const SON_DOKUNUS = 30;
@@ -74,6 +81,29 @@ export function dokunuslariAyir(olaylar: readonly DokunmaOlayi[]): Dokunus[] {
     if (o.tur.startsWith('touch') && o.kalan != null) dokunma = o.kalan;
   }
   for (const d of out) doldur(d);
+  // Pointer and touch can describe the same pen down; keep its first timestamp.
+  const penDowns = new Set<DokunmaOlayi>();
+  let lastPointerDown: DokunmaOlayi | undefined;
+  for (const o of olaylar) {
+    if (o.tur === 'pointerdown') {
+      lastPointerDown = o;
+      if (o.pointerType === 'pen') penDowns.add(o);
+    }
+    if (o.tur === 'touchstart' && o.touchType === 'stylus') {
+      penDowns.add(lastPointerDown?.pointerType === 'pen' ? lastPointerDown : o);
+    }
+    if (o.tur === 'pointerup' || o.tur === 'pointercancel' || o.tur === 'touchend' || o.tur === 'touchcancel') lastPointerDown = undefined;
+  }
+  for (const d of out) {
+    const start = d.olaylar.find(o => BASLA.has(o.tur));
+    if (!start) continue;
+    // Include a pen starting inside the same gesture (palm first, pen second).
+    const otherPenDowns = [...penDowns].filter(o => o !== start
+      && !(d.cihaz === 'kalem' && d.olaylar.includes(o)));
+    const nearest = otherPenDowns.reduce<DokunmaOlayi | undefined>((best, o) =>
+      !best || Math.abs(o.t - start.t) < Math.abs(best.t - start.t) ? o : best, undefined);
+    if (nearest && Math.abs(nearest.t - start.t) <= 2000) d.kalemMs = Math.round(nearest.t - start.t);
+  }
   return out;
 }
 
@@ -126,13 +156,21 @@ function doldur(d: Dokunus): void {
 }
 
 export function dokunusSatiri(d: Dokunus): string {
+  const sizes = d.olaylar.filter(o => o.width != null && o.height != null);
+  const radii = d.olaylar.filter(o => o.radiusX != null && o.radiusY != null);
+  const scrolls = d.olaylar.filter(o => o.tur !== 'iptal' && o.tur !== 'click' && o.kaydirma);
+  const dy = scrolls.length ? Math.round(scrolls[scrolls.length - 1].kaydirma![1] - scrolls[0].kaydirma![1]) : undefined;
   const kaynak = Object.entries(d.moveKaynak).map(([k, n]) => `${k} ${n}`).join(', ');
   const click = !d.click ? 'click: YOK'
     : d.click.kontrol === d.kontrol ? 'click: VAR' : `click: VAR (başka: ${d.click.kontrol ?? d.click.hedef})`;   // dil-kontrol: yoksay
   return [
     `#${d.no} ${d.cihaz}${d.ham ? ` (${d.ham})` : ''}`,
     d.kontrol ?? `kontrol yok: ${d.hedef}`,
+    sizes.length ? `boyut ilk ${sizes[0].width}x${sizes[0].height} maks ${Math.max(...sizes.map(o => o.width!))}x${Math.max(...sizes.map(o => o.height!))}` : '',
+    radii.length ? `r maks ${Math.max(...radii.map(o => o.radiusX!))}x${Math.max(...radii.map(o => o.radiusY!))}` : '',
     `down→up ${d.sureMs == null ? '–' : d.sureMs + ' ms'}`,
+    dy == null ? '' : dy === 0 ? 'kaymadı' : `kaydı ${dy} px`, // developer measurement only; dil-kontrol: yoksay
+    d.kalemMs == null ? '' : `kalem ${d.kalemMs >= 0 ? '+' : '−'}${Math.abs(d.kalemMs)} ms`,
     `touchmove ${d.touchmove}` + (d.touchmoveIptal ? ` (${d.touchmoveIptal} iptal: ${kaynak})` : ''),
     ...d.digerIptal,
     d.pointercancel ? `pointercancel ${d.pointercancel}` : '',

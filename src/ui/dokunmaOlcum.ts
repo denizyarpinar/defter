@@ -6,7 +6,7 @@ import type { DokunmaOlayi, DokunmaTuru } from './dokunmaOzet';
 // event seen again on document is not counted twice (document is there in case something on window stops it).
 // defaultPrevented is read once the event is over (setTimeout 0). The measuring boxes' own taps are not logged.
 
-const TURLER: DokunmaTuru[] = ['pointerdown', 'pointerup', 'pointercancel', 'touchstart', 'touchmove', 'touchend', 'touchcancel', 'click'];
+const TURLER: DokunmaTuru[] = ['pointerdown', 'pointermove', 'pointerup', 'pointercancel', 'touchstart', 'touchmove', 'touchend', 'touchcancel', 'click'];
 const KONTROL = 'button, a, input, select, textarea, label, [role="tab"], [role="slider"], [data-st], [data-u]';
 const OLCUM_KUTUSU = '#olcum, #olcumKalem, #olcumSon';
 const MAX_OLAY = 4000;
@@ -47,27 +47,42 @@ export function installDokunmaOlcum(degisti: () => void): DokunmaKaydedici {
     bekleyen = [];
     try { degisti(); } catch (err) { console.warn('Dokunma ölçüm kutusu güncellenemedi.', err); }
   };
+  // The same element passed as PenInput's host.scroller in Okuyucu.ts.
+  const kaydirma = (): [number, number] | undefined => {
+    const reader = document.querySelector<HTMLElement>('#okuyucu');
+    const scroller = reader?.querySelector<HTMLElement>('#oScroll');
+    return reader && !reader.hidden && scroller ? [scroller.scrollLeft, scroller.scrollTop] : undefined;
+  };
 
   const dinle = (e: Event) => {
+    // Hovering after release is not part of a contact's maximum size or scroll delta.
+    if (e.type === 'pointermove' && e instanceof PointerEvent && e.buttons === 0) return;
     if (gorulen.has(e)) return;
     gorulen.add(e);
     const hedef = e.target instanceof Element ? e.target : null;
     if (hedef?.closest(OLCUM_KUTUSU)) return;
-    const o: DokunmaOlayi = { t: zaman(e.timeStamp), tur: e.type as DokunmaTuru, hedef: hedef ? oge(hedef) : String(e.target), kontrol: kontrol(hedef) };
+    const o: DokunmaOlayi = { t: zaman(e.timeStamp), tur: e.type as DokunmaTuru, hedef: hedef ? oge(hedef) : String(e.target), kontrol: kontrol(hedef), kaydirma: kaydirma() };
+    const records = [o];
     if (typeof PointerEvent !== 'undefined' && e instanceof PointerEvent) {
       o.pointerType = e.pointerType;
       o.pointerId = e.pointerId;
       o.force = Math.round(e.pressure * 100) / 100;
+      o.width = Math.round(e.width);
+      o.height = Math.round(e.height);
     } else if (typeof TouchEvent !== 'undefined' && e instanceof TouchEvent) {
-      const t = (e.touches[0] ?? e.changedTouches[0]) as (Touch & { touchType?: string }) | undefined;
-      if (t?.touchType) o.touchType = t.touchType;
-      if (t) o.force = Math.round(t.force * 100) / 100;
       o.kalan = e.touches.length;
+      records.length = 0;
+      for (const touch of Array.from(e.changedTouches)) {
+        const t = touch as Touch & { touchType?: string };
+        records.push({ ...o, touchId: t.identifier, touchType: t.touchType,
+          force: Math.round(t.force * 100) / 100,
+          radiusX: Number.isFinite(t.radiusX) ? Math.round(t.radiusX) : undefined,
+          radiusY: Number.isFinite(t.radiusY) ? Math.round(t.radiusY) : undefined });
+      }
     }
-    ekle(o);
     kayitli.add(e);
     if (!bekleyen.length) setTimeout(bosalt, 0);
-    bekleyen.push([o, e]);
+    for (const record of records) { ekle(record); bekleyen.push([record, e]); }
   };
 
   const secenek = { capture: true, passive: true } as const;
@@ -77,7 +92,7 @@ export function installDokunmaOlcum(degisti: () => void): DokunmaKaydedici {
   }
   dokunmaIptalDinle((kaynak, e) => {
     if (!kayitli.has(e) && !e.type.startsWith('gesture')) return;
-    ekle({ t: zaman(e.timeStamp), tur: 'iptal', kaynak, olayTuru: e.type, hedef: '', kontrol: null });
+    ekle({ t: zaman(e.timeStamp), tur: 'iptal', kaynak, olayTuru: e.type, hedef: '', kontrol: null, kaydirma: kaydirma() });
   });
 
   return {
