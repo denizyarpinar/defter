@@ -1,9 +1,10 @@
 # CURRENT_STATE
 
-Son güncelleyen: Codex, 1 Kasım 2026 · 6.6-6 Claude düzeltmesi + önizleme hazırlığı
+Son güncelleyen: Codex, 1 Kasım 2026 · 6.6-6 canlı yayın
 ## Git ve yayın
-- 6.6-5a (`0d991fe`) + 6.6-5b (`c29da03`) Deniz onayıyla main'e push edildi, canlıda. Production Ready: https://defter-rkzrpgwu9-deniz-b571.vercel.app; https://defter-jade.vercel.app HTTP 200 doğrulandı (1 Kasım 2026).
-- 6.6-5b önizlemesi: https://defter-ntub1s99i-deniz-b571.vercel.app; faz-6 alias eşleşmesi önceki oturumda doğrulandı. 6.6-6 için Deniz commit + yalnız faz-6 push + Ready sonrası dal alias bağlantısını onayladı; main push yasak. Yayın sonucu bu kod commit’inden sonra doğrulanacak.
+- 6.6-6 canlı kod commit’i: `7e6045e` — Deniz onayıyla main’e push edildi. Production Ready: https://defter-km473l8wq-deniz-b571.vercel.app (main / 7e6045e build kaydından doğrulandı).
+- Canlı adres: https://defter-jade.vercel.app — HTTP 200 doğrulandı (1 Kasım 2026). 6.6-5a/5b önceki sürümleri de içerir.
+- 6.6-6 önizlemesi Ready: https://defter-b5a1iu79w-deniz-b571.vercel.app; https://defter-git-faz-6-deniz-b571.vercel.app alias’ı bu dağıtıma bağlandı ve doğrulandı.
 ## Bitenler (özet)
 - Faz 1–5, 6.1–6.3, 6.H, 6.K (çok kullanıcı + kurulum), 6.K7–K8 (gizlilik, README, ikinci hesap testi).
 - 6.4 el yazısı: okuma (api/oku), .ocr.json, arama, harf atlası, Temiz yazı, elle düzeltme. Canlıda.
@@ -16,18 +17,17 @@ Son güncelleyen: Codex, 1 Kasım 2026 · 6.6-6 Claude düzeltmesi + önizleme h
 - 6.6-1a/1b canlıda: avuç 100/120 px, kalem kalkınca 300 ms koruma; iki parmak ZoomController üzerinden (8 px pan, pinch 12 px + %8). Kitapta swipe açık, kenar tap kapalı. Laptop denemeleri geçti; gerçek iPad bekliyor.
 - 6.6-5a canlıda (`0d991fe`): yalnız `?olcum=1` ile en fazla 80 anonim olay, reload sayacı, giriş kartında erişilebilir Kopyala/Temizle. Önceki doğrulama: 1853 test + dört ekran boyutu.
 - 6.6-5b canlıda (`c29da03`): token bellekte, saklama yalnız bu sekmenin sessionStorage'ında (`defter-oturum`), süresine kadar; localStorage'a asla yazılmaz. Geçerli token açılışta popup/giriş kartı/hoş geldin bildirimi olmadan geri yüklenir. Çıkış, GIS reddi/hatası, dropToken ve kontrolde bozuk/süresi dolmuş kayıt silinir.
-- 6.6-6 kodu tamam: tek Promise yenileme kapısı; token alımında/geri yüklemede zamanlayıcı, gizli sekme/görünürlük/focus kontrolü; 15 sn GIS sınırı. Engellenmede giriş kartı yerine EN/TR erişilebilir bant, aynı tıklamada GIS başlar; bekleyen Drive istekleri devam eder. İkinci 401 ve hiç açılmamış oturum dışındaki yenileme hatası onExpired çağırmaz.
+- 6.6-6 canlıda (`7e6045e`): normal ömürde 5 dk önce, kısa ömürde ömrün üçte biri kala sessiz yenileme; tek Promise kapısı, görünürlük/focus kontrolü ve 15 sn GIS sınırı. Olmazsa EN/TR “Devam et” bandı çıkar; bekleyen istekler bekler, dokununca devam eder. onExpired yalnız hiç açılmamış oturumda ve yeni token ile ikinci 401’de çağrılır.
 - Claude kontrol düzeltmesi: sessizYenileAcik() && sessionOpened iken GIS error/denied sessionStorage kaydını silmez; geçerli token geri yüklenebilir. ?yenile=0 eski silme davranışını korur. Yeni test: engellenme→bant→kayıt aynı→restore geçerli; denied tekrarı da kaydı korur.
 - Çıkış/dropToken bekleyen yenilemeyi bitirir; geç GIS cevabı yok sayılır. Çıkış, yenileme bekleyen reading.flush yüzünden kilitlenmez. IDB/kalem/fotoğraf kuyruğu ve kaydedici mantığı değişmedi.
 - Geri alma: auth.ts SESSIZ_YENILE=false veya ?yenile=0; eski yol korunur. ?tokenSure=120 yalnız GIS ömrünü kısaltır; token hâlâ yalnız bellek + sessionStorage.
 - Doğrulama: 1924/1924 test (27 yeni), typecheck/build geçti; dil 0, EN/TR 889 anahtar. Mevcut auth silme/401 testleri ?yenile=0 eski yol beklentilerini korur.
 - Derlenmiş uygulamada sahte GIS/Drive: sessiz başarı, engellenme→bant→kapatma→tekrar deneme, 3 eşzamanlı yazma, klavyeyle kullanıcı hareketi, çıkış→yenileme geçti. 390×844 ve 1180×820 EN/TR dört görüntü, taşma 0; ölçüm panelleri yalnız görüntü alınırken gizlendi.
-- Gerçek Google, fiziksel iPad, kalem çizgisinin gerçek Drive'a kaydı ve 70 dk denemesi bekliyor. İlk test çalışması repo dışındaki fotoğraf tanı çıktısının yazma iznine takıldı; izinli tam tekrar geçti.
-- İş bölümü: plan/TASK.md Claude, net kod Codex, kontrol kodu yazmayan araç. Deniz 1 Kasım’da commit ve yalnız faz-6 önizlemesini onayladı; TASK.md planlayıcı değişikliği korunuyor.
+- Deniz laptop + iPad önizleme denemesinin geçtiğini bildirdi ve canlı yayını onayladı. Gerçek 70 dk denemesi bekliyor. İlk test çalışması fotoğraf tanı çıktısının yazma iznine takıldı; izinli tam tekrar geçti.
+- İş bölümü: plan/TASK.md Claude, net kod Codex, kontrol kodu yazmayan araç. Claude kontrol düzeltmesi uygulandı; Deniz önizleme denemesinden sonra 1 Kasım’da main canlı yayınını onayladı.
 ## Sıradaki
-1. 6.6-6 commit → yalnız faz-6 push → Ready/alias doğrulaması; ardından Deniz laptop Chrome + iPad Safari ?tokenSure=120&olcum=1 ve 70 dk gerçek deneme.
-2. 6.6-2: birden çok özet.
-3. Faz 7: quiz/özet (LLM API).
+1. 6.6-2: birden çok özet.
+2. Faz 7: quiz/özet (LLM API).
 ## Açık riskler (ayrıntı: arsiv/CLAUDE_eski.md "Sonra bakılabilir")
 - ozet.pdf her fotoğraf/kalem kaydında baştan yükleniyor (22 MB ≈ 26 sn); çözüm Faz 5 kararını değiştirir.
 - İki sekme/iki cihaz aynı dosyada: bekleyen kayıtlar birbirini görmüyor, çift dosya olabilir.
@@ -36,4 +36,4 @@ Son güncelleyen: Codex, 1 Kasım 2026 · 6.6-6 Claude düzeltmesi + önizleme h
 - Ürün hedefi "ilk girişte otomatik kurulum"; kod hâlâ kurulum düğmesi bekliyor (karar değişikliği gerekir).
 - Laptopta 600–~760 px arası genişlikte tam sekme adları sığmıyor, şerit kaydırılıyor (4b'de beklenen sayıldı).
 ## Yarım kalan iş
-- Kod, Claude düzeltmesi ve otomatik kontroller tamam. Bu belge commit öncesi kayıttır; sonraki işlem Deniz onaylı commit/faz-6 yayınıdır. Ready/alias sonucu sohbet sonunda raporlanacak. Gerçek cihaz/Drive kalem kaydı ve 70 dk denemesi bekliyor; TASK.md planlayıcı değişikliğidir.
+- Kod ve canlı yayın tamam; Production Ready + HTTP 200 doğrulandı. Deniz laptop+iPad önizleme denemesi geçti. Yalnız gerçek 70 dk oturum denemesi bekliyor; sıradaki kod işi 6.6-2.
