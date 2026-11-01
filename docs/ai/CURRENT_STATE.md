@@ -1,10 +1,10 @@
 # CURRENT_STATE
 
-Son güncelleyen: Codex, 1 Kasım 2026 · 6.6-5b commit/önizleme yayını
+Son güncelleyen: Codex, 1 Kasım 2026 · 6.6-5a + 6.6-5b canlıya çıkış
 
 ## Git ve yayın
-- Canlı uygulama commit'i: `71c02e75e5c54b32ba74438973de11f730ac505f` (6.6-0), Deniz onayıyla main'e push edildi. Production Ready: https://defter-a2hxqmad3-deniz-b571.vercel.app; https://defter-jade.vercel.app HTTP 200 önceki yayında doğrulandı.
-- Önceki doğrulanan faz-6: `0d991fe` (6.6-5a), Preview Ready: https://defter-dp4ltbsey-deniz-b571.vercel.app. Deniz 6.6-5b için commit, yalnız faz-6 push ve Ready sonrası https://defter-git-faz-6-deniz-b571.vercel.app alias bağlamasını onayladı; main'e push yok.
+- 6.6-5a (`0d991fe`) + 6.6-5b (`c29da03`) Deniz onayıyla main'e push edildi, canlıda. Production Ready: https://defter-rkzrpgwu9-deniz-b571.vercel.app; https://defter-jade.vercel.app HTTP 200 doğrulandı (1 Kasım 2026).
+- 6.6-5b önizlemesi de Ready: https://defter-ntub1s99i-deniz-b571.vercel.app; https://defter-git-faz-6-deniz-b571.vercel.app alias eşleşmesi önceki adımda doğrulandı. Bu durum belgesi ayrı commit ile main ve faz-6'ya gönderilir.
 
 ## Bitenler (özet)
 - Faz 1–5, 6.1–6.3, 6.H, 6.K (çok kullanıcı + kurulum), 6.K7–K8 (gizlilik, README, ikinci hesap testi).
@@ -17,14 +17,14 @@ Son güncelleyen: Codex, 1 Kasım 2026 · 6.6-5b commit/önizleme yayını
 ## Şimdi
 - 6.6-0 canlıda: kısa PDF sayfalarında dil dönüşü/sürgü sayacı kaymıyor; 1844 test ve 390×844 demo (12 / 30, üç dil dönüşü) geçti. Gerçek cihaz henüz denenmedi.
 - 6.6-1a/1b canlıda: avuç 100/120 px, kalem kalkınca 300 ms koruma; iki parmak ZoomController üzerinden (8 px pan, pinch 12 px + %8). Kitapta swipe açık, kenar tap kapalı. Laptop denemeleri geçti; gerçek iPad bekliyor.
-- 6.6-5a önizlemede: yalnız `?olcum=1` ile en fazla 80 anonim olay, reload sayacı, giriş kartında erişilebilir Kopyala/Temizle. Önceki doğrulama: 1853 test + dört ekran boyutu.
-- 6.6-5b yerelde hazır: `defter-oturum` yalnız sekmenin sessionStorage'ında; geçerli token açılışta popup/giriş kartı/hoş geldin bildirimi olmadan geri yüklenir. Çıkış, GIS reddi/hatası, dropToken ve geçerlilik kontrolündeki bozuk/süresi dolmuş kayıt silinir. Token localStorage'a yazılmaz.
+- 6.6-5a canlıda (`0d991fe`): yalnız `?olcum=1` ile en fazla 80 anonim olay, reload sayacı, giriş kartında erişilebilir Kopyala/Temizle. Önceki doğrulama: 1853 test + dört ekran boyutu.
+- 6.6-5b canlıda (`c29da03`): token bellekte, saklama yalnız bu sekmenin sessionStorage'ında (`defter-oturum`), süresine kadar; localStorage'a asla yazılmaz. Geçerli token açılışta popup/giriş kartı/hoş geldin bildirimi olmadan geri yüklenir. Çıkış, GIS reddi/hatası, dropToken ve kontrolde bozuk/süresi dolmuş kayıt silinir.
 - Doğrulama: 1897/1897 test (44 yeni), typecheck/build geçti, dil 0. Derlenmiş uygulamada laptop + iPad benzetimi: kullanıcı/Drive diliyle yenilemede tek giriş, giriş kartı boyanmıyor; çıkış→yenile, bağımsız yeni sekme, demo ve `?tokenSakla=0` geçti. GIS/Drive sahte; gerçek Google/iPad henüz denenmedi.
 - Geri alma: auth.ts `TOKEN_SAKLA=false` ya da `?tokenSakla=0`; depoya dokunmaz. Drive dili kararı, geçiş tablosu ve 401 yeniden denemesi korunur. Deniz onayıyla D02/D20, README (EN), privacy (EN/TR), PROJECT/ARCHITECTURE güncellendi.
 - İş bölümü: plan/TASK.md Claude, net kod Codex, kontrol kodu yazmayan araç. Aynı anda tek araç; araç değişmeden checkpoint commit.
 
 ## Sıradaki
-1. 6.6-5b önizleme Ready/alias kontrolünden sonra gerçek laptop/iPad'de iki dil senaryosu + çıkış→yenile denenir. 6.6-6 ayrı görev; bu adımda sessiz yenileme yok.
+1. 6.6-6: 1 saatte oturum düşmesi — S5=A, sessiz yenileme + "dokun, devam et" bandı.
 2. 6.6-2: birden çok özet.
 3. Faz 7: quiz/özet (LLM API).
 
@@ -37,4 +37,4 @@ Son güncelleyen: Codex, 1 Kasım 2026 · 6.6-5b commit/önizleme yayını
 - Laptopta 600–~760 px arası genişlikte tam sekme adları sığmıyor, şerit kaydırılıyor (4b'de beklenen sayıldı).
 
 ## Yarım kalan iş
-- Kod ve yerel doğrulama tamam; Deniz commit/önizleme yayınını onayladı. Yayın adımı: yalnız faz-6 push, Vercel Ready ve alias eşleşmesini doğrulama. Sonraki adım gerçek cihazda iki dil senaryosu + çıkış→yenile; main'e push yok.
+- Kod ve canlı yayın tamam; Production Ready + HTTP 200 doğrulandı. Gerçek laptop/iPad'de iki dil senaryosu + çıkış→yenile kontrolü henüz kaydedilmedi. Sıradaki kod işi 6.6-6; bu adımda sessiz yenileme uygulanmadı.
