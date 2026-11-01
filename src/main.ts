@@ -1,4 +1,6 @@
 import './styles.css';
+import { oturumBandiKur } from './ui/oturumBandi';
+import { setRenewalBanner, oturumBandinaDokun, yenilemeBekliyor } from './drive/auth';
 import { gunlukAcik, gunlukHatasi, gunlukYaz } from './drive/authGunlugu';
 import { gidisPlani } from './arama/aramaPaneliDurumu';
 import { agacAl, agacGecersiz } from './arama/kitaplikAgaci';
@@ -54,6 +56,7 @@ import { dilDugmeleriGuncelle, dilDugmeleriKur } from './ui/dilDugmesi';
 
 // task 6.5-1: index.html's fixed texts in the chosen language, before anything shows them
 htmlDoldur();
+setRenewalBanner(oturumBandiKur(oturumBandinaDokun));
 
 const app = document.querySelector<HTMLElement>('#app')!;
 const stageEl = document.querySelector<HTMLElement>('#stage')!;
@@ -553,7 +556,8 @@ initLogin({
 initUserBox({
   onSignIn: () => googleSignIn(),
   onSignOut: async () => {
-    await reading?.flush();   // while the token is still there
+    // A flush waiting for the renewal gesture must not prevent the user from signing out.
+    if (!yenilemeBekliyor()) await reading?.flush();   // while the token is still there
     signOut(); rememberUser(null); setAccountHint(undefined); setRememberedName(null);
     okuyucuOturumKapandi();   // task 6.4e-2: handwriting records and the atlas belong to this account
     ownerName = null;

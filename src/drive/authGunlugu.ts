@@ -12,6 +12,7 @@ const listeners = new Set<() => void>();
 // Only diagnostic vocabulary can enter the log. Arbitrary strings (including personal data,
 // server errors, tokens and file ids) are redacted even if a caller accidentally supplies them.
 const words = new Set([
+  'zamanlayici', 'bant', 'basarili', 'engellendi', 'zamanAsimi',
   'en', 'tr', 'invalid', 'kullanici', 'freshToken', 'tamErisim', 'drive', 'select_account', '',
   'popup_failed_to_open', 'popup_closed', 'unknown', 'files', 'about', 'other',
   'girisYok', 'giriliyor', 'yukleniyor', 'demo', 'hata', 'kurulum', 'girisBasladi', 'girisBasarili',
@@ -31,13 +32,13 @@ function details(input: Detail): Detail {
   // Keys are vocabulary too: never persist arbitrary user-supplied field names.
   for (const key of ['dil', 'rememberedUser', 'donus', 'neden', 'prompt', 'hint', 'pendingIptal', 'expires_in',
     'tur', 'kaynak', 'path', 'deneme', 'oturumDoldu', 'once', 'sonra', 'hedef', 'sonuc', 'mesaj',
-    'driveDil', 'yerelDil', 'yerelAcikSecim', 'bekleyen', 'fileEsit', 'buOturumdaYenilendi', 'eylem', 'adresteLang']) {
+    'driveDil', 'yerelDil', 'yerelAcikSecim', 'bekleyen', 'fileEsit', 'buOturumdaYenilendi', 'eylem', 'adresteLang', 'kalanSn', 'istek']) {
     if (Object.hasOwn(input, key)) out[key] = safe(input[key]);
   }
   return out;
 }
 
-const events = new Set(['page.open', 'signIn.start', 'gis.success', 'gis.denied', 'gis.error', 'dropToken', 'signOut',
+const events = new Set(['yenile.plan', 'yenile.sessiz', 'bant.goster', 'bant.dokun', 'yenile.bekle', 'page.open', 'signIn.start', 'gis.success', 'gis.denied', 'gis.error', 'dropToken', 'signOut',
   'authorized.refresh', 'authorized.401', 'onExpired', 'state', 'googleSignIn', 'loadFromDrive',
   'dilDegistir', 'dilDriveYaz', 'dilTercihiUygula', 'dilSec', 'token.restore', 'token.store', 'token.clear']);
 

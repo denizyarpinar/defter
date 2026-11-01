@@ -4,6 +4,7 @@
 
 import { KAPSAM_DAR, KAPSAM_TAM, kapsamOku, type AktifKapsam } from './kapsam';
 import { t } from '../dil';
+import { Renewal, tokenOmru, yenilemeAcik, type BannerState, type RenewalReason } from './yenileme';
 import { gunlukYaz } from './authGunlugu';
 import { oturumOku, oturumSil, oturumYaz, tokenSaklamaAcik, type SessionStore } from './oturumSakla';
 
@@ -35,6 +36,52 @@ let client: google.accounts.oauth2.TokenClient | null = null;
 let token: { value: string; expiresAt: number } | null = null;
 let pending: { resolve: (t: string) => void; reject: (e: AuthError) => void } | null = null;
 let gisLoading: Promise<void> | null = null;
+let clientGeneration = 0;
+let sessionOpened = false;
+const SESSIZ_YENILE = true;
+const search = (): string => typeof location === 'undefined' ? '' : location.search;
+export const sessizYenileAcik = (): boolean => yenilemeAcik(SESSIZ_YENILE, search());
+export const oturumAcildi = (): boolean => sessionOpened;
+let bannerListener: (state: BannerState) => void = () => {};
+let bannerState: BannerState = 'hidden';
+export function setRenewalBanner(listener: (state: BannerState) => void): void {
+  bannerListener = listener;
+  listener(bannerState);
+}
+function cancelRequest(): void {
+  ++clientGeneration;
+  client = null;
+  const request = pending; pending = null;
+  if (window.google?.accounts?.oauth2) initializeClient();
+  request?.reject(new AuthError('unknown'));
+}
+const renewal = new Renewal({
+  now: () => Date.now(), later: (fn, ms) => setTimeout(fn, ms), clear: timer => clearTimeout(timer),
+  visible: () => typeof document === 'undefined' || document.visibilityState !== 'hidden',
+  signIn: reason => signIn({ hint: rememberedUser()?.email, neden: reason }),
+  cancelRequest,
+  banner: state => { bannerState = state; bannerListener(state); },
+  log: gunlukYaz,
+});
+let lifecycleInstalled = false;
+function planRenewal(acquiredAt: number): void {
+  sessionOpened = true;
+  if (!sessizYenileAcik() || !token) return;
+  if (!lifecycleInstalled && typeof document !== 'undefined') {
+    lifecycleInstalled = true;
+    document.addEventListener('visibilitychange', () => renewal.check());
+    window.addEventListener('focus', () => renewal.check());
+  }
+  renewal.accept(token.expiresAt, acquiredAt);
+}
+export function tokenYenile(reason: RenewalReason, rejectedToken?: string): Promise<string> {
+  // A simultaneous 401 for an older token can use the renewal that already completed.
+  const current = currentToken();
+  if (rejectedToken && current && current !== rejectedToken) return Promise.resolve(current);
+  return renewal.renew(reason);
+}
+export const oturumBandinaDokun = (): void => renewal.touch();
+export const yenilemeBekliyor = (): boolean => sessizYenileAcik() && (renewal.isWaiting || (sessionOpened && !currentToken()));
 
 // what the current token allows; what was asked last; whether earlier grants are included (?kapsam=dar: no)
 let aktif: AktifKapsam | null = null;
@@ -68,6 +115,7 @@ export function oturumGeriYukle(): boolean {
   scopes = session.scopes;
   istenen = aktif;
   dahilEt = new URLSearchParams(typeof location === 'undefined' ? '' : location.search).get('kapsam') !== 'dar';
+  planRenewal(Date.now());
   return true;
 }
 
@@ -88,25 +136,39 @@ export async function prepareAuth(): Promise<void> {
   const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
   if (!clientId) throw new AuthError('no-client-id');
   await loadGis();
-  client ??= google.accounts.oauth2.initTokenClient({
+  initializeClient();
+}
+
+function initializeClient(): void {
+  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
+  if (!clientId) return;
+  if (client) return;
+  const generation = clientGeneration;
+  client = google.accounts.oauth2.initTokenClient({
     client_id: clientId,
     scope: KAPSAM_DAR,   // each request overrides it
     callback: r => {
+      if (generation !== clientGeneration) return;
       const p = pending; pending = null;
       const k = r.access_token ? (google.accounts.oauth2.hasGrantedAllScopes(r, KAPSAM_TAM) ? 'tam' : kapsamOku(r.scope)) : null;
-      if (r.error || !r.access_token || !k) { clearStoredToken('gis.denied'); gunlukYaz('gis.denied'); p?.reject(new AuthError('denied')); return; }
+      if (r.error || !r.access_token || !k) {
+        if (!(sessizYenileAcik() && sessionOpened)) clearStoredToken('gis.denied');
+        gunlukYaz('gis.denied'); p?.reject(new AuthError('denied')); return;
+      }
       gunlukYaz('gis.success', { expires_in: r.expires_in });
-      token = { value: r.access_token, expiresAt: Date.now() + r.expires_in * 1000 };
+      token = { value: r.access_token, expiresAt: Date.now() + tokenOmru(r.expires_in, search()) * 1000 };
       aktif = k;
       scopes = (r.scope ?? '').split(/\s+/).filter(Boolean);
       if (storageEnabled()) {
         oturumYaz({ ...token, aktif, scopes }, sessionStore());
         gunlukYaz('token.store');
       }
+      planRenewal(Date.now());
       p?.resolve(r.access_token);
     },
     error_callback: e => {
-      clearStoredToken('gis.error');
+      if (generation !== clientGeneration) return;
+      if (!(sessizYenileAcik() && sessionOpened)) clearStoredToken('gis.error');
       gunlukYaz('gis.error', { tur: e.type });
       const p = pending; pending = null;
       p?.reject(new AuthError(e.type === 'popup_failed_to_open' ? 'popup-blocked' : e.type === 'popup_closed' ? 'popup-closed' : 'unknown'));
@@ -118,9 +180,11 @@ export async function prepareAuth(): Promise<void> {
 // hint: e-mail of the remembered account; chooseAccount: show Google's account list.
 // kapsam: the permission to ask for; without it the active one (a new token never silently drops to drive.file).
 // includeGranted: false only with ?kapsam=dar; kept for the later requests (token renewal) too.
-export async function signIn(opts: { hint?: string; chooseAccount?: boolean; kapsam?: AktifKapsam; includeGranted?: boolean; neden?: 'kullanici' | 'freshToken' | 'tamErisim' } = {}): Promise<string> {
+export async function signIn(opts: { hint?: string; chooseAccount?: boolean; kapsam?: AktifKapsam; includeGranted?: boolean; neden?: 'kullanici' | 'tamErisim' | RenewalReason } = {}): Promise<string> {
   if (import.meta.env.DEV) window.dispatchEvent(new Event('defter-auth-change'));
-  await prepareAuth();
+  const generation = clientGeneration;
+  if (!sessizYenileAcik() || !client) await prepareAuth();
+  if (generation !== clientGeneration) throw new AuthError('unknown');
   gunlukYaz('signIn.start', { neden: opts.neden ?? 'kullanici', prompt: opts.chooseAccount ? 'select_account' : '', hint: !!opts.hint, pendingIptal: !!pending });
   pending?.reject(new AuthError('unknown'));
   istenen = opts.kapsam ?? aktif ?? istenen;
@@ -177,6 +241,8 @@ export function currentToken(): string | null {
 export const isSignedIn = () => token !== null;
 
 export function signOut(kaynak = 'kullanici'): void {
+  sessionOpened = false;
+  if (sessizYenileAcik()) renewal.cancel(new AuthError('unknown'));
   clearStoredToken('signOut');
   gunlukYaz('signOut', { kaynak });
   if (import.meta.env.DEV) window.dispatchEvent(new Event('defter-auth-change'));
@@ -188,6 +254,8 @@ export function signOut(kaynak = 'kullanici'): void {
 
 // The token was rejected by Drive (expired early): forget it.
 export function dropToken(kaynak = 'unknown'): void {
+  sessionOpened = false;
+  if (sessizYenileAcik()) renewal.cancel(new AuthError('unknown'));
   clearStoredToken(kaynak);
   gunlukYaz('dropToken', { kaynak });
   if (import.meta.env.DEV) window.dispatchEvent(new Event('defter-auth-change'));

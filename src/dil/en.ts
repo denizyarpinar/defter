@@ -4,6 +4,9 @@ import type { Sozluk } from './sozluk';
 // Natural English, not word for word.
 
 export const en: Sozluk = {
+  'oturum.bant.metin': 'Tap to refresh your session',
+  'oturum.bant.devam': 'Continue',
+  'oturum.bant.hata': "Couldn't refresh. Try again",
   'genel.aciklama': 'Your Drive notes, on the bookcase in your study room.',
   'genel.ara': 'Search',
   'genel.kapat': 'Close',

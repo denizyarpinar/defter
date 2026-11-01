@@ -1064,3 +1064,18 @@ body.auth-log-login :is(#olcum, #olcumKalem, #olcumSon) { display: none }
 .dil-sec button { background: none; border: 0; min-height: 44px; padding: 0 8px; text-decoration: underline; text-underline-offset: 3px }
 .dil-sec button[aria-current] { text-decoration: none; font-weight: 700; cursor: default; opacity: 1 }
 .dil-sec button:disabled:not([aria-current]) { opacity: .5; cursor: default }
+
+/* Session renewal uses the existing toast palette and shape, above the reader. */
+#oturumBandi {
+  position: fixed; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 64px); transform: translateX(-50%);
+  z-index: 10003; display: flex; align-items: center; gap: 12px; box-sizing: border-box;
+  width: max-content; max-width: calc(100% - 24px); padding: 10px 16px; border-radius: 12px;
+  background: #221c17; color: #f5ede0; font-size: 13.5px; line-height: 1.4;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .25);
+}
+#oturumBandi span { min-width: 0; overflow-wrap: anywhere }
+#oturumBandi button {
+  flex: none; font: inherit; font-weight: 700; color: #221c17; background: #f5ede0;
+  border: 0; border-radius: 8px; padding: 6px 12px; min-height: 44px;
+}
+#oturumBandi button:disabled { opacity: .65 }

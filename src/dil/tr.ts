@@ -3,6 +3,9 @@
 
 export const tr = {
   // general
+  'oturum.bant.metin': 'Oturumu yenilemek için dokun',
+  'oturum.bant.devam': 'Devam et',
+  'oturum.bant.hata': 'Yenilenemedi. Tekrar dene',
   'genel.aciklama': "Drive'daki notların, çalışma odandaki kitaplıkta.",
   'genel.ara': 'Ara',
   'genel.kapat': 'Kapat',

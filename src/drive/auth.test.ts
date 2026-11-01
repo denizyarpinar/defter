@@ -76,8 +76,8 @@ describe('auth session storage integration', () => {
     expect(a.currentToken()).toBeNull();
     expect(a.isSignedIn()).toBe(false);
   });
-  it.each(['denied', 'error'] as const)('GIS %s removes the stored session', async failure => {
-    const a = await auth();
+  it.each(['denied', 'error'] as const)('?yenile=0: GIS %s removes the stored session', async failure => {
+    const a = await auth('?yenile=0');
     await a.signIn();
     rejectGis = failure;
     await expect(a.signIn()).rejects.toHaveProperty('code', failure === 'denied' ? 'denied' : 'popup-closed');
@@ -127,9 +127,9 @@ describe('auth session storage integration', () => {
     await a.signIn({ neden: 'freshToken' });
     expect(request).toHaveBeenCalledWith(expect.objectContaining({ scope: KAPSAM_DAR, include_granted_scopes: false }));
   });
-  it('a restored 401 follows the existing retry, clears persistence, and invokes expiry on failure', async () => {
+  it('?yenile=0: a restored 401 follows the legacy retry and invokes expiry on failure', async () => {
     data.set(KEY, JSON.stringify(saved()));
-    const a = await auth();
+    const a = await auth('?yenile=0');
     a.oturumGeriYukle();
     rejectGis = 'denied';
     const expired = vi.fn();
