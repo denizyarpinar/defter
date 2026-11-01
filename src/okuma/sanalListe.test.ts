@@ -32,6 +32,56 @@ describe('visibleRange', () => {
 });
 
 describe('currentPage', () => {
+  it('keeps short page 12 selected after a language return on a phone', () => {
+    const l = layoutPages(Array(30).fill(9 / 16), 370);
+    expect(currentPage(l, l.tops[12] - PAD_TOP, 750)).toBe(12);
+  });
+
+  it.each([0, 28, 3, 9, 21])('keeps short page %i selected after a page jump', (i) => {
+    const l = layoutPages(Array(30).fill(9 / 16), 370);
+    expect(currentPage(l, l.tops[i] - PAD_TOP, 750)).toBe(i);
+  });
+
+  it('selects the next A4 page when its top enters the top third', () => {
+    const l = layoutPages(Array(10).fill(A4), 370);
+    expect(currentPage(l, l.tops[4] + l.heights[4] / 2, 900)).toBe(5);
+  });
+
+  it('keeps the current A4 page when no page starts in the top third', () => {
+    const l = layoutPages(Array(10).fill(A4), 370);
+    expect(currentPage(l, l.tops[4] + l.heights[4] / 2, 750)).toBe(4);
+  });
+
+  it('includes exactly PAD_TOP of tolerance but not more', () => {
+    const l = layoutPages(Array(30).fill(9 / 16), 370);
+    expect(currentPage(l, l.tops[12] + PAD_TOP, 750)).toBe(12);
+    expect(currentPage(l, l.tops[12] + PAD_TOP + 1, 750)).toBe(13);
+  });
+
+  it('handles an empty book', () => {
+    expect(currentPage(layoutPages([], 370), 0, 750)).toBe(0);
+  });
+
+  it('handles a single short page', () => {
+    expect(currentPage(layoutPages([9 / 16], 370), 0, 750)).toBe(0);
+  });
+
+  it.each([370, 740, 300])('preserves the page and relative position after relayout to width %i', (width) => {
+    const ratios = Array(30).fill(9 / 16);
+    const oldLayout = layoutPages(ratios, 370);
+    const scrollTop = oldLayout.tops[12] - PAD_TOP;
+    const cur = currentPage(oldLayout, scrollTop, 750);
+    // Same calculation as Okuyucu.relayout: a negative offset is intentional.
+    const into = (scrollTop - oldLayout.tops[cur]) / Math.max(1, oldLayout.heights[cur]);
+    const next = layoutPages(ratios, width);
+    const restored = next.tops[cur] + into * next.heights[cur];
+    expect(cur).toBe(12);
+    expect(into).toBeCloseTo(-PAD_TOP / oldLayout.heights[12]);
+    expect((restored - next.tops[12]) / next.heights[12]).toBeCloseTo(into);
+    expect(currentPage(next, restored, 750)).toBe(12);
+    if (width === 370) expect(restored).toBe(scrollTop);
+  });
+
   it('is the page at the top third of the screen', () => {
     const l = layoutPages(Array(10).fill(1), 100);
     expect(currentPage(l, 0, 300)).toBe(0);

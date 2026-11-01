@@ -1,6 +1,6 @@
 # CURRENT_STATE
 
-Son güncelleyen: Codex, 1 Kasım 2026 · 6.6-1 canlıya çıkış
+Son güncelleyen: Codex, 1 Kasım 2026 · 6.6-0 yerel düzeltme
 
 ## Git ve yayın
 - Canlı uygulama commit'i: `4d744fb` (6.6-1b), Deniz onayıyla main'e push edildi. Production Ready: https://defter-1xzn7lbue-deniz-b571.vercel.app; https://defter-jade.vercel.app HTTP 200 doğrulandı. Ardından bu durum belgesi main'e commit/push edilir.
@@ -15,13 +15,16 @@ Son güncelleyen: Codex, 1 Kasım 2026 · 6.6-1 canlıya çıkış
 - 1 Kasım: ortak AI bağlam dosyaları (AGENTS.md, docs/ai/*); eski CLAUDE.md ve DURUM.md `docs/ai/arsiv/` altında.
 
 ## Şimdi
+- 6.6-0: `currentPage` üst üçte birlik alanda başlayan ilk sayfayı seçiyor (PAD_TOP toleransı); kısa PDF sayfalarında dil dönüşü/sürgü sayacı kaymıyor. Deniz dört dosyanın (TASK.md dahil) commit'ini ve yalnız faz-6 önizleme push'unu onayladı; main'e push yok.
+- Yeni hata testi önce 12 yerine 13 ile kırmızıydı; düzeltmeyle hedef 8→22, toplam 1830→1844 test. Tüm 1844 test, typecheck, build ve dil (0) geçti. A4, boş/tek sayfa ve relayout konum koruması testli.
+- Playwright 390×844: demo özetine yalnız testte 30 yatay sayfa sağlandı; sürgüyle 12 ve EN→TR→EN→TR dönüşlerinin her birinde sayaç 12 / 30. Okuyucuda dil düğmesi olmadığından mevcut geliştirme kancası kullanıldı. Gerçek cihaz henüz denenmedi.
 - 6.6-1a ve 6.6-1b canlıda. Avuç 100/120 px; kalem hatırlanır, kalkınca yeni temasa 300 ms koruma. Ölçüm günlüğü aynı.
 - PDF: kalem biliniyorsa iki parmağı tek merkez (ZoomController) işler; kaydırma 8 px, pinch en az 12 px ve %8. Saf karar testli; parmak çizen eski yol korunur. Kitapta swipe açık, kenar tap kapalı.
 - Doğrulama: 24 hedef / toplam 1830 test; typecheck, build, dil 0. Laptop fare, hatırlama, avuç iptali, 30 px pan / %120 pinch ve kalem çizgisinin korunması geçti; gerçek iPad henüz denenmedi.
 - İş bölümü: plan/TASK.md Claude, net kod Codex, kontrol kodu yazmayan araç. Aynı anda tek araç; araç değişmeden checkpoint commit.
 
 ## Sıradaki
-1. 6.6-0 sayaç 12→13: telefonda birden çok yatay özet sayfası görünürken dil dönüşünde sayfa sayacı kayıyor; ayrı görev.
+1. 6.6-0: faz-6 önizlemesi Ready olunca alias'ı bağla; Deniz'in gerçek telefon/iPad/laptop denemesi. Canlıya çıkış ayrıca onay gerektirir.
 2. Faz 7: quiz/özet (LLM API).
 
 ## Açık riskler (ayrıntı: arsiv/CLAUDE_eski.md "Sonra bakılabilir")

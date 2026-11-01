@@ -45,9 +45,14 @@ export function visibleRange(l: Layout, scrollTop: number, viewH: number, extra 
   return [Math.max(0, Math.min(top, last) - extra), Math.min(n - 1, last + extra)];
 }
 
-// The page the reader is "on": the one crossing the top third of the screen.
+// Prefer the first page starting in the top third, allowing the page-jump padding.
+// If no page starts there, keep the page crossing the top-third line.
 export function currentPage(l: Layout, scrollTop: number, viewH: number): number {
-  return pageAt(l, scrollTop + viewH / 3);
+  const end = scrollTop + viewH / 3;
+  const start = scrollTop - PAD_TOP;
+  let first = pageAt(l, start);
+  if (l.tops[first] < start) first++;
+  return first < l.tops.length && l.tops[first] <= end ? first : pageAt(l, end);
 }
 
 // Canvas pixel size for a page shown at cssW × cssH: devicePixelRatio ≤ 2 and ≤ maxPx

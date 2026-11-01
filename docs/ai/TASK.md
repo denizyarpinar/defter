@@ -1,55 +1,49 @@
-# TASK – 6.6-1b: Avuç sayfayı kaydırmasın, parmaklar GoodNotes gibi
+# TASK – 6.6-0: Telefonda dil değişince sayfa sayacı kaymasın (12 → 13)
 
-Onaylı plan (planlayıcı: Claude, 1 Kasım 2026). Kaynak: `FAZ6_6_PLAN.md` 6.6-1, iPad ölçümü (6.6-1a, bc7f46c). Deniz kararı S1 = A (1 Kasım 17:45): kalem modunda tek parmak kaydırır, avuç yok sayılır.
+Onaylı plan (planlayıcı: Claude, 1 Kasım 2026). Kaynak: `FAZ6_6_PLAN.md` 6.6-0.
 
 ## Goal
-Kalem modunda bilek/avuç ekrana değince sayfa kıpırdamasın ve çizgi çıkmasın. Kalem varken parmaklar sayfada gezinsin: PDF modunda tek ve iki parmak listeyi kaydırır, kitap modunda tek parmakla kaydırınca sayfa çevrilir.
+Telefonda PDF modunda, kısa (yatay / 16:9) özet sayfaları okunurken dil değiştirilince okuyucu aynı sayfada açılsın ve sayaç aynı numarayı göstersin. Her dil değişiminde sayaç 1 ileri kaymasın.
 
-## Context
-- iPad ölçümü (PointerEvent `width`, iOS basamaklı değerler, px):
-  - Kalem: 1. Tek parmak: ilk 63. İki parmakla kaydırmada parmaklar ilk 84, en fazla 104.
-  - Avuç: ilk 104–272, en fazla 272. iOS büyük avucun çoğunu 8–33 ms içinde kendisi `pointercancel` ediyor, ama bir denemede avuç + gesture sayfayı 24 px kaydırdı.
-- PDF modunda tek parmak bugün de kaydırıyor (93 / 244 px). İki parmak kaydırmıyor, yalnız yakınlaştırıyor. Neden: `Okuyucu.ts` `fingerPan: () => mode === 'pdf' && !pen.penSeen`, kalem görülünce iki parmak kaydırma kapanıyor, `sayfaZoom` ise ≥2 parmak touchmove'u iptal ediyor.
-- Kitap modunda kalem modu açıkken `tap` ve `swipe` kapalı (`if (penOn) return false` / `if (!penOn)`). Bu yüzden tek parmak hiçbir şey yapmıyor.
-- `InputRouter` (`src/kalem/girdi.ts`): `penSeen` her sayfa açılışında false olduğundan, kalemden önce gelen ilk avuç `ciz` sayılıyor. Kalem görüldükten sonra kalem çizmiyorsa avuç `gezin` sayılıyor ve doğal kaydırma başlayabiliyor.
+## Context (teşhis, planlayıcı kodu okudu)
+- Dil değişimi (`src/main.ts` ~617) `okuyucuKonumu()` ile `sonOkunan` sayfayı `dil/donus.ts`'e yazar; yeniden açılışta `showMaterial` → `enterMode` sayfayı en üste koyar: `scrollTop = layout.tops[start] - PAD_TOP`. Bu kısım doğru.
+- Sayaç ve okuma kaydı `focusPage()` → `currentPage(layout, scrollTop, viewH)` (`src/okuma/sanalListe.ts`) ile hesaplanıyor: "ekranın üst üçte birini kesen sayfa" = `pageAt(scrollTop + viewH / 3)`.
+- Telefon dikey (~390 px genişlik), 16:9 sayfa ≈ 205 px yükseklik + 18 px boşluk. viewH ≈ 750 → viewH/3 ≈ 250 > sayfa + boşluk. Yani 12. sayfa en üstteyken üçte bir çizgisi 13. sayfaya düşer: sayaç 13 der, `recordReading` 13'ü `sonOkunan` yapar, bir sonraki dil değişimi 13'ten açar → her seferinde +1.
+- Aynı hata sürgü / içindekiler ile `goToPage(i)` atlayışında da var (i'ye gider, sayaç i+1 der).
 
 ## Teknik kararlar (planlayıcı)
-- D1 Avuç eşiği: kalem modunda bir dokunuş `width ≥ 100` ile başlarsa ya da süresince `width ≥ 120`'ye çıkarsa avuçtur (Touch'ta `radiusX ≥ 50` / `≥ 60`). Neden: ölçümde parmak hiç 100 ile başlamadı, avuç en az 104 ile başladı. Sabitler `girdi.ts`'te isimli (`AVUC_ILK_PX = 100`, `AVUC_MAKS_PX = 120`).
-- D2 Avuç = `yoksay`. O dokunuşun `touchstart` / `touchmove`'u iptal edilir (`dokunmaIptal('kalemModu', e)` + `preventDefault`, touch identifier ile izlenir), kalkana kadar yok sayılır. Çizilen kalem çizgisi iptal edilmez. Ortasında avuca dönüşen dokunuş: o andan sonra iptal edilir, olan kayma geri alınmaz.
-- D3 Kalem cihazda hatırlanır: kalem ilk görüldüğünde `localStorage['defter-kalem-var'] = '1'`, `InputRouter` açılışta buradan başlar (try/catch, okunamazsa false). Neden: kalemden önce gelen ilk avuç da doğru yoksayılsın. Kalemi hiç görmemiş cihaz (telefon, laptop) bugünkü gibi davranır.
-- D4 Kalem kalktıktan sonraki `KALEM_SONRASI_MS = 300` içinde başlayan dokunuş `yoksay` olur. Neden: yazarken bilek kaldırılıp yeniden konuyor.
-- D5 PDF modu, kalem var: iki parmak listeyi kaydırır (`fingerPan` kalem görülmüş olsa da `mode === 'pdf'`). Parmaklar arası mesafe belirgin değişirse yakınlaştırma bugünkü gibi çalışır. ZoomController ile çakışmayı sen kontrol et; ikisi aynı anda çalışıyorsa kaydırma eşiğini ölç ve planda yaz.
-- D6 Kitap modu, kalem modu açık, kalem var: tek parmakla yatay kaydırma (`swipe`) sayfayı çevirir. Kenara dokunma (`tap`) kalem modunda yine kapalı kalır. Avuç (D1) ve kalem sonrası 300 ms (D4) çevirmez. Neden: kaydırma bilinçli bir hareket, dokunma ise avuçla kazara olabilir.
+- D1 Düzeltme yeri `currentPage` (saf fonksiyon). Neden: sayaç, okuma kaydı, dil dönüşü ve `relayout` aynı tanımı kullanıyor; tek yerde düzelir, DOM'a dokunmadan test edilir.
+- D2 Yeni tanım: üst üçte birlik alanda (`[scrollTop, scrollTop + viewH/3]`) **başlayan ilk sayfa** (en küçük indeks, `tops[i] + PAD_TOP ≥ scrollTop` ve `tops[i] ≤ scrollTop + viewH/3`) "üzerinde olunan" sayfadır; bu alanda başlayan sayfa yoksa bugünkü kural (`pageAt(scrollTop + viewH/3)`). Neden: sayfa en üste yerleştirildiğinde (dönüş, sürgü, içindekiler) tam o sayfa sayılır; uzun A4 sayfalarda davranış değişmez çünkü üçte birlik alanda zaten tek sayfa başı olur.
+  - Not: `PAD_TOP` toleransı, `scrollTop = tops[i] - PAD_TOP` ile yerleştirilen sayfanın "başlamış" sayılması için. `pageAt` ikili aramasıyla uyumlu, O(log n) ya da küçük bir ileri tarama yeterli.
+- D3 Kitap modu, `dil/donus.ts`, `main.ts` ve `enterMode` değişmez. Liste sonunda (kaydırma tavanı) dönüşün tam sayfaya oturmaması bugünkü gibi kalır (kapsam dışı).
 
 ## Relevant Files
-- `src/kalem/girdi.ts`, `src/kalem/girdi.test.ts`
-- `src/kalem/kalemModu.ts` (`down`, `block`, `ignores`)
-- `src/okuma/Okuyucu.ts` (yalnız `fingerPan` ve ZoomController `swipe` / `penIgnores` bağlantısı)
-- ZoomController dosyası (`src/okuma/` içinde, sen bul): yalnız swipe'ın avuç / kalem kontrolü için gerekiyorsa
-- Okuma: `src/ui/okuyucuKaydirma.ts`, `src/ui/sayfaZoom.ts` (değiştirmeden önce sor)
+- `src/okuma/sanalListe.ts` (`currentPage`)
+- `src/okuma/sanalListe.test.ts`
+- Okuma (değiştirme): `src/okuma/Okuyucu.ts` (`focusPage`, `enterMode`, `goToPage`, `relayout`, `recordReading`), `src/main.ts` ~600–630, `src/dil/donus.ts`
 
 ## Requirements
-1. `InputRouter.down`'a temas boyutu (`width`) ve zaman eklenir. Kurallar D1, D3, D4. Kalemsiz cihazda bugünkü davranış aynen kalır: fare ve tek parmak çizer, ikinci parmak iptal eder. Saf kalır, DOM yok, `localStorage` dışarıdan verilir (test edilebilir).
-2. Avuç dokunuşunun touch olayları D2'ye göre iptal edilir (`kalemModu` `block` içinde, touch identifier ↔ pointerId eşleşmesi ya da `radiusX` ile). `pointermove`'da boyut büyürse avuca dönüşür.
-3. D5 ve D6 uygulanır. Kalem modu kapalıyken hiçbir şey değişmez.
-4. Testler: `girdi.test.ts`'e en az şunlar: avuç ilk dokunuşta (kalem hiç görülmemiş + localStorage'da var) yoksay; 63 px parmak gezin; 104 px ile başlayan yoksay; 63→130 büyüyen avuca döner; kalem kalktıktan 200 ms sonra yoksay, 400 ms sonra gezin; kalemsiz cihazda eski 6 test aynen geçer. Swipe kararı saf bir fonksiyondaysa onun testi de.
-5. `?olcum=1` dokunma günlüğü aynen kalır. Satıra rota da eklenebiliyorsa ekle (`rota yoksay/gezin/ciz`), zor ise atla.
+1. `currentPage` D2'ye göre değişsin; imza aynı kalsın. Kısa açıklama yorumu İngilizce (dosyadaki üslup).
+2. `relayout` içindeki `into` hesabı yeni `cur` ile negatif küçük değer alabilir (PAD_TOP kadar); dönüşte aynı noktaya oturduğunu testle ya da akıl yürütmeyle göster, gerekirse dokunma.
+3. Testler (`sanalListe.test.ts`, mevcut testler aynen geçsin):
+   - 16:9 sayfalar, genişlik 370, viewH 750: `currentPage(l, l.tops[12] - PAD_TOP, 750) === 12` (bugün 13 döner, önce kırmızı olduğunu göster).
+   - Aynı düzende 0., son-1. ve rastgele 3 indeks için `tops[i] - PAD_TOP` → `i`.
+   - A4 sayfalarda (genişlik 370) normal kaydırma: sayfa 4'ün yarısı üstte kalmış, sayfa 5'in başı üçte birlik alanda → 5 (bugünkü davranış).
+   - Bir sayfanın ortasındayken (hiçbir sayfa başı üçte birlik alanda değil) → o sayfa.
+   - Boş liste ve tek sayfa çökmez.
 
 ## Do Not
-- `sayfaZoom.ts`'in tarayıcı zoom engellemesini gevşetme. `okuyucuKaydirma.ts`'in 6.S-1b dokunma payını bozma.
-- Kalem modu kapalıyken davranış, fare, klavye ve laptop değişmez.
-- `api/`, Drive adları, JSON anahtarları, `src/dil` (yeni metin yok; gerekirse tr+en ve `npm run dil`).
-- Yeni kütüphane yok, ilgisiz refactor yok. `git checkout` (dal değiştirme), `reset`, `stash`, force push yok. main'e push yok. faz-6'ya push yalnız Deniz isteyince.
+- `git checkout` (dal değiştirme), `reset`, `stash`, force push; main'e push yok.
+- Kitap modu, dil dosyaları, sessionStorage anahtarı (`defter-dil-donus`), Drive JSON anahtarları değişmez.
+- Başka dosyada "temizlik" yapma.
 
 ## Definition of Done
-- iPad, kalem modu, PDF: bilek önce, sonra yaz → sayfa kıpırdamaz, çizgi çıkmaz. Tek parmak ve iki parmak kaydırır, iki parmak sıkıştırınca yakınlaşır.
-- iPad, kalem modu, kitap: tek parmakla yatay kaydırınca sayfa çevrilir. Bilek koyunca çevrilmez.
-- Sayfa yenilendikten sonra da ilk bilek yoksayılır (D3).
-- `npm test`, `npm run typecheck`, `npm run build`, `npm run dil` hatasız.
-- Commit: `6.6-1b: avuç yok sayılır, kalem modunda parmakla gezinme` (TASK.md ile birlikte). Push yok.
-- `docs/ai/CURRENT_STATE.md`: 6.6-1b kodda bitti, iPad denemesi bekleniyor.
+- Telefon genişliğinde (390×844, PDF modu, 16:9 sayfalı özet) sayfa 12'deyken EN↔TR 3 kez değiştirilince sayaç her seferinde 12 der.
+- Sürgüyle 12'ye gidince sayaç 12 der.
+- iPad / laptop A4 okumada sayaç davranışı aynı.
+- typecheck, test (hepsi), build, `npm run dil` = 0 geçer.
 
 ## Verification
-- `npm test -- girdi` ve tam `npm test`.
-- Laptop `http://localhost:5173/?olcum=1`: kalem modu kapalı/açık fareyle çizim aynen çalışır.
-- Son mesajda: önce plan (D5 ile ZoomController çakışması ne çıktı), sonra değişen dosyalar, test sayısı, `git status`, `git log --oneline -3`, iPad deneme adımları.
+- `npm run typecheck`, `npm test`, `npm run build`, `npm run dil`.
+- Mümkünse Playwright ile 390×844 demo kitapta: kısa sayfalı bir PDF açıp `goToPage` sonrası `#oPno` metni (yoksa elle deneme adımı yaz).
+- Sonunda göster: değişen dosyalar, test sayısı (önce/sonra), `git status`, laptop + telefon deneme adımları. Commit atma, önce plan göster.
