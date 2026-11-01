@@ -1,10 +1,10 @@
 # CURRENT_STATE
 
-Son güncelleyen: Codex, 1 Kasım 2026 · 6.6-1b avuç ve parmakla gezinme
+Son güncelleyen: Codex, 1 Kasım 2026 · 6.6-1 canlıya çıkış
 
 ## Git ve yayın
-- Canlı: https://defter-jade.vercel.app = origin/main `d65bce7` (6.5-4b). Yerel main'de 6.6-1b var; bu görevde pull/push yapılmadı.
-- faz-6 = `bc7f46c` (6.6-1a), Deniz isteğiyle push edildi; Vercel Ready: https://defter-qwm6lo38l-deniz-b571.vercel.app. Alias https://defter-git-faz-6-deniz-b571.vercel.app bu dağıtıma bağlı; Preview koruması açık.
+- Canlı uygulama commit'i: `4d744fb` (6.6-1b), Deniz onayıyla main'e push edildi. Production Ready: https://defter-1xzn7lbue-deniz-b571.vercel.app; https://defter-jade.vercel.app HTTP 200 doğrulandı. Ardından bu durum belgesi main'e commit/push edilir.
+- faz-6 = `4d744fb`. Önizleme Ready: https://defter-lpsyn1q0c-deniz-b571.vercel.app; alias https://defter-git-faz-6-deniz-b571.vercel.app bu dağıtıma bağlı; Preview koruması açık.
 
 ## Bitenler (özet)
 - Faz 1–5, 6.1–6.3, 6.H, 6.K (çok kullanıcı + kurulum), 6.K7–K8 (gizlilik, README, ikinci hesap testi).
@@ -15,14 +15,13 @@ Son güncelleyen: Codex, 1 Kasım 2026 · 6.6-1b avuç ve parmakla gezinme
 - 1 Kasım: ortak AI bağlam dosyaları (AGENTS.md, docs/ai/*); eski CLAUDE.md ve DURUM.md `docs/ai/arsiv/` altında.
 
 ## Şimdi
-- 6.6-1b kodda bitti, iPad denemesi bekleniyor. Avuç 100/120 px; kalem hatırlanır, kalkınca yeni temasa 300 ms koruma. Ölçüm günlüğü aynı.
+- 6.6-1a ve 6.6-1b canlıda. Avuç 100/120 px; kalem hatırlanır, kalkınca yeni temasa 300 ms koruma. Ölçüm günlüğü aynı.
 - PDF: kalem biliniyorsa iki parmağı tek merkez (ZoomController) işler; kaydırma 8 px, pinch en az 12 px ve %8. Saf karar testli; parmak çizen eski yol korunur. Kitapta swipe açık, kenar tap kapalı.
 - Doğrulama: 24 hedef / toplam 1830 test; typecheck, build, dil 0. Laptop fare, hatırlama, avuç iptali, 30 px pan / %120 pinch ve kalem çizgisinin korunması geçti; gerçek iPad henüz denenmedi.
 - İş bölümü: plan/TASK.md Claude, net kod Codex, kontrol kodu yazmayan araç. Aynı anda tek araç; araç değişmeden checkpoint commit.
 
 ## Sıradaki
-0. Deniz iPad'de bilek/tek-iki parmak/pinch/kitap swipe/yenileme denesin; sonuca göre eşikler değerlendirilsin. Önizlemeye taşıma yalnız Deniz isteğiyle.
-1. Küçük iş: telefonda birden çok yatay özet sayfası görünürken dil dönüşünde sayfa sayacı 12→13 kayıyor (Deniz kararı: canlıdan sonra ayrı iş).
+1. 6.6-0 sayaç 12→13: telefonda birden çok yatay özet sayfası görünürken dil dönüşünde sayfa sayacı kayıyor; ayrı görev.
 2. Faz 7: quiz/özet (LLM API).
 
 ## Açık riskler (ayrıntı: arsiv/CLAUDE_eski.md "Sonra bakılabilir")
