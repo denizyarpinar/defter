@@ -14,6 +14,7 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "dil": "node scripts/dil-kontrol.mjs --sadece-sayim",
+    "dil:ekran": "node scripts/dil-kontrol.mjs --siki",
     "screenshots": "npm run build && node scripts/screenshots.mjs",
     "demo-pdf": "node scripts/demo-pdf-uret.mjs",
     "sayfa-ornek": "node scripts/sayfa-ekle-ornek.mjs",

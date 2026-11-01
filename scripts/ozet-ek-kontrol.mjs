@@ -29,7 +29,7 @@ const METIN = {
   tr: { yeni: 'Yeni ek var: ', guncel: 'Güncellenmiş ek: ', salt: 'Ek dosya salt okunur', suruyor: 'Bu dosya şu an ekleniyor', tekrar: 'Tekrar dene', yuzde: 'Ekleniyor… %', sifreli: 'şifreli' },
   en: { yeni: 'New add-on: ', guncel: 'Updated add-on: ', salt: 'Add-on file is read-only', suruyor: 'This file is being added right now', tekrar: 'Try again', yuzde: 'Adding… ', sifreli: 'encrypted' },
 };
-const SIZES = [[390, 844], [820, 1180], [1280, 800]];
+const SIZES = [[390, 844], [820, 1180], [1180, 820], [1280, 800]];
 const wait = (ms) => new Promise(r => setTimeout(r, ms));
 
 async function testPdf(etiket, n) {
@@ -78,7 +78,7 @@ async function okuyucuAc(w, h, dil, ad, files) {
     await route.fulfill({ json: { ...json, kurdele: null } });
   });
   await page.route('**/demo/__ek-*.pdf', route => route.fulfill({ contentType: 'application/pdf', body: PDF[route.request().url().match(/__ek-(\w+)\.pdf/)[1]] }));
-  await page.goto(`http://localhost:${PORT}/?demo&lang=${dil}`);
+  await page.goto(`http://localhost:${PORT}/?demo&lang=${dil}`, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => document.querySelector('#loading')?.hidden, null, { timeout: 30_000 });
   await wait(1200);
   await page.evaluate(() => { try { localStorage.setItem('defter.okumaModu', 'pdf'); } catch { /* */ } });

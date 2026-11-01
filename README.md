@@ -48,7 +48,13 @@ Defter turns one Google Drive folder into a personal library. Every course or to
 - **Reading handwriting (owner, on request)** — *El yazısını oku* in the reader (and *Temiz yazıya çevir* when adding photos) sends up to five notebook pages to Claude and saves the transcript next to the PDF as `<name>.ocr.json`. Nothing is read automatically, so no money is spent unasked; the buttons appear only for the owner's account when the server has its Anthropic key.
 - Customise shelves (2–6), shelf names, cover colours, wall and floor.
 
-> The interface is in Turkish for now; an English option is planned.
+## Languages
+
+English is the default. Use **EN | TR** on the sign-in screen or in the library's top bar to switch languages. The choice is remembered on the device and, for a connected Drive library, in `kitaplik.json` → `ayarlar.dil`.
+
+Use `?lang=en` or `?lang=tr` to open a particular language; this URL override does not read or write the Drive language preference. Add new text to `src/dil/tr.ts` (the source dictionary) and `src/dil/en.ts`, then run `npm run dil` to check for missing keys and untranslated text.
+
+`npm run dil` is a fast check without a browser. After `npm run build`, `npm run dil:ekran` checks both languages at phone, iPad portrait/landscape and laptop widths; unexpected overflow fails the command. It uses local demo data and writes screenshots and `rapor.json` to the configured output folder.
 
 ## Visual quality
 

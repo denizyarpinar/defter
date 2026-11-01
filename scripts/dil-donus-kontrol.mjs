@@ -12,10 +12,10 @@ import { chromium } from 'playwright-core';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = 4183;
-const URL = `http://localhost:${PORT}/?demo&olcum=1&lang=tr`;
+const ILK_DIL = process.env.DIL === 'en' ? 'en' : 'tr';
+const URL = `http://localhost:${PORT}/?demo&olcum=1&lang=${ILK_DIL}`;
 const OUT = process.argv[2] ?? 'C:\\Users\\yarpi\\iCloudDrive\\uni_plan_claude_code\\Claude outputs\\dil-6.5-1';
-const BOOKCASE = { x: 1040, y: 330 };   // room view at 1600 × 1000 (as in screenshots.mjs)
-const PRG_BOOK = { x: 618, y: 350 };    // shelf view: "Programlamaya Giriş"
+const BOYUTLAR = process.env.GENISLIK === '390' ? [[390, 844]] : [[390, 844], [820, 1180], [1180, 820], [1280, 800]];
 const KITAP = 'programlamaya-giris';
 
 // 6.5-2a: the sample library's names follow the language (public/ornek/en.json). The page has no ids, so the names of
@@ -72,7 +72,7 @@ const durum = (page) => page.evaluate(() => {
 
 // the reload the language change starts; then the room again
 async function dilDegisti(page, tetikle) {
-  await Promise.all([page.waitForNavigation({ timeout: 20_000 }), tetikle()]);
+  await Promise.all([page.waitForNavigation({ timeout: 20_000, waitUntil: 'domcontentloaded' }), tetikle()]);
   await hazir(page);
 }
 
@@ -81,42 +81,54 @@ const server = await startPreview();
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 const rapor = [];
 try {
-  const page = await browser.newPage({ viewport: { width: 1600, height: 1000 }, deviceScaleFactor: 1 });
+  for (const [width, height] of BOYUTLAR) {
+  const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: 1 });
   page.on('pageerror', e => console.error('Sayfa hatası:', e.message));
-  await page.goto(URL);
+  await page.goto(URL, { waitUntil: 'domcontentloaded' });
   await hazir(page);
   await page.waitForTimeout(1500);
-  await page.mouse.click(BOOKCASE.x, BOOKCASE.y);
-  await page.waitForTimeout(2500);
-  await page.mouse.click(PRG_BOOK.x, PRG_BOOK.y);
+  await page.locator('#araBtn').click();
+  await page.locator('#aramaPaneli input').fill('program');
+  await page.locator('#aramaPaneli .ap-satir').first().waitFor();
+  await page.waitForTimeout(300);
+  await page.locator('#aramaPaneli .ap-satir').first().click();
   await page.waitForSelector('#reader:not([hidden])', { timeout: 10_000 });
   await page.waitForTimeout(1500);
 
   // 1. the book on the desk: the top bar's button (is it reachable over the desk?)
   const once1 = await durum(page);
+  const hedef1 = once1.lang === 'en' ? 'tr' : 'en';
   const dugme = page.locator('#dilBtn');
   let yol = 'üst çubuk düğmesi';
   try { await dugme.click({ trial: true, timeout: 2000 }); } catch { yol = 'defterDilSec (düğme masanın altında kaldı)'; }
-  await dilDegisti(page, () => yol.startsWith('üst') ? dugme.click() : page.evaluate(() => window.defterDilSec('en')));
+  await dilDegisti(page, () => yol.startsWith('üst') ? dugme.click() : page.evaluate(d => window.defterDilSec(d), hedef1));
   await page.waitForSelector('#reader:not([hidden])', { timeout: 15_000 });
   await page.waitForTimeout(1500);
   const sonra1 = await durum(page);
-  await page.screenshot({ path: join(OUT, 'donus-masa-en.png') });
+  await page.screenshot({ path: join(OUT, `${width}-${hedef1}-donus-masa.png`) });
   rapor.push({ adim: `1. masadaki kitap (${yol})`, once: once1, sonra: sonra1 });
-  assert.equal(sonra1.lang, 'en');
+  assert.equal(sonra1.lang, hedef1);
   assert.ok(!sonra1.adres.includes('lang='), '?lang adresten kalkmalı');
   assert.equal(kimlik(sonra1.masa), KITAP);
   assert.equal(kimlik(once1.masa), KITAP);
 
   // 2. the reader: a topic, two spreads further (book mode), then the language
   for (const mod of ['kitap', 'pdf']) {
-    await page.locator('#reader [data-t]', { hasText: konuAdi(await page.evaluate(() => document.documentElement.lang)) }).first().click();
+    const topic = page.locator('#reader [data-t]', { hasText: konuAdi(await page.evaluate(() => document.documentElement.lang)) }).first();
+    if (!await topic.isVisible() && await page.locator('#next').isEnabled()) { await page.locator('#next').click(); await page.waitForTimeout(700); }
+    await topic.click();
     await page.waitForSelector('#okuyucu:not([hidden])', { timeout: 15_000 });
     await page.waitForFunction(() => /\d+ \/ \d+/.test(document.querySelector('#oPno')?.textContent ?? ''), null, { timeout: 20_000 });
+    // Portrait original + an explicit page avoids an ambiguous centre point when several landscape slides
+    // fit in a phone viewport. Keep the exact before/after assertions, including material, mode and page.
+    if (mod === 'pdf') {
+      await page.locator('#oTabs [data-kind="orijinal"]').click();
+      await page.waitForFunction(() => document.querySelector('#oTabs [data-kind="orijinal"]')?.getAttribute('aria-selected') === 'true' && /\/ 64$/.test(document.querySelector('#oPno')?.textContent ?? ''), null, { timeout: 20_000 });
+    }
     await page.locator(`#oMode [data-m="${mod}"]`).click();
     await page.waitForTimeout(1200);
     if (mod === 'kitap') { await page.keyboard.press('ArrowRight'); await page.waitForTimeout(900); await page.keyboard.press('ArrowRight'); }
-    else await page.locator('#oScroll').evaluate(e => { e.scrollTop = e.scrollHeight * 0.45; });
+    else await page.locator('#oSlider').evaluate(e => { e.value = '20'; e.dispatchEvent(new Event('input', { bubbles: true })); e.dispatchEvent(new Event('change', { bubbles: true })); });
     await page.waitForTimeout(2500);   // the page is recorded as read
     const once = await durum(page);
     const hedef = once.lang === 'en' ? 'tr' : 'en';
@@ -125,7 +137,7 @@ try {
     await page.waitForFunction(() => /\d+ \/ \d+/.test(document.querySelector('#oPno')?.textContent ?? ''), null, { timeout: 20_000 });
     await page.waitForTimeout(2000);
     const sonra = await durum(page);
-    await page.screenshot({ path: join(OUT, `donus-okuyucu-${mod}-${hedef}.png`) });
+    await page.screenshot({ path: join(OUT, `${width}-${hedef}-donus-okuyucu-${mod}.png`) });
     rapor.push({ adim: `2. okuyucu, ${mod} modu → ${hedef}`, once, sonra });
     assert.equal(sonra.lang, hedef);
     assert.deepEqual(yer(sonra).okuyucu, yer(once).okuyucu);
@@ -133,6 +145,9 @@ try {
     // back to the desk for the next round
     await page.locator('#oClose').click();
     await page.waitForTimeout(1200);
+  }
+  await page.close();
+  console.log(`OK dil dönüşü: başlangıç ${ILK_DIL}, genişlik ${width}`);
   }
   console.log(JSON.stringify(rapor, null, 2));
   console.log('\nGEÇTİ: masadaki kitap ve okuyucu (kitap + PDF modu) dil değişince aynı yerde açıldı.');

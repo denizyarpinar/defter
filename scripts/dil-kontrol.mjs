@@ -1,9 +1,12 @@
 // Task 6.5-1: the two languages' check.
-// Usage: npm run build && node scripts/dil-kontrol.mjs [output folder] [--sadece-sayim]
+// Usage: npm run build && npm run dil:ekran
+// node scripts/dil-kontrol.mjs [output folder] [--siki] [--okuyucu|--ekleme] [--dil=en|--dil=tr] [--genislik=390]
+// --sadece-sayim returns before importing Playwright. --siki fails on unexpected overflow or a broken scenario.
+// Screenshots: <width>-<language>-<screen>.png; rapor.json records every overflow and its specific reason.
 // (a) String literals with Turkish letters in src/ (not the tests, src/dil/, dev / measurement files, console.* lines):
-//     file:line list + count. Never fails (the count goes to zero in 6.5-4).
+//     file:line list + count. A remaining literal fails the check (6.5-4a).
 //     Task 6.5-3: a line ending in "// dil-kontrol: yoksay" (a programmer's error, never shown) is counted apart.
-// (b) ?lang=en and ?lang=tr at 390 / 820 / 1280: the sign-in card, the library (?demo), Özelleştir open → PNGs,
+// (b) ?lang=en and ?lang=tr at 390 / 820 / 1180 / 1280: the sign-in card, the library (?demo), Özelleştir open → PNGs,
 //     and every visible element whose content is wider than its box (scrollWidth > clientWidth + 1), plus the top bar's rows.
 //     Task 6.5-2a: also the search panel ("or"), a book on the desk (Linear Algebra, opened from the search), and —
 //     from a dev server, as kitap-sihirbazi-kontrol / kurulum-karti-kontrol do it, no Drive — the book wizard
@@ -18,13 +21,13 @@
 // (e) Task 6.5-4a: adding (dev server, ?demo, no Drive): the Fotoğraf ekle panel, the Dosya ekle panel, an adding error
 //     (a Word file in the sample library), the El yazısını oku panel (its module in the page, no account: its own
 //     "sign in first" error) and the pending-photo toast (a fake GIS + Drive as dil-drive-kontrol.mjs, one record put
-//     in IndexedDB first). EN and TR at 390 / 820 / 1280, overflow as in (b). `--ekleme`: only (a), (c) and (e).
+//     in IndexedDB first). EN and TR at 390 / 820 / 1180 / 1280, overflow as in (b). `--ekleme`: only (a), (c) and (e).
 // Task 6.5-4a: (a) fails (exit code 1) when a Turkish string is left or tr.ts / en.ts have different keys,
 //     or when a module calls t() / dilT() while it loads (`const X = t(...)` at the top level): iPad Safari can run a
 //     lazily imported module before src/dil is ready ("The file couldn't be read" on iPad). Such a text is a function.
 //     `npm run dil` = `--sadece-sayim`: (a) and (c) only, no browser.
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -37,7 +40,10 @@ const args = process.argv.slice(2);
 const SADECE_SAYIM = args.includes('--sadece-sayim');
 const SADECE_OKUYUCU = args.includes('--okuyucu');
 const SADECE_EKLEME = args.includes('--ekleme');
-const OUT = args.find(a => !a.startsWith('--')) ?? 'C:\\Users\\yarpi\\iCloudDrive\\uni_plan_claude_code\\Claude outputs\\dil-6.5-4a';
+const SIKI = args.includes('--siki');
+const DILLER = args.includes('--dil=en') ? ['en'] : args.includes('--dil=tr') ? ['tr'] : ['en', 'tr'];
+const GENISLIKLER = args.includes('--genislik=390') ? [390] : [390, 820, 1180, 1280];
+const OUT = args.find(a => !a.startsWith('--')) ?? 'C:\\Users\\yarpi\\iCloudDrive\\uni_plan_claude_code\\Claude outputs\\dil-6.5-4b';
 const TR_HARF = /[çğıöşüÇĞİÖŞÜ]/;
 
 // ---- (a) Turkish string literals ----
@@ -265,17 +271,19 @@ async function kurulumAc(page) {
   await wait(400);
 }
 
-// visible elements wider inside than their box (the canvas, the 3D stage and intended scrollers left out)
+// Visible elements wider inside than their box. Intended scrollers are measured too, never silently skipped.
 const tasanlar = (okuyucuDahil = false) => [...document.querySelectorAll('body *')].filter(e => {
   if (e.closest(okuyucuDahil ? '#stage, svg, canvas, noscript' : '#stage, svg, canvas, noscript, #reader')) return false;
   const st = getComputedStyle(e);
   if (st.display === 'none' || st.visibility === 'hidden' || e.getClientRects().length === 0) return false;
-  if (/(auto|scroll)/.test(st.overflowX)) return false;
   return e.scrollWidth > e.clientWidth + 1 && e.clientWidth > 0;
 }).map(e => {
   const ad = e.id ? `#${e.id}` : `${e.tagName.toLowerCase()}${e.className && typeof e.className === 'string' ? '.' + e.className.trim().split(/\s+/).join('.') : ''}`;
-  return `${ad} (${e.scrollWidth}>${e.clientWidth}) "${(e.textContent ?? '').trim().replace(/\s+/g, ' ').slice(0, 50)}"`;
-}).concat(document.documentElement.scrollWidth > innerWidth + 1 ? [`SAYFA yatay kayıyor (${document.documentElement.scrollWidth}>${innerWidth})`] : []);
+  const st = getComputedStyle(e);
+  return { oge: ad, px: e.scrollWidth - e.clientWidth, icerik: e.scrollWidth, kutu: e.clientWidth,
+    overflowX: st.overflowX, ellipsis: st.textOverflow === 'ellipsis', transform: st.transform,
+    metin: (e.textContent ?? '').trim().replace(/\s+/g, ' ').slice(0, 50) };
+}).concat(document.documentElement.scrollWidth > innerWidth + 1 ? [{ oge: 'SAYFA', px: document.documentElement.scrollWidth - innerWidth }] : []);
 
 // the top bar: rows of its visible children, and is #dilBtn shown
 const cubuk = () => {
@@ -321,7 +329,7 @@ async function okuyucuAc(lang, w) {
     json.uniteler.push({ baslik: BOS[lang].unite, konular: [{ baslik: BOS[lang].konu, klasor: BOS.klasor, durum: 'okunmadi' }] });
     await route.fulfill({ json: { ...json, kurdele: null } });
   });
-  await page.goto(`${DEV}/?demo&lang=${lang}`);
+  await page.goto(`${DEV}/?demo&lang=${lang}`, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => getComputedStyle(document.querySelector('#loading')).display === 'none', null, { timeout: 60_000 });
   await page.waitForTimeout(1200);
   await page.evaluate(() => { try { localStorage.setItem('defter.okumaModu', 'kitap'); } catch { /* */ } });
@@ -342,17 +350,20 @@ async function okuyucuAc(lang, w) {
 }
 
 async function okuyucuEkranlari(lang, w) {
-  const page = await okuyucuAc(lang, w);
-  const ek = (ad) => join(OUT, `okuyucu-${ad}-${lang}-${w}.png`);
+  const page = await okuyucuAc(lang, w).catch(e => { tablo.push({ ekran: `okuyucu HATA ${lang} ${w}`, tasan: [`HATA: ${e.message.split('\n')[0]}`] }); return null; });
+  if (!page) return;
+  const ek = (ad) => join(OUT, `${w}-${lang}-okuyucu-${ad}.png`);
   const kaydet = async (ad, ekstra = {}) => {
     await page.screenshot({ path: ek(ad) });
     tablo.push({ ekran: `okuyucu ${ad} ${lang} ${w}`, tasan: await page.evaluate(tasanlar, true),
+      geometri: ad === 'kitap' ? await page.evaluate(() => ['#oSpread', '#oZoom', '#oKitap'].map(s => { const e = document.querySelector(s); return { oge: s, w: e.clientWidth, sw: e.scrollWidth, stil: e.getAttribute('style'), cocuklar: [...e.children].map(c => ({ sinif: c.className, stil: c.getAttribute('style') })) }; })) : undefined,
       cubuk: { rows: await page.evaluate(satirlar, '#oBar'), dil: `kalem çubuğu ${await page.evaluate(satirlar, '#oTools') ?? '-'} satır` }, ...ekstra });
   };
   try {
     await page.locator('#oMode [data-m="kitap"]').click();
     await page.waitForTimeout(1500);
     await kaydet('kitap');
+    if (SIKI) await sekmeleriDogrula(page, lang, w);
     await page.locator('#oMode [data-m="pdf"]').click();
     await page.waitForTimeout(1500);
     await kaydet('pdf');
@@ -427,8 +438,9 @@ const JPEGLER = [await sayfaJpeg(1), await sayfaJpeg(2)];
 const dosya = (name, mimeType, buffer) => ({ name, mimeType, buffer });
 
 async function eklemeEkranlari(lang, w) {
-  const page = await okuyucuAc(lang, w);
-  const ek = (ad) => join(OUT, `ekleme-${ad}-${lang}-${w}.png`);
+  const page = await okuyucuAc(lang, w).catch(e => { tablo.push({ ekran: `ekleme HATA ${lang} ${w}`, tasan: [`HATA: ${e.message.split('\n')[0]}`] }); return null; });
+  if (!page) return;
+  const ek = (ad) => join(OUT, `${w}-${lang}-ekleme-${ad}.png`);
   const kaydet = async (ad, ekstra = {}) => {
     await page.screenshot({ path: ek(ad) });
     tablo.push({ ekran: `ekleme ${ad} ${lang} ${w}`, tasan: await page.evaluate(tasanlar, true), ...ekstra });
@@ -486,7 +498,7 @@ const KITAPLIK_JSON = { surum: 1, raflar: [{ id: 'raf-1', ad: 'Raf 1', kitaplar:
 
 async function bekleyenToast(lang, w) {
   const context = await browser.newContext({ viewport: { width: w, height: BOYUT[w] }, deviceScaleFactor: 2, hasTouch: w < 1280 });
-  const ad = join(OUT, `ekleme-bekleyen-${lang}-${w}.png`);
+  const ad = join(OUT, `${w}-${lang}-ekleme-bekleyen.png`);
   const yazma = [];
   await context.route('https://accounts.google.com/**', route => route.fulfill({ contentType: 'application/javascript', body: GIS }));
   await context.route('https://www.googleapis.com/**', async route => {
@@ -512,7 +524,7 @@ async function bekleyenToast(lang, w) {
   const page = await context.newPage();
   page.on('pageerror', e => console.error('Sayfa hatası:', e.message));
   try {
-    await page.goto(`${DEV}/?lang=${lang}`);
+    await page.goto(`${DEV}/?lang=${lang}`, { waitUntil: 'domcontentloaded' });
     await page.locator('#loading').waitFor({ state: 'hidden', timeout: 60_000 });
     // one record with two photos, as "Ekle" saves it (the bytes are a tiny JPEG; it is never uploaded here)
     await page.evaluate(async () => {
@@ -541,30 +553,30 @@ const dev = await startDev();
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 const tablo = [];
 try {
-  for (const lang of SADECE_OKUYUCU || SADECE_EKLEME ? [] : ['en', 'tr']) {
-    for (const w of [390, 820, 1280]) {
+  for (const lang of SADECE_OKUYUCU || SADECE_EKLEME ? [] : DILLER) {
+    for (const w of GENISLIKLER) {
       const page = await browser.newPage({ viewport: { width: w, height: BOYUT[w] }, deviceScaleFactor: 2 });
       page.on('pageerror', e => console.error('Sayfa hatası:', e.message));
       const hazir = () => page.waitForFunction(() => getComputedStyle(document.querySelector('#loading')).display === 'none', null, { timeout: 30_000 });
 
       // the sign-in card
-      await page.goto(`${ORIGIN}/?lang=${lang}`);
+      await page.goto(`${ORIGIN}/?lang=${lang}`, { waitUntil: 'domcontentloaded' });
       await hazir();
       await page.waitForTimeout(1200);
-      await page.screenshot({ path: join(OUT, `giris-${lang}-${w}.png`) });
+      await page.screenshot({ path: join(OUT, `${w}-${lang}-giris.png`) });
       tablo.push({ ekran: `giriş ${lang} ${w}`, tasan: await page.evaluate(tasanlar), html: await page.evaluate(() => document.documentElement.lang) });
 
       // the sample library
-      await page.goto(`${ORIGIN}/?demo&lang=${lang}`);
+      await page.goto(`${ORIGIN}/?demo&lang=${lang}`, { waitUntil: 'domcontentloaded' });
       await hazir();
       await page.waitForTimeout(1800);
-      await page.screenshot({ path: join(OUT, `kitaplik-${lang}-${w}.png`) });
+      await page.screenshot({ path: join(OUT, `${w}-${lang}-kitaplik.png`) });
       tablo.push({ ekran: `kitaplık ${lang} ${w}`, tasan: await page.evaluate(tasanlar), cubuk: await page.evaluate(cubuk) });
 
       // Özelleştir open
       await page.locator('#custBtn').click();
       await page.waitForTimeout(700);
-      await page.screenshot({ path: join(OUT, `ozellestir-${lang}-${w}.png`) });
+      await page.screenshot({ path: join(OUT, `${w}-${lang}-ozellestir.png`) });
       tablo.push({ ekran: `özelleştir ${lang} ${w}`, tasan: await page.evaluate(tasanlar), cubuk: await page.evaluate(cubuk) });
 
       // 6.5-2a: the search panel ("or": books, topics, file names with badges)
@@ -574,7 +586,7 @@ try {
       await page.locator('#aramaPaneli input').fill('or');
       await page.waitForSelector('#aramaPaneli .ap-satir', { timeout: 10_000 });
       await page.waitForTimeout(500);
-      await page.screenshot({ path: join(OUT, `arama-${lang}-${w}.png`) });
+      await page.screenshot({ path: join(OUT, `${w}-${lang}-arama.png`) });
       tablo.push({ ekran: `arama ${lang} ${w}`, tasan: await page.evaluate(tasanlar) });
 
       // a book on the desk: Linear Algebra / Lineer Cebir (both have "line"), the first row (books come first)
@@ -584,30 +596,32 @@ try {
       await page.locator('#aramaPaneli .ap-satir').first().click();
       await page.waitForSelector('#reader:not([hidden])', { timeout: 15_000 });
       await page.waitForTimeout(2200);
-      await page.screenshot({ path: join(OUT, `masa-${lang}-${w}.png`) });
+      await page.screenshot({ path: join(OUT, `${w}-${lang}-masa.png`) });
       tablo.push({ ekran: `masa ${lang} ${w}`, tasan: await page.evaluate(tasanlar, true), kitap: await page.locator('#rBook').textContent() });
       await page.close();
 
       // the wizard and the set-up card (dev server)
       const p2 = await browser.newPage({ viewport: { width: w, height: BOYUT[w] }, deviceScaleFactor: 2, hasTouch: w < 1280 });
       p2.on('pageerror', e => console.error('Sayfa hatası:', e.message));
-      await p2.goto(`${DEV}/?lang=${lang}`);
+      await p2.goto(`${DEV}/?lang=${lang}`, { waitUntil: 'domcontentloaded' });
       await p2.waitForFunction(() => getComputedStyle(document.querySelector('#loading')).display === 'none', null, { timeout: 60_000 });
       await p2.waitForTimeout(800);
       await sihirbazAc(p2, SIHIRBAZ[lang]);
-      await p2.screenshot({ path: join(OUT, `sihirbaz-${lang}-${w}.png`) });
+      await p2.screenshot({ path: join(OUT, `${w}-${lang}-sihirbaz.png`) });
       tablo.push({ ekran: `sihirbaz ${lang} ${w}`, tasan: await p2.evaluate(tasanlar) });
       await p2.evaluate(() => document.getElementById('kitapSihirbazi')?.remove());
       await kurulumAc(p2);
-      await p2.screenshot({ path: join(OUT, `kurulum-${lang}-${w}.png`) });
+      await p2.screenshot({ path: join(OUT, `${w}-${lang}-kurulum.png`) });
       tablo.push({ ekran: `kurulum ${lang} ${w}`, tasan: await p2.evaluate(tasanlar) });
       await p2.close();
     }
   }
-  if (!SADECE_EKLEME) for (const lang of ['en', 'tr']) for (const w of [390, 820, 1180, 1280]) await okuyucuEkranlari(lang, w);
+  if (!SADECE_EKLEME) for (const lang of DILLER) for (const w of GENISLIKLER) await okuyucuEkranlari(lang, w);
   if (!SADECE_OKUYUCU) {
-    for (const lang of ['en', 'tr']) for (const w of [390, 820, 1280]) { await eklemeEkranlari(lang, w); await bekleyenToast(lang, w); }
+    for (const lang of DILLER) for (const w of GENISLIKLER) { await eklemeEkranlari(lang, w); await bekleyenToast(lang, w); }
   }
+} catch (e) {
+  tablo.push({ ekran: 'tur HATA', tasan: [`HATA: ${e.message.split('\n')[0]}`] });
 } finally {
   await browser.close();
   server?.kill();
@@ -620,5 +634,41 @@ for (const r of tablo) {
   const h = r.html ? `  <html lang="${r.html}">` : '';
   const k = r.kitap ? `  kitap: ${r.kitap}` : '';
   console.log(`  ${r.ekran.padEnd(28)} taşan: ${r.tasan.length}${c}${h}${k}`);
-  for (const t of r.tasan) console.log(`      ${t}`);
+  for (const t of r.tasan) console.log(`      ${JSON.stringify(t)}`);
+}
+
+// Every exception is specific to a measured element and explains why the content remains usable.
+function degerlendir(t) {
+  if (typeof t === 'string') return { oge: 'BETIK', px: null, durum: 'beklenmeyen', gerekce: t };
+  let gerekce = '';
+  if (t.oge === '#spread' && t.px <= 10) gerekce = 'Kitabın 9 px kapak çıkıntısı dekoratiftir; spreadWrap içinde kalır ve sayfa yatay kaymaz.';
+  if (['#oSpread', '#oZoom'].includes(t.oge) && t.px <= 10) gerekce = 'Okuyucu kitabının 9 px dekoratif kapak payı zoom kutusuna da yansır; oKitap bunu sayfayı genişletmeden sınırlar.';
+  if (/^span\.o-tst\.st\./.test(t.oge) && t.px === 11 && t.kutu === 22) gerekce = '22 px durum simgesinin ::after alanı her yanda 11 px büyüyerek 44 px dokunma hedefi oluşturur; simge metni taşmaz.';
+  if (t.oge === 'div.o-kaydir' && /auto|scroll/.test(t.overflowX)) gerekce = 'Telefonda kalem araçları kendi yatay şeridinde kaydırılır; sağdaki kayıt ve kapatma düğmeleri sabit kalır.';
+  if ((t.oge === '.o-title' || t.oge === 'div.o-title') && t.ellipsis && t.overflowX === 'hidden') gerekce = 'Uzun kitap/konu başlığı ayrılmış alanda üç noktayla kısalır; okuma alanını veya düğmeleri genişletmez.';
+  if (t.oge === '#oTabs' && /auto|scroll/.test(t.overflowX)) gerekce = 'Materyal sekmeleri ayrılmış yatay şeritte kaydırılır; her sekme seçilebilir ve tam adı erişilebilir etikettedir.';
+  return { ...t, durum: gerekce ? 'beklenen' : 'beklenmeyen', gerekce: gerekce || 'İzin verilmiş bir yerleşim gerekçesi yok; inceleme gerekir.' };
+}
+const ekranlar = tablo.map(r => {
+  const m = /\b(en|tr) (\d+)$/.exec(r.ekran);
+  return { ...r, dil: m?.[1], genislik: Number(m?.[2]), tasan: r.tasan.map(degerlendir) };
+});
+const tasmalar = ekranlar.flatMap(r => r.tasan.map(t => ({ ekran: r.ekran, dil: r.dil, genislik: r.genislik, ...t })));
+const beklenmeyen = tasmalar.filter(t => t.durum === 'beklenmeyen');
+writeFileSync(join(OUT, 'rapor.json'), JSON.stringify({ siki: SIKI, ekranlar, tasmalar, beklenmeyen: beklenmeyen.length }, null, 2) + '\n', 'utf8');
+console.log(`Rapor: ${ekranlar.length} ekran, ${beklenmeyen.length} beklenmeyen taşma → ${join(OUT, 'rapor.json')}`);
+if ((SIKI && beklenmeyen.length) || beklenmeyen.some(t => t.oge === 'BETIK')) process.exitCode = 1;
+
+async function sekmeleriDogrula(page, lang, w) {
+  const beklenen = lang === 'en' ? ['Original', 'Summary', 'Exercises', 'Assignments'] : ['Orijinal', 'Özet', 'Übungen', 'Ödevler'];
+  const bak = async width => {
+    const gorunen = await page.locator('#oTabs [role=tab]').evaluateAll(bs => bs.map(b => ({ metin: b.innerText.trim(), title: b.title, aria: b.getAttribute('aria-label') })));
+    const kisa = lang === 'en' && width <= 599 ? ['Original', 'Summary', 'Practice', 'Homework'] : beklenen;
+    if (gorunen.length !== 4 || gorunen.some((b, i) => b.metin !== kisa[i] || b.title !== beklenen[i] || b.aria !== beklenen[i])) throw new Error(`Sekme adı/erişilebilirlik (${lang}, ${width}): ${JSON.stringify(gorunen)}`);
+  };
+  await bak(w);
+  // Same page, without reload: CSS must react to phone resize and iPad rotation.
+  for (const width of [390, 820, 1180]) { await page.setViewportSize({ width, height: BOYUT[width] }); await bak(width); }
+  await page.setViewportSize({ width: w, height: BOYUT[w] });
+  console.log(`OK sekmeler + yeniden boyutlandırma: ${lang} ${w}`);
 }

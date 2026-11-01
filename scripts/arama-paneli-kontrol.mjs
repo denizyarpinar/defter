@@ -21,7 +21,7 @@ const B = {
 }[DIL];
 const OUT = process.argv[2] ?? 'C:\\Users\\yarpi\\iCloudDrive\\uni_plan_claude_code\\Claude outputs\\arama-6.3e';
 const QUERY = 'or';            // sample library: books, topics and files (orijinal.pdf)
-const WIDTHS = [1440, 1280, 1024, 820, 768, 600, 430, 390, 360];
+const WIDTHS = [1440, 1280, 1180, 1024, 820, 768, 600, 430, 390, 360];
 
 const wait = (ms) => new Promise(r => setTimeout(r, ms));
 const sonuclar = [];
@@ -78,7 +78,7 @@ const browser = await chromium.launch({ channel: 'chrome', headless: true });
 try {
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 2 });
   page.on('pageerror', e => { console.error('Sayfa hatası:', e.message); kontrol('sayfa hatası yok', false, e.message); });
-  await page.goto(URL);
+  await page.goto(URL, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => getComputedStyle(document.querySelector('#loading')).display === 'none', null, { timeout: 30_000 });
   await page.waitForTimeout(1500);
 
@@ -128,6 +128,15 @@ try {
   const cozum = await page.locator('#oSol').getAttribute('aria-pressed');
   kontrol('sonuç → doğru sekme/dosya/çözüm', sekme === 'uebungen' && dosya === 'blatt-01' && cozum === 'true', `${sekme} / ${dosya} / çözüm ${cozum}`);
   kontrol('masada kitap yok (kabuk)', await page.evaluate(() => document.querySelector('#reader').classList.contains('kabuk')));
+  for (const width of [390, 820, 1180, 1280]) {
+    await page.setViewportSize({ width, height: width === 390 ? 844 : width === 820 ? 1180 : 820 });
+    await page.waitForTimeout(500);
+    const tab = page.locator('#oTabs [data-kind="uebungen"]');
+    const full = DIL === 'en' ? 'Exercises' : 'Übungen';
+    const label = DIL === 'en' && width <= 599 ? 'Practice' : full;
+    kontrol(`sonuç sekmesi ${DIL} ${width}`, await tab.innerText() === label && await tab.getAttribute('title') === full && await tab.getAttribute('aria-label') === full);
+  }
+  await page.setViewportSize({ width: 1024, height: 768 });
   // the reader's own search in that file: the highlights (the sample library has no Drive text results)
   await page.locator('#oAraBtn').click();
   await page.keyboard.type('logic');

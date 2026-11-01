@@ -86,6 +86,8 @@ async function pencere(page, tur) {
 
 const BOYUTLAR = [
   ['390', { width: 390, height: 844 }],
+  ['820', { width: 820, height: 1180 }],
+  ['1180', { width: 1180, height: 820 }],
   ['768', { width: 768, height: 1024 }],
   ['1024', { width: 1024, height: 768 }],
   ['1280', { width: 1280, height: 800 }],
@@ -101,7 +103,7 @@ try {
     const fare = ad === '1280' || ad === '1920x632';
     const ctx = await browser.newContext(fare ? { viewport, deviceScaleFactor: 1 } : { viewport, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
     const page = await ctx.newPage();
-    await page.goto(URL);
+    await page.goto(URL, { waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => document.querySelector('#loading')?.hidden, null, { timeout: 30_000 });
     await wait(1500);
     await baglamKur(page);

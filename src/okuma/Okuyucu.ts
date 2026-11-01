@@ -1282,7 +1282,17 @@ function renderBar(): void {
     b.dataset.kind = k;
     b.setAttribute('role', 'tab');
     b.setAttribute('aria-selected', String(k === t.kind));
-    b.textContent = MATERIAL_LABEL[k];
+    b.title = MATERIAL_LABEL[k];
+    b.setAttribute('aria-label', MATERIAL_LABEL[k]);
+    const full = document.createElement('span');
+    full.className = 'o-tab-tam';
+    full.setAttribute('aria-hidden', 'true');
+    full.textContent = MATERIAL_LABEL[k];
+    const short = document.createElement('span');
+    short.className = 'o-tab-kisa';
+    short.setAttribute('aria-hidden', 'true');
+    short.textContent = dilT(`okuyucu.sekmeKisa.${k}`);
+    b.append(full, short);
     return b;
   }));
   showSelectedTab();

@@ -329,6 +329,12 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 .o-tabs { flex: 0 1 auto; min-width: 0; display: flex; gap: 4px; max-width: 100%; overflow-x: auto; scrollbar-width: none }
 .o-tab { flex: none; min-height: 40px; padding: 0 14px; border: 1px solid transparent; border-radius: 99px; background: none; color: inherit; font: 500 14px var(--ui); opacity: .75 }
 .o-tab[aria-selected="true"] { opacity: 1; background: rgba(255, 255, 255, .14); border-color: rgba(255, 255, 255, .22) }
+.o-tab-kisa { display: none }
+/* Use the existing phone breakpoint; resizing changes labels without rebuilding the tabs. */
+@media (max-width: 599px) {
+  html[lang="en"] .o-tab-tam { display: none }
+  html[lang="en"] .o-tab-kisa { display: inline }
+}
 /* task 5.10g: the bar is always one row. The file chooser and "Çözüm" are items of the bar itself;
    the chooser shrinks first (a long name ends with "…"), then the tabs (they scroll in their strip) */
 .o-files { display: contents }
