@@ -92,14 +92,24 @@ function newId(): string {
 
 const num = (v: number) => String(Math.round(v * 100) / 100);
 
+function rememberedPen(): boolean {
+  try { return localStorage.getItem('defter-kalem-var') === '1'; } catch { return false; }
+}
+
+function rememberPen(): void {
+  try { localStorage.setItem('defter-kalem-var', '1'); } catch { /* storage is optional */ }
+}
+
 export class PenInput {
   active = false;
-  private router = new InputRouter();
+  private router = new InputRouter(rememberedPen(), rememberPen);
   private live: Live | null = null;
   private rub: Rub | null = null;
   private cursor: Cursor | null = null;
   private ignored = new Set<number>();               // palm touches while the pen draws
   private fingers = new Map<number, { x: number; y: number }>();
+  private ignoredTouches = new Set<number>();
+  private touchPointers = new Map<number, number>();
 
   constructor(areas: HTMLElement[], private host: PenHost) {
     for (const a of areas) {
@@ -117,17 +127,48 @@ export class PenInput {
         if (!this.active) return;
         const stylus = [...e.changedTouches].some(t => (t as Touch & { touchType?: string }).touchType === 'stylus');
         if (stylus && e.type === 'touchstart') kalemOlcer?.touchstart(e.cancelable);
-        if (stylus || this.live?.pen || this.rub?.pen) { dokunmaIptal('kalemModu', e); e.preventDefault(); }
+        for (const touch of e.changedTouches) {
+          if (e.type === 'touchstart') {
+            // Touch.identifier and PointerEvent.pointerId are separate namespaces on Safari.
+            const pointer = [...this.fingers].find(([, p]) => Math.abs(p.x - touch.clientX) < 2 && Math.abs(p.y - touch.clientY) < 2);
+            if (pointer) this.touchPointers.set(touch.identifier, pointer[0]);
+          }
+          const pointerId = this.touchPointers.get(touch.identifier);
+          if (this.router.ignoreTouch(touch.radiusX * 2, e.timeStamp, e.type === 'touchstart')
+            || (pointerId != null && this.ignored.has(pointerId))) this.ignoredTouches.add(touch.identifier);
+          if (this.ignoredTouches.has(touch.identifier) && pointerId != null) this.ignorePointer(pointerId);
+        }
+        // Cancel the second touchstart before Safari takes the pointer stream for native scrolling.
+        // The pen-known PDF path then pans / pinches in ZoomController; one finger keeps native pan.
+        const twoFingerPdf = this.penSeen && this.host.fingerPan() && e.touches.length >= 2;
+        if (stylus || this.live?.pen || this.rub?.pen || this.ignoredTouches.size || twoFingerPdf) {
+          dokunmaIptal('kalemModu', e); e.preventDefault();
+        }
       };
       a.addEventListener('touchstart', block, { passive: false });
       a.addEventListener('touchmove', block, { passive: false });
+      const end = (e: TouchEvent) => {
+        for (const t of e.changedTouches) { this.ignoredTouches.delete(t.identifier); this.touchPointers.delete(t.identifier); }
+      };
+      a.addEventListener('touchend', end, { passive: true });
+      a.addEventListener('touchcancel', end, { passive: true });
     }
   }
 
   get penSeen(): boolean { return this.router.penSeen; }
   isDrawing(): boolean { return !!this.live || !!this.rub; }
   owns(id: number): boolean { return this.live?.id === id || this.rub?.id === id; }
-  ignores(id: number): boolean { return this.ignored.has(id); }
+  ignores(id: number): boolean { return this.active && this.ignored.has(id); }
+  blocksGestures(): boolean {
+    return this.active && (!!this.live?.pen || !!this.rub?.pen || this.ignored.size > 0
+      || this.ignoredTouches.size > 0 || this.router.penCooling(performance.now()));
+  }
+
+  private ignorePointer(id: number): void {
+    this.ignored.add(id);
+    // Only a stroke owned by this contact may be dropped; the actual pen keeps writing.
+    if (this.live?.id === id || this.rub?.id === id) this.cancel();
+  }
 
   // Pen mode off, page changed under the stroke, undo, …: the stroke being drawn is dropped,
   // an eraser drag is undone (what it erased comes back).
@@ -156,14 +197,16 @@ export class PenInput {
   }
 
   private down(e: PointerEvent): void {
+    this.ignored.delete(e.pointerId);
     const seen = this.router.penSeen;
-    const d = this.router.down(e.pointerType, e.pointerId, e.button, !!this.live?.pen || !!this.rub?.pen);
+    const d = this.router.down(e.pointerType, e.pointerId, e.button, !!this.live?.pen || !!this.rub?.pen,
+      e.width, e.timeStamp, this.active);
     if (!seen && this.router.penSeen) this.host.penSeen();
     if (e.pointerType === 'touch') this.fingers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (!this.active) return;
     if (d.cancel) { if (this.live) kalemOlcer?.neden('iptal-ikinci-parmak'); this.cancel(); }
     const olc = e.pointerType !== 'touch' ? kalemOlcer : null;   // why a pen / mouse down drew nothing
-    if (d.route === 'yoksay') { this.ignored.add(e.pointerId); if (this.live) kalemOlcer?.avuc(); else olc?.reddet(e, 'rota-yoksay'); return; }
+    if (d.route === 'yoksay') { this.ignorePointer(e.pointerId); if (this.live) kalemOlcer?.avuc(); else olc?.reddet(e, 'rota-yoksay'); return; }
     if (d.route !== 'ciz') { olc?.reddet(e, `rota-${d.route}`); return; }
     if (this.live || this.rub) { olc?.reddet(e, `cizim-suruyor (id ${(this.live ?? this.rub)!.id})`); return; }
     const target = e.target as HTMLElement;
@@ -208,14 +251,16 @@ export class PenInput {
   }
 
   private move(e: PointerEvent): void {
+    if (this.active && e.pointerType === 'touch' && this.router.move(e.pointerId, e.width) === 'yoksay') this.ignorePointer(e.pointerId);
     const prev = this.fingers.get(e.pointerId);
     if (prev) {
       this.fingers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       // fingers draw (no pen seen), PDF mode: two fingers move the list (touch-action is none there)
-      if (this.active && !this.live && this.fingers.size === 2 && this.host.fingerPan()) {
+      if (this.active && !this.penSeen && !this.live && this.fingers.size === 2 && this.host.fingerPan()) {
         this.host.scroller.scrollBy((prev.x - e.clientX) / 2, (prev.y - e.clientY) / 2);
       }
     }
+    if (this.active && this.ignores(e.pointerId)) return;
     const r = this.rub;
     if (r) {
       if (r.id !== e.pointerId) return;
@@ -250,9 +295,10 @@ export class PenInput {
   }
 
   private up(e: PointerEvent, ok: boolean): void {
-    this.router.up(e.pointerId);
+    this.router.up(e.pointerId, e.timeStamp);
     this.fingers.delete(e.pointerId);
-    this.ignored.delete(e.pointerId);
+    // ZoomController's bubble listener must still see a rejected contact on pointerup.
+    setTimeout(() => { if (!this.fingers.has(e.pointerId)) this.ignored.delete(e.pointerId); }, 0);
     const r = this.rub;
     if (r && r.id === e.pointerId) {
       if (!ok) { this.cancel(); return; }

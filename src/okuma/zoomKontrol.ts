@@ -1,4 +1,5 @@
 import { Debouncer } from './cizimKuyrugu';
+import { decideFingerGesture, fingerFrame, startFingerGesture, type FingerGesture } from './ikiParmak';
 import {
   TAP_ZOOM, clampPan, clampZoom, isDoubleTap, isZoomed, zoomAround, type Pt
 } from './yakinlastirma';
@@ -19,6 +20,8 @@ export interface ZoomHost {
   // task 4.6, pen mode: a pointer that draws (a finger still counts for a pinch) / one to leave alone (palm)
   penOwns?(id: number): boolean;
   penIgnores?(id: number): boolean;
+  penBlocksGestures?(): boolean;
+  fingerPan?(): boolean;                                       // pen-known PDF: one owner for pan / pinch
 }
 
 // Safari's own pinch events (iPad, Mac trackpad)
@@ -39,6 +42,9 @@ export class ZoomController {
   private lastTap = { t: 0, x: 0, y: 0 };
   private preview: { z0: number; z: number; ox: number; oy: number } | null = null;   // PDF: CSS-only zoom
   private gesture: number | null = null;          // zoom at gesturestart
+  private fingers: FingerGesture | null = null;
+  private fingerRaf = 0;
+  private pointerGesture = false;
   // sharp redraw once the gesture is over and things are quiet; wheel zoom applied when the wheel stops
   private settle = new Debouncer(SETTLE_MS, () => { if (this.busy) this.settle.poke(); else this.host.settled(); });
   private wheel = new Debouncer(WHEEL_COMMIT_MS, () => { this.commitPreview(); this.settleSoon(); });
@@ -76,6 +82,9 @@ export class ZoomController {
     this.z = 1;
     this.pan = { x: 0, y: 0 };
     this.pinch = null; this.drag = null; this.gesture = null;
+    this.pts.clear(); this.down = null; this.pinched = false;
+    this.fingers = null; this.pointerGesture = false;
+    cancelAnimationFrame(this.fingerRaf); this.fingerRaf = 0;
     this.applyBook(false);
   }
 
@@ -91,6 +100,12 @@ export class ZoomController {
     if (this.host.penIgnores?.(e.pointerId)) return;
     const pdf = this.host.mode() === 'pdf';
     if (e.pointerType === 'touch') this.pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (e.pointerType === 'touch' && this.pts.size === 2 && this.host.fingerPan?.()) {
+      const [a, b] = [...this.pts.values()];
+      this.fingers = startFingerGesture(fingerFrame(a, b));
+      this.pinched = true; this.down = null; this.drag = null;
+      return;
+    }
     if (this.pts.size === 2 && !(pdf && hasGestures)) {
       const [a, b] = [...this.pts.values()];
       this.pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 };
@@ -109,8 +124,12 @@ export class ZoomController {
   }
 
   private onMove(e: PointerEvent): void {
-    if (this.host.penIgnores?.(e.pointerId)) return;
+    if (this.host.penIgnores?.(e.pointerId)) { this.rejectPointer(e.pointerId); return; }
     if (this.pts.has(e.pointerId)) this.pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (this.fingers) {
+      if (!this.fingerRaf) this.fingerRaf = requestAnimationFrame(() => { this.fingerRaf = 0; this.moveFingers(); });
+      return;
+    }
     if (this.pinch && this.pts.size >= 2) {
       const [a, b] = [...this.pts.values()];
       const d = Math.hypot(a.x - b.x, a.y - b.y), mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
@@ -130,7 +149,14 @@ export class ZoomController {
   }
 
   private onUp(e: PointerEvent, up: boolean): void {
+    if (this.host.penIgnores?.(e.pointerId)) { this.rejectPointer(e.pointerId); return; }
+    // Apply the last queued frame before removing a contact and committing the preview.
+    if (this.fingers && this.pts.has(e.pointerId)) {
+      if (up) this.pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      this.moveFingers();
+    }
     this.pts.delete(e.pointerId);
+    if (this.fingers && this.pts.size < 2) this.endFingers();
     if (this.pinch && this.pts.size < 2) {
       this.pinch = null;
       this.commitPreview();
@@ -187,6 +213,16 @@ export class ZoomController {
   private onGesture(e: GestureLike, phase: 'start' | 'change' | 'end'): void {
     e.preventDefault();
     if (!this.host.hasPages()) return;
+    // Pointer contacts own the new PDF path; Safari must not apply a second zoom.
+    // With no screen contacts, the existing Mac trackpad gesture remains available.
+    const pointerOwned = !!this.host.penBlocksGestures?.() || (!!this.host.fingerPan?.() && this.pts.size > 0);
+    if (phase === 'start') this.pointerGesture = pointerOwned;
+    else if (pointerOwned) this.pointerGesture = true;
+    if (this.pointerGesture) {
+      if (this.gesture !== null) { this.gesture = null; this.preview = null; this.pages.style.transform = ''; }
+      if (phase === 'end') this.pointerGesture = false;
+      return;
+    }
     const pdf = this.host.mode() === 'pdf';
     // book mode on iPad: the pointer pinch above does it (touch-action: none); this is the Mac trackpad
     if (!pdf && this.pts.size >= 2) return;
@@ -207,6 +243,37 @@ export class ZoomController {
   }
 
   // ---- applying ----
+
+  private moveFingers(): void {
+    if (!this.fingers || this.pts.size !== 2) return;
+    for (const id of this.pts.keys()) {
+      if (this.host.penIgnores?.(id)) { this.rejectPointer(id); return; }
+    }
+    const [a, b] = [...this.pts.values()];
+    const frame = fingerFrame(a, b);
+    const decision = decideFingerGesture(this.fingers, frame);
+    this.fingers = decision.state;
+    if (decision.state.mode === 'pan') this.scroller.scrollBy(decision.dx, decision.dy);
+    if (decision.state.mode === 'pinch') {
+      this.startPreview(frame.center.x, frame.center.y);
+      this.setPreview(this.z * decision.scale);
+    }
+  }
+
+  private endFingers(): void {
+    cancelAnimationFrame(this.fingerRaf); this.fingerRaf = 0;
+    this.fingers = null;
+    this.commitPreview(); this.settleSoon();
+  }
+
+  private rejectPointer(id: number): void {
+    this.pts.delete(id);
+    if (this.down?.id === id) this.down = null;
+    if (this.drag?.id === id) this.drag = null;
+    if (this.fingers) this.endFingers();
+    if (this.pinch) { this.pinch = null; this.commitPreview(); this.settleSoon(); }
+    if (!this.pts.size) this.pinched = false;
+  }
 
   private zoomTo(z: number, x: number, y: number, anim: boolean): void {
     if (this.host.mode() === 'pdf') {
@@ -264,7 +331,7 @@ export class ZoomController {
 
   // fingers still on the page (pinch, pan) or a Safari gesture going on: not yet
   private get busy(): boolean {
-    return !!this.pinch || !!this.drag || this.gesture !== null;
+    return !!this.fingers || !!this.pinch || !!this.drag || this.gesture !== null;
   }
 
   private settleSoon(): void {

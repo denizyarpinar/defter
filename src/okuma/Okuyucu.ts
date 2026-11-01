@@ -524,9 +524,11 @@ export function initOkuyucu(yer: () => DriveLocation | null): void {
       bookView?.flip(zone === 'next' ? 1 : -1);
       return true;
     },
-    swipe: dir => { if (!penOn) bookView?.flip(dir); },
+    swipe: dir => { if (!penOn || pen.penSeen) bookView?.flip(dir); },
     penOwns: id => pen.owns(id),
     penIgnores: id => pen.ignores(id),
+    penBlocksGestures: () => pen.blocksGestures(),
+    fingerPan: () => penOn && pen.penSeen && mode === 'pdf',
   });
 
   // Task 4.6: pen button, tool bar, live drawing
@@ -595,7 +597,7 @@ export function initOkuyucu(yer: () => DriveLocation | null): void {
       renderTools();
     },
     penSeen: () => $('#okuyucu').classList.remove('kalem-parmak'),
-    fingerPan: () => mode === 'pdf' && !pen.penSeen,
+    fingerPan: () => mode === 'pdf',
     scroller,
   });
 
