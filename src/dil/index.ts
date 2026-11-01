@@ -1,6 +1,7 @@
 import { en } from './en';
 import { tr } from './tr';
 import { DILLER, type Anahtar, type Cogul, type Dil, type Sozluk } from './sozluk';
+import { gunlukYaz } from '../drive/authGunlugu';
 
 // Task 6.5-1: two languages without a library. The choice: ?lang=en|tr (also saved) > localStorage "defter-dil" > English.
 // navigator.language is not used (Deniz's decision). A change reloads the page (dilSec); nothing re-renders live.
@@ -64,7 +65,8 @@ export function t(anahtar: Anahtar, d?: Degerler): string {
 
 // The user chose a language: saved, then the page again (without ?lang, which would override the choice).
 // Saving the open work first is the caller's job (main.ts dilDegistir).
-export function dilSec(d: Dil): void {
+export function dilSec(d: Dil, kaynak: 'kullanici' | 'drive' = 'kullanici'): void {
+  gunlukYaz('dilSec', { hedef: d, kaynak });
   kaydet(d);
   const parcalar = location.search.slice(1).split('&').filter(p => p !== '');
   const kalan = parcalar.filter(p => !/^lang(=|$)/.test(p));

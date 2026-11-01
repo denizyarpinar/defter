@@ -8,7 +8,7 @@ import type { DokunmaOlayi, DokunmaTuru } from './dokunmaOzet';
 
 const TURLER: DokunmaTuru[] = ['pointerdown', 'pointermove', 'pointerup', 'pointercancel', 'touchstart', 'touchmove', 'touchend', 'touchcancel', 'click'];
 const KONTROL = 'button, a, input, select, textarea, label, [role="tab"], [role="slider"], [data-st], [data-u]';
-const OLCUM_KUTUSU = '#olcum, #olcumKalem, #olcumSon';
+const OLCUM_KUTUSU = '#olcum, #olcumKalem, #olcumSon, #olcumAuth';
 const MAX_OLAY = 4000;
 
 const kisa = (s: string, n: number) => s.length > n ? s.slice(0, n - 1) + '…' : s;

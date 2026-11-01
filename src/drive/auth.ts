@@ -4,6 +4,7 @@
 
 import { KAPSAM_DAR, KAPSAM_TAM, kapsamOku, type AktifKapsam } from './kapsam';
 import { t } from '../dil';
+import { gunlukYaz } from './authGunlugu';
 
 const GIS_SRC = 'https://accounts.google.com/gsi/client';
 
@@ -64,13 +65,15 @@ export async function prepareAuth(): Promise<void> {
     callback: r => {
       const p = pending; pending = null;
       const k = r.access_token ? (google.accounts.oauth2.hasGrantedAllScopes(r, KAPSAM_TAM) ? 'tam' : kapsamOku(r.scope)) : null;
-      if (r.error || !r.access_token || !k) { p?.reject(new AuthError('denied')); return; }
+      if (r.error || !r.access_token || !k) { gunlukYaz('gis.denied'); p?.reject(new AuthError('denied')); return; }
+      gunlukYaz('gis.success', { expires_in: r.expires_in });
       token = { value: r.access_token, expiresAt: Date.now() + r.expires_in * 1000 };
       aktif = k;
       scopes = (r.scope ?? '').split(/\s+/).filter(Boolean);
       p?.resolve(r.access_token);
     },
     error_callback: e => {
+      gunlukYaz('gis.error', { tur: e.type });
       const p = pending; pending = null;
       p?.reject(new AuthError(e.type === 'popup_failed_to_open' ? 'popup-blocked' : e.type === 'popup_closed' ? 'popup-closed' : 'unknown'));
     }
@@ -81,9 +84,10 @@ export async function prepareAuth(): Promise<void> {
 // hint: e-mail of the remembered account; chooseAccount: show Google's account list.
 // kapsam: the permission to ask for; without it the active one (a new token never silently drops to drive.file).
 // includeGranted: false only with ?kapsam=dar; kept for the later requests (token renewal) too.
-export async function signIn(opts: { hint?: string; chooseAccount?: boolean; kapsam?: AktifKapsam; includeGranted?: boolean } = {}): Promise<string> {
+export async function signIn(opts: { hint?: string; chooseAccount?: boolean; kapsam?: AktifKapsam; includeGranted?: boolean; neden?: 'kullanici' | 'freshToken' | 'tamErisim' } = {}): Promise<string> {
   if (import.meta.env.DEV) window.dispatchEvent(new Event('defter-auth-change'));
   await prepareAuth();
+  gunlukYaz('signIn.start', { neden: opts.neden ?? 'kullanici', prompt: opts.chooseAccount ? 'select_account' : '', hint: !!opts.hint, pendingIptal: !!pending });
   pending?.reject(new AuthError('unknown'));
   istenen = opts.kapsam ?? aktif ?? istenen;
   if (opts.includeGranted !== undefined) dahilEt = opts.includeGranted;
@@ -134,7 +138,8 @@ export function currentToken(): string | null {
 
 export const isSignedIn = () => token !== null;
 
-export function signOut(): void {
+export function signOut(kaynak = 'kullanici'): void {
+  gunlukYaz('signOut', { kaynak });
   if (import.meta.env.DEV) window.dispatchEvent(new Event('defter-auth-change'));
   const t = token?.value;
   token = null;
@@ -143,7 +148,8 @@ export function signOut(): void {
 }
 
 // The token was rejected by Drive (expired early): forget it.
-export function dropToken(): void {
+export function dropToken(kaynak = 'unknown'): void {
+  gunlukYaz('dropToken', { kaynak });
   if (import.meta.env.DEV) window.dispatchEvent(new Event('defter-auth-change'));
   token = null;
 }

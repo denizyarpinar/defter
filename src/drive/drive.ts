@@ -1,5 +1,6 @@
 import { t } from '../dil';
 import { currentToken, dropToken, signIn } from './auth';
+import { gunlukYaz } from './authGunlugu';
 
 // Drive REST API v3 with fetch. Every request goes through driveFetch.
 
@@ -24,9 +25,10 @@ export function setAccountHint(email: string | undefined): void {
 
 async function freshToken(): Promise<string> {
   try {
-    return await signIn({ hint });
+    return await signIn({ hint, neden: 'freshToken' });
   } catch {
-    dropToken();
+    dropToken('freshToken');
+    gunlukYaz('onExpired', { kaynak: 'freshToken' });
     onExpired();
     throw new SessionExpired();
   }
@@ -47,11 +49,20 @@ async function authorized(path: string, init: RequestInit, send: (url: string, i
   const url = path.startsWith('https://') ? path : API + path;
   const call = (t: string) => send(url, { ...init, headers: { ...init.headers, Authorization: `Bearer ${t}` } });
   // token older than ~1 hour → ask Google for a new one before the request
-  let res = await call(currentToken() ?? await freshToken());
+  const token = currentToken();
+  // Log only the API collection; never include a query, file id or URL.
+  const collection = () => /^(?:https:\/\/www\.googleapis\.com\/(?:upload\/)?drive\/v3\/)?(files|about)(?:[/?]|$)/.exec(path)?.[1] ?? 'other';
+  if (!token) gunlukYaz('authorized.refresh', { path: collection() });
+  let res = await call(token ?? await freshToken());
   if (res.status === 401) {
-    dropToken();
+    gunlukYaz('authorized.401', { path: collection(), deneme: 1 });
+    dropToken('401');
     res = await call(await freshToken());
-    if (res.status === 401) { onExpired(); throw new SessionExpired(); }
+    if (res.status === 401) {
+      gunlukYaz('authorized.401', { path: collection(), deneme: 2 });
+      gunlukYaz('onExpired', { kaynak: '401-2' });
+      onExpired(); throw new SessionExpired();
+    }
   }
   return res;
 }

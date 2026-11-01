@@ -9,6 +9,7 @@ import { icindekilerIzi } from './icindekilerBaglami';
 import { temizIzi } from '../okuma/temizIz';
 import { installDokunmaOlcum, type DokunmaKaydedici } from './dokunmaOlcum';
 import { dokunmaMetni, dokunmaSatirlari, SON_DOKUNUS } from './dokunmaOzet';
+import { installAuthGunlugu } from './authGunluguKutu';
 
 // Task 5.10g-ek: ?olcum=1 — a small box in the corner with the numbers of the page's position
 // (iPad Safari: the screen stayed moved up after the keyboard / photo picker). Only for diagnosis.
@@ -27,6 +28,7 @@ import { dokunmaMetni, dokunmaSatirlari, SON_DOKUNUS } from './dokunmaOzet';
 const n = (x: number | undefined | null) => x == null ? '–' : String(Math.round(x * 10) / 10);
 
 export function installOlcum(): void {
+  installAuthGunlugu();
   const kutu = document.createElement('pre');
   kutu.id = 'olcum';
   kutu.setAttribute('aria-hidden', 'true');

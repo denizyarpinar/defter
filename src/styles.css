@@ -97,6 +97,15 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
   max-height: 100%; overflow-y: auto;
 }
 #login .brand { font-size: 34px }
+/* ?olcum=1 auth diagnosis: normal flow inside the login card, floating elsewhere. */
+#olcumAuth { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 64px); right: 8px; z-index: 10002;
+  box-sizing: border-box; width: min(440px, calc(100vw - 16px)); padding: 8px; border-radius: 8px;
+  background: #171717; color: #fff; font: 11px/1.4 ui-monospace, monospace; text-align: left; pointer-events: auto }
+#olcumAuth.auth-in-login { position: static; width: 100%; flex-shrink: 0 }
+body.auth-log-login :is(#olcum, #olcumKalem, #olcumSon) { display: none }
+#olcumAuth > div { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 4px }
+#olcumAuth button { min-width: 44px; min-height: 44px; padding: 4px 8px; background: #fff; color: #111; border: 0; border-radius: 4px; font: inherit }
+#olcumAuth pre { max-height: min(160px, 20dvh); overflow: auto; white-space: pre; margin: 6px 0 0; user-select: text; -webkit-user-select: text; touch-action: pan-x pan-y }
 #login p { margin: 0; font-size: 14px; line-height: 1.45; opacity: .8 }
 .gbtn {
   display: inline-flex; align-items: center; justify-content: center; gap: 10px; width: 100%; padding: 11px 16px;

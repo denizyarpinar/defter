@@ -1,4 +1,5 @@
 import './styles.css';
+import { gunlukAcik, gunlukHatasi, gunlukYaz } from './drive/authGunlugu';
 import { gidisPlani } from './arama/aramaPaneliDurumu';
 import { agacAl, agacGecersiz } from './arama/kitaplikAgaci';
 import { kitaplikAra, type KitaplikSonucu } from './arama/kitaplikAra';
@@ -135,7 +136,9 @@ if (import.meta.env.DEV && new URLSearchParams(location.search).get('filtreTest'
 }
 
 function olay(o: KitaplikOlayi): void {
+  const once = durum.tur;
   durum = gecis(durum, o);
+  gunlukYaz('state', { tur: o.tur, once, sonra: durum.tur, oturumDoldu: o.tur === 'oturumDoldu' });
   showState();
 }
 
@@ -298,6 +301,7 @@ let loadSeq = 0;
 
 // State must be 'yukleniyor'. A late answer (signed out / sample chosen meanwhile, or an older try) is ignored.
 async function loadFromDrive(): Promise<void> {
+  gunlukYaz('loadFromDrive');
   const seq = ++loadSeq;
   const current = () => seq === loadSeq && durum.tur === 'yukleniyor';
   await ready;
@@ -488,6 +492,7 @@ let girisEposta: string | undefined;
 
 // chooseAccount: "Başka bir hesapla giriş yap" (ignore the remembered account)
 async function googleSignIn(chooseAccount = false): Promise<void> {
+  gunlukYaz('googleSignIn');
   const fromSample = durum.tur === 'demo';
   olay({ tur: 'girisBasladi' });
   try {
@@ -522,7 +527,7 @@ async function googleSignIn(chooseAccount = false): Promise<void> {
 // "Tam erişimi aç": the popup opens right on the tap; earlier grants included (also with ?kapsam=dar)
 function openFullAccess(): void {
   olay({ tur: 'tamErisimBasladi' });
-  signIn({ kapsam: 'tam', hint: girisEposta, includeGranted: true }).then(async () => {
+  signIn({ kapsam: 'tam', hint: girisEposta, includeGranted: true, neden: 'tamErisim' }).then(async () => {
     if (aktifKapsam() !== 'tam') {
       olay({ tur: 'tamErisimHata', mesaj: t('tamErisim.verilmedi') });
       return;
@@ -599,6 +604,7 @@ function konuAc(unit: number, topic: number, resume?: Resume): void {
 // something is still being saved). After it: the book on the desk again, the reader on the same topic / material / page.
 
 let donus: DilDonus | null = donusAl();
+if (gunlukAcik()) gunlukYaz('page.open', { dil: dil(), rememberedUser: !!rememberedUser(), donus: !!donus });
 let bekleyenOkuyucu: (DilDonus['okuyucu'] & { kitapId: string }) | null = null;
 
 let dilYaziliyor = false;   // task 6.5-2b: the choice is being written to Drive (at most DIL_YAZ_MS)
@@ -606,6 +612,7 @@ let dilYaziliyor = false;   // task 6.5-2b: the choice is being written to Drive
 const dilMesgul = (): boolean => !!(dilYaziliyor || saver?.hasUnsaved || icKuyruk?.hasUnsaved || fotoYuklemeSuruyor() || kalemYuklemeSuruyor());
 
 async function dilDegistir(d: Dil): Promise<void> {
+  gunlukYaz('dilDegistir', { hedef: d });
   if (dilMesgul()) { toast(t('dil.mesgul')); return; }
   try {
     await reading?.flush();
@@ -637,7 +644,7 @@ const DIL_YAZ_MS = 3000;
 // change, the next opening writes it. The sample library / signed out: nothing.
 async function dilDriveYaz(d: Dil): Promise<void> {
   const fileId = writer() ? driveLoc?.libraryFileId : null;
-  if (!fileId) return;
+  if (!fileId) { gunlukYaz('dilDriveYaz', { sonuc: writer() ? 'fileYok' : 'writerYok' }); return; }
   bekleyenYaz({ dil: d, fileId });
   let zaman = 0;
   try {
@@ -646,7 +653,9 @@ async function dilDriveYaz(d: Dil): Promise<void> {
       new Promise((_, red) => { zaman = window.setTimeout(() => red(new Error('timeout')), DIL_YAZ_MS); })
     ]);
     bekleyenSil();
+    gunlukYaz('dilDriveYaz', { sonuc: 'yazildi' });
   } catch (e) {
+    gunlukYaz('dilDriveYaz', { sonuc: e instanceof Error && e.message === 'timeout' ? 'timeout' : 'hata', mesaj: gunlukHatasi(e) });
     console.warn("Dil tercihi Drive'a yazılamadı; bir sonraki açılışta yeniden denenecek.", e);
   } finally {
     clearTimeout(zaman);
@@ -656,15 +665,22 @@ async function dilDriveYaz(d: Dil): Promise<void> {
 // After the Drive library is on screen. true: the page is reloading in Drive's language (nothing else to do).
 function dilTercihiUygula(extra: Record<string, unknown>, loc: DriveLocation): boolean {
   const fileId = loc.libraryFileId;
-  const k = tercihKarari({
+  const girdi = {
     driveDil: driveDilOku(extra), yerelDil: dil(), yerelAcikSecim: acikSecimVar(), yerelBekleyen: bekleyenOku(),
     fileId, adresteLang: adresteLangVar(), buOturumdaYenilendi: yenilendiMi()
+  };
+  const k = tercihKarari(girdi);
+  gunlukYaz('dilTercihiUygula', {
+    driveDil: girdi.driveDil === 'en' || girdi.driveDil === 'tr' ? girdi.driveDil : girdi.driveDil == null ? null : 'invalid',
+    yerelDil: girdi.yerelDil, yerelAcikSecim: girdi.yerelAcikSecim, bekleyen: !!girdi.yerelBekleyen,
+    fileEsit: girdi.yerelBekleyen ? girdi.yerelBekleyen.fileId === fileId : null,
+    buOturumdaYenilendi: girdi.buOturumdaYenilendi, adresteLang: girdi.adresteLang, eylem: k.eylem,
   });
   if (k.bekleyenSil) bekleyenSil();
   if (k.eylem === 'yenile' && k.dil) {
     if (!yenilendiYaz()) return false;   // the flag can't be kept (private window): no reload, it could repeat
     if (donus) donusYaz(donus);          // a way back not used yet stays for after the reload
-    dilSec(k.dil);
+    dilSec(k.dil, 'drive');
     return true;
   }
   if (k.eylem === 'driveYaz' && k.dil && fileId && writer()) {

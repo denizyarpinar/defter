@@ -33,6 +33,8 @@ Onaylı plan (planlayıcı: Claude, 1 Kasım 2026). Kaynak: `FAZ6_6_PLAN.md` 6.6
    - `dilTercihiUygula`: driveDil, yerelDil, yerelAcikSecim, bekleyen var mı (+ fileId eşit mi, id YAZILMAZ), buOturumdaYenilendi, karar eylemi.
    - `dilSec` çağrıldı: kaynak ('kullanici' | 'drive').
 3. Ölçüm kutusunda "Oturum günlüğü" bölümü: son 80 kayıt, saat (ss:dd:sn.ms) + olay + ayrıntı tek satır; "Kopyala" ve "Temizle" düğmeleri. Kutu metinleri ölçüm aracı olduğu için `// dil-kontrol: yoksay` ile işaretlenebilir (mevcut ölçüm kutusundaki üslup).
+   - Deniz ek onayı: günlük giriş kartı açıkken de görünür/dokunulabilir olacak; kartın düğmelerini kapatmayacak.
+   - Deniz ek onayı: `signIn` neden bilgisi eklenirse varsayılanı olacak; çağıranların davranışı değişmeyecek.
 4. Gizlilik: token, e-posta, ad, Drive dosya/klasör id'si günlüğe ASLA yazılmaz (yalnız var/yok, eşit/değil).
 5. Testler (`authGunlugu.test.ts`): olcum kapalıyken yazmaz; 80 sınırı; reload sayacı artar; depo hatası yutulur; ayrıntıda e-posta/token benzeri değer verilse bile (çağıranlar zaten vermez) en azından tip olarak yalnız ilkel değer kabul eder.
 
