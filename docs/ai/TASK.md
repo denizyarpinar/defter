@@ -1,59 +1,57 @@
-# TASK – 6.6-2: Bir konuya birden çok özet (Übungen gibi seçici)
+# TASK – 6.6-3a: İçindekilerde sürükle-bırak (aynı ünite içi + ünite sırası)
 
-Onaylı plan (planlayıcı: Claude, 2 Kasım 2026). Kaynak: `FAZ6_6_PLAN.md` 6.6-2. Deniz kararı S2 = A (Übungen'deki gibi seçici; 2. özet eklenince sayfa sayısı uzamasın). Başlangıç: main = faz-6 = d7a6746 (6.6-6 canlı).
+Onaylı plan (planlayıcı: Claude, 2 Kasım 2026). Kaynak: `FAZ6_6_PLAN.md` 6.6-3. Başlangıç: main = faz-6 = 74cff85 (6.6-2 canlı). Bu adım yalnız SIRA değiştirir; konuyu başka üniteye taşıma 6.6-3b'dir (ayrı TASK, Drive klasör taşıma).
 
 ## Goal
-Bir konuya ikinci, üçüncü özet ayrı PDF olarak eklenebilsin. Özet sekmesinde Übungen'deki gibi dosya seçici çıksın, seçilen özet tek başına açılsın. Eski kitaplar aynen çalışsın (ozet.pdf yerinde kalır, taşıma yok).
+Düzenle modunda konu ve ünite satırları ↑ ↓ yerine tutamaçtan (⠿) sürüklenerek sıralansın: satır kalkar, parmağı/fareyi izler, diğerleri kayarak yer açar, bırakınca yeni sırada kalır. Konu yalnız kendi ünitesinde; ünite başlığı tüm üniteyi taşır.
 
 ## Context (kod okundu)
-- `okuma/konuKesfi.ts classifyTopic`: özet = kökte `ozet.pdf` (yoksa brifing.pdf + sorular.pdf, o da yoksa ilk ozet-ek). Uebungen/Oedevler alt klasörden `pairSolutions` ile.
-- `Okuyucu.ts showMaterial`: Übungen/Ödevler `fileIndex` ile tek dosya; özet ise `t.materials.ozet` dosyalarının HEPSİNİ tek akışta birleştiriyor. Seçici `#oFiles/#oFile` yalnız uebungen/oedevler için (`showSelectedTab`).
-- `defter/konuyaDosyaEkle.ts`: özet varsa "Özet" hedefi = `{ ozetSonu }` (sayfalar sona, 6.S-3); yoksa yeni `ozet.pdf`. Alt klasör `drive/altKlasorAc.ts` (`AltKlasor = 'Uebungen' | 'Oedevler'`).
-- `defter/konuyaEkle.ts ozetKarari(kok)` yalnız kök listesine bakıyor; foto ekleme ve `sonaEkle` hedef kontrolü bunu kullanıyor.
-- `defter/dosyaPanelDurumu.ts` + `ui/dosyaPanel.ts`: hedef satırları, "Hangi özet" seçimi zaten var.
+- `src/ui/icindekilerDuzenle.ts` (`IcindekilerDuzenleyici`): `ciz()` listeyi `innerHTML` ile çizer; satırlar `.ie-unite > .ie-satir.ie-ubas` ve `ol > li.ie-satir`. ↑ ↓ = `data-yukari/asagi="u0" | "k0.1"` → `tasi(yer, ±1)`.
+- `tasi`: kitapta sırayı hemen değiştirir (`yerDegisti(() => kitabaUygula(...))`), yazmayı `SiraBirlestirici(800)` ile tek isteğe birleştirir, `siraOncesi` ile geri alma (`geri`) gönderir. Konu sırası ünite nesnesine bağlı gönderilir (araya ad değişikliği girerse doğru anahtar).
+- Okuyucu kuyruk her değiştiğinde paneli yeniden çizdiriyor (`yeniden` / `ciz`).
+- Bekleyen satırlar (`.ie-bekliyor`: Ekleniyor…/Çöpe atılıyor…) ve ad düzenleme (`duzenlenen`) satırları var.
 
 ## Teknik kararlar (planlayıcı)
-- D1 Yer: yeni özetler `Ozetler/<ad>.pdf` (konu klasörünün alt klasörü, Uebungen ile aynı desen). İlk özet `ozet.pdf` olarak kalır. Neden: altKlasorAc/pairSolutions yeniden kullanılır, eski veri taşınmaz. kitap.json DEĞİŞMEZ.
-- D2 Keşif: `discoverTopic` `ozetler` alt klasörünü de listeler (Uebungen/Oedevler ile paralel, +1 istek yalnız klasör varsa). `classifyTopic(root, uebungen, oedevler, ozetler = [])`: özet listesi = bugünkü asıl özet(ler) + Ozetler PDF'leri (ada göre, `byName`). `_cozum.pdf` ve `ozet-ek*` Ozetler içinde özet sayılmaz.
-- D3 Okuyucu: `topic.materials.ozet.length > 1` iken özet de `fileIndex` ile TEK dosya açar ve `#oFiles` seçicisi görünür (Übungen'deki aynı select, dosya adı .pdf'siz). 1 dosyada seçici gizli (bugünkü görünüm). Not: eski brifing + sorular konuları da artık seçiciyle iki ayrı dosya olur (bilinçli, tutarlı). Saf yardımcı ör. `secimliTur(kind, m)`: uebungen/oedevler her zaman, ozet yalnız >1.
-- D4 Kurdele: Übungen gibi tür başına tek kurdele (`kurdeleler.ozet = { dosya, sayfa }`); `dosya` hangi özet dosyasının açılacağını seçer (`kurdeleSecimi` özet için de fileIndex döndürür). Dosyası yoksa ilk özet. Neden: veri biçimi aynı kalır.
-- D5 Dosya ekle paneli, konuda özet VARKEN iki satır: **"Yeni özet (ayrı dosya)"** varsayılan, ad kutusu Übungen gibi (aynı ad kontrolü tüm özet dosyalarına karşı; `_cozum` ve `ozet-ek` ile başlayan ad reddedilir) → `Ozetler/<ad>.pdf`, klasör yoksa `altKlasorAc` ile açılır (`AltKlasor`a `'Ozetler'`, umlaut eşdeğeri `özetler`). **"Mevcut özetin sonuna"** ikinci satır = bugünkü `ozetSonu` yolu (6.S-3, değişmeden; çok özette "Hangi özet" seçimi aynı). Konuda özet YOKKEN bugünkü gibi yeni `ozet.pdf`.
-- D6 Hedef kontrolleri: `ozetKarari`/`ozetDurumu` Ozetler alt klasörünü de sayar (async yolda Ozetler varsa listelenir). Böylece foto ekleme ve `sonaEkle` Ozetler dosyalarına da yazabilir (yoksa `HedefOzetDegil`).
-- D7 Fotoğraf paneli: değişmez; sayfalar ekrandaki/seçilen özetin sonuna gider (bugünkü `hedefFileId`).
-- D8 6.EK ek bandı yalnız asıl özet (fileIndex 0, kökteki dosya) açıkken; Ozetler dosyalarında bant yok.
-- D9 Eklendikten sonra "Göster": yeni özet → Özet sekmesi + o dosya seçili (`dosyaGosterHedefi` Ozetler'i tanır). `showAdded` (sayfalar sona) `fileIndex = 0` yerine hedef dosyanın indeksini kullanır.
-- D10 Kilit (DECISIONS D13): `const COKLU_OZET = false` + adreste `?cokluOzet=1`. Kilit kapalıyken panel bugünkü gibidir (yalnız "sonuna"); OKUMA (keşif, seçici, kurdele) kilitten bağımsız hep açık. Deniz denemesinden sonra main çıkışında `true` yapılır.
+- D1 Kütüphane yok, Pointer Events ile kendi küçük sürüklemesi. Neden: tek liste, iki seviye; 1945 testlik projeye bağımlılık eklemeye değmez.
+- D2 Saf hesap ayrı modülde: `src/ui/surukleDurumu.ts` (DOM'suz, testli). Ör. `hedefSira(ortaNoktalar: number[], kaynak: number, y: number): number` (bırakılacak yeni indeks) ve `siraTasi<T>(dizi: T[], kaynak: number, hedef: number): T[]` (splice). 6.6-3b'de üniteler arası hedef buraya eklenecek; şimdiden "hangi ünitenin üstünde" bilgisini döndürebilecek biçimde kur ama 3a'da kendi ünitesi dışını hedef SAYMA.
+- D3 Tutamaç: her ünite başlığı ve konu satırının en solunda `<button class="ie-tutamac" data-surukle="u0|k0.1" aria-label=…>⠿</button>`; yalnız tutamaçta `touch-action: none`. Sürükleme tutamaçta basıp ≥6 px oynatınca başlar (fare, parmak, kalem aynı). Satırın geri kalanında dokunma bugünkü gibi (kaydırma, çift dokunuşla ad). Neden: tutamaç dışında kaydırmayla karışma riski yok, basılı tutma beklemesi gereksiz.
+- D4 Görünüm (S3 = A, telefon ana ekranı hissi): kalkan satır hafif büyür + gölge (mevcut kart gölgesi/değişkenleri, yeni renk icat etme), işaretçiyi dikey izler (`transform: translateY`); diğer satırlar 150 ms `transform` geçişiyle kayıp boşluk açar. Bırakınca yerine oturur. `prefers-reduced-motion`'da geçiş yok.
+- D5 Sınırlar: konu yalnız kendi `ol`'u içinde (dışarı çekilirse en uç konumda kalır); ünite tüm `.ie-unite` bölümüyle üniteler arasında. Bekleyen (`.ie-bekliyor`) satır sürüklenmez ve hedef sayılmaz; tutamaç onlarda yok.
+- D6 Kenar kaydırma: işaretçi kaydırılabilir liste kabının üst/alt 40 px'ine gelince kap kendiliğinden kayar (rAF, hız kenara yakınlıkla artar).
+- D7 Yazma: `tasi(yer, yon)` genelleşir → `siraDegistir(yer, hedefIndeks)`; ↑ ↓ bunu `i±1` ile çağırır. Bırakınca TEK çağrı; aynı yere bırakmak yazmaz. `SiraBirlestirici`, `siraOncesi`, `geri`, `yerDegisti`, ünite nesnesine bağlı gönderim aynen korunur. kitap.json biçimi ve Drive yolu değişmez → kilit gerekmez.
+- D8 Sürükleme sırasında `ciz()` ertelenir (bayrak); bırakınca/iptalde bir kez çizilir. Neden: kuyruk değişince gelen yeniden çizim sürüklenen satırı silmesin.
+- D9 İptal: Escape, `pointercancel`, liste dışında bırakma değil (son geçerli yere bırakır). Escape ve pointercancel satırı eski yerine döndürür, yazma yok.
+- D10 Kapalılık: `yazar` değilse, ad düzenlenirken (`duzenlenen`) ya da editör kapalıyken tutamaç `disabled`. Sürükleme başlarken bekleyen ad girdisi yok sayılmaz: `duzenlenen` varsa sürükleme başlamaz.
+- D11 ↑ ↓ ekranda görsel olarak gizlenir (`.ie-gizli` = görünmez ama odaklanabilir), klavye odağında (`:focus-visible`) görünür. Tutamaç da klavyede: odaktayken ↑/↓ tuşu `siraDegistir(yer, i±1)`.
+- D12 Metinler `src/dil` (TR + EN): tutamaç `aria-label` TR "Sürükleyerek taşı" / EN "Drag to reorder"; sürükleme sonrası ekran okuyucu için `aria-live` mevcut durum satırında kısa not gerekmez (görsel yeterli). `t()` modül yüklenirken çağrılmaz.
 
 ## Relevant Files
-`src/okuma/konuKesfi.ts`, `src/okuma/Okuyucu.ts` (showMaterial, showSelectedTab, buildTopicPages, pageCache, showAdded, showAddedFile, ek bandı), `src/okuma/bosKonu.ts` (kurdeleSecimi), `src/defter/konuyaDosyaEkle.ts`, `src/defter/konuyaEkle.ts`, `src/defter/dosyaPanelDurumu.ts`, `src/ui/dosyaPanel.ts`, `src/drive/altKlasorAc.ts`, `src/kitap/dosyaCop.ts` (Ozetler dosyası çöpe: Übungen dosyası gibi), `src/arama/*` (arama sonucu Ozetler dosyasını doğru sekme + dosyayla açsın, gerekiyorsa), `src/dil/tr.ts` + `en.ts`. Testler mevcut yanlarına.
+`src/ui/icindekilerDuzenle.ts`, yeni `src/ui/surukleDurumu.ts` + `surukleDurumu.test.ts`, `src/ui/icindekilerDurumu.ts` (gerekirse), içindekiler stilleri (`styles.css` içinde `.ie-*`), `src/dil/tr.ts` + `en.ts`. Okuyucu tarafı (`Okuyucu.ts` panel çizimi) yalnız D8 gerektirirse.
 
 ## Requirements
-1. Keşif + sınıflama (D2), eski konular birebir aynı sonuç (mevcut testler geçer).
-2. Okuyucu seçici, tek dosya açma, sayfa önbelleği anahtarı yalnız açık dosya (D3); kitap modu, kalem, Temiz yazı, OCR, sayfa ekle/sil, arama açık dosyada bugünkü gibi çalışır.
-3. Kurdele (D4); kaldığı yer dil dönüşü ve yeniden açılışta doğru dosya + sayfa.
-4. Panel iki seçenek + ad kutusu + Ozetler klasörü açma (D5, D6, D10). Aynı islemId ile tekrar deneme ikinci klasör/dosya yapmaz (mevcut desen).
-5. Metinler iki dilde: TR "Yeni özet (ayrı dosya)", "Mevcut özetin sonuna"; EN "New summary (separate file)", "Add to the end of a summary". 6.5 dar ekran kuralları geçerli.
-6. Testler: classifyTopic (Ozetler, cozum/ek hariç, sıralama, eski konu aynı); secimliTur; kurdeleSecimi özet dosyası; hedefSecenekleri/adDurumu/dosyaHedefi/islemAnahtari yeni satırla (kilit açık/kapalı); konuyaDosyaEkle → Ozetler/<ad>.pdf, klasör yokken açar, aynı ad → AyniIsimVar, tekrar deneme; ozetKarari Ozetler dosyasını hedef kabul eder; foto ekleme Ozetler dosyasının sonuna; altKlasorAc 'Ozetler' + 'Özetler' adı farklı uyarısı. Tüm mevcut testler geçer.
+1. Konu: aynı ünite içinde sürükle-bırak; ünite: üniteler arasında sürükle-bırak (D3–D7).
+2. ↑ ↓ ve klavye tutamacı aynı `siraDegistir` yolunu kullanır (D11); hızlı ardışık sürüklemeler 800 ms içinde tek yazma.
+3. Sürükleme sırasında yeniden çizim ertelenir (D8); iptal (D9); kapalılık (D10).
+4. Açık konu ünite taşınırken doğru kalır (`yerDegisti`, mevcut davranış).
+5. Testler: `hedefSira` (yukarı/aşağı, uçlar, aynı yer, tek eleman), `siraTasi`; editörde ↑ ↓ eski davranışla aynı istek + geri (mevcut testler geçer); sürükleme → tek `konuSirasi`/`uniteSirasi` isteği ve doğru `geri`; aynı yere bırakma → istek yok; bekleyen satırda tutamaç yok; `duzenlenen` varken sürükleme başlamaz. Tüm mevcut testler geçer.
 
 ## Do Not
-- `ozet.pdf`'i taşıma/bölme/yeniden adlandırma; mevcut uzun özetleri bölme YOK.
-- kitap.json biçimi, Drive klasör adları (Uebungen, Oedevler, Unite-NN, Konu-NN, orijinal.pdf, ozet.pdf), JSON anahtarları değişmez. `files.delete` yok.
-- Fotoğraf panelinin akışı, kalem kuyruğu, kaydedici, auth değişmez.
-- Yeni stil icat etme: seçici Übungen'deki `#oFiles` ile aynı.
-- `git checkout` (dal değiştirme), `reset`, `stash`, force push. main'e push etme. Commit atma (Deniz söyleyince).
+- Konuyu başka üniteye taşıma (3b). Drive'da klasör taşıma/yeniden adlandırma yok; Konu-NN / Unite-NN klasör adları değişmez.
+- kitap.json biçimi, JSON anahtarları, `icindekilerYaz` kuyruk/istek türleri değişmez (yalnız mevcut `konuSirasi`/`uniteSirasi` kullanılır).
+- Sürükleme kütüphanesi ekleme; HTML5 drag&drop (`draggable`) kullanma (iPad'de güvenilmez).
+- Kalem/girdi (`src/kalem/*`), auth, kaydedici değişmez. Yeni renk/gölge icat etme.
+- `git checkout` (dal değiştirme), `reset`, `stash`, force push. Commit atma, main'e push etme (Deniz söyleyince).
 
 ## Definition of Done
-- `?cokluOzet=1` ile: özeti olan konuya "Yeni özet" → Drive'da `Ozetler/<ad>.pdf`, Özet sekmesinde seçici, iki dosya ayrı açılır, ilk özetin sayfa sayısı değişmez.
-- "Mevcut özetin sonuna" bugünkü gibi çalışır. Kilit kapalıyken panel bugünkü gibi.
-- Laptop + iPad: seçiciyle geçiş, kurdele, kalemle yazma ve fotoğraf ekleme Ozetler dosyasında kaydolur.
-- Testler, typecheck, build, `npm run dil` (0) geçer.
+- Laptop (fare) ve iPad (parmak + kalem): konu kendi ünitesinde, ünite üniteler arasında sürüklenir; diğerleri kayar; bırakınca sıra kitapta ve Drive'da (kitap.json) kalıcı, sayfa yenileyince aynı.
+- Tutamaç dışından liste bugünkü gibi kayar; çift dokunuşla ad değiştirme, çöp, + Konu bozulmaz.
+- Testler, typecheck, build, `npm run dil` (0) geçer; `dil:ekran` taşma 0.
 
 ## Verification
-- `npm test`, `npm run typecheck`, `npm run build`, `npm run dil`, `npm run dil:ekran` (Özet sekmesinde seçici, 390×844 ve 1180×820, EN + TR, taşma 0).
-- Derlenmiş uygulamada sahte Drive ile: yeni özet ekle → seçici → geçiş → kurdele.
-- Sonunda göster: değişen dosyalar, test sayısı, `git status`, laptop + iPad deneme adımları (`?cokluOzet=1`).
+- `npm test`, `npm run typecheck`, `npm run build`, `npm run dil`, `npm run dil:ekran`.
+- Derlenmiş uygulama + sahte Drive, Playwright: 390×844 (dokunma) ve 1180×820 (fare): konu 1→3 sürükle, ünite 2→1 sürükle, Escape iptali, uzun listede kenar kaydırma; gönderilen istek sayısı ve sırası.
+- Sonunda göster: değişen dosyalar, test sayısı, `git status`, laptop + iPad deneme adımları.
 
-## Ek kontrol + geri alma (Drive yapısı değişikliği)
-- Kontrol: Claude diff'i okur (eski konu sınıflaması aynı, yazma yalnız Ozetler altında ve kilitli, ozetKarari değişikliği foto yolunu bozmuyor). Deniz önizlemede gerçek bir konuda dener.
-- Geri alma: `COKLU_OZET = false` (yeni yazma durur, okuma kalır) ya da commit'i `git revert` (Ozetler dosyaları Drive'da kalır, kaybolmaz; yalnız okuyucuda görünmez).
-- Main çıkışında `docs/ai/DECISIONS.md` sonuna ekle: `D30 – Birden çok özet (6.6-2, 2 Kasım 2026): ilk özet konu klasöründe ozet.pdf; sonrakiler Ozetler/<ad>.pdf, okuyucuda seçiciyle ayrı açılır. Neden: özet uzamasın, Uebungen deseni yeniden kullanılsın.`
+## Ek kontrol + geri alma
+- Kontrol: Claude diff'i okur (yazma yolu yalnız mevcut sıra istekleri, ciz ertelemesi sızıntısız, ↑ ↓ davranışı aynı).
+- Geri alma: tek commit `git revert` (veri biçimi değişmediği için Drive'da temizlik gerekmez).

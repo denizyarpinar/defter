@@ -419,6 +419,8 @@ export function initOkuyucu(yer: () => DriveLocation | null): void {
     if (!open || document.getElementById('fotoPanel') || document.getElementById('dosyaPanel') || document.getElementById('copOnay') || document.getElementById('ocrDuzelt')) return;
     // task 6.3c: Ctrl/Cmd+F opens our search box (not the browser's)
     if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'f') { e.preventDefault(); e.stopPropagation(); if (!konusuz && !bosDurum) arama.ac(); return; }
+    // The editor's document capture handler cancels the drag; leave its panel open.
+    if (e.key === 'Escape' && duzenleyici?.surukleniyor) return;
     if (e.key === 'Escape') { e.stopPropagation(); if (toolbar?.closePopover() || temizDugme?.balonKapat() || sayfaEkleBalon?.balonKapat()) return; if (tocOpen) closeToc(); else if (arama.acik) arama.kapat(); else closeOkuyucu(); return; }
     // pen mode: Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z and Ctrl+Y redo (not while typing somewhere)
     if (penOn && (e.ctrlKey || e.metaKey) && !e.altKey && !typing(e.target)) {

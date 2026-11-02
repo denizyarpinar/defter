@@ -519,6 +519,7 @@ export const tr = {
   'icindekiler.uniteKlasoruYok': 'Bu ünitenin Drive klasörü bilinmiyor; konu eklenemez, ünite çöpe atılamaz.',
   'icindekiler.klasorlereBakilamadi': 'Ünite klasörlerine bakılamadı; şimdilik konu eklenemez.',
   'icindekiler.ekleniyor': 'Ekleniyor…',
+  'icindekiler.surukle': 'Sürükleyerek taşı',
   'icindekiler.ad': 'Ad',
   'icindekiler.ekle': 'Ekle',
   'icindekiler.uniteAdi': 'Ünitenin adını değiştir',

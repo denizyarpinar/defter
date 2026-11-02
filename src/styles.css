@@ -639,6 +639,15 @@ body.auth-log-login :is(#olcum, #olcumKalem, #olcumSon) { display: none }
 .o-toclist li.ie-satir .ie-ad { font: 500 15px/1.25 var(--ui) }
 .o-toclist .ie-satir button.ie-ik { flex: none; width: 40px; min-height: 40px; padding: 0; justify-content: center; font: 600 16px var(--ui); color: inherit }
 .o-toclist .ie-ik svg { width: 16px; height: 16px }
+.o-toclist .ie-satir { position: relative }
+.o-toclist button.ie-tutamac { touch-action: none; cursor: grab }
+.o-toclist button.ie-gizli:not(:focus-visible) { position: absolute; width: 1px; height: 1px; min-height: 0; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap }
+.o-toclist.ie-surukluyor .ie-unite, .o-toclist.ie-surukluyor li.ie-satir { transition: transform 150ms }
+.o-toclist.ie-surukluyor .ie-suruklenen { position: relative; z-index: 2; transition: none; background: var(--paper, #f4ecdd); border-radius: 10px; box-shadow: 0 6px 18px rgba(0, 0, 0, .12) }
+.o-toclist.ie-surukluyor .ie-tutamac { cursor: grabbing }
+@media (prefers-reduced-motion: reduce) {
+  .o-toclist.ie-surukluyor .ie-unite, .o-toclist.ie-surukluyor li.ie-satir { transition: none }
+}
 .o-toclist button.ie-ik:disabled, .o-toclist button.ie-ekle:disabled { opacity: .3 }
 .o-toclist button.ie-ekle { width: auto; min-height: 40px; margin: 2px 0 0 4px; padding: 0 12px; border: 1px dashed rgba(0, 0, 0, .25); font: 600 14px var(--ui); color: var(--accent, #b5523b) }
 .o-toclist button.ie-uekle { margin-top: 12px }

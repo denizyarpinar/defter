@@ -3,8 +3,9 @@ import type { IcindekilerIstegi, KayitDurumu } from '../drive/icindekilerYaz';
 import type { CopHedefi } from '../kitap/copeAt';
 import { kitabaUygula, kitapKonuAnahtari, kitapUniteAnahtarlari, uniteKlasoru, type IcindekilerIslemi } from '../kitap/icindekiler';
 import { adTemizle } from '../kitap/kitapListesi';
-import type { Book, Unit } from '../model/types';
+import type { Book, Topic, Unit } from '../model/types';
 import { esc } from './dom';
+import { siraTasi, surukleHedefi } from './surukleDurumu';
 import { duzenleKarari, kayitMetni, SiraBirlestirici, uniteKlasoruYok } from './icindekilerDurumu';
 
 // Task 6.K5a: the edit mode of the reader's contents panel (#oToc). surum 2 only, a Drive library only.
@@ -39,8 +40,16 @@ const KALEM = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 13l1-3.5L
 
 type Duzenlenen = { tur: 'unite'; u: number } | { tur: 'konu'; u: number; t: number } | { tur: 'yeniUnite' } | { tur: 'yeniKonu'; u: number };
 
+interface DragState {
+  pointer: number; handle: HTMLButtonElement; place: string; rows: HTMLElement[];
+  unit: Unit | null; items: (Unit | Topic)[];
+  rects: DOMRect[]; source: number; target: number; startY: number; y: number;
+  scroll: number; active: boolean; frame: number; lastTime: number; events: AbortController;
+}
+
 export class IcindekilerDuzenleyici {
   private book: Book | null = null;
+  private drag: DragState | null = null;
   // per unit (the object: 6.K5b, units leave and come back): its folder; null: still asking Drive
   private klasorler: Map<Unit, string | null> | null = null;
   private duzenlenen: Duzenlenen | null = null;
@@ -67,6 +76,7 @@ export class IcindekilerDuzenleyici {
       if (ad && this.acik) this.adDuzenle(ad.dataset.ad!);
     });
     this.liste.addEventListener('keydown', e => this.tus(e));
+    this.liste.addEventListener('pointerdown', e => this.dragStart(e));
     this.durumKutusu.addEventListener('click', e => {
       const b = (e.target as HTMLElement).closest<HTMLElement>('[data-durum]');
       const g = this.baglam();
@@ -78,6 +88,7 @@ export class IcindekilerDuzenleyici {
   }
 
   get acik(): boolean { return this.book !== null; }
+  get surukleniyor(): boolean { return this.drag !== null; }
 
   // The "Düzenle" button for this book (null: no button)
   dugme(b: Book, drive: boolean): ReturnType<typeof duzenleKarari> {
@@ -86,6 +97,7 @@ export class IcindekilerDuzenleyici {
   }
 
   ac(b: Book): void {
+    this.dragEnd(false);
     const g = this.baglam();
     if (!g || !this.dugme(b, true).acik) return;
     this.book = b;
@@ -102,6 +114,7 @@ export class IcindekilerDuzenleyici {
 
   // Edit mode off (the panel closed, "Bitti"); a waiting reorder is sent now
   kapat(): void {
+    this.dragEnd(false);
     this.bilgi = null;
     if (!this.book) { this.durumCiz(); return; }
     this.sira.hemen();
@@ -133,13 +146,19 @@ export class IcindekilerDuzenleyici {
   }
 
   ciz(): void {
+    if (this.drag) return; // Queue notifications must not replace the captured row.
     const b = this.book;
     if (!b) return;
+    const focused = this.liste.ownerDocument.activeElement as HTMLElement | null;
+    const focusKey = focused?.dataset?.surukle !== undefined ? 'surukle'
+      : focused?.dataset?.yukari !== undefined ? 'yukari' : focused?.dataset?.asagi !== undefined ? 'asagi' : null;
+    const focusPlace = focusKey ? focused!.dataset[focusKey] : null;
     const g = this.baglam();
     const karar = this.dugme(b, true);
     const yazar = !!g && karar.yazar;
     if (!yazar && !this.bilgi) this.bilgi = karar.not;
     const kapali = yazar ? '' : ' disabled';
+    const handle = (place: string) => `<button type="button" class="ie-ik ie-tutamac" data-surukle="${place}" aria-label="${dilT('icindekiler.surukle')}"${kapali || (this.duzenlenen ? ' disabled' : '')}>⠿</button>`;
     const kitapCop = `<button type="button" class="ie-kitapcop" data-kitapcop${g && karar.kitapCop ? '' : ' disabled'}>${COP}${dilT('cop.baslik.kitap')}</button>`;
     if (b.surum < 2 || !g?.hasJson(b)) {
       // 6.K5b: only the book to the trash (surum 1 / no kitap.json); the why is in the status line
@@ -169,10 +188,10 @@ export class IcindekilerDuzenleyici {
       const ad = d?.tur === 'unite' && d.u === ui ? girdi(u.baslik, `u${ui}`)
         : `<span class="ie-ad" data-ad="u${ui}">${esc(u.baslik)}</span><button type="button" class="ie-ik" data-yeniad="u${ui}" aria-label="${dilT('icindekiler.uniteAdi')}"${kapali}>${KALEM}</button>`;
       const uOklar = d?.tur === 'unite' && d.u === ui ? ''
-        : `<button type="button" class="ie-ik" data-yukari="u${ui}" aria-label="${dilT('icindekiler.uniteYukari')}"${kapali || (ui === 0 ? ' disabled' : '')}>↑</button>`
-        + `<button type="button" class="ie-ik" data-asagi="u${ui}" aria-label="${dilT('icindekiler.uniteAsagi')}"${kapali || (ui === b.uniteler.length - 1 ? ' disabled' : '')}>↓</button>`;
+        : `<button type="button" class="ie-ik ie-gizli" data-yukari="u${ui}" aria-label="${dilT('icindekiler.uniteYukari')}"${kapali || (ui === 0 ? ' disabled' : '')}>↑</button>`
+        + `<button type="button" class="ie-ik ie-gizli" data-asagi="u${ui}" aria-label="${dilT('icindekiler.uniteAsagi')}"${kapali || (ui === b.uniteler.length - 1 ? ' disabled' : '')}>↓</button>`;
       const uCop = d?.tur === 'unite' && d.u === ui ? '' : copDugmesi(`u${ui}`, dilT('cop.baslik.unite'), !!uKlasor);
-      html += `<section class="ie-unite"><div class="ie-satir ie-ubas">${ad}${uOklar}${uCop}</div><ol>`;
+      html += `<section class="ie-unite"><div class="ie-satir ie-ubas">${handle(`u${ui}`)}${ad}${uOklar}${uCop}</div><ol>`;
       u.konular.forEach((t, ti) => {
         if (t.klasor && copta.has('k:' + kitapKonuAnahtari(t))) {
           html += `<li class="ie-satir ie-bekliyor"><span class="ie-ad">${esc(t.baslik)}</span>${copluyor}</li>`;
@@ -181,10 +200,10 @@ export class IcindekilerDuzenleyici {
         const tad = d?.tur === 'konu' && d.u === ui && d.t === ti ? girdi(t.baslik, `k${ui}.${ti}`)
           : `<span class="ie-ad" data-ad="k${ui}.${ti}">${esc(t.baslik)}</span><button type="button" class="ie-ik" data-yeniad="k${ui}.${ti}" aria-label="${dilT('icindekiler.konuAdi')}"${kapali}>${KALEM}</button>`;
         const kOklar = d?.tur === 'konu' && d.u === ui && d.t === ti ? ''
-          : `<button type="button" class="ie-ik" data-yukari="k${ui}.${ti}" aria-label="${dilT('icindekiler.konuYukari')}"${kapali || (ti === 0 ? ' disabled' : '')}>↑</button>`
-          + `<button type="button" class="ie-ik" data-asagi="k${ui}.${ti}" aria-label="${dilT('icindekiler.konuAsagi')}"${kapali || (ti === u.konular.length - 1 ? ' disabled' : '')}>↓</button>`;
+          : `<button type="button" class="ie-ik ie-gizli" data-yukari="k${ui}.${ti}" aria-label="${dilT('icindekiler.konuYukari')}"${kapali || (ti === 0 ? ' disabled' : '')}>↑</button>`
+          + `<button type="button" class="ie-ik ie-gizli" data-asagi="k${ui}.${ti}" aria-label="${dilT('icindekiler.konuAsagi')}"${kapali || (ti === u.konular.length - 1 ? ' disabled' : '')}>↓</button>`;
         const kCop = d?.tur === 'konu' && d.u === ui && d.t === ti ? '' : copDugmesi(`k${ui}.${ti}`, dilT('cop.baslik.konu'), !!t.klasor.trim());
-        html += `<li class="ie-satir">${tad}${kOklar}${kCop}</li>`;
+        html += `<li class="ie-satir">${handle(`k${ui}.${ti}`)}${tad}${kOklar}${kCop}</li>`;
       });
       for (const e of bekleyen) if (e.tur === 'konuEkle' && e.unite === anahtarlar[ui]) html += `<li class="ie-satir ie-bekliyor"><span class="ie-ad">${esc(e.baslik)}</span>${ekleniyor}</li>`;
       html += '</ol>';
@@ -203,10 +222,116 @@ export class IcindekilerDuzenleyici {
     this.liste.innerHTML = html;
     const input = this.liste.querySelector<HTMLInputElement>('[data-girdi]');
     if (input) { input.focus({ preventScroll: true }); input.select(); }
+    else if (focusKey && focusPlace) this.focusOrder(focusKey, focusPlace);
     this.durumCiz();
   }
 
+  private focusOrder(key: string, place: string): void {
+    const button = this.liste.querySelector<HTMLButtonElement>(`[data-${key}="${place}"]`);
+    const target = button?.disabled ? this.liste.querySelector<HTMLButtonElement>(`[data-surukle="${place}"]`) : button;
+    target?.focus({ preventScroll: true });
+  }
+
   // ---- taps ----
+
+  private dragStart(e: PointerEvent): void {
+    const handle = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-surukle]');
+    if (!handle || handle.disabled || !e.isPrimary || e.button !== 0 || this.drag || this.duzenlenen || !this.yaziyor()) return;
+    e.preventDefault(); e.stopPropagation();
+    const place = handle.dataset.surukle!;
+    const row = handle.closest<HTMLElement>(place[0] === 'u' ? '.ie-unite' : 'li.ie-satir')!;
+    const rows = Array.from(row.parentElement!.children).filter((el): el is HTMLElement =>
+      el instanceof HTMLElement && el.matches(place[0] === 'u' ? '.ie-unite:not(.ie-bekliyor)' : 'li.ie-satir:not(.ie-bekliyor)'));
+    const source = rows.indexOf(row);
+    if (source < 0) return;
+    const unit = place[0] === 'k' ? this.book!.uniteler[Number(place.slice(1).split('.')[0])] : null;
+    const modelRows = unit ? unit.konular : this.book!.uniteler;
+    const items = rows.map(el => {
+      const key = el.querySelector<HTMLElement>('[data-surukle]')!.dataset.surukle!;
+      return modelRows[Number(key[0] === 'u' ? key.slice(1) : key.split('.')[1])];
+    });
+    const events = new AbortController();
+    this.drag = { pointer: e.pointerId, handle, place, rows, unit, items, rects: rows.map(el => el.getBoundingClientRect()),
+      source, target: source, startY: e.clientY, y: e.clientY, scroll: this.liste.scrollTop,
+      active: false, frame: 0, lastTime: 0, events };
+    handle.setPointerCapture(e.pointerId);
+    const options = { signal: events.signal };
+    const doc = this.liste.ownerDocument;
+    doc.addEventListener('pointermove', ev => {
+      const d = this.drag;
+      if (!d || ev.pointerId !== d.pointer) return;
+      d.y = ev.clientY;
+      if (!d.active && Math.abs(d.y - d.startY) >= 6) {
+        d.active = true;
+        row.classList.add('ie-suruklenen');
+        this.liste.classList.add('ie-surukluyor');
+        d.frame = requestAnimationFrame(time => this.dragFrame(time));
+      }
+      if (d.active) { ev.preventDefault(); this.dragPaint(); }
+    }, options);
+    doc.addEventListener('pointerup', ev => { if (ev.pointerId === this.drag?.pointer) this.dragEnd(true); }, options);
+    doc.addEventListener('pointercancel', ev => { if (ev.pointerId === this.drag?.pointer) this.dragEnd(false); }, options);
+    handle.addEventListener('lostpointercapture', () => this.dragEnd(false), options);
+    doc.addEventListener('keydown', ev => {
+      if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); this.dragEnd(false); }
+    }, { ...options, capture: true });
+    window.addEventListener('blur', () => this.dragEnd(false), options);
+    window.addEventListener('resize', () => this.dragEnd(false), options);
+  }
+
+  private dragFrame(time: number): void {
+    const d = this.drag;
+    if (!d?.active) return;
+    const rect = this.liste.getBoundingClientRect();
+    const edge = d.y < rect.top + 40 ? -Math.min(1, (rect.top + 40 - d.y) / 40)
+      : d.y > rect.bottom - 40 ? Math.min(1, (d.y - rect.bottom + 40) / 40) : 0;
+    const elapsed = d.lastTime ? Math.min(32, time - d.lastTime) : 16;
+    d.lastTime = time;
+    this.liste.scrollTop += edge * elapsed * .6;
+    this.dragPaint();
+    d.frame = requestAnimationFrame(next => this.dragFrame(next));
+  }
+
+  private dragPaint(): void {
+    const d = this.drag;
+    if (!d?.active) return;
+    const delta = d.y - d.startY + this.liste.scrollTop - d.scroll;
+    const centres = d.rects.map(r => (r.top + r.bottom) / 2);
+    const scope = d.place[0] === 'k' ? Number(d.place.slice(1).split('.')[0]) : null;
+    d.target = surukleHedefi(centres, d.source, centres[d.source] + delta, scope).sira;
+    const source = d.rects[d.source];
+    const constrainedDelta = d.unit ? Math.max(d.rects[0].top - source.top,
+      Math.min(d.rects[d.rects.length - 1].bottom - source.bottom, delta)) : delta;
+    const downSpace = (d.rects[d.source + 1]?.top ?? source.bottom) - source.top;
+    const upSpace = source.bottom - (d.rects[d.source - 1]?.bottom ?? source.top);
+    d.rows.forEach((row, i) => {
+      const shift = i === d.source ? constrainedDelta
+        : i > d.source && i <= d.target ? -downSpace : i < d.source && i >= d.target ? upSpace : 0;
+      row.style.transform = `translateY(${shift}px)${i === d.source ? ' scale(1.02)' : ''}`;
+    });
+  }
+
+  private dragEnd(commit: boolean): void {
+    const d = this.drag;
+    if (!d) return;
+    this.drag = null;
+    d.events.abort();
+    cancelAnimationFrame(d.frame);
+    if (d.handle.hasPointerCapture(d.pointer)) d.handle.releasePointerCapture(d.pointer);
+    this.liste.classList.remove('ie-surukluyor');
+    d.rows.forEach(row => { row.style.transform = ''; row.classList.remove('ie-suruklenen'); });
+    if (commit && d.active && d.target !== d.source) {
+      // Queue completions may have added/removed rows while drawing was deferred.
+      // Resolve the captured objects in the current model, never their stale DOM indices.
+      const units = this.book?.uniteler ?? [];
+      const ui = d.unit ? units.indexOf(d.unit) : -1;
+      const items: (Unit | Topic)[] = d.unit ? d.unit.konular : units;
+      const source = items.indexOf(d.items[d.source]), target = items.indexOf(d.items[d.target]);
+      if (source >= 0 && target >= 0 && source !== target && (!d.unit || ui >= 0) && this.yaziyor() && !this.duzenlenen) {
+        this.siraDegistir(d.unit ? `k${ui}.${source}` : `u${source}`, target);
+      } else this.ciz();
+    } else this.ciz();
+  }
 
   private tikla(e: Event): void {
     const b = this.book;
@@ -227,6 +352,12 @@ export class IcindekilerDuzenleyici {
   }
 
   private tus(e: KeyboardEvent): void {
+    const handle = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-surukle]');
+    if (handle && !handle.disabled && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+      e.preventDefault(); e.stopPropagation();
+      this.tasi(handle.dataset.surukle!, e.key === 'ArrowUp' ? -1 : 1);
+      return;
+    }
     if (!(e.target as HTMLElement).matches('[data-girdi]')) return;
     if (e.key === 'Enter') { e.preventDefault(); this.kaydet(); }
     if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); this.duzenlenen = null; this.hata = this.taslak = null; this.ciz(); }
@@ -311,16 +442,20 @@ export class IcindekilerDuzenleyici {
   }
 
   private tasi(yer: string, yon: -1 | 1): void {
+    const source = Number(yer.startsWith('u') ? yer.slice(1) : yer.split('.')[1]);
+    this.siraDegistir(yer, source + yon);
+  }
+
+  private siraDegistir(yer: string, h: number): void {
     const b = this.book, g = this.baglam();
-    if (!b || !g || !this.yaziyor()) return;
-    this.duzenlenen = null;
+    if (!b || !g || !this.yaziyor() || this.duzenlenen) return;
     this.bilgi = null;
     if (yer[0] === 'u') {
-      const u = Number(yer.slice(1)), h = u + yon;
+      const u = Number(yer.slice(1));
+      if (u === h) return;
       if (!b.uniteler[h]) return;
-      const sira = kitapUniteAnahtarlari(b);
-      if (!this.siraOncesi.has('u')) this.siraOncesi.set('u', [...sira]);
-      [sira[u], sira[h]] = [sira[h], sira[u]];
+      const sira = siraTasi(kitapUniteAnahtarlari(b), u, h);
+      if (!this.siraOncesi.has('u')) this.siraOncesi.set('u', kitapUniteAnahtarlari(b));
       this.yerDegisti(() => kitabaUygula(b, { tur: 'uniteSirasi', sira }));
       this.sira.bekle('u', () => {
         const once = this.siraOncesi.get('u');
@@ -328,13 +463,13 @@ export class IcindekilerDuzenleyici {
         g.gonder(b, { tur: 'uniteSirasi', sira: kitapUniteAnahtarlari(b) }, once && { tur: 'uniteSirasi', sira: once });
       });
     } else {
-      const [u, t] = yer.slice(1).split('.').map(Number), h = t + yon;
+      const [u, t] = yer.slice(1).split('.').map(Number);
+      if (t === h) return;
       const konular = b.uniteler[u]?.konular;
       if (!konular?.[h]) return;
-      const sira = konular.map(kitapKonuAnahtari);
+      const sira = siraTasi(konular.map(kitapKonuAnahtari), t, h);
       const unite = kitapUniteAnahtarlari(b)[u];
-      if (!this.siraOncesi.has('k' + unite)) this.siraOncesi.set('k' + unite, [...sira]);
-      [sira[t], sira[h]] = [sira[h], sira[t]];
+      if (!this.siraOncesi.has('k' + unite)) this.siraOncesi.set('k' + unite, konular.map(kitapKonuAnahtari));
       this.yerDegisti(() => kitabaUygula(b, { tur: 'konuSirasi', unite, sira }));
       // the unit's key at sending time (a rename sent before this one is in the file by then)
       const uniteNesnesi = b.uniteler[u];
@@ -347,7 +482,14 @@ export class IcindekilerDuzenleyici {
         g.gonder(b, { tur: 'konuSirasi', unite: anahtar, sira: uniteNesnesi.konular.map(kitapKonuAnahtari) }, once && { tur: 'konuSirasi', unite: anahtar, sira: once });
       });
     }
+    const focused = this.liste.ownerDocument.activeElement as HTMLElement | null;
+    const focusKey = focused?.dataset.surukle !== undefined ? 'surukle'
+      : focused?.dataset.yukari !== undefined ? 'yukari' : focused?.dataset.asagi !== undefined ? 'asagi' : null;
     this.yeniden();
     this.ciz();
+    if (focusKey) {
+      const place = yer[0] === 'u' ? `u${h}` : `${yer.split('.')[0]}.${h}`;
+      this.focusOrder(focusKey, place);
+    }
   }
 }

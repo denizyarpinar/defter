@@ -495,6 +495,7 @@ export const en: Sozluk = {
   'icindekiler.uniteKlasoruYok': "This unit's Drive folder isn't known; topics can't be added and the unit can't be moved to the trash.",
   'icindekiler.klasorlereBakilamadi': "Couldn't check the unit folders; topics can't be added for now.",
   'icindekiler.ekleniyor': 'Adding…',
+  'icindekiler.surukle': 'Drag to reorder',
   'icindekiler.ad': 'Name',
   'icindekiler.ekle': 'Add',
   'icindekiler.uniteAdi': 'Rename the unit',
