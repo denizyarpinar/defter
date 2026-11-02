@@ -52,9 +52,18 @@ const GRUP = 40;   // parents in one query
 export const driveKonuAra: KonuAraDrive = async (ad, ebeveynIdleri) => {
   const out: BulunanKlasor[] = [];
   for (let i = 0; i < ebeveynIdleri.length; i += GRUP) {
-    const params = new URLSearchParams({ q: konuAraSorgusu(ad, ebeveynIdleri.slice(i, i + GRUP)), fields: 'files(id,name,parents)', pageSize: '10' });
-    const j = await (await ok(await driveFetch('files?' + params), t('okuyucu.konuAraniyor'))).json() as { files?: BulunanKlasor[] };
-    out.push(...(j.files ?? []));
+    let pageToken = '';
+    do {
+      const params = new URLSearchParams({ q: konuAraSorgusu(ad, ebeveynIdleri.slice(i, i + GRUP)), fields: 'nextPageToken,files(id,name,parents)', pageSize: '10' });
+      if (pageToken) params.set('pageToken', pageToken);
+      const j = await (await ok(await driveFetch('files?' + params), t('okuyucu.konuAraniyor'))).json() as { files?: BulunanKlasor[]; nextPageToken?: string };
+      for (const f of j.files ?? []) {
+        if (f.name !== ad) continue;
+        out.push(f);
+        if (out.length === 2) return out;   // already ambiguous; no more pages or parent groups needed
+      }
+      pageToken = j.nextPageToken ?? '';
+    } while (pageToken);
   }
   return out;
 };

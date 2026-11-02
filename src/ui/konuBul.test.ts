@@ -85,6 +85,30 @@ describe('konuBul', () => {
     const two = setup({ items: { t9: { name: 'Konu-01-Aussagen', parent: 'u1' } } });
     expect(await two.bul()).toBeNull(); expect(two.f.yazmalar()).toEqual([]);
   });
+  it('does not search a backup folder or a hidden folder, even if the hidden name is in the book', async () => {
+    const x = setup({ items: {
+      backup: { name: 'Yedek', parent: 'kb' },
+      hidden: { name: '_sistem', parent: 'kb' },
+      hiddenTopic: { name: 'Konu-01-Aussagen', parent: 'hidden' }
+    } });
+    x.book.uniteler.push({ baslik: 'Hidden', klasor: '_sistem', konular: [], extra: {} });
+    x.f.items.get('t1')!.parent = 'backup';
+    expect(await x.bul()).toBeNull();
+    expect(x.ara).toHaveBeenCalledWith('Konu-01-Aussagen', ['u1', 'u2']);
+    expect(x.yer()[0][0]).toBe(old);
+    expect(x.f.yazmalar()).toEqual([]);
+    expect(x.drive.tasi).not.toHaveBeenCalled();
+  });
+  it('ignores a backup duplicate when the real topic is in a book unit', async () => {
+    const x = setup({ items: {
+      backup: { name: 'Yedek', parent: 'kb' },
+      backupTopic: { name: 'Konu-01-Aussagen', parent: 'backup' }
+    } });
+    expect(await x.bul()).toBe(moved);
+    await x.done();
+    expect(x.f.yazmalar()).toEqual(['jsonYaz']);
+    expect(x.drive.tasi).not.toHaveBeenCalled();
+  });
   it('network error: rejects, memory unchanged', async () => {
     const x = setup(); x.ara.mockRejectedValueOnce(new TypeError('Failed to fetch'));
     await expect(x.bul()).rejects.toThrow(); expect(x.yer()[0][0]).toBe(old); expect(x.f.yazmalar()).toEqual([]);

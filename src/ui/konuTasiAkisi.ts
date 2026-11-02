@@ -108,7 +108,8 @@ export function konuTasiBagla(o: {
       return jy;
     }
     // (b)
-    const uniteler = (await o.drive.klasorler([s.kitapKlasorId])).filter(f => !gizliKlasorMu(f.name));
+    const uniteAdlari = new Set(b.uniteler.map(u => u.klasor).filter((ad): ad is string => typeof ad === 'string' && !!ad.trim()));
+    const uniteler = (await o.drive.klasorler([s.kitapKlasorId])).filter(f => !gizliKlasorMu(f.name) && uniteAdlari.has(f.name));
     if (!uniteler.length) return null;
     const bulunan = tekEslesme(await (o.ara ?? driveKonuAra)(ad, uniteler.map(u => u.id)), ad);
     const hedef = bulunan && uniteler.find(u => u.id === bulunan.parents![0]);

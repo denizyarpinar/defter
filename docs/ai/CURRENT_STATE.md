@@ -1,6 +1,6 @@
 # CURRENT_STATE
 
-Son güncelleyen: Claude, 2 Kasım 2026 · 6.6-3c yerelde bitti (commit yok, Deniz denemesi bekliyor)
+Son güncelleyen: Codex, 2 Kasım 2026 · 6.6-3c inceleme düzeltmeleri yerelde (commit yok, Deniz denemesi bekliyor)
 ## Git ve yayın
 - main ve faz-6 = canlı; Production https://defter-jade.vercel.app (HTTP 200 doğrulandı).
 - 6.6-3a (2360b1d) ve 6.6-3b (7d93aac) canlıda; 3b kilitli: KONU_TASI=false, yalnız ?konuTasi=1 ile açık.
@@ -13,16 +13,17 @@ Son güncelleyen: Claude, 2 Kasım 2026 · 6.6-3c yerelde bitti (commit yok, Den
   - Toparlama hatası kilit değil: durum satırında hata + Vazgeç (yalnız kayıt silinir, kitap Drive'dan yeniden okunur; Drive'a yazma yok). Klasör hedefte + json yeni yolda → kayıt sessizce silinir.
   - Engeller (K3): içindekiler kuyruğu, başarısız okuma yazımı, çalışan/yarım sayfa işi, dosya ekleme.
   - Yerel yollar çevrilir; klasör/materyal/arama önbellekleri geçersiz kılınır; açık PDF/sayfa korunur.
-- 6.6-3c (yerel, commit yok): okuyucu konu yolunu bulamazsa bir kez arar (`okuma/konuAra.ts`, `baglam.konuBul` in `ui/konuTasiAkisi.ts`):
+- 6.6-3c (699677e; inceleme düzeltmeleri commit edilmedi): okuyucu konu yolunu bulamazsa bir kez arar (`okuma/konuAra.ts`, `baglam.konuBul` in `ui/konuTasiAkisi.ts`):
   - (a) kitap.json tazelenir; Konu-NN başka yoldaysa yalnız bellek (yazma/bildirim yok). (b) ünite klasörlerinde ada göre tek sorgu.
   - json düzeltmesi yalnız ?konuTasi=1 iken, toparla yoluyla (Drive taşıma yok) + toast; kilitliyken/eski ünite yoksa yalnız bellek.
-  - Kilit KONU_ARA=true, ?konuAra=0 kapatır. 2071/2071 test (165 dosya), typecheck/build/dil geçti; TR/EN 906 anahtar.
+  - İnceleme düzeltmeleri: topicFolderId resolver'ı yeniden kurar; arama yalnız b.uniteler[].klasor adlarında; sayfalama var, ikinci eşleşmede durur. Yeni Drive yazma/taşıma yok.
+  - Kilit KONU_ARA=true, ?konuAra=0 kapatır. kose-olcum hariç 2076/2076 test (165 dosya), typecheck/build/dil geçti; TR/EN 906 anahtar.
 ## Doğrulama
 - 2040/2040 test (163 dosya), typecheck/build/dil geçti; TR/EN 904 anahtar, dil 0.
 - Sahte Drive + Playwright 390×844 / 1180×820 × EN/TR: taşıma, boş ünite, Geri al, Tekrar dene, Vazgeç, toparlama geçti; dil:ekran 160 ekran, taşma 0.
 - Gerçek ikinci hesap/iPad denemesi kilit açılmadan önce yapılacak.
 ## Sıradaki
-1. 6.6-3c laptop denemesi (iki sekme + toparla-Vazgeç) → commit → KONU_TASI=true.
+1. 6.6-3c düzeltmelerini laptopta dene (iki sekme + toparla-Vazgeç + foto/dosya ekleme); commit Deniz'in talimatını bekler. KONU_TASI=false kalır.
 2. 6.6-4 OCR görünümü.
 3. Faz 7 (quiz/özet).
 ## Açık riskler

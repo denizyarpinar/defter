@@ -1,12 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
-import { FOLDER_MIME, listChildren, type DriveFile } from '../drive/drive';
+import { driveFetch, FOLDER_MIME, listChildren, type DriveFile } from '../drive/drive';
 import { SourceResolver } from './kaynakCoz';
 import { discoverTopic } from './konuKesfi';
-import { jsondaYolBul, KONU_ARA, konuAdi, konuAraAcik, konuAraSorgusu, konuKesfet, tekEslesme } from './konuAra';
+import { driveKonuAra, jsondaYolBul, KONU_ARA, konuAdi, konuAraAcik, konuAraSorgusu, konuKesfet, tekEslesme } from './konuAra';
 
 vi.mock('../drive/drive', async importOriginal => ({
   ...await importOriginal<typeof import('../drive/drive')>(),
-  listChildren: vi.fn()
+  listChildren: vi.fn(),
+  driveFetch: vi.fn()
 }));
 
 describe('flag', () => {
@@ -39,6 +40,43 @@ describe('query and match', () => {
     expect(tekEslesme([], 'Konu-01-A')).toBeNull();
     expect(tekEslesme([f('t1'), f('t9', ['u1'])], 'Konu-01-A')).toBeNull();
     expect(tekEslesme([f('t1', ['u1', 'u2'])], 'Konu-01-A')).toBeNull();
+  });
+});
+
+describe('Drive search pagination', () => {
+  const ad = 'Konu-01-A';
+  const file = (id: string) => ({ id, name: ad, parents: ['u1'] });
+  const respond = (pages: object[]) => {
+    const fetch = vi.mocked(driveFetch).mockReset();
+    for (const page of pages) fetch.mockResolvedValueOnce(new Response(JSON.stringify(page)));
+    return fetch;
+  };
+  it('finds a match on the second page after an empty first page', async () => {
+    const fetch = respond([{ files: [], nextPageToken: 'page-2' }, { files: [file('t1')] }]);
+    const found = await driveKonuAra(ad, ['u1']);
+    expect(tekEslesme(found, ad)?.id).toBe('t1');
+    expect(fetch).toHaveBeenCalledTimes(2);
+    const first = new URLSearchParams(fetch.mock.calls[0][0].split('?')[1]);
+    const second = new URLSearchParams(fetch.mock.calls[1][0].split('?')[1]);
+    expect(first.get('fields')).toContain('nextPageToken');
+    expect(first.has('pageToken')).toBe(false);
+    expect(second.get('pageToken')).toBe('page-2');
+    expect(second.get('q')).toBe(first.get('q'));
+  });
+  it('one match per page is ambiguous; skips remaining pages and parent groups', async () => {
+    const fetch = respond([
+      { files: [file('t1')], nextPageToken: 'page-2' },
+      { files: [file('t2')], nextPageToken: 'page-3' }
+    ]);
+    const found = await driveKonuAra(ad, Array.from({ length: 41 }, (_, i) => 'u' + i));
+    expect(found.map(f => f.id)).toEqual(['t1', 't2']);
+    expect(tekEslesme(found, ad)).toBeNull();
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+  it('checks all parent groups before accepting a unique match', async () => {
+    const fetch = respond([{ files: [file('t1')] }, { files: [file('t2')] }]);
+    expect(tekEslesme(await driveKonuAra(ad, Array.from({ length: 41 }, (_, i) => 'u' + i)), ad)).toBeNull();
+    expect(fetch).toHaveBeenCalledTimes(2);
   });
 });
 
