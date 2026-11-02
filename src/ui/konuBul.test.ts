@@ -109,6 +109,31 @@ describe('konuBul', () => {
     expect(x.f.yazmalar()).toEqual(['jsonYaz']);
     expect(x.drive.tasi).not.toHaveBeenCalled();
   });
+  it('finds a unit without klasor by its topic paths and still excludes a backup duplicate', async () => {
+    const x = setup({ items: {
+      backup: { name: 'Yedek', parent: 'kb' },
+      backupTopic: { name: 'Konu-01-Aussagen', parent: 'backup' }
+    } });
+    delete x.book.uniteler[0].klasor;
+    delete x.book.uniteler[1].klasor;
+    x.book.uniteler[1].konular.push({ ...x.book.uniteler[0].konular[1], klasor: target + '/Konu-03-C' });
+    expect(await x.bul()).toBe(moved);
+    expect(x.ara).toHaveBeenCalledWith('Konu-01-Aussagen', ['u1', 'u2']);
+    expect(x.yer()[1]).toContain(moved);
+    await x.done();
+    expect(x.f.yazmalar()).toEqual(['jsonYaz']);
+    expect(x.drive.tasi).not.toHaveBeenCalled();
+  });
+  it('does not find a backup topic when unit folders are inferred from topic paths', async () => {
+    const x = setup({ items: { backup: { name: 'Yedek', parent: 'kb' } } });
+    delete x.book.uniteler[0].klasor;
+    x.f.items.get('t1')!.parent = 'backup';
+    expect(await x.bul()).toBeNull();
+    expect(x.ara).toHaveBeenCalledWith('Konu-01-Aussagen', ['u1', 'u2']);
+    expect(x.yer()[0][0]).toBe(old);
+    expect(x.f.yazmalar()).toEqual([]);
+    expect(x.drive.tasi).not.toHaveBeenCalled();
+  });
   it('network error: rejects, memory unchanged', async () => {
     const x = setup(); x.ara.mockRejectedValueOnce(new TypeError('Failed to fetch'));
     await expect(x.bul()).rejects.toThrow(); expect(x.yer()[0][0]).toBe(old); expect(x.f.yazmalar()).toEqual([]);

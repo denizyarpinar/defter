@@ -1,5 +1,5 @@
 import { DriveError } from '../drive/drive';
-import { kitapUniteAnahtarlari, uniteKlasoruBul } from '../kitap/icindekiler';
+import { kitapUniteAnahtarlari, uniteKlasoru, uniteKlasoruBul } from '../kitap/icindekiler';
 import { t } from '../dil';
 import { tasiDepo, tersTasi, type TasiIsi } from '../drive/konuTasiYaz';
 import { klasorleriBul } from '../drive/icindekilerCop';
@@ -108,7 +108,9 @@ export function konuTasiBagla(o: {
       return jy;
     }
     // (b)
-    const uniteAdlari = new Set(b.uniteler.map(u => u.klasor).filter((ad): ad is string => typeof ad === 'string' && !!ad.trim()));
+    const uniteAdlari = new Set(b.uniteler.flatMap(u => [u.klasor,
+      ...u.konular.map(k => uniteKlasoru(undefined, [k.klasor]))
+    ]).filter((ad): ad is string => typeof ad === 'string' && !!ad.trim()));
     const uniteler = (await o.drive.klasorler([s.kitapKlasorId])).filter(f => !gizliKlasorMu(f.name) && uniteAdlari.has(f.name));
     if (!uniteler.length) return null;
     const bulunan = tekEslesme(await (o.ara ?? driveKonuAra)(ad, uniteler.map(u => u.id)), ad);
