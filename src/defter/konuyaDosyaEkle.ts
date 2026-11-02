@@ -23,7 +23,7 @@ import { t } from '../dil';
 //   (the pen's queue, /DefterEkId with islemId: a retry adds no page twice). An encrypted / broken / empty
 //   extra PDF → EkPdfYazilamaz, nothing written (a signed one is fine: only its pages are copied).
 
-export const COKLU_OZET = false;
+export const COKLU_OZET = true;
 export const cokluOzetAcik = (search = typeof location === 'undefined' ? '' : location.search): boolean =>
   COKLU_OZET || new URLSearchParams(search).get('cokluOzet') === '1';
 

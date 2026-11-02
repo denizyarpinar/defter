@@ -52,3 +52,5 @@ Bu dosya AGENTS.md "Değişmez kurallar" ile çelişirse mimari konuda bu dosya 
 
 ## Dallar ve yayın
 - D29 – main = canlı (defter-jade.vercel.app); faz-6 = önizleme. main'e push yalnız Deniz'in açık onayıyla; force push yok.
+
+- D30 – Birden çok özet (6.6-2, 2 Kasım 2026): ilk özet konu klasöründe ozet.pdf; sonrakiler Ozetler/<ad>.pdf, okuyucuda seçiciyle ayrı açılır. Neden: özet uzamasın, Uebungen deseni yeniden kullanılsın.

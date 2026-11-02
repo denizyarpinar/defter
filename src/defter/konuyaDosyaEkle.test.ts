@@ -528,13 +528,15 @@ describe('task 6.S-3: { ozetSonu } → the pages at the end of the summary', () 
 
 
 describe('6.6-2: summary write boundaries', () => {
-  it('URL gate off rejects new summary before requests; exact URL flag enables it', async () => {
-    expect(cokluOzetAcik('')).toBe(false);
-    expect(cokluOzetAcik('?cokluOzet=0')).toBe(false);
+  it('release: separate summaries can be created without the URL flag', async () => {
+    expect(cokluOzetAcik('')).toBe(true);
+    expect(cokluOzetAcik('?cokluOzet=0')).toBe(true);
     expect(cokluOzetAcik('?cokluOzet=1')).toBe(true);
-    const d = fakeDrive();
-    await expect(ekle(d, 'yeniOzet', 'Notes.pdf')).rejects.toThrow(DosyaYazmaYok);
-    expect(d.log).toEqual([]);
+    const d = fakeDrive({ 'C/ozet.pdf': 'Z' });
+    d.items.set('OS', { name: 'Ozetler', parent: 'C', mimeType: FOLDER_MIME });
+    await expect(ekle(d, 'yeniOzet', 'Notes.pdf')).resolves.toMatchObject({ kind: 'yeni', ad: 'Notes.pdf' });
+    expect(d.yazmalar()).toEqual(['multipart:OS/Notes.pdf']);
+    expect(d.items.get('Z')?.bytes).toBe(pdf);
   });
   it('duplicate names in root or Ozetler rejected; existing root PDF remains untouched', async () => {
     vi.stubGlobal('location', { search: '?cokluOzet=1' });

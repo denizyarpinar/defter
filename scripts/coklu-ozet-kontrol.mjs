@@ -122,7 +122,7 @@ try {
         await page.locator('#okuyucu.show').waitFor();
         await page.waitForFunction(() => Number(document.querySelector('#oSlider').max) > 1);
       };
-      await page.goto(origin + '/?kapsam=dar&sahip=0&kurulum=1&cokluOzet=1&oda=eski&lang=' + lang);
+      await page.goto(origin + '/?kapsam=dar&sahip=0&kurulum=1&oda=eski&lang=' + lang);
       await page.locator('#loading').waitFor({ state: 'hidden', timeout: 60000 });
       await openTopic();
       assert.equal(await page.locator('#oFiles').isVisible(), false);
@@ -170,19 +170,19 @@ try {
       const nested = [...items.values()].find(x => x.name === 'Ozetler');
       assert.equal(writes[1].parent, nested.id);
       await page.locator('#oClose').click();
-      const lockedURL = new URL(page.url()); lockedURL.searchParams.delete('cokluOzet');
-      await page.goto(lockedURL.href);
+      const compatibilityURL = new URL(page.url()); compatibilityURL.searchParams.set('cokluOzet', '0');
+      await page.goto(compatibilityURL.href);
       await page.locator('#login').waitFor({ state: 'hidden', timeout: 60000 });
       await openTopic();
       assert.equal(await page.locator('#oFiles').isVisible(), true, 'reading is independent of the write gate');
       await page.locator('#oDosyaInput').setInputFiles({ name: 'Append.pdf', mimeType: 'application/pdf', buffer: added });
       await page.locator('#dosyaPanel').waitFor();
-      assert.equal(await page.locator('input[value="yeniOzet"]').count(), 0);
-      assert.equal(await page.locator('input[value="ozet"]').isChecked(), true);
+      assert.equal(await page.locator('input[value="yeniOzet"]').isChecked(), true);
+      await page.locator('input[value="ozet"]').check();
       assert.equal(await page.locator('#dosyaPanel .dp-ad').isVisible(), false);
       await page.locator('#dosyaPanel .fp-vazgec').first().click();
       assert.deepEqual(errors, []);
-      results.push({ viewport, lang, creation: true, separatePages: true, ribbon: true, languageReturn: true, lockedPanel: true, overflow });
+      results.push({ viewport, lang, creation: true, separatePages: true, ribbon: true, languageReturn: true, defaultEnabled: true, overflow });
       console.log('PASS ' + viewport.width + '/' + lang);
       await context.close();
     }

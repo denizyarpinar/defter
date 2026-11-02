@@ -31,7 +31,7 @@ describe('hedefSecenekleri', () => {
     expect(sec(l, 'cozum').etiket).toBe('Çözüm');
   });
   it('orijinal there: grey with a reason; özet there (brifing counts): 6.S-3 at its end', () => {
-    const l = hedefSecenekleri(konu({ orijinal: [mat('orijinal.pdf')], ozet: [mat('brifing.pdf')] }), null, false, f('brifing.pdf'));
+    const l = hedefSecenekleri(konu({ orijinal: [mat('orijinal.pdf')], ozet: [mat('brifing.pdf')] }), null, false, f('brifing.pdf'), false);
     expect(sec(l, 'orijinal')).toMatchObject({ secilebilir: false, neden: 'Bu konuda orijinal var' });
     expect(sec(l, 'ozet')).toMatchObject({ secilebilir: true, neden: null, etiket: 'Özetin sonuna ekle (brifing.pdf)' });
   });
@@ -53,7 +53,7 @@ describe('hedefSecenekleri', () => {
   });
   it('task 6.S-3: any summary there (ozet, brifing + sorular, sorular alone): Özet can be chosen, "at its end"', () => {
     for (const ozet of [[mat('ozet.pdf')], [mat('brifing.pdf'), mat('sorular.pdf')], [mat('sorular.pdf')]]) {
-      expect(sec(hedefSecenekleri(konu({ ozet }), null, true), 'ozet')).toMatchObject({ secilebilir: true, etiket: 'Özetin sonuna ekle' });
+      expect(sec(hedefSecenekleri(konu({ ozet }), null, true, null, false), 'ozet')).toMatchObject({ secilebilir: true, etiket: 'Özetin sonuna ekle' });
     }
     // no summary: a new ozet.pdf as before
     expect(sec(hedefSecenekleri(emptyMaterials(), null), 'ozet')).toMatchObject({ secilebilir: true, etiket: 'Özet' });
@@ -93,10 +93,10 @@ describe('varsayilanHedef', () => {
   it('the open tab when it can be chosen', () => {
     expect(varsayilanHedef(l, 'uebungen')).toBe('uebungen');
   });
-  it('the open tab grey: the first that can be chosen; 6.S-3: Özet tab with a summary → Özet (at its end)', () => {
+  it('the open tab grey: the first that can be chosen; release: summary tab defaults to a separate summary', () => {
     const orijinalli = hedefSecenekleri(konu({ orijinal: [mat('orijinal.pdf')], uebungen: [mat('B.pdf')] }), { Uebungen: true, Oedevler: false });
     expect(varsayilanHedef(orijinalli, 'orijinal')).toBe('uebungen');
-    expect(varsayilanHedef(l, 'ozet')).toBe('ozet');
+    expect(varsayilanHedef(l, 'ozet')).toBe('yeniOzet');
   });
   it('task 6.K6a: no tab open (a topic without materials) → Orijinal first, even with the folders makeable', () => {
     expect(varsayilanHedef(l, null)).toBe('orijinal');
@@ -312,7 +312,7 @@ describe('6.6-2: separate summary panel', () => {
   const m = konu({ ozet: [mat('ozet.pdf'), mat('Notes.pdf')] });
   it('lock off: identical rows, labels, name state and append target', () => {
     const rows = hedefSecenekleri(m, null, true, f('ozet.pdf'), false);
-    expect(rows).toEqual(hedefSecenekleri(m, null, true, f('ozet.pdf')));
+    expect(rows).not.toEqual(hedefSecenekleri(m, null, true, f('ozet.pdf')));
     expect(rows.map(x => x.hedef)).toEqual(['uebungen', 'oedevler', 'cozum', 'orijinal', 'ozet']);
     expect(sec(rows, 'ozet').etiket).toBe(ozetSonuEtiketi(f('ozet.pdf').name));
     expect(adDurumu(m, 'ozet', 'New', null, f('ozet.pdf'))).toMatchObject({ gizli: true, duzenlenebilir: false });
@@ -320,7 +320,8 @@ describe('6.6-2: separate summary panel', () => {
     expect(dosyaHedefi('yeniOzet', null, m, null, false)).toBeNull();
   });
   it('lock on: two summary options, separate summary default with editable name', () => {
-    const rows = hedefSecenekleri(m, null, true, f('ozet.pdf'), true);
+    const rows = hedefSecenekleri(m, null, true, f('ozet.pdf'));
+    expect(rows).toEqual(hedefSecenekleri(m, null, true, f('ozet.pdf'), true));
     expect(rows.slice(-2).map(x => x.hedef)).toEqual(['yeniOzet', 'ozet']);
     expect(varsayilanHedef(rows, 'ozet')).toBe('yeniOzet');
     expect(adDurumu(m, 'yeniOzet', 'Fresh', null)).toEqual({ duzenlenebilir: true, ad: 'Fresh.pdf', hata: null });
