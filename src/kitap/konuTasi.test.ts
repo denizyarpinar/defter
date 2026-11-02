@@ -8,9 +8,9 @@ const book = () => ({ surum: 2, baslik: 'Book', unknown: { a: 7 }, kurdele: { ko
     { baslik: 'B', klasor: 'B', konular: Array.from({ length: 3 }, (_, i) => ({ baslik: String(i), klasor: 'B/Konu-0' + (i + 2), durum: 'okunmadi' })) }] });
 
 describe('topic move model', () => {
-  it('defaults off', () => expect(KONU_TASI).toBe(false));
-  it.each(['', '?konuTasi=0', '?konuTasi=true', '?konuTasi=01'])('disabled: %s', search => expect(konuTasiAcik(search)).toBe(false));
-  it.each(['?konuTasi=1', '?lang=tr&konuTasi=1'])('explicit opt in: %s', search => expect(konuTasiAcik(search)).toBe(true));
+  it('defaults on', () => expect(KONU_TASI).toBe(true));
+  it.each(['', '?konuTasi=0', '?konuTasi=true', '?konuTasi=01'])('enabled by default: %s', search => expect(konuTasiAcik(search)).toBe(true));
+  it.each(['?konuTasi=1', '?lang=tr&konuTasi=1'])('legacy opt in stays enabled: %s', search => expect(konuTasiAcik(search)).toBe(true));
   it.each([0, 1, 2, 3, 100])('inserts at target index %i, preserves metadata/ribbon and input', index => {
     const original = book(), before = structuredClone(original);
     const result = jsondaTasi(original, eski, 'k:B', index, yeni);

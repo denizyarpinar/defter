@@ -1,9 +1,10 @@
 # CURRENT_STATE
 
-Son güncelleyen: Codex, 2 Kasım 2026 · 6.6-3c ünite süzgeci konu yollarını da sayıyor
+Son güncelleyen: Codex, 2 Kasım 2026 · Deniz onayıyla 6.6-3 canlıya çıkış, taşıma kilidi açık
 ## Git ve yayın
-- Production https://defter-jade.vercel.app; 6.6-3c yalnız faz-6 önizlemesine gönderilir, main'e push yok.
-- 6.6-3a (2360b1d) ve 6.6-3b (7d93aac) canlıda; 3b kilitli: KONU_TASI=false, yalnız ?konuTasi=1 ile açık.
+- main = production https://defter-jade.vercel.app; faz-6 = önizleme.
+- 6.6-3b + 6.6-3c canlıda; KONU_TASI=true, taşıma için adres parametresi gerekmiyor.
+- Geri alma: KONU_TASI=false (parametresiz taşıma kapanır; ?konuTasi=1 geliştirme açılışı kalır), ?konuAra=0 (arama kapanır).
 ## Bitenler (özet)
 - Faz 1–5, 6.1–6.3, 6.H/6.K, OCR/Temiz yazı/atlas, sayfa işleri ve EN/TR canlıda.
 - 6.6-0/1a/1b, 5a/5b/6 oturum işleri, 6.6-2 çoklu özet (D30), 6.6-3a sürükle-bırak canlıda.
@@ -15,20 +16,16 @@ Son güncelleyen: Codex, 2 Kasım 2026 · 6.6-3c ünite süzgeci konu yolların�
   - Yerel yollar çevrilir; klasör/materyal/arama önbellekleri geçersiz kılınır; açık PDF/sayfa korunur.
 - 6.6-3c (699677e; ilk inceleme düzeltmeleri 53b5b7c): okuyucu konu yolunu bulamazsa bir kez arar (`okuma/konuAra.ts`, `baglam.konuBul` in `ui/konuTasiAkisi.ts`):
   - (a) kitap.json tazelenir; Konu-NN başka yoldaysa yalnız bellek (yazma/bildirim yok). (b) ünite klasörlerinde ada göre tek sorgu.
-  - json düzeltmesi yalnız ?konuTasi=1 iken, toparla yoluyla (Drive taşıma yok) + toast; kilitliyken/eski ünite yoksa yalnız bellek.
+  - json düzeltmesi konuTasiAcik() iken toparla yoluyla (Drive taşıma yok) + toast; eski ünite yoksa yalnız bellek.
   - İnceleme düzeltmeleri: topicFolderId resolver'ı yeniden kurar; arama ünite klasor alanını ve konu yollarının ilk parçalarını sayar, Yedek dışarıda; sayfalama var, ikinci eşleşmede durur. Yeni Drive yazma/taşıma yok.
   - Kilit KONU_ARA=true, ?konuAra=0 kapatır. kose-olcum hariç 2078/2078 test (165 dosya), typecheck/build geçti; TR/EN 906 anahtar.
 ## Doğrulama
-- 2040/2040 test (163 dosya), typecheck/build/dil geçti; TR/EN 904 anahtar, dil 0.
+- Canlıya çıkış: kose-olcum hariç 2078/2078 test (165 dosya), typecheck/build/dil geçti; TR/EN 906 anahtar, dil 0.
 - Sahte Drive + Playwright 390×844 / 1180×820 × EN/TR: taşıma, boş ünite, Geri al, Tekrar dene, Vazgeç, toparlama geçti; dil:ekran 160 ekran, taşma 0.
-- Gerçek ikinci hesap/iPad denemesi kilit açılmadan önce yapılacak.
 ## Sıradaki
-1. 6.6-3c önizlemesini laptopta dene (iki sekme + toparla-Vazgeç + foto/dosya ekleme + klasor alanı olmayan ünite). KONU_TASI=false kalır.
-2. 6.6-4 OCR görünümü.
-3. Faz 7 (quiz/özet).
+1. 6.6-4 OCR sadeleştirme.
+2. Faz 7 (quiz/özet).
 ## Açık riskler
-- K6 ve toparla-Vazgeç uyuşmazlığı 6.6-3c ile çözülüyor (gerçek Drive denemesi bekliyor). Hedef ünite bellekte yoksa konu yalnız yol değiştirip eski ünitede görünür; yenileyince düzelir.
-- Normal taşımada Vazgeç telafisi uyuşmazlıkla düşerse oturum içinde döngü; sayfa yenileyince toparlama Vazgeç'i çözer.
 - Büyük PDF her kayıtta baştan yükleniyor; iki cihazın bekleyen kayıtları çakışabilir.
 - Gerçek 70 dk oturum ve iPad/parmak/kalem denemeleri bekliyor; oda yüklemesinde 15 sn geri dönüş sürer.
 - İlk girişte otomatik kurulum hedef; mevcut kurulum düğmesi korunuyor.

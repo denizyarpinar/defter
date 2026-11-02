@@ -3,6 +3,7 @@ import { FOLDER_MIME } from '../drive/drive';
 import { fakeDrive, KITAP, sec } from '../drive/icindekilerSahte';
 import { tasiDepo, type TasiIsi } from '../drive/konuTasiYaz';
 import { kitaptaTasi, yolCevir } from '../kitap/konuTasi';
+import * as moveModel from '../kitap/konuTasi';
 import { tasiKilitle } from '../kitap/konuTasiKilit';
 import { parseBook } from '../model/parse';
 import type { Book } from '../model/types';
@@ -43,10 +44,10 @@ const setup = (o: { jsonYeni?: boolean; sil?: string[]; items?: NonNullable<Para
 
 beforeEach(() => {
   const values = new Map<string, string>();
-  vi.stubGlobal('location', { search: '?konuTasi=1' });
+  vi.stubGlobal('location', { search: '' });
   vi.stubGlobal('localStorage', { getItem: (k: string) => values.get(k) ?? null, setItem: (k: string, v: string) => values.set(k, v), removeItem: (k: string) => values.delete(k) });
 });
-afterEach(() => { tasiKilitle('t1', old, moved, false); vi.unstubAllGlobals(); });
+afterEach(() => { tasiKilitle('t1', old, moved, false); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe('konuBul', () => {
   it('(a) another tab: kitap.json read again shows the path; memory only, no query, no write, no toast', async () => {
@@ -65,7 +66,7 @@ describe('konuBul', () => {
     expect(x.f.items.get('t1')!.parent).toBe('u2'); expect(tasiDepo.oku()).toBeNull();
   });
   it('move flag off: memory only, kitap.json not written, no toast', async () => {
-    vi.stubGlobal('location', { search: '' });
+    vi.spyOn(moveModel, 'konuTasiAcik').mockReturnValue(false);   // rollback: KONU_TASI=false, no URL opt in
     const x = setup();
     expect(await x.bul()).toBe(moved); expect(x.yer()[1]).toEqual([moved]);
     await x.done(); expect(x.f.yazmalar()).toEqual([]); expect(x.duzeltildi).not.toHaveBeenCalled();

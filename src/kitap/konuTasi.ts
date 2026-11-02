@@ -1,7 +1,7 @@
 import { t } from '../dil';
 import { uniteAnahtarlari, uniteKlasoru } from './icindekiler';
 
-export const KONU_TASI = false;
+export const KONU_TASI = true;
 export const konuTasiAcik = (search = typeof location === 'undefined' ? '' : location.search) =>
   KONU_TASI || new URLSearchParams(search).get('konuTasi') === '1';
 

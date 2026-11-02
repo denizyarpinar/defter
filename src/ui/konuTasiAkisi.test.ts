@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fakeDrive, KITAP, sec } from '../drive/icindekilerSahte';
 import { parseBook } from '../model/parse';
 import { kitaptaTasi } from '../kitap/konuTasi';
+import * as moveModel from '../kitap/konuTasi';
 import { TASI_ANAHTARI, tasiDepo } from '../drive/konuTasiYaz';
 import { t } from '../dil';
 import { icindekilerBaglamiKur } from './icindekilerBaglami';
@@ -29,10 +30,10 @@ const setup = (failFlush = false) => {
 };
 beforeEach(() => {
   const values = new Map<string, string>();
-  vi.stubGlobal('location', { search: '?konuTasi=1' });
+  vi.stubGlobal('location', { search: '' });
   vi.stubGlobal('localStorage', { getItem: (k: string) => values.get(k) ?? null, setItem: (k: string, v: string) => values.set(k, v), removeItem: (k: string) => values.delete(k) });
 });
-afterEach(() => { tasiKilitle('t1', old, target + '/Konu-01-Aussagen', false); vi.unstubAllGlobals(); });
+afterEach(() => { tasiKilitle('t1', old, target + '/Konu-01-Aussagen', false); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe('move queue integration', () => {
   it('commits memory only after Drive, updates the old-key redirect; undo reverses', async () => {
@@ -53,7 +54,7 @@ describe('move queue integration', () => {
     await expect(f.move()).rejects.toThrow(reason); expect(f.drive.tasi).not.toHaveBeenCalled(); expect(tasiDepo.oku()).toBeNull();
   });
   it('flag off rejects before any request', async () => {
-    const f = setup(); vi.stubGlobal('location', { search: '' });
+    const f = setup(); vi.spyOn(moveModel, 'konuTasiAcik').mockReturnValue(false);   // rollback: KONU_TASI=false
     await expect(f.move()).rejects.toThrow(); expect(f.f.calls).toEqual([]);
   });
   it('an existing queue operation prevents starting another move', async () => {
