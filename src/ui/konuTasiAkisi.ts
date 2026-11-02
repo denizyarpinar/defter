@@ -4,7 +4,9 @@ import { t } from '../dil';
 import { tasiDepo, tersTasi, type TasiIsi } from '../drive/konuTasiYaz';
 import { klasorleriBul } from '../drive/icindekilerCop';
 import { yeniIs, type IcindekilerDrive, type IcindekilerKuyrugu, type IcindekilerSecenek } from '../drive/icindekilerYaz';
-import { konuTasiAcik } from '../kitap/konuTasi';
+import { jsondaTasi, konuTasiAcik } from '../kitap/konuTasi';
+import { gizliKlasorMu } from '../model/gizliKlasor';
+import { driveKonuAra, jsondaYolBul, konuAdi, konuAraAcik, tekEslesme, type KonuAraDrive } from '../okuma/konuAra';
 import { tasiKilitle } from '../kitap/konuTasiKilit';
 import type { Book } from '../model/types';
 import type { IcindekilerBaglami } from './icindekilerDuzenle';
@@ -16,6 +18,11 @@ export function konuTasiBagla(o: {
   bildirim(geri: () => void): void;
   yenidenYukle?(kitapId: string): Promise<void>;   // the book again from Drive's kitap.json (Vazgeç of a recovery)
   haber?(): void;                                  // redraw the status line
+  // 6.6-3c: a topic path changed in memory only (book, reading records, reader); false: the topic couldn't be put
+  // into its unit, only its path changed
+  yerel?(is: TasiIsi): Promise<boolean>;
+  ara?: KonuAraDrive;                              // 6.6-3c: Konu-NN by name under the unit folders
+  duzeltildi?(): void;                             // 6.6-3c: kitap.json was fixed (the toast)
 }): void {
   let hazirlaniyor = false;
   let toparlama: Promise<void> | null = null;
@@ -76,6 +83,52 @@ export function konuTasiBagla(o: {
     if (toparlama) return toparlama;
     toparlama = toparla(b).finally(() => { toparlama = null; });
     return toparlama;
+  };
+  // 6.6-3c: the reader didn't find this path. (a) kitap.json read again: the same Konu-NN on another path → memory
+  // only, no write. (b) one query under the unit folders: exactly one → memory; kitap.json fixed only with the
+  // move flag on and the old unit's folder there (the recovery way: the folder is already in place, no move).
+  o.baglam.konuBul = async (b, eski) => {
+    const ad = konuAdi(eski);
+    if (!konuAraAcik() || !ad || b.surum < 2 || !o.yerel) return null;
+    const s = o.secenek(b.id);
+    if (!s.kitapKlasorId || !s.kitapJsonId) return null;
+    const json = await o.drive.jsonOku(s.kitapJsonId);
+    const unite = (y: string) => y.split('/')[0];
+    const yerIs = (yeni: string, hedefAnahtar: string | undefined, sira: number, ids?: { konu: string; kaynak: string; hedef: string }): TasiIsi => ({
+      islemId: crypto.randomUUID(), kitapId: b.id, kokId: s.kokId, kitapKlasorId: s.kitapKlasorId!, kitapJsonId: s.kitapJsonId!,
+      konuKlasorId: ids?.konu ?? '-', kaynakId: ids?.kaynak ?? '-', hedefId: ids?.hedef ?? '-', eskiYol: eski, yeniYol: yeni,
+      hedefAnahtar, eskiSira: 0, hedefSira: sira, yon: 'ileri', klasorTamam: true, jsonTamam: false, toparla: true });
+    // (a)
+    const jy = jsondaYolBul(json, ad);
+    if (jy && jy !== eski) {
+      const us = (json as { uniteler: { klasor?: unknown; konular: { klasor?: unknown }[] }[] }).uniteler;
+      const ju = us.findIndex(u => u.konular.some(k => k.klasor === jy));
+      const sira = Math.max(0, us[ju]?.konular.findIndex(k => k.klasor === jy) ?? 0);
+      await o.yerel(yerIs(jy, undefined, sira));
+      return jy;
+    }
+    // (b)
+    const uniteler = (await o.drive.klasorler([s.kitapKlasorId])).filter(f => !gizliKlasorMu(f.name));
+    if (!uniteler.length) return null;
+    const bulunan = tekEslesme(await (o.ara ?? driveKonuAra)(ad, uniteler.map(u => u.id)), ad);
+    const hedef = bulunan && uniteler.find(u => u.id === bulunan.parents![0]);
+    if (!bulunan || !hedef) return null;
+    const yeni = hedef.name + '/' + ad;
+    if (yeni === eski) return null;
+    const kaynaklar = uniteler.filter(u => u.name === unite(eski));
+    const index = b.uniteler.findIndex((_, i) => uniteKlasoruBul(b.uniteler, i, uniteler) === hedef.name);
+    const hedefAnahtar = index >= 0 ? kitapUniteAnahtarlari(b)[index] : undefined;
+    const is = yerIs(yeni, hedefAnahtar, index >= 0 ? b.uniteler[index].konular.length : 0,
+      kaynaklar.length === 1 ? { konu: bulunan.id, kaynak: kaynaklar[0].id, hedef: hedef.id } : undefined);
+    const tam = await o.yerel(is);
+    // kitap.json: only when everything is known and nothing else is waiting (never an error for the reader)
+    let yaz = konuTasiAcik() && tam && !!hedefAnahtar && kaynaklar.length === 1 && !hazirlaniyor && !o.kuyruk.hasUnsaved;
+    try { if (yaz && tasiDepo.oku()) yaz = false; } catch { yaz = false; }
+    if (yaz) {
+      try { jsondaTasi(json, eski, hedefAnahtar!, is.hedefSira, yeni); } catch { yaz = false; }
+    }
+    if (yaz) void calistir(is).then(ok => { if (ok) o.duzeltildi?.(); });
+    return yeni;
   };
   o.baglam.konuTasi = async (b, konu, hedef, sira) => {
     if (!konuTasiAcik()) throw new Error(t('tasi.kapali'));

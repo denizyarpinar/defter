@@ -12,6 +12,8 @@ export const tr = {
   'tasi.mesgul': 'Bu konuda dosya veya sayfa işi bekliyor; tamamlanınca tekrar dene.',
   'tasi.kapali': 'Konu taşıma kapalı.',
   'tasi.kontrol': 'Taşıma durumu kontrol ediliyor…',
+  'konuAra.duzeltildi': 'Konu başka ünitede bulundu; içindekiler düzeltildi.',
+  'okuyucu.konuAraniyor': 'Konu aranırken',
   'tasi.yuklenemedi': "Kitap Drive'dan yeniden yüklenemedi; bağlantıyı kontrol edip Vazgeç'e tekrar bas.",
 
   // general

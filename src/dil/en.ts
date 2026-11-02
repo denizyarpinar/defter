@@ -13,6 +13,8 @@ export const en: Sozluk = {
   'tasi.okuma': "The reading record couldn't be saved; retry saving before moving the topic.",
   'tasi.mesgul': 'A file or page operation is pending for this topic; try again when it finishes.',
   'tasi.kapali': 'Topic moving is disabled.',
+  'konuAra.duzeltildi': 'Topic found in another unit; contents updated.',
+  'okuyucu.konuAraniyor': 'Looking for the topic',
   'tasi.kontrol': 'Checking move status…',
   'tasi.yuklenemedi': "The book couldn't be reloaded from Drive; check the connection and press Cancel again.",
 

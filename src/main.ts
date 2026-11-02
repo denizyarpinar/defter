@@ -1,5 +1,6 @@
 import { konuTasiBagla } from './ui/konuTasiAkisi';
-import { kitaptaTasi, konuTasiAcik } from './kitap/konuTasi';
+import { kitaptaTasi, konuTasiAcik, yolCevir } from './kitap/konuTasi';
+import type { TasiIsi } from './drive/konuTasiYaz';
 import { mesgulMu } from './defter/konuyaDosyaEkle';
 import { okuyucuYolTasi, konuSayfaIsiVar } from './okuma/Okuyucu';
 import { readerYolTasi } from './ui/reader';
@@ -351,6 +352,29 @@ async function kitaplikYenile(): Promise<void> {
 // (ribbon / status, cover) finish what is waiting, so they don't write over each other.
 
 let icKuyruk: IcindekilerKuyrugu | null = null;
+
+// A topic's path changed (6.6-3b move; 6.6-3c found in another unit): every local record follows it.
+// esnek (6.6-3c): the topic can't be put into its unit in memory → only its path changes (true: put in place).
+async function konuYoluYerel(is: TasiIsi, esnek = false): Promise<boolean> {
+  await yedekYolTasi(is.kitapId, is.eskiYol, is.yeniYol);
+  const b = data?.books.get(is.kitapId);
+  let tam = true;
+  if (b) {
+    try { kitaptaTasi(b, is.eskiYol, is.hedefAnahtar ?? 'k:' + is.yeniYol.split('/')[0], is.hedefSira, is.yeniYol); }
+    catch (e) {
+      if (!esnek) throw e;
+      tam = false;
+      for (const u of b.uniteler) for (const k of u.konular) k.klasor = yolCevir(k.klasor, is.eskiYol, is.yeniYol);
+      const r = b.kurdele;
+      if (r && typeof r === 'object' && 'konu' in r && r.konu === is.eskiYol) r.konu = is.yeniYol;
+    }
+  }
+  reading?.yolTasi(is.kitapId, is.eskiYol, is.yeniYol);
+  okuyucuYolTasi(is.kitapId, is.eskiYol, is.yeniYol);
+  readerYolTasi(is.kitapId, is.eskiYol, is.yeniYol);
+  agacGecersiz(); aramaPaneli.gecersizKil();
+  return tam;
+}
 let icBaglanti: IcindekilerBaglantisi | null = null;
 
 // task 6.K5a-2: the queue and the panel's context in ui/icindekilerBaglami.ts (one refresh way for every write)
@@ -371,15 +395,7 @@ function icindekilerKur(loc: DriveLocation | null): void {
         if (reading?.hasUnsaved || saver?.hasUnsaved) throw new Error(t('tasi.okuma'));
         if (await konuSayfaIsiVar(is.kitapId, is.eskiYol) || mesgulMu(is.konuKlasorId)) throw new Error(t('tasi.mesgul'));
       },
-      tasiYerel: async is => {
-        await yedekYolTasi(is.kitapId, is.eskiYol, is.yeniYol);
-        const b = data?.books.get(is.kitapId);
-        if (b) kitaptaTasi(b, is.eskiYol, is.hedefAnahtar ?? 'k:' + is.yeniYol.split('/')[0], is.hedefSira, is.yeniYol);
-        reading?.yolTasi(is.kitapId, is.eskiYol, is.yeniYol);
-        okuyucuYolTasi(is.kitapId, is.eskiYol, is.yeniYol);
-        readerYolTasi(is.kitapId, is.eskiYol, is.yeniYol);
-        agacGecersiz(); aramaPaneli.gecersizKil();
-      }
+      tasiYerel: async is => { await konuYoluYerel(is); }
     }),
     // useData binds the panel before the loading state changes to 'drive'.
     // Each operation still checks the current Drive state through secenek().yazabilir.
@@ -417,7 +433,9 @@ function icindekilerKur(loc: DriveLocation | null): void {
       Object.assign(b, parseBook(id, await driveIcindekilerApi.jsonOku(fileId)));
       agacGecersiz(); aramaPaneli.gecersizKil(); refreshReader();
     },
-    haber: () => baglanti.haber()
+    haber: () => baglanti.haber(),
+    yerel: is => konuYoluYerel(is, true),
+    duzeltildi: () => toast(t('konuAra.duzeltildi'))
   });
   baglanti.baglam.tamErisim = { goster: () => tamErisimDugmesi({ sahip: sahipMi(girisEposta, SAHIP_EPOSTA, SAHIP_YOK), aktif: aktifKapsam() }), ac: openFullAccess };
   icBaglanti = baglanti;

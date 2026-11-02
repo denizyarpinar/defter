@@ -28,6 +28,7 @@ export interface IcindekilerBaglami {
   tasiSorun?(): string | null;                   // a move recovery that stopped (status line + Vazgeç)
   tasiVazgec?(kitapId?: string): Promise<void>;  // drops only the local move record, reloads the book
   tasiBekleyen?(b: Book): TasiIsi[];
+  konuBul?(b: Book, yol: string): Promise<string | null>;   // 6.6-3c: the topic's folder now (null: not found)
   kilitAcik: boolean;
   hasJson(b: Book): boolean;                                   // a kitap.json in Drive
   uniteKlasorleri(b: Book): Promise<(string | null)[]>;        // per unit: its folder (null: "+ Konu" grey)

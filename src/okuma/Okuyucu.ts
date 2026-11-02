@@ -65,6 +65,7 @@ import { CanvasBudget, deviceLimits, shareBudget } from './canvasButcesi';
 import { SingleFlight } from './cizimKuyrugu';
 import { getPdf, putPdf } from './pdfOnbellek';
 import { SourceResolver } from './kaynakCoz';
+import { konuKesfet } from './konuAra';
 import {
   acikIndeks, dosyaEklemeKarari, dosyaGosterHedefi, eklenenMateryal, GOSTER_OTOMATIK, gosterIndeksi, konuBirlestir, sayfaListesiniGenislet,
   yeniIndeks, yenilemeKarari, type EklemeSonucu, type EklenenDosya, type GosterHedefi
@@ -1045,8 +1046,20 @@ async function openTopic(unit: number, topicIndex: number, resume?: Resume): Pro
   $('#oChap').textContent = t.baslik;
   setMessage(dilT('okuyucu.konuAciliyor'));
   try {
-    const m = await discover(folder, t.klasor ?? '');
+    // task 6.6-3c: a path that isn't there → the context looks for the Konu-NN once (konuAra.ts)
+    const b = book, bul = icBaglam?.konuBul, f = folder;
+    const k = await konuKesfet(t.klasor ?? '', {
+      kesfet: x => discover(f, x),
+      bul: bul && !isSampleId(f) ? x => bul(b, x) : undefined,
+      unut: x => { topicCache.delete(`${f}|${x}`); if (resolver?.folderId === f) resolver = null; }
+    });
     if (my !== session) return;
+    const m = k.m;
+    if (k.klasor !== (t.klasor ?? '')) t.klasor = k.klasor;   // memory only path change (it couldn't go into its unit)
+    for (const [ui, u] of bookUnits(b).entries()) {
+      const ti = u.konular.indexOf(t);
+      if (ti >= 0) { current = { unit: unit = ui, topic: topicIndex = ti }; break; }   // 6.6-3c: where it is now
+    }
     const kind = m ? resume?.materyal && m[resume.materyal].length ? resume.materyal : defaultKind(m) : null;
     topic = { title: t.baslik, klasor: t.klasor ?? '', materials: m ?? emptyMaterials(), kind, fileIndex: 0, solution: false };
     if (!kind) {
