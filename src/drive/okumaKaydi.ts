@@ -69,6 +69,13 @@ export class ReadingSaver {
     return this.queue;
   }
 
+  yolTasi(bookId: string, eski: string, yeni: string): void {
+    const p = this.pending.get(bookId);
+    if (!p) return;
+    if (p.konular?.[eski]) { p.konular[yeni] = p.konular[eski]; delete p.konular[eski]; }
+    if (p.kurdele && 'konu' in p.kurdele && p.kurdele.konu === eski) p.kurdele.konu = yeni;
+  }
+
   dispose(): void {
     clearTimeout(this.timer);
     clearTimeout(this.retryTimer);

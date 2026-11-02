@@ -1,3 +1,4 @@
+import { tasiKilitli } from '../kitap/konuTasiKilit';
 import { FOLDER_MIME, listChildren, type DriveFile } from '../drive/drive';
 import type { DriveLocation } from '../drive/driveLibrary';
 import { AyniIsimVar, createPdf, DosyaYazmaYok, PdfDegil, type CreatePdfSecenek, type PdfOlusturDrive } from '../drive/pdfOlustur';
@@ -180,6 +181,7 @@ export async function konuyaDosyaEkle(
   istek: DosyaEkleIstek, o: DosyaEklemeOrtami, secenek: DosyaEkleSecenek = {}
 ): Promise<DosyaEklendi> {
   const { konu, hedef } = istek;
+  if (tasiKilitli(konu)) throw new EklemeSuruyor();
   // checks without any request
   if (isSampleId(konu) || (typeof hedef === 'object' && isSampleId(hedefDosyasi(hedef).id))) throw new PdfSampleNoWrite();
   const yer = o.yer;
@@ -206,6 +208,7 @@ export async function konuyaDosyaEkle(
 // ---- the lock (this tab only: two tabs or devices can still race, Drive has no lock on names) ----
 
 const surenler = new Set<string>();
+export const mesgulMu = (konuKlasorId: string): boolean => [...surenler].some(k => k.startsWith(konuKlasorId + '/'));
 
 // Known without any request: one topic has one Uebungen / Oedevler folder and X has one solution name,
 // so this means the same as "target folder id + name".

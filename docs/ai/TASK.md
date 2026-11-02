@@ -1,57 +1,72 @@
-# TASK – 6.6-3a: İçindekilerde sürükle-bırak (aynı ünite içi + ünite sırası)
+# TASK – 6.6-3b: Konuyu başka üniteye sürükleyip taşıma (Drive klasör taşıma + Geri al)
 
-Onaylı plan (planlayıcı: Claude, 2 Kasım 2026). Kaynak: `FAZ6_6_PLAN.md` 6.6-3. Başlangıç: main = faz-6 = 74cff85 (6.6-2 canlı). Bu adım yalnız SIRA değiştirir; konuyu başka üniteye taşıma 6.6-3b'dir (ayrı TASK, Drive klasör taşıma).
+Onaylı plan (planlayıcı: Claude, 2 Kasım 2026). Kaynak: `FAZ6_6_PLAN.md` 6.6-3. Deniz kararı S3 = A (telefon ana ekranı gibi: satırı kaldır, başka ünitenin içine bırak). Başlangıç: 6.6-3a canlı (2360b1d + docs commit'i). Bu bir **Drive/veri değişikliği**: ek kontrol + geri alma planı zorunlu (AGENTS.md).
+
+**İki aşama:** Önce AŞAMA 0 (keşif raporu, kod yok) → Claude onaylar → AŞAMA 1 (kod). Aşama 0'ın sonunda dur.
 
 ## Goal
-Düzenle modunda konu ve ünite satırları ↑ ↓ yerine tutamaçtan (⠿) sürüklenerek sıralansın: satır kalkar, parmağı/fareyi izler, diğerleri kayarak yer açar, bırakınca yeni sırada kalır. Konu yalnız kendi ünitesinde; ünite başlığı tüm üniteyi taşır.
+Düzenle modunda bir konu, tutamacından tutulup başka bir ünitenin konu listesine (ya da boş/kapalı ünitenin başlığına) bırakılınca o üniteye taşınsın: Drive'da konu klasörü yeni ünite klasörünün altına geçsin, kitap.json'da konu yeni ünitede bırakılan sıraya girsin. Bitince "Taşındı · Geri al" bildirimi; Geri al her şeyi eski haline koysun. Yarıda kalırsa "Tekrar dene" kaldığı yerden sürsün, "Vazgeç" klasörü eski yerine koysun.
 
 ## Context (kod okundu)
-- `src/ui/icindekilerDuzenle.ts` (`IcindekilerDuzenleyici`): `ciz()` listeyi `innerHTML` ile çizer; satırlar `.ie-unite > .ie-satir.ie-ubas` ve `ol > li.ie-satir`. ↑ ↓ = `data-yukari/asagi="u0" | "k0.1"` → `tasi(yer, ±1)`.
-- `tasi`: kitapta sırayı hemen değiştirir (`yerDegisti(() => kitabaUygula(...))`), yazmayı `SiraBirlestirici(800)` ile tek isteğe birleştirir, `siraOncesi` ile geri alma (`geri`) gönderir. Konu sırası ünite nesnesine bağlı gönderilir (araya ad değişikliği girerse doğru anahtar).
-- Okuyucu kuyruk her değiştiğinde paneli yeniden çizdiriyor (`yeniden` / `ciz`).
-- Bekleyen satırlar (`.ie-bekliyor`: Ekleniyor…/Çöpe atılıyor…) ve ad düzenleme (`duzenlenen`) satırları var.
+- 3a: `ui/icindekilerDuzenle.ts` sürükleme (dragStart/dragPaint/dragEnd, `ciz` ertelemesi), `ui/surukleDurumu.ts` (`surukleHedefi(..., unite)` 3b için hazır), `siraDegistir`.
+- Konu anahtarı = `topicKey(klasor, baslik)` = klasör YOLU (`Unite-01-A/Konu-03-B`). Taşıma yolu değiştirir → anahtar değişir.
+- Konu numaraları kitap boyunca tek sayaç (`klasorNumarasi.ts`: Unite-02, Konu-03 ile başlar) → taşınan `Konu-05-…` yeni ünitede de benzersizdir.
+- Kuyruk: `drive/icindekilerYaz.ts` (islemId, tekrar dene, Vazgeç, `oncesi` ile diğer kitap.json yazıcıları önce). En yakın örnek: `drive/icindekilerCop.ts` + `kitap/copeAt.ts` (adım bayrakları `jsonTamam/klasorTamam`, `Cikan`, kurdele null/geri, `geriAlIsi`, `yonlendir`). Başlıktaki "No move, no rename in Drive" kuralı bu adımda bilinçli olarak yalnız konu klasörü TAŞIMA için gevşer.
 
 ## Teknik kararlar (planlayıcı)
-- D1 Kütüphane yok, Pointer Events ile kendi küçük sürüklemesi. Neden: tek liste, iki seviye; 1945 testlik projeye bağımlılık eklemeye değmez.
-- D2 Saf hesap ayrı modülde: `src/ui/surukleDurumu.ts` (DOM'suz, testli). Ör. `hedefSira(ortaNoktalar: number[], kaynak: number, y: number): number` (bırakılacak yeni indeks) ve `siraTasi<T>(dizi: T[], kaynak: number, hedef: number): T[]` (splice). 6.6-3b'de üniteler arası hedef buraya eklenecek; şimdiden "hangi ünitenin üstünde" bilgisini döndürebilecek biçimde kur ama 3a'da kendi ünitesi dışını hedef SAYMA.
-- D3 Tutamaç: her ünite başlığı ve konu satırının en solunda `<button class="ie-tutamac" data-surukle="u0|k0.1" aria-label=…>⠿</button>`; yalnız tutamaçta `touch-action: none`. Sürükleme tutamaçta basıp ≥6 px oynatınca başlar (fare, parmak, kalem aynı). Satırın geri kalanında dokunma bugünkü gibi (kaydırma, çift dokunuşla ad). Neden: tutamaç dışında kaydırmayla karışma riski yok, basılı tutma beklemesi gereksiz.
-- D4 Görünüm (S3 = A, telefon ana ekranı hissi): kalkan satır hafif büyür + gölge (mevcut kart gölgesi/değişkenleri, yeni renk icat etme), işaretçiyi dikey izler (`transform: translateY`); diğer satırlar 150 ms `transform` geçişiyle kayıp boşluk açar. Bırakınca yerine oturur. `prefers-reduced-motion`'da geçiş yok.
-- D5 Sınırlar: konu yalnız kendi `ol`'u içinde (dışarı çekilirse en uç konumda kalır); ünite tüm `.ie-unite` bölümüyle üniteler arasında. Bekleyen (`.ie-bekliyor`) satır sürüklenmez ve hedef sayılmaz; tutamaç onlarda yok.
-- D6 Kenar kaydırma: işaretçi kaydırılabilir liste kabının üst/alt 40 px'ine gelince kap kendiliğinden kayar (rAF, hız kenara yakınlıkla artar).
-- D7 Yazma: `tasi(yer, yon)` genelleşir → `siraDegistir(yer, hedefIndeks)`; ↑ ↓ bunu `i±1` ile çağırır. Bırakınca TEK çağrı; aynı yere bırakmak yazmaz. `SiraBirlestirici`, `siraOncesi`, `geri`, `yerDegisti`, ünite nesnesine bağlı gönderim aynen korunur. kitap.json biçimi ve Drive yolu değişmez → kilit gerekmez.
-- D8 Sürükleme sırasında `ciz()` ertelenir (bayrak); bırakınca/iptalde bir kez çizilir. Neden: kuyruk değişince gelen yeniden çizim sürüklenen satırı silmesin.
-- D9 İptal: Escape, `pointercancel`, liste dışında bırakma değil (son geçerli yere bırakır). Escape ve pointercancel satırı eski yerine döndürür, yazma yok.
-- D10 Kapalılık: `yazar` değilse, ad düzenlenirken (`duzenlenen`) ya da editör kapalıyken tutamaç `disabled`. Sürükleme başlarken bekleyen ad girdisi yok sayılmaz: `duzenlenen` varsa sürükleme başlamaz.
-- D11 ↑ ↓ ekranda görsel olarak gizlenir (`.ie-gizli` = görünmez ama odaklanabilir), klavye odağında (`:focus-visible`) görünür. Tutamaç da klavyede: odaktayken ↑/↓ tuşu `siraDegistir(yer, i±1)`.
-- D12 Metinler `src/dil` (TR + EN): tutamaç `aria-label` TR "Sürükleyerek taşı" / EN "Drag to reorder"; sürükleme sonrası ekran okuyucu için `aria-live` mevcut durum satırında kısa not gerekmez (görsel yeterli). `t()` modül yüklenirken çağrılmaz.
+- D1 Klasör ADI değişmez, yalnız ebeveyni: `files.update(konuKlasorId, addParents=hedefUniteId, removeParents=kaynakUniteId)`. Neden: Konu-NN kitap boyunca benzersiz; yeniden adlandırma ikinci bir riskli adım olurdu ve ad zaten ekranda görünmüyor (görünen ad kitap.json'da). (Plandaki "Konu-NN düzelt" maddesi bu kararla düşer.)
+- D2 Sıra: (1) klasör + ebeveyn zinciri kontrolü (`ebeveynGecerliMi`/`zincirKontrol` deseni; hedef ünite klasörü bu kitabın klasörünün çocuğu olmalı) → (2) Drive'da taşı (zaten hedefteyse = yapılmış say) → (3) kitap.json: konuyu kaynak üniteden çıkar, `klasor` yolunu `<hedefUniteKlasor>/<KonuKlasorAdi>` yap, hedef ünitede verilen sıraya koy; `kurdele.konu` eski yolu gösteriyorsa yeni yola çevir. Her adım bayrakla işaretli (`klasorTamam`, `jsonTamam`), "Tekrar dene" kaldığı yerden.
+- D3 Yeni istek türü `{ tur: 'konuTasi'; tasi: TasiIsi }` (CopIsi gibi tek nesne, adım bayrakları + `geriAl`). Saf kısım `kitap/konuTasi.ts`: `jsondaTasi(tutucu, eskiAnahtar, hedefUniteAnahtari, hedefSira, yeniYol)` ve tersi; kitap.json ham nesnesi ve bellekteki kitap için aynı kod (copeAt deseni), bilinmeyen alanlar korunur.
+- D4 Geri al = aynı iş ters yönde (hedef→kaynak, eski sıraya, eski yola, kurdele geri). Vazgeç (Drive adımından sonra, json'dan önce kesildiyse) = klasörü eski ebeveynine geri koy. Bildirim: mevcut toast + "Geri al" (çöp akışındaki gibi).
+- D5 Yerel anahtarlar: konu yoluna bağlı her yerel kayıt (localStorage/IndexedDB/bellek önbelleği: okuma kaydı, sayfa önbelleği, Temiz yazı/OCR önbelleği, silinen sayfa deposu, kurdeleler, arama dizini vb.) AŞAMA 0'da listelenir; her biri için "yeni anahtara taşı" ya da "geçersiz kıl (yeniden okunur)" kararı rapora yazılır. Drive'daki dosyalar (.ocr.json, kalem notları, Ozetler/, Uebungen/) klasörle birlikte taşınır, dokunulmaz.
+- D6 Engeller (taşıma başlamaz, durum satırında neden): konunun bekleyen kalem/fotoğraf/dosya kaydı ya da kuyrukta bekleyen içindekiler işi varsa; hedef ünitenin klasörü bilinmiyorsa (`uniteKlasoru` boş); konu ya da ünite çöpe gidiyorsa / ekleniyorsa; kitap surum 1 ya da kitap.json yoksa.
+- D7 Açık konu taşınırsa okuyucu yeni yola yönlenir (`yonlendir` / `yerDegisti` deseni), kurdele ve sayfa korunur.
+- D8 Arayüz (S3 = A): konu sürüklenirken diğer ünitelerin konu listeleri de hedeftir; işaretçi başka ünitenin üstüne gelince o ünite hafif vurgulanır (mevcut vurgu rengi), satırlar orada kayarak yer açar; boş ya da tek satırlık ünitede başlığa bırakmak = sona ekle. Bırakınca satır yeni yerinde "Taşınıyor…" (Ekleniyor… gibi) gösterir, iş bitince normal olur. Ünite sürüklemesi ve aynı ünite içi sıra 3a'daki gibi kalır.
+- D9 Kilit (DECISIONS D13): `const KONU_TASI = false` + adreste `?konuTasi=1`. Kilit kapalıyken başka üniteye bırakma 3a gibi davranır (kendi ünitesine sınırlı). Deniz denemesinden sonra main çıkışında `true`.
+- D10 Diğer cihaz: eski kitap.json'u tutan başka cihaz/sekme eski yolu açarsa "konu bulunamadı" yerine kitap yeniden yüklensin (mevcut yönlendirme/yenileme yolu varsa onu kullan; yoksa raporla, ayrı iş).
 
-## Relevant Files
-`src/ui/icindekilerDuzenle.ts`, yeni `src/ui/surukleDurumu.ts` + `surukleDurumu.test.ts`, `src/ui/icindekilerDurumu.ts` (gerekirse), içindekiler stilleri (`styles.css` içinde `.ie-*`), `src/dil/tr.ts` + `en.ts`. Okuyucu tarafı (`Okuyucu.ts` panel çizimi) yalnız D8 gerektirirse.
+## AŞAMA 0 – Keşif raporu (kod değişmez)
+Şunları kısa listele ve DUR:
+1. Konu klasör yolunu (`Topic.klasor` / `topicKey`) anahtar olarak kullanan HER yer (dosya:satır, ne sakladığı, yerel mi Drive mı) ve D5 için önerin (taşı / geçersiz kıl).
+2. Okuyucu bir konunun dosyalarını yoldan mı (klasör adlarını gezerek) yoksa klasör id'sinden mi buluyor? Taşımadan hemen sonra açmak için ne gerekiyor?
+3. OAuth kapsamı (`drive/kapsam.ts`): `files.update` addParents/removeParents elle yüklenmiş (uygulamanın oluşturmadığı) klasörlerde çalışır mı? Çalışmıyorsa hangi hata, kullanıcıya ne gösterilmeli?
+4. Bekleyen kayıt kontrolü (D6) için hangi kuyruklara bakılmalı (kalem kuyruğu, foto, dosya ekleme, sayfa işleri)?
+5. Önerdiğin dosya listesi ve tahmini test sayısı. Kararlarla çelişen bir şey görürsen yaz.
 
-## Requirements
-1. Konu: aynı ünite içinde sürükle-bırak; ünite: üniteler arasında sürükle-bırak (D3–D7).
-2. ↑ ↓ ve klavye tutamacı aynı `siraDegistir` yolunu kullanır (D11); hızlı ardışık sürüklemeler 800 ms içinde tek yazma.
-3. Sürükleme sırasında yeniden çizim ertelenir (D8); iptal (D9); kapalılık (D10).
-4. Açık konu ünite taşınırken doğru kalır (`yerDegisti`, mevcut davranış).
-5. Testler: `hedefSira` (yukarı/aşağı, uçlar, aynı yer, tek eleman), `siraTasi`; editörde ↑ ↓ eski davranışla aynı istek + geri (mevcut testler geçer); sürükleme → tek `konuSirasi`/`uniteSirasi` isteği ve doğru `geri`; aynı yere bırakma → istek yok; bekleyen satırda tutamaç yok; `duzenlenen` varken sürükleme başlamaz. Tüm mevcut testler geçer.
+## AŞAMA 1 – Requirements (Claude'un onayından sonra)
+1. `kitap/konuTasi.ts` saf (D3) + testler: ham json ve bellek aynı sonuç; bilinmeyen alanlar korunur; kurdele çevrilir/geri; hedef sıra; tekrar uygulama değişiklik yapmaz; ters işlem birebir eski hal; ünitenin `klasor` alanı yoksa (yolundan çıkarılan) son konu gidince `klasor` yazılır (copeAt'teki kural).
+2. `drive/icindekilerYaz.ts` + yeni `drive/konuTasiYaz.ts`: D2 adımları, zincir kontrolü, zaten hedefteyse atla, Tekrar dene, Vazgeç (D4), Geri al. Sahte Drive testleri: normal, ağ hatası her adımda + tekrar dene, Vazgeç klasörü geri koyar, Geri al, izin hatası, hedef ünite başka kitapta → red, aynı islemId ile ikinci deneme çift taşımaz.
+3. Arayüz D8 + engeller D6 + kilit D9; metinler `src/dil` TR + EN ("Taşınıyor…"/"Moving…", "Taşındı"/"Moved", "Geri al"/"Undo", engel nedenleri). 
+4. D5 yerel anahtarlar Aşama 0'da onaylanan biçimde; D7 açık konu yönlendirmesi.
 
 ## Do Not
-- Konuyu başka üniteye taşıma (3b). Drive'da klasör taşıma/yeniden adlandırma yok; Konu-NN / Unite-NN klasör adları değişmez.
-- kitap.json biçimi, JSON anahtarları, `icindekilerYaz` kuyruk/istek türleri değişmez (yalnız mevcut `konuSirasi`/`uniteSirasi` kullanılır).
-- Sürükleme kütüphanesi ekleme; HTML5 drag&drop (`draggable`) kullanma (iPad'de güvenilmez).
-- Kalem/girdi (`src/kalem/*`), auth, kaydedici değişmez. Yeni renk/gölge icat etme.
+- `files.delete` yok; klasör/dosya ADI değişmez (Unite-NN, Konu-NN, orijinal.pdf, ozet.pdf, Ozetler, Uebungen, Oedevler, kitap.json); JSON anahtarları ve kitap.json biçimi değişmez (yalnız mevcut `klasor` değeri ve konunun yeri).
+- Ünite taşıma (ünite başka kitaba) ve konuyu başka KİTABA taşıma yok.
+- Kalem/girdi, auth, kaydedici akışı değişmez. Yeni renk/gölge icat etme.
 - `git checkout` (dal değiştirme), `reset`, `stash`, force push. Commit atma, main'e push etme (Deniz söyleyince).
 
 ## Definition of Done
-- Laptop (fare) ve iPad (parmak + kalem): konu kendi ünitesinde, ünite üniteler arasında sürüklenir; diğerleri kayar; bırakınca sıra kitapta ve Drive'da (kitap.json) kalıcı, sayfa yenileyince aynı.
-- Tutamaç dışından liste bugünkü gibi kayar; çift dokunuşla ad değiştirme, çöp, + Konu bozulmaz.
-- Testler, typecheck, build, `npm run dil` (0) geçer; `dil:ekran` taşma 0.
+- `?konuTasi=1` ile: konu başka üniteye bırakılınca Drive'da klasör yeni ünite klasörünün altında, kitap.json'da yeni ünitede doğru sırada; sayfa yenileyince aynı; konunun özeti, Übungen'i, kalem notları, Temiz yazı/OCR ve kurdelesi yerinde.
+- Geri al tam eski hal. Ağ kesintisinde Tekrar dene ve Vazgeç doğru. Kilit kapalıyken 3a davranışı.
+- İkinci (temiz) hesapla: 3 konu taşıma + 1 Geri al + 1 yarıda kesip Tekrar dene.
+- Testler, typecheck, build, `npm run dil` (0), `dil:ekran` taşma 0.
 
 ## Verification
 - `npm test`, `npm run typecheck`, `npm run build`, `npm run dil`, `npm run dil:ekran`.
-- Derlenmiş uygulama + sahte Drive, Playwright: 390×844 (dokunma) ve 1180×820 (fare): konu 1→3 sürükle, ünite 2→1 sürükle, Escape iptali, uzun listede kenar kaydırma; gönderilen istek sayısı ve sırası.
-- Sonunda göster: değişen dosyalar, test sayısı, `git status`, laptop + iPad deneme adımları.
+- Derlenmiş uygulama + sahte Drive, Playwright 390×844 (dokunma) ve 1180×820 (fare), EN + TR: konuyu başka üniteye taşı, boş üniteye taşı, Geri al, ağ hatası + Tekrar dene, Vazgeç.
+- Sonunda göster: değişen dosyalar, test sayısı, `git status`, laptop + iPad deneme adımları (`?konuTasi=1`).
 
 ## Ek kontrol + geri alma
-- Kontrol: Claude diff'i okur (yazma yolu yalnız mevcut sıra istekleri, ciz ertelemesi sızıntısız, ↑ ↓ davranışı aynı).
-- Geri alma: tek commit `git revert` (veri biçimi değişmediği için Drive'da temizlik gerekmez).
+- Kontrol: Claude diff'i okur (Drive'a giden tek yeni yazma `files.update` addParents/removeParents; delete/rename yok; adım bayrakları yarıda kesilmede tutarlı; kurdele ve yerel anahtarlar). Deniz önizlemede ikinci hesapla dener, sonra kendi gerçek kitabında bir konuyla.
+- Geri alma: (1) `KONU_TASI = false` → yeni taşıma durur, sıralama (3a) çalışır. (2) Taşınmış konular kendi kitap.json'ları ve klasörleriyle tutarlı kalır; elle düzeltme gerekmez. (3) Gerekirse commit `git revert`; Drive'daki taşınmış klasörler yeni ünitelerinde kalır ve kitap.json onları doğru gösterir.
+- Main çıkışında `docs/ai/DECISIONS.md` sonuna: `D31 – Konu taşıma (6.6-3b, 2 Kasım 2026): konu başka üniteye yalnız klasörün ebeveyni değiştirilerek taşınır, klasör adı (Konu-NN) değişmez; sonra kitap.json yolu güncellenir. Neden: Konu-NN kitap boyunca benzersiz, yeniden adlandırma ek risk.`
+
+## AŞAMA 0 sonrası kararlar (Claude, 2 Kasım 11:10) – Aşama 1 bunlarla yapılır
+- K1 D12 çelişkisi: Aşama 1'in İLK işi `docs/ai/DECISIONS.md`'yi güncellemek. D12 metnindeki "kopyalama/taşıma yok" → "kopyalama yok; taşıma yalnız D31". Sona D31: `D31 – Konu taşıma (6.6-3b, 2 Kasım 2026): konu başka üniteye yalnız klasörün ebeveyni değiştirilerek (addParents/removeParents) taşınır, klasör adı (Konu-NN) değişmez; sonra kitap.json yolu güncellenir. Kilit KONU_TASI / ?konuTasi=1. Neden: Konu-NN kitap boyunca benzersiz, yeniden adlandırma ek risk.` (Kilit kalkınca main çıkışında yalnız "Kilit" cümlesi silinir.)
+- K2 Gerçeğin kaynağı = Drive'daki klasörün ebeveyni. Taşıma başlarken iş kaydı (islemId, kitapId, konuKlasorId, kaynak/hedef ünite id + yol, eski/yeni yol, hedef sıra, yön) localStorage'a `defter-konu-tasi` altında yazılır; bitince silinir. Kitap açılırken/düzenle modu açılırken kayıt varsa TOPARLA: klasörün gerçek ebeveynini Drive'dan oku → kitap.json'u ona uydur (hedefteyse ileri tamamla; kaynaktaysa kaydı sil, json'a dokunma). Sekme kapanması bu yolla kapanır. Toparlama da aynı kuyruktan geçer, testli.
+- K3 D6 daraltıldı: kalem, fotoğraf, OCR/Temiz yazı ve sayfa önbellekleri dosya/klasör KİMLİĞİYLE çalıştığı için engel DEĞİL. Engel yalnız yola bağlı işler: (a) içindekiler kuyruğu boş değil (çöp/geri al dahil), (b) okumaKaydi kaydedilmemiş değişiklik → önce flush; başarısızsa engel, (c) bu konuda çalışan ya da IndexedDB'de yarım sayfa işi (bosSayfaIsi/sayfaIsiDepo), (d) bu konuda çalışan dosya ekleme (konuyaDosyaEkle kilidi; dışarı küçük bir `mesgulMu(konuKlasorId)` aç). Durum okunamazsa engel. Taşıma sürerken bu konuya yeni sayfa işi/dosya ekleme başlamaz (düzenle modu açıkken zaten okuyucu arkada).
+- K4 Yerel kayıtlar: okumaYamasi/okumaDurumu, açık konu konumu, reader dayanağı, içindekiler yönlendirmeleri, silinenSayfaDepo içindeki yol → YENİ YOLA TAŞI (silme yok). kaynakCoz/konu materyal önbelleği ve arama ağacı → GEÇERSİZ KIL (bulunamadı sonucu dahil). Geri al aynı işlemleri ters yönde yapar. Taşıma yardımcısı tek yerde (`kitap/konuTasi.ts` içinde `yolCevir(eski, yeni)` ya da ayrı küçük modül) ve testli.
+- K5 İzin: 403 appNotAuthorizedToFile / 404 → iş durur, hiçbir şey yazılmaz, durum satırında "Bu klasöre erişilemiyor; kitaplığı yenileyip tekrar dene." (TR/EN). Sahip dar kapsamdaysa mevcut "Tam erişimi aç" seçeneği gösterilir. Picker akışı kapsam dışı.
+- K6 D10 (eski kitap.json'lu başka cihaz) bu adımın dışında; CURRENT_STATE "Açık riskler"e bir satır yazılır.
+- K7 Açık konu taşınırsa okuyucu `openTopic` yerine yerinde yol güncellemesiyle aynı materyal + dosya + sayfada kalır (yeniden açma gerekiyorsa sayfa korunarak).
+- Test hedefi Codex tahmini kadar (60–80); kaybolan taşıma yanıtı (Drive taşıdı ama cevap gelmedi → tekrar dene "zaten hedefte"), sekme kapanıp toparlama, Geri al, Vazgeç, başarısız okuma flush'ı mutlaka.

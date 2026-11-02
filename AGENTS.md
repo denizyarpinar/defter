@@ -5,7 +5,7 @@ Kuralların kaynağı bu dosyadır; mimari çelişkilerde `docs/ai/DECISIONS.md`
 Eski belgeler `docs/ai/arsiv/` içindedir; yalnız görev gerektirince ilgili bölümü oku, asla tamamını yükleme. Faz ayrıntıları: `docs/ai/arsiv/CLAUDE_eski.md`.
 
 ## Her görevde
-1. `git status` temiz mi bak; değilse dur ve Deniz'e sor. Sonra `git pull`.
+1. `git status` temiz mi bak; değilse dur ve Deniz'e sor. İstisna: yalnız `docs/ai/TASK.md` değişmişse bu, Claude'un yazdığı yeni görevdir; sormadan devam et ve ona dokunma. Sonra `git pull`.
 2. `docs/ai/TASK.md` varsa içindeki görev onaylı plandır; Verification geçince commit at. Yoksa önce kısa plan göster (dosyalar + değişiklikler), Deniz onaylayınca uygula.
 3. `.env*` dosyaları ve secret'lar asla yazılmaz, gösterilmez, istenmez; gizli bilgi, API anahtarı veya token repoya konmaz.
 4. main'e birleştirme sadece Deniz'in onayıyla.

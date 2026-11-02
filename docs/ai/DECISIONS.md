@@ -20,7 +20,7 @@ Bu dosya AGENTS.md "Değişmez kurallar" ile çelişirse mimari konuda bu dosya 
 - D09 – İzin modu C: herkes `drive.file`; sahip hesabı tam `drive` (eski "Kitaplık" aynen çalışır). Neden: Google doğrulaması kolay, yabancı kullanıcı için güvenli.
 - D10 – Kurulum: "Defter Library" kökü (appProperties `defterKok=1`) + `kitaplar/` + `kitaplik.json` (5 raf). Klasör/JSON yalnız kendi kökünde ve yalnız kullanıcı düğmeye basınca; hepsinde `defter=1` + `defterIslem`; önce "var mı", çift yok. İlk girişte otomatik kurulum ürün hedefidir, onaylı karar değildir.
 - D11 – Oluşturulabilenler (başka dosya yok): yeni PDF yalnız `kitaplar/<kitap>/` altında; `kitaplik.json` yoksa bir kez; kurulum ve sihirbaz öğeleri (D10); `<pdf adı>.ocr.json`; `_sistem/el-yazisi/` içinde yalnız atlas png + json (yalnız `atlas-yukle.html` düğmesiyle).
-- D12 – Silme: `files.delete` asla; kopyalama/taşıma yok. Yalnız `trashed=true` + Geri al: konu, ünite, kitap, açık dosya (6.K5b/6.K6b) ve Word/PPT çevirisinin geçici Google dosyası (6.1b). Kök, `kitaplar/`, `kitaplik.json` asla çöpe gitmez.
+- D12 – Silme: `files.delete` asla; kopyalama yok; taşıma yalnız D31. Yalnız `trashed=true` + Geri al: konu, ünite, kitap, açık dosya (6.K5b/6.K6b) ve Word/PPT çevirisinin geçici Google dosyası (6.1b). Kök, `kitaplar/`, `kitaplik.json` asla çöpe gitmez.
 - D13 – Riskli yeni yazma kodu önce adres kilidiyle (`?…=1`) gelir, gerçek testten sonra kilit kalkar.
 
 ## PDF'e yazma
@@ -54,3 +54,4 @@ Bu dosya AGENTS.md "Değişmez kurallar" ile çelişirse mimari konuda bu dosya 
 - D29 – main = canlı (defter-jade.vercel.app); faz-6 = önizleme. main'e push yalnız Deniz'in açık onayıyla; force push yok.
 
 - D30 – Birden çok özet (6.6-2, 2 Kasım 2026): ilk özet konu klasöründe ozet.pdf; sonrakiler Ozetler/<ad>.pdf, okuyucuda seçiciyle ayrı açılır. Neden: özet uzamasın, Uebungen deseni yeniden kullanılsın.
+- D31 – Konu taşıma (6.6-3b, 2 Kasım 2026): konu başka üniteye yalnız klasörün ebeveyni değiştirilerek (addParents/removeParents) taşınır, klasör adı (Konu-NN) değişmez; sonra kitap.json yolu güncellenir. Kilit KONU_TASI / ?konuTasi=1. Neden: Konu-NN kitap boyunca benzersiz, yeniden adlandırma ek risk.

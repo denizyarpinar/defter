@@ -4,6 +4,18 @@ import type { Sozluk } from './sozluk';
 // Natural English, not word for word.
 
 export const en: Sozluk = {
+  'tasi.suruyor': 'Moving…',
+  'tasi.bitti': 'Moved',
+  'tasi.erisim': "This folder can't be accessed; reload the library and try again.",
+  'tasi.uyusmuyor': 'The topic or unit has changed; reload the library and try again.',
+  'tasi.depo': "The move record couldn't be read or saved; check browser storage access and try again.",
+  'tasi.bekleyen': 'Finish the pending contents operation first.',
+  'tasi.okuma': "The reading record couldn't be saved; retry saving before moving the topic.",
+  'tasi.mesgul': 'A file or page operation is pending for this topic; try again when it finishes.',
+  'tasi.kapali': 'Topic moving is disabled.',
+  'tasi.kontrol': 'Checking move status…',
+  'tasi.yuklenemedi': "The book couldn't be reloaded from Drive; check the connection and press Cancel again.",
+
   'oturum.bant.metin': 'Tap to refresh your session',
   'oturum.bant.devam': 'Continue',
   'oturum.bant.hata': "Couldn't refresh. Try again",

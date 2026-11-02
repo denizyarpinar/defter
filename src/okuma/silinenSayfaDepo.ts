@@ -1,3 +1,4 @@
+import { yolCevir } from '../kitap/konuTasi';
 import { t } from '../dil';
 import type { TasinanKurdele } from '../kitap/sayfaKaydir';
 
@@ -101,4 +102,14 @@ export async function yedekBuda(simdi = Date.now()): Promise<void> {
 
 export async function yedekleriTemizle(): Promise<void> {
   try { await calistir<void>('readwrite', s => s.clear()); } catch (e) { console.warn('Sayfa yedekleri cihazdan silinemedi.', e); }
+}
+
+export async function yedekYolTasi(kitapId: string, eski: string, yeni: string): Promise<void> {
+  const db = await ac();
+  const tx = db.transaction(STORE, 'readwrite');
+  const complete = done(tx);
+  const store = tx.objectStore(STORE);
+  const records = await req(store.getAll()) as SilinenYedekKaydi[];
+  for (const k of records) if (k.kitapId === kitapId && k.konu === eski) store.put({ ...k, konu: yolCevir(k.konu, eski, yeni) }, k.islemId);
+  await complete;
 }

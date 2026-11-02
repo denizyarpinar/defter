@@ -39,7 +39,7 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: 
 
 const hataMetni = (e: unknown) => e instanceof TypeError || !(e instanceof Error) ? t('genel.agHatasi') : e.message;
 
-export function initAramaPaneli(b: AramaPaneliBaglam): { ac(): void; acikMi(): boolean } {
+export function initAramaPaneli(b: AramaPaneliBaglam): { ac(): void; acikMi(): boolean; gecersizKil(): void } {
   const kok = el('div', 'ap');
   kok.id = 'aramaPaneli';
   kok.hidden = true;
@@ -277,5 +277,8 @@ export function initAramaPaneli(b: AramaPaneliBaglam): { ac(): void; acikMi(): b
     ac();
   });
 
-  return { ac, acikMi: () => !kok.hidden };
+  return { ac, acikMi: () => !kok.hidden, gecersizKil: () => {
+    zamanlayicilariDurdur(); kaynak = null; agacHazir = false;
+    if (!kok.hidden) { kapat(); ac(); }
+  } };
 }

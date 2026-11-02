@@ -429,3 +429,7 @@ export function closeReader(): void {
     onClose();
   }, 320);
 }
+
+export function readerYolTasi(kitapId: string, eski: string, yeni: string): void {
+  if (book?.id === kitapId && anchor === eski) anchor = yeni;
+}

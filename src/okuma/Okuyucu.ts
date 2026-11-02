@@ -1,3 +1,6 @@
+import { konuTasiAcik } from '../kitap/konuTasi';
+import { tasiYolKilitli } from '../kitap/konuTasiKilit';
+import { islerKesin } from './sayfaIsiDepo';
 import { agacGecersiz } from '../arama/kitaplikAgaci';
 import { listChildren, SessionExpired } from '../drive/drive';
 import { drivePdfApi, type YuklemeDinleyici } from '../drive/pdfYazici';
@@ -890,6 +893,17 @@ export function forgetBook(): void {
 // resume: "Kaldığın yerden devam" (the ribbon's material, file and page).
 export async function openOkuyucu(b: Book, folderId: string, unit: number, topicIndex: number, closed: () => void, resume?: Resume): Promise<void> {
   if (open) return;
+  if (konuTasiAcik()) {
+    const selected = usesUnits(b) ? b.uniteler[unit]?.konular[topicIndex] : bookUnits(b)[unit]?.konular[topicIndex];
+    open = true; // reserve the reader while journal recovery awaits Drive
+    try { await icBaglam?.toparla?.(b); }
+    catch (e) { open = false; toast(e instanceof Error ? e.message : dilT('tasi.depo')); return; }
+    open = false;
+    for (const [ui, u] of bookUnits(b).entries()) {
+      const ti = u.konular.findIndex(k => k === selected || (selected && k.klasor === selected.klasor));
+      if (ti >= 0) { unit = ui; topicIndex = ti; break; }
+    }
+  }
   const t = bookUnits(b)[unit]?.konular[topicIndex];
   if (!t) return;
   const v2 = usesUnits(b);
@@ -2275,6 +2289,7 @@ function isHataMetni(is: SayfaIsi, e: unknown): string {
 
 async function sayfaIsiYurut(is: SayfaIsi, t: OpenTopic | null): Promise<void> {
   const loc = bosSahte?.loc ?? driveLocation(), ctx = bosSahte ? sahteBaglam(bosSahte) : sayfaIsiBaglami;
+  if (tasiYolKilitli(is.konu)) { toast(dilT('tasi.suruyor')); return; }
   if (!loc || !ctx || sayfaIsiDosyalari.has(is.fileId)) return;
   sayfaIsiDosyalari.add(is.fileId);
   sayfaIsiYuzdesi('…');
@@ -2331,7 +2346,7 @@ async function sayfaIsleriniSurdur(): Promise<void> {
   if (!loc || !ctx || surduruluyor || isSampleId(folder)) return;
   surduruluyor = true;
   try {
-    const liste = (await isler()).filter(is => is.adimlar.pdf && !sayfaIsiDosyalari.has(is.fileId));
+    const liste = (await isler()).filter(is => is.adimlar.pdf && !sayfaIsiDosyalari.has(is.fileId) && !tasiYolKilitli(is.konu));
     if (liste.length) await ctx.oncesi();
     for (const is of liste) {
       try { await sayfaIsiCalistir(is, sayfaIsiOrtami(loc, ctx)); } catch (e) { console.warn('Yarım kalan sayfa işi yine tamamlanamadı; sonra tekrar denenecek.', e); }
@@ -3251,4 +3266,14 @@ function tellError(p: BookPage, key: string): void {
   toast(err instanceof PdfYazilamaz
     ? dilT('okuyucu.kalemCalismiyor', { ad: name, neden: err.message })
     : dilT('okuyucu.kalemAcilamadi', { ad: name }));
+}
+
+// Moving a topic keeps the already mounted PDF, material and page untouched.
+export function okuyucuYolTasi(kitapId: string, eski: string, yeni: string): void {
+  topicCache.clear(); resolver = null;
+  if (book?.id === kitapId && topic?.klasor === eski) { topic.klasor = yeni; konumuBul(); }
+}
+export async function konuSayfaIsiVar(kitapId: string, yol: string): Promise<boolean> {
+  if (book?.id === kitapId && topic?.klasor === yol && sayfaIsiDosyalari.size) return true;
+  return (await islerKesin()).some(is => is.kitapId === kitapId && is.konu === yol);
 }

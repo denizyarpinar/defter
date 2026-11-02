@@ -1,3 +1,4 @@
+import { konuTasiYaz, type TasiIsi } from './konuTasiYaz';
 import { t as dilT } from '../dil';   // 6.5-3: t is a topic in this file
 import { icindekilerUygula, IcindekilerUyusmuyor, uniteAnahtarlari, uniteKlasoru, uniteKlasoruBul, type AltKlasor, type IcindekilerIslemi } from '../kitap/icindekiler';
 import { bosAd, sonrakiNumara } from '../kitap/klasorNumarasi';
@@ -106,6 +107,7 @@ export const driveIcindekilerApi: IcindekilerDrive = {
 export type IcindekilerIstegi =
   | { tur: 'uniteEkle'; baslik: string }
   | { tur: 'konuEkle'; unite: string; uniteSira: number; baslik: string }   // unite: its key; uniteSira: 0-based
+  | { tur: 'konuTasi'; tasi: TasiIsi }
   | { tur: 'cop'; cop: CopIsi }                                              // 6.K5b: to the trash / "Geri al"
   | Exclude<IcindekilerIslemi, { tur: 'uniteEkle' | 'konuEkle' }>;
 
@@ -122,7 +124,7 @@ export interface IcindekilerIsi {
 }
 
 export const yeniIs = (islemId: string, kitapId: string, istek: IcindekilerIstegi): IcindekilerIsi => ({
-  islemId, kitapId, istek, islem: istek.tur === 'uniteEkle' || istek.tur === 'konuEkle' || istek.tur === 'cop' ? null : istek,
+  islemId, kitapId, istek, islem: istek.tur === 'uniteEkle' || istek.tur === 'konuEkle' || istek.tur === 'cop' || istek.tur === 'konuTasi' ? null : istek,
   ebeveynId: null, id: null, denendi: false, klasorTamam: false
 });
 
@@ -138,6 +140,8 @@ export interface IcindekilerSecenek {
   kitapKlasorId: string | undefined;
   kitapJsonId: string | undefined;
   oncesi?: () => Promise<void>;     // the book's other kitap.json writers first (ribbon / status, cover)
+  tasiOncesi?: (is: TasiIsi) => Promise<void>;
+  tasiYerel?: (is: TasiIsi) => Promise<void>;
   bekleMs?: number;
   deneme?: number;
 }
@@ -150,6 +154,14 @@ export async function icindekilerYaz(drive: IcindekilerDrive, is: IcindekilerIsi
   if (s.surum < 2) throw new Surum1Duzenlenemez();
   if (!s.kitapJsonId || !s.kitapKlasorId) throw new KitapJsonYok();
   const jsonId = s.kitapJsonId, kitapKlasorId = s.kitapKlasorId;
+
+  if (is.istek.tur === 'konuTasi') {
+    const move = is.istek.tasi;
+    if (move.kokId !== s.kokId || move.kitapId !== is.kitapId || move.kitapKlasorId !== kitapKlasorId || move.kitapJsonId !== jsonId) throw new IcindekilerYazmaYok();
+    await s.tasiOncesi?.(move);
+    await konuTasiYaz(drive, move, undefined, s.tasiYerel);
+    return null;
+  }
 
   if (is.istek.tur === 'cop') {
     try {
@@ -307,7 +319,7 @@ export async function uniteKlasorDurumu(drive: Pick<IcindekilerDrive, 'klasorler
 
 export type KayitDurumu =
   | { tur: 'bos' }
-  | { tur: 'kaydediliyor'; ekleme: boolean; cop?: 'at' | 'geri' }
+  | { tur: 'kaydediliyor'; ekleme: boolean; tasi?: boolean; cop?: 'at' | 'geri' }
   | { tur: 'kaydedildi' }
   | { tur: 'hata'; mesaj: string; izin: boolean };
 
@@ -364,7 +376,7 @@ export class IcindekilerKuyrugu {
       while (this.isler.length) {
         const is = this.isler[0];
         const cop = copIsi(is);
-        this.b.durum(cop ? { tur: 'kaydediliyor', ekleme: false, cop: cop.geriAl ? 'geri' : 'at' } : { tur: 'kaydediliyor', ekleme: eklemeMi(is) });
+        this.b.durum(cop ? { tur: 'kaydediliyor', ekleme: false, cop: cop.geriAl ? 'geri' : 'at' } : { tur: 'kaydediliyor', ekleme: eklemeMi(is), tasi: is.istek.tur === 'konuTasi' });
         try {
           const islem = await icindekilerYaz(this.b.drive, is, this.b.secenek(is.kitapId));
           this.isler.shift();

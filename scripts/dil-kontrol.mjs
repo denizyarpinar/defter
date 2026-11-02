@@ -320,12 +320,12 @@ async function okuyucuAc(lang, w) {
   page.on('dialog', d => { void d.dismiss(); });
   // an empty topic (its folder has no files) at the end of the sample book
   await page.route('**/ornek/index.json', async route => {
-    const json = await (await route.fetch()).json();
+    const json = ornekJson('index.json'); // Local fixture: no in-flight fetch when the page closes.
     json.klasorler['programlamaya-giris'][BOS.klasor] = {};
     await route.fulfill({ json });
   });
   await page.route('**/ornek/kitaplar/programlamaya-giris/kitap.json', async route => {
-    const json = await (await route.fetch()).json();
+    const json = ornekJson('kitaplar/programlamaya-giris/kitap.json');
     json.uniteler.push({ baslik: BOS[lang].unite, konular: [{ baslik: BOS[lang].konu, klasor: BOS.klasor, durum: 'okunmadi' }] });
     await route.fulfill({ json: { ...json, kurdele: null } });
   });

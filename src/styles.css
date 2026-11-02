@@ -1088,3 +1088,5 @@ body.auth-log-login :is(#olcum, #olcumKalem, #olcumSon) { display: none }
   border: 0; border-radius: 8px; padding: 6px 12px; min-height: 44px;
 }
 #oturumBandi button:disabled { opacity: .65 }
+
+.ie-unite.ie-hedef { outline: 1px solid var(--accent); outline-offset: -1px; }

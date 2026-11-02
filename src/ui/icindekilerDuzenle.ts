@@ -1,3 +1,5 @@
+import { konuTasiAcik } from '../kitap/konuTasi';
+import type { TasiIsi } from '../drive/konuTasiYaz';
 import { t as dilT } from '../dil';   // 6.5-3: t is a topic in this file
 import type { IcindekilerIstegi, KayitDurumu } from '../drive/icindekilerYaz';
 import type { CopHedefi } from '../kitap/copeAt';
@@ -20,6 +22,12 @@ import { duzenleKarari, kayitMetni, SiraBirlestirici, uniteKlasoruYok } from './
 //   A row going to the trash shows "Çöpe atılıyor…" until Drive took it (then it leaves the list).
 
 export interface IcindekilerBaglami {
+  tamErisim?: { goster(): boolean; ac(): void };
+  konuTasi?(b: Book, konu: string, hedef: string, sira: number): Promise<void>;
+  toparla?(b: Book): Promise<void>;
+  tasiSorun?(): string | null;                   // a move recovery that stopped (status line + Vazgeç)
+  tasiVazgec?(kitapId?: string): Promise<void>;  // drops only the local move record, reloads the book
+  tasiBekleyen?(b: Book): TasiIsi[];
   kilitAcik: boolean;
   hasJson(b: Book): boolean;                                   // a kitap.json in Drive
   uniteKlasorleri(b: Book): Promise<(string | null)[]>;        // per unit: its folder (null: "+ Konu" grey)
@@ -41,6 +49,7 @@ const KALEM = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 13l1-3.5L
 type Duzenlenen = { tur: 'unite'; u: number } | { tur: 'konu'; u: number; t: number } | { tur: 'yeniUnite' } | { tur: 'yeniKonu'; u: number };
 
 interface DragState {
+  cross?: { unit: Unit; index: number };
   pointer: number; handle: HTMLButtonElement; place: string; rows: HTMLElement[];
   unit: Unit | null; items: (Unit | Topic)[];
   rects: DOMRect[]; source: number; target: number; startY: number; y: number;
@@ -82,8 +91,10 @@ export class IcindekilerDuzenleyici {
       const g = this.baglam();
       if (!b || !g) return;
       if (b.dataset.durum === 'tekrar') g.tekrarDene();
+      else if (b.dataset.durum === 'tam') g.tamErisim?.ac();
       else if (b.dataset.durum === 'giris') g.girisYap();
       else if (b.dataset.durum === 'vazgec') { this.sira.hemen(); g.vazgec(); }   // a waiting reorder goes first
+      else if (b.dataset.durum === 'tasiVazgec') void g.tasiVazgec?.();
     });
   }
 
@@ -101,6 +112,7 @@ export class IcindekilerDuzenleyici {
     const g = this.baglam();
     if (!g || !this.dugme(b, true).acik) return;
     this.book = b;
+    if (konuTasiAcik()) void g.toparla?.(b).catch(e => this.not(e instanceof Error ? e.message : dilT('tasi.depo')));
     this.duzenlenen = null;
     this.hata = this.bilgi = null;
     this.klasorler = null;
@@ -127,16 +139,27 @@ export class IcindekilerDuzenleyici {
   durumCiz(): void {
     const g = this.baglam();
     const d = g?.durum() ?? { tur: 'bos' };
-    const metin = this.bilgi ?? kayitMetni(d);
     const k = this.durumKutusu;
+    const sorun = d.tur !== 'hata' ? g?.tasiSorun?.() ?? null : null;
+    if (sorun) {
+      k.hidden = false;
+      k.classList.add('hata');
+      const tamDugme = sorun === dilT('tasi.erisim') && g?.tamErisim?.goster()
+        ? `<button type="button" data-durum="tam">${dilT('tamErisim.ac')}</button>` : '';
+      k.innerHTML = `<span class="ie-metin">${esc(sorun)}</span><span class="ie-dugmeler"><button type="button" data-durum="tasiVazgec">${dilT('genel.vazgec')}</button>${tamDugme}</span>`;
+      return;
+    }
+    const metin = this.bilgi ?? kayitMetni(d);
     k.hidden = !metin;
     if (!metin) { k.replaceChildren(); return; }
     k.classList.toggle('hata', d.tur === 'hata' && !this.bilgi);
+    const tam = metin === dilT('tasi.erisim') && g?.tamErisim?.goster()
+      ? `<button type="button" data-durum="tam">${dilT('tamErisim.ac')}</button>` : '';
     const dugmeler = d.tur === 'hata' && !this.bilgi
       ? (d.izin ? `<button type="button" data-durum="giris">${dilT('genel.tekrarGiris')}</button>` : `<button type="button" data-durum="tekrar">${dilT('genel.tekrarDene')}</button>`)
         + `<button type="button" data-durum="vazgec">${dilT('genel.vazgec')}</button>`
       : '';
-    k.innerHTML = `<span class="ie-metin">${esc(metin)}</span>${dugmeler ? `<span class="ie-dugmeler">${dugmeler}</span>` : ''}`;
+    k.innerHTML = `<span class="ie-metin">${esc(metin)}</span>${dugmeler || tam ? `<span class="ie-dugmeler">${dugmeler}${tam}</span>` : ''}`;
   }
 
   // Shows a note in the status line (e.g. the grey "Düzenle" was tapped)
@@ -167,6 +190,7 @@ export class IcindekilerDuzenleyici {
       return;
     }
     const bekleyen = g?.bekleyenEklemeler(b) ?? [];
+    const moves = konuTasiAcik() ? g?.tasiBekleyen?.(b) ?? [] : [];
     const copta = new Set((g?.copBekleyenler(b) ?? []).map(h => h.tur === 'konu' ? 'k:' + h.konu : 'u:' + h.klasor));
     const anahtarlar = kitapUniteAnahtarlari(b);
     const d = this.duzenlenen;
@@ -192,7 +216,15 @@ export class IcindekilerDuzenleyici {
         + `<button type="button" class="ie-ik ie-gizli" data-asagi="u${ui}" aria-label="${dilT('icindekiler.uniteAsagi')}"${kapali || (ui === b.uniteler.length - 1 ? ' disabled' : '')}>↓</button>`;
       const uCop = d?.tur === 'unite' && d.u === ui ? '' : copDugmesi(`u${ui}`, dilT('cop.baslik.unite'), !!uKlasor);
       html += `<section class="ie-unite"><div class="ie-satir ie-ubas">${handle(`u${ui}`)}${ad}${uOklar}${uCop}</div><ol>`;
+      const movingRows = (index: number) => {
+        for (const m of moves) if ((m.iptal ? m.eskiYol : m.yeniYol).split('/')[0] === uKlasor && Math.min(m.iptal ? m.eskiSira : m.hedefSira, u.konular.length) === index) {
+          const name = b.uniteler.flatMap(u => u.konular).find(k => k.klasor === m.eskiYol || k.klasor === m.yeniYol)?.baslik ?? '';
+          html += `<li class="ie-satir ie-bekliyor"><span class="ie-ad">${esc(name)}</span><span class="ie-ekleniyor">${dilT('tasi.suruyor')}</span></li>`;
+        }
+      };
       u.konular.forEach((t, ti) => {
+        movingRows(ti);
+        if (moves.some(m => m.eskiYol === t.klasor || m.yeniYol === t.klasor)) return;
         if (t.klasor && copta.has('k:' + kitapKonuAnahtari(t))) {
           html += `<li class="ie-satir ie-bekliyor"><span class="ie-ad">${esc(t.baslik)}</span>${copluyor}</li>`;
           return;
@@ -206,6 +238,7 @@ export class IcindekilerDuzenleyici {
         html += `<li class="ie-satir">${handle(`k${ui}.${ti}`)}${tad}${kOklar}${kCop}</li>`;
       });
       for (const e of bekleyen) if (e.tur === 'konuEkle' && e.unite === anahtarlar[ui]) html += `<li class="ie-satir ie-bekliyor"><span class="ie-ad">${esc(e.baslik)}</span>${ekleniyor}</li>`;
+      movingRows(u.konular.length);
       html += '</ol>';
       if (d?.tur === 'yeniKonu' && d.u === ui) html += `<div class="ie-satir ie-yeni">${girdi('', `yeniKonu${ui}`)}</div>`;
       else {
@@ -292,9 +325,40 @@ export class IcindekilerDuzenleyici {
     d.frame = requestAnimationFrame(next => this.dragFrame(next));
   }
 
+  private dragBoslukTemizle(): void {
+    this.liste.querySelectorAll<HTMLElement>('[data-tasi-bosluk]').forEach(el => {
+      el.style.paddingBottom = ''; el.removeAttribute('data-tasi-bosluk');
+    });
+  }
+
   private dragPaint(): void {
     const d = this.drag;
     if (!d?.active) return;
+    if (konuTasiAcik() && d.unit) {
+      const sections = Array.from(this.liste.querySelectorAll<HTMLElement>('.ie-unite:not(.ie-bekliyor)'));
+      this.liste.querySelectorAll('.ie-hedef').forEach(el => el.classList.remove('ie-hedef'));
+      this.liste.querySelectorAll<HTMLElement>('li.ie-satir').forEach(el => { if (!d.rows.includes(el)) el.style.transform = ''; });
+      d.cross = undefined;
+      const section = sections.find(el => { const r = el.getBoundingClientRect(); return d.y >= r.top && d.y <= r.bottom; });
+      this.dragBoslukTemizle();
+      const ui = section?.querySelector<HTMLElement>('[data-surukle^="u"]')?.dataset.surukle?.slice(1);
+      const unit = ui === undefined ? null : this.book?.uniteler[Number(ui)];
+      if (section && unit && unit !== d.unit) {
+        const rows = Array.from(section.querySelectorAll<HTMLElement>('li.ie-satir:not(.ie-bekliyor)'));
+        const header = section.querySelector<HTMLElement>('.ie-ubas')!.getBoundingClientRect();
+        const index = d.y <= header.bottom ? unit.konular.length : rows.filter(el => { const r = el.getBoundingClientRect(), transform = getComputedStyle(el).transform;
+          const shift = transform === 'none' ? 0 : new DOMMatrixReadOnly(transform).m42;
+          return d.y > (r.top + r.bottom) / 2 - shift; }).length;
+        d.cross = { unit, index };
+        section.classList.add('ie-hedef');
+        const list = section.querySelector<HTMLElement>('ol')!;
+        list.setAttribute('data-tasi-bosluk', '');
+        list.style.paddingBottom = d.rects[d.source].height + 'px';
+        rows.forEach((el, i) => { el.style.transform = i >= index ? `translateY(${d.rects[d.source].height}px)` : ''; });
+        d.rows.forEach((el, i) => { el.style.transform = i === d.source ? `translateY(${d.y - d.startY + this.liste.scrollTop - d.scroll}px)` : ''; });
+        return;
+      }
+    }
     const delta = d.y - d.startY + this.liste.scrollTop - d.scroll;
     const centres = d.rects.map(r => (r.top + r.bottom) / 2);
     const scope = d.place[0] === 'k' ? Number(d.place.slice(1).split('.')[0]) : null;
@@ -314,14 +378,27 @@ export class IcindekilerDuzenleyici {
   private dragEnd(commit: boolean): void {
     const d = this.drag;
     if (!d) return;
+    if (konuTasiAcik()) {
+      this.dragBoslukTemizle();
+      this.liste.querySelectorAll('.ie-hedef').forEach(el => el.classList.remove('ie-hedef'));
+      this.liste.querySelectorAll<HTMLElement>('li.ie-satir').forEach(el => { if (!d.rows.includes(el)) el.style.transform = ''; });
+    }
     this.drag = null;
     d.events.abort();
     cancelAnimationFrame(d.frame);
     if (d.handle.hasPointerCapture(d.pointer)) d.handle.releasePointerCapture(d.pointer);
     this.liste.classList.remove('ie-surukluyor');
     d.rows.forEach(row => { row.style.transform = ''; row.classList.remove('ie-suruklenen'); });
-    if (commit && d.active && d.target !== d.source) {
+    if (commit && d.active && (d.target !== d.source || !!d.cross)) {
       // Queue completions may have added/removed rows while drawing was deferred.
+      if (konuTasiAcik() && d.cross && d.unit && this.book) {
+        const b = this.book, target = d.cross, topic = d.items[d.source] as Topic;
+        const folder = this.uniteKlasoru(target.unit);
+        this.sira.hemen(); this.bilgi = null;
+        if (!folder) this.not(uniteKlasoruYok());
+        else void this.baglam()?.konuTasi?.(b, topic.klasor, folder, target.index).catch(e => this.not(e instanceof Error ? e.message : dilT('tasi.uyusmuyor')));
+        this.ciz(); return;
+      }
       // Resolve the captured objects in the current model, never their stale DOM indices.
       const units = this.book?.uniteler ?? [];
       const ui = d.unit ? units.indexOf(d.unit) : -1;

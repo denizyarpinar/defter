@@ -41,7 +41,7 @@ export const uniteKlasoruYok = () => t('icindekiler.uniteKlasoruYok');
 export function kayitMetni(d: KayitDurumu): string | null {
   switch (d.tur) {
     case 'bos': return null;
-    case 'kaydediliyor': return t(d.cop === 'at' ? 'cop.atiliyor' : d.cop === 'geri' ? 'cop.geriAliniyor' : d.ekleme ? 'icindekiler.ekleniyor' : 'kalem.kaydediliyor');
+    case 'kaydediliyor': return t(d.tasi ? 'tasi.suruyor' : d.cop === 'at' ? 'cop.atiliyor' : d.cop === 'geri' ? 'cop.geriAliniyor' : d.ekleme ? 'icindekiler.ekleniyor' : 'kalem.kaydediliyor');
     case 'kaydedildi': return t('kalem.kaydedildi');
     case 'hata': return d.mesaj;
   }

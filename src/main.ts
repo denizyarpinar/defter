@@ -1,3 +1,9 @@
+import { konuTasiBagla } from './ui/konuTasiAkisi';
+import { kitaptaTasi, konuTasiAcik } from './kitap/konuTasi';
+import { mesgulMu } from './defter/konuyaDosyaEkle';
+import { okuyucuYolTasi, konuSayfaIsiVar } from './okuma/Okuyucu';
+import { readerYolTasi } from './ui/reader';
+import { yedekYolTasi } from './okuma/silinenSayfaDepo';
 import './styles.css';
 import { oturumBandiKur } from './ui/oturumBandi';
 import { setRenewalBanner, oturumBandinaDokun, yenilemeBekliyor } from './drive/auth';
@@ -23,7 +29,7 @@ import { copAkisiKur } from './ui/copAkisi';
 import { DriveSaver } from './drive/save';
 import { daysSinceOpened, shelfOf } from './model/library';
 import { loadLocalLibrary, type LoadedLibrary } from './model/localSource';
-import { parseLibrary } from './model/parse';
+import { parseBook, parseLibrary } from './model/parse';
 import type { Book, ModeKey } from './model/types';
 import { usesUnits } from './model/units';
 import { markOpened, setReadingSink, type Resume } from './okuma/okumaDurumu';
@@ -357,7 +363,23 @@ function icindekilerKur(loc: DriveLocation | null): void {
       yazabilir: () => isSignedIn() && durum.tur === 'drive' && driveLoc === loc,
       surum: data?.books.get(kitapId)?.surum ?? 0,
       kitapKlasorId: loc.bookFolderIds.get(kitapId), kitapJsonId: loc.bookFileIds.get(kitapId),
-      oncesi: async () => { await reading?.flush(); await saver?.bekleyenleriYaz(); }
+      oncesi: async () => { await reading?.flush(); await saver?.bekleyenleriYaz(); },
+      tasiOncesi: async is => {
+        if (!konuTasiAcik()) throw new Error(t('tasi.kapali'));
+        await reading?.flush();
+        await saver?.bekleyenleriYaz();
+        if (reading?.hasUnsaved || saver?.hasUnsaved) throw new Error(t('tasi.okuma'));
+        if (await konuSayfaIsiVar(is.kitapId, is.eskiYol) || mesgulMu(is.konuKlasorId)) throw new Error(t('tasi.mesgul'));
+      },
+      tasiYerel: async is => {
+        await yedekYolTasi(is.kitapId, is.eskiYol, is.yeniYol);
+        const b = data?.books.get(is.kitapId);
+        if (b) kitaptaTasi(b, is.eskiYol, is.hedefAnahtar ?? 'k:' + is.yeniYol.split('/')[0], is.hedefSira, is.yeniYol);
+        reading?.yolTasi(is.kitapId, is.eskiYol, is.yeniYol);
+        okuyucuYolTasi(is.kitapId, is.eskiYol, is.yeniYol);
+        readerYolTasi(is.kitapId, is.eskiYol, is.yeniYol);
+        agacGecersiz(); aramaPaneli.gecersizKil();
+      }
     }),
     // useData binds the panel before the loading state changes to 'drive'.
     // Each operation still checks the current Drive state through secenek().yazabilir.
@@ -377,6 +399,27 @@ function icindekilerKur(loc: DriveLocation | null): void {
     girisYap: () => { void googleSignIn(); },
     copIste: (b, hedef) => copAkisi.copIste(b, hedef)
   });
+  konuTasiBagla({
+    baglam: baglanti.baglam, kuyruk: baglanti.kuyruk, drive: driveIcindekilerApi,
+    secenek: id => ({ kilitAcik: isSignedIn() && kokKaynagi() !== null, kokKaynagi: kokKaynagi(), kokId: loc.rootId,
+      yazabilir: () => isSignedIn() && durum.tur === 'drive' && driveLoc === loc,
+      surum: data?.books.get(id)?.surum ?? 0, kitapKlasorId: loc.bookFolderIds.get(id), kitapJsonId: loc.bookFileIds.get(id) }),
+    kontrol: async (b, yol, id) => {
+      await reading?.flush();
+      if (reading?.hasUnsaved) throw new Error(t('tasi.okuma'));
+      if (await konuSayfaIsiVar(b.id, yol) || mesgulMu(id)) throw new Error(t('tasi.mesgul'));
+    },
+    bildirim: geri => toast(t('tasi.bitti'), { etiket: t('genel.geriAl'), calistir: geri }),
+    // Vazgeç of a stopped recovery: the same Book object takes kitap.json as it is in Drive now (read only)
+    yenidenYukle: async id => {
+      const b = data?.books.get(id), fileId = loc.bookFileIds.get(id);
+      if (!b || !fileId) return;
+      Object.assign(b, parseBook(id, await driveIcindekilerApi.jsonOku(fileId)));
+      agacGecersiz(); aramaPaneli.gecersizKil(); refreshReader();
+    },
+    haber: () => baglanti.haber()
+  });
+  baglanti.baglam.tamErisim = { goster: () => tamErisimDugmesi({ sahip: sahipMi(girisEposta, SAHIP_EPOSTA, SAHIP_YOK), aktif: aktifKapsam() }), ac: openFullAccess };
   icBaglanti = baglanti;
   icKuyruk = baglanti.kuyruk;
   setIcindekilerBaglami(baglanti.baglam);
@@ -842,6 +885,7 @@ async function boot(): Promise<void> {
       deskBook = id;
       const shelf = shelfOf(d.library, id);
       openReader(b, { shelfName: shelf >= 0 ? d.library.raflar[shelf].ad : null, daysSinceOpened: daysSinceOpened(b), owner: saver ? ownerName : null });
+      if (konuTasiAcik()) void icBaglanti?.baglam.toparla?.(b).catch(e => toast(e instanceof Error ? e.message : t('tasi.depo')));
       markOpened(b);
       donusOkuyucu(id);
       setTimeout(() => { if (isReaderOpen()) scene?.setPaused(true); }, 400);

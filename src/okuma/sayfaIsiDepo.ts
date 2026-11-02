@@ -47,3 +47,9 @@ export const isKaydet = (is: SayfaIsi): Promise<void> => calistir<void>('readwri
 export const isSil = (is: SayfaIsi): Promise<void> => calistir<void>('readwrite', undefined, s => s.delete(isAnahtari(is)));
 export const isler = (): Promise<SayfaIsi[]> => calistir<SayfaIsi[]>('readonly', [], s => s.getAll());
 export const isleriTemizle = (): Promise<void> => calistir<void>('readwrite', undefined, s => s.clear());
+
+export async function islerKesin(): Promise<SayfaIsi[]> {
+  const tx = (await ac()).transaction(STORE, 'readonly');
+  const [items] = await Promise.all([req(tx.objectStore(STORE).getAll()), done(tx)]);
+  return items as SayfaIsi[];
+}

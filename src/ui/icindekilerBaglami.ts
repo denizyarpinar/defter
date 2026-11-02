@@ -1,3 +1,6 @@
+import { tasiDepo } from '../drive/konuTasiYaz';
+import { tasiKilitle } from '../kitap/konuTasiKilit';
+import { konuTasiAcik, yolCevir } from '../kitap/konuTasi';
 import { geriAlIsi, type CopIsi } from '../drive/icindekilerCop';
 import { copIsi, eklemeMi, IcindekilerKuyrugu, yeniIs, type IcindekilerDrive, type IcindekilerIsi, type IcindekilerSecenek, type KayitDurumu } from '../drive/icindekilerYaz';
 import { gidenKonular, kitabaGeriKoy, kitaptanCikar, komsuKonu, type CopHedefi } from '../kitap/copeAt';
@@ -38,6 +41,7 @@ export interface IcindekilerBaglantisi {
   iz(): string;
   copCalistir(kitapId: string, c: CopIsi): Promise<void>;   // 6.K5b: the first try / "Tekrar dene"
   copGeriAl(kitapId: string, c: CopIsi): Promise<void>;     // 6.K5b: "Geri al" (also Vazgeç after a failed try)
+  haber(): void;                                            // tell every listener (the status line) to redraw
 }
 
 const IZ_UZUNLUK = 6;
@@ -91,6 +95,15 @@ export function icindekilerBaglamiKur(o: BaglamGirdisi): IcindekilerBaglantisi {
     basarili: (is, islem) => {
       const c = copIsi(is);
       iz('basarılı ' + (c ? (c.geriAl ? 'geri al' : 'çöp') : is.istek.tur));   // dil-kontrol: yoksay
+      if (is.istek.tur === 'konuTasi') {
+        const m = is.istek.tasi, eski = m.iptal ? m.yeniYol : m.eskiYol, yeni = m.iptal ? m.eskiYol : m.yeniYol;
+        for (const [key, val] of [...yonlendirme]) {
+          yonlendirme.delete(key);
+          yonlendirme.set(yolCevir(key, eski, yeni), val === null ? null : yolCevir(val, eski, yeni));
+        }
+        // Redirect consumers still holding the old key, too.
+        yonlendirme.set(eski, yeni);
+      }
       geriler.delete(is);
       // adding / trash: the book in memory changes only now (names and order changed at once)
       const b = o.kitap(is.kitapId);
@@ -105,6 +118,29 @@ export function icindekilerBaglamiKur(o: BaglamGirdisi): IcindekilerBaglantisi {
     const is = kuyruk.vazgec();
     iz('vazgeç' + (is ? ' ' + is.istek.tur : ' (iş yok)'));   // dil-kontrol: yoksay
     if (!is) return;
+    if (is.istek.tur === 'konuTasi' && is.istek.tasi.toparla) {
+      // a failed recovery: no compensation in Drive; only the local record goes and the book is read again
+      const m = is.istek.tasi;
+      tasiKilitle(m.konuKlasorId, m.eskiYol, m.yeniYol, false);
+      is.bitti?.(null);
+      await baglam.tasiVazgec?.(is.kitapId);
+      haber();
+      return;
+    }
+    if (is.istek.tur === 'konuTasi') {
+      is.istek.tasi.iptal = true;
+      is.istek.tasi.toparla = false;
+      if (!tasiDepo.oku()) {
+        const m = is.istek.tasi;
+        tasiKilitle(m.konuKlasorId, m.eskiYol, m.yeniYol, false);
+        is.bitti?.(null);
+        haber();
+        return;
+      }
+      // Keep the original id and journal until the compensating operation succeeds.
+      void kuyruk.ekle(is);
+      return;
+    }
     const c = copIsi(is);
     if (c) {
       // a failed trash: what was done goes back (the same listener hears it); a failed "Geri al": dropped
@@ -169,6 +205,7 @@ export function icindekilerBaglamiKur(o: BaglamGirdisi): IcindekilerBaglantisi {
     hasJson: o.hasJson,
     uniteKlasorleri: o.uniteKlasorleri,
     gonder: (b, istek, geri) => {
+      if (konuTasiAcik() && kuyruk.bekleyenler.some(i => i.istek.tur === 'konuTasi')) return;
       const is = yeniIs(o.islemId?.() ?? crypto.randomUUID(), b.id, istek);
       if (geri) geriler.set(is, geri);
       void kuyruk.ekle(is);
@@ -186,5 +223,5 @@ export function icindekilerBaglamiKur(o: BaglamGirdisi): IcindekilerBaglantisi {
   // one event per line (the ?olcum=1 box cuts long lines)
   const izMetni = () => `dinleyici ${dinleyiciler.size} · bekleyen ${kuyruk.bekleyenler.length}` + olaylar.map(x => '\n  ' + x).join('');
   sonIz = izMetni;
-  return { baglam, kuyruk, vazgec, iz: izMetni, copCalistir, copGeriAl };
+  return { baglam, kuyruk, vazgec, iz: izMetni, copCalistir, copGeriAl, haber };
 }

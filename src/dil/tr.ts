@@ -2,6 +2,18 @@
 // Keys: ASCII Turkish, grouped with dots. {name}: a value put in by t(). A plural: { bir, cok } (Intl.PluralRules, the value n).
 
 export const tr = {
+  'tasi.suruyor': 'Taşınıyor…',
+  'tasi.bitti': 'Taşındı',
+  'tasi.erisim': 'Bu klasöre erişilemiyor; kitaplığı yenileyip tekrar dene.',
+  'tasi.uyusmuyor': 'Konu veya ünite değişmiş; kitaplığı yenileyip tekrar dene.',
+  'tasi.depo': 'Taşıma kaydı okunamadı veya saklanamadı; tarayıcı depolama erişimini kontrol edip tekrar dene.',
+  'tasi.bekleyen': 'Önce bekleyen içindekiler işlemini tamamla.',
+  'tasi.okuma': 'Okuma kaydı tamamlanamadı; kaydı tekrar deneyip konuyu taşı.',
+  'tasi.mesgul': 'Bu konuda dosya veya sayfa işi bekliyor; tamamlanınca tekrar dene.',
+  'tasi.kapali': 'Konu taşıma kapalı.',
+  'tasi.kontrol': 'Taşıma durumu kontrol ediliyor…',
+  'tasi.yuklenemedi': "Kitap Drive'dan yeniden yüklenemedi; bağlantıyı kontrol edip Vazgeç'e tekrar bas.",
+
   // general
   'oturum.bant.metin': 'Oturumu yenilemek için dokun',
   'oturum.bant.devam': 'Devam et',
