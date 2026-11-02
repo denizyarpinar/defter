@@ -62,7 +62,7 @@ const denenen = new Set<string>();             // islemId|klasor: a create was s
 export function altKlasorBelleginiSifirla(): void { acilanlar.clear(); idler.clear(); denenen.clear(); }
 
 // The names the reader doesn't know but a person would mean the same by (NFC, any case)
-const UMLAUTLU: Record<AltKlasor, string> = { Uebungen: 'übungen', Oedevler: 'ödevler' };   // dil-kontrol: yoksay
+const UMLAUTLU: Record<AltKlasor, string> = { Uebungen: 'übungen', Oedevler: 'ödevler', Ozetler: 'özetler' };   // dil-kontrol: yoksay
 const umlautlu = (f: DriveFile, klasor: AltKlasor) => f.mimeType === FOLDER_MIME && f.name.normalize('NFC').trim().toLowerCase() === UMLAUTLU[klasor];
 
 export async function altKlasorAc(drive: AltKlasorDrive, i: AltKlasorIstek, s: AltKlasorSecenek): Promise<string> {

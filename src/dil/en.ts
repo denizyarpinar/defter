@@ -690,6 +690,9 @@ export const en: Sozluk = {
   'kose.gocuk': "The shape folds inwards. Move the corners to the page's corners.",
   'kose.acilamadi': "{ad} couldn't be opened. Try again.",
   // 6.5-4a: Add file
+  'dosya.ozetAdiAyrilmis': 'This name is reserved for summary additions or solutions. Enter another name.',
+  'dosya.yeniOzet': 'New summary (separate file)',
+  'dosya.mevcutOzetSonu': 'Add to the end of a summary',
   'dosya.ofisEklenemez': "{adi} files can't be added. Save the file as a PDF and add that.",
   'dosya.desteklenmiyor': "This file type isn't supported. Choose a PDF or an image (JPEG, PNG).",
   'dosya.bos': 'The file is empty. Choose another file.',

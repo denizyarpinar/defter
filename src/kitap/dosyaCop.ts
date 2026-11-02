@@ -1,7 +1,7 @@
 import { t as dilT } from '../dil';   // 6.5-3: t is a topic in this file
 import type { DriveFile } from '../drive/drive';
 import { topicKey } from '../model/okumaYamasi';
-import { defaultKind, type MaterialKind, type TopicMaterials } from '../okuma/konuKesfi';
+import { defaultKind, secimliTur, type MaterialKind, type TopicMaterials } from '../okuma/konuKesfi';
 
 // Task 6.K6b: the open file (and its solution) to the trash — the pure part (tested). Drive: drive/dosyaCop.ts.
 // - Ribbons point at a file by its name: the topic's `kurdeleler[materyal]` and the book's `kurdele` (konu + materyal
@@ -113,7 +113,7 @@ export function dosyaCopHedefi(t: AcikKonu, odakDosyaId: string | null, odak: nu
   const list = t.materials[kind];
   const m = kind === 'uebungen' || kind === 'oedevler'
     ? list[t.fileIndex]
-    : list.find(x => x.file.id === odakDosyaId || x.cozum?.id === odakDosyaId) ?? list[0];
+    : list.find(x => x.file.id === odakDosyaId || x.cozum?.id === odakDosyaId) ?? list[t.fileIndex] ?? list[0];
   if (!m) return null;
   const yol = (f: DriveFile) => `${TUR_ETIKETI[kind]} · ${ALT_KLASOR[kind] ?? ''}${f.name}`;
   if (m.cozum && ((t.solution && odak >= mainCount) || odakDosyaId === m.cozum.id)) {
@@ -126,7 +126,7 @@ export function dosyaCopHedefi(t: AcikKonu, odakDosyaId: string | null, odak: nu
 // one before), else the default kind; nothing left → null (the empty topic of 6.K6a)
 export function copSonrasiSecim(kind: MaterialKind | null, fileIndex: number, m: TopicMaterials): { kind: MaterialKind; fileIndex: number } | null {
   if (kind && m[kind].length) {
-    const liste = kind === 'uebungen' || kind === 'oedevler';
+    const liste = secimliTur(kind, m);
     return { kind, fileIndex: liste ? Math.min(Math.max(fileIndex, 0), m[kind].length - 1) : 0 };
   }
   const k = defaultKind(m);
@@ -153,7 +153,7 @@ export function geriGelenSecim(m: TopicMaterials, gelen: readonly string[]): { k
   const ilk = gelen[0];
   for (const kind of ['orijinal', 'ozet', 'uebungen', 'oedevler'] as const) {
     const list = m[kind];
-    const liste = kind === 'uebungen' || kind === 'oedevler';
+    const liste = secimliTur(kind, m);
     const i = list.findIndex(x => x.file.id === ilk);
     if (i >= 0) return { kind, fileIndex: liste ? i : 0, solution: false };
     const j = list.findIndex(x => x.cozum?.id === ilk);

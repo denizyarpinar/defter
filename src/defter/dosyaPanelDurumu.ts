@@ -12,7 +12,7 @@ import { DosyaBulunamadi, EkPdfYazilamaz, SayfaEklemeAgHatasi, SayfaEklemeCakism
 import { PdfYazilamaz } from '../kalem/pdfNotlari';
 import { AltKlasorAcilamadi, AltKlasorAdiFarkli, AltKlasorAgHatasi, AltKlasorIzinYok } from '../drive/altKlasorAc';
 import {
-  AdCozumGibi, AdGecersiz, cozumAdi, dosyaAdiHazirla, EklemeSuruyor, HedefBulunamadi, KlasorYok, OzetZatenVar, PdfHazirlanamadi,
+  AdCozumGibi, AdOzetGibi, AdGecersiz, cokluOzetAcik, cozumAdi, dosyaAdiHazirla, EklemeSuruyor, HedefBulunamadi, KlasorYok, OzetZatenVar, PdfHazirlanamadi,
   type DosyaHedefi
 } from './konuyaDosyaEkle';
 
@@ -23,9 +23,10 @@ import {
 // two summary files (brifing + sorular): the one on screen, else the one chosen in the panel.
 // Task 6.EK-1: a summary addition shown as the summary (gercekOzet) is never a target: "Özet" makes a new ozet.pdf.
 
-export type PanelHedef = 'uebungen' | 'oedevler' | 'cozum' | 'orijinal' | 'ozet';
-export const PANEL_HEDEFLERI: readonly PanelHedef[] = ['uebungen', 'oedevler', 'cozum', 'orijinal', 'ozet'];
+export type PanelHedef = 'uebungen' | 'oedevler' | 'cozum' | 'orijinal' | 'ozet' | 'yeniOzet';
+export const PANEL_HEDEFLERI: readonly PanelHedef[] = ['uebungen', 'oedevler', 'cozum', 'orijinal', 'yeniOzet', 'ozet'];
 export const HEDEF_ETIKETI: Record<PanelHedef, string> = {
+  get yeniOzet() { return t('dosya.yeniOzet'); },
   get orijinal() { return MATERIAL_LABEL.orijinal; }, get ozet() { return MATERIAL_LABEL.ozet; },
   get uebungen() { return MATERIAL_LABEL.uebungen; }, get oedevler() { return MATERIAL_LABEL.oedevler; },
   get cozum() { return t('materyal.cozum'); }
@@ -54,9 +55,10 @@ export const ozetSonuEtiketi = (ad: string | null): string => ad ? t('dosya.ozet
 // Task 6.K6a: klasorAcabilir (validated Drive context): a missing Uebungen / Oedevler can be chosen, the folder is made with the
 // first file (a note says so); locked: grey as before
 // Task 6.S-3: ozetSonu: the summary file the pages would go to (ozetHedefi), only for the label
-export function hedefSecenekleri(m: TopicMaterials, klasor: KlasorBilgisi | null, klasorAcabilir = false, ozetSonu: DriveFile | null = null): Secenek[] {
+export function hedefSecenekleri(m: TopicMaterials, klasor: KlasorBilgisi | null, klasorAcabilir = false, ozetSonu: DriveFile | null = null, coklu = cokluOzetAcik()): Secenek[] {
+  const summaryLabel = coklu ? t('dosya.mevcutOzetSonu') : ozetSonuEtiketi(ozetSonu?.name ?? null);
   const s = (hedef: PanelHedef, neden: string | null, not: string | null = null): Secenek =>
-    ({ hedef, etiket: hedef === 'ozet' && gercekOzet(m).length ? ozetSonuEtiketi(ozetSonu?.name ?? null) : HEDEF_ETIKETI[hedef], secilebilir: !neden, neden: neden ?? not });
+    ({ hedef, etiket: hedef === 'ozet' && gercekOzet(m).length ? summaryLabel : HEDEF_ETIKETI[hedef], secilebilir: !neden, neden: neden ?? not });
   // a folder with files in it exists; an empty list may mean "no folder" or "empty folder"
   const yok = (k: 'uebungen' | 'oedevler') => !m[k].length && klasor !== null && !klasor[k === 'uebungen' ? 'Uebungen' : 'Oedevler'];
   const alt = (k: 'uebungen' | 'oedevler') => !yok(k) ? s(k, null) : klasorAcabilir ? s(k, null, KLASOR_ACILIR_METIN()) : s(k, t('dosya.klasorYok'));
@@ -65,6 +67,7 @@ export function hedefSecenekleri(m: TopicMaterials, klasor: KlasorBilgisi | null
     alt('oedevler'),
     s('cozum', cozumAdaylari(m).length ? null : t('dosya.cozumsuzYok')),
     s('orijinal', m.orijinal.length ? t('dosya.orijinalVar') : null),
+    ...(coklu && gercekOzet(m).length ? [s('yeniOzet', null)] : []),
     s('ozet', null),
   ];
 }
@@ -84,7 +87,8 @@ export const ozetSecimiGerekli = (m: TopicMaterials, odakDosyaId: string | null)
 // The open tab if it can be chosen, else the first one that can; none: null.
 // Task 6.K6a: no tab open (a topic without materials) → Orijinal first.
 export function varsayilanHedef(secenekler: readonly Secenek[], acikSekme: MaterialKind | null): PanelHedef | null {
-  const ac = secenekler.find(x => x.hedef === (acikSekme ?? 'orijinal') && x.secilebilir);
+  const tab = acikSekme === 'ozet' && secenekler.some(x => x.hedef === 'yeniOzet') ? 'yeniOzet' : acikSekme ?? 'orijinal';
+  const ac = secenekler.find(x => x.hedef === tab && x.secilebilir);
   return (ac ?? secenekler.find(x => x.secilebilir))?.hedef ?? null;
 }
 
@@ -106,8 +110,9 @@ export function adDurumu(m: TopicMaterials, hedef: PanelHedef, girilen: string, 
     if (e instanceof AdGecersiz) return { duzenlenebilir: true, ad: '', hata: e.message };
     throw e;
   }
+  if (hedef === 'yeniOzet' && (key(ad).startsWith('_cozum') || key(ad).startsWith('ozet-ek'))) return { duzenlenebilir: true, ad, hata: new AdOzetGibi().message };
   if (key(ad).endsWith('_cozum.pdf')) return { duzenlenebilir: true, ad, hata: new AdCozumGibi(ad).message };
-  const ayni = m[hedef].some(x => [x.file, x.cozum].some(f => f && key(f.name) === key(ad)));
+  const ayni = m[hedef === 'yeniOzet' ? 'ozet' : hedef].some(x => [x.file, x.cozum].some(f => f && key(f.name) === key(ad)));
   return { duzenlenebilir: true, ad, hata: ayni ? AYNI_AD_METIN() : null };
 }
 
@@ -132,7 +137,8 @@ export function ekleDurumu(g: EkleGirdi): { aktif: boolean; metin: string; acikl
 
 // What konuyaDosyaEkle takes; cozum without a chosen file: null.
 // Task 6.S-3: ozet in a topic with a summary → { ozetSonu } (not chosen yet: null); without one: a new ozet.pdf
-export function dosyaHedefi(hedef: PanelHedef, cozumOf: DriveFile | null, m?: TopicMaterials, ozetSonu: DriveFile | null = null): DosyaHedefi | null {
+export function dosyaHedefi(hedef: PanelHedef, cozumOf: DriveFile | null, m?: TopicMaterials, ozetSonu: DriveFile | null = null, coklu = cokluOzetAcik()): DosyaHedefi | null {
+  if (hedef === 'yeniOzet' && !coklu) return null;
   if (hedef === 'ozet' && m && gercekOzet(m).length) return ozetSonu ? { ozetSonu } : null;
   if (hedef !== 'cozum') return hedef;
   return cozumOf ? { cozumOf } : null;
@@ -156,7 +162,7 @@ export function eklendiMetni(ad: string, uyari?: 'kalemYazamaz'): string {
 
 // konuyaDosyaEkle's own errors already say what to do; the others get the photo flow's short reason
 export function hataMetni(e: unknown): string {
-  const kendi = [AdGecersiz, AdCozumGibi, KlasorYok, OzetZatenVar, HedefBulunamadi, EklemeSuruyor, PdfHazirlanamadi, AyniIsimVar, PdfDegil,
+  const kendi = [AdGecersiz, AdCozumGibi, AdOzetGibi, KlasorYok, OzetZatenVar, HedefBulunamadi, EklemeSuruyor, PdfHazirlanamadi, AyniIsimVar, PdfDegil,
     AltKlasorAdiFarkli, AltKlasorAcilamadi, AltKlasorAgHatasi, AltKlasorIzinYok,
     EkPdfYazilamaz, HedefOzetDegil, SayfaEklemeCakisma, SayfaEklemeAgHatasi, DosyaBulunamadi, PdfYazilamaz];   // 6.S-3: at the end of a summary
   if (kendi.some(c => e instanceof c)) return (e as Error).message;

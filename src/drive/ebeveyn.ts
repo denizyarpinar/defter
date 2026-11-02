@@ -8,7 +8,7 @@ export const ebeveynGecerliMi = (ebeveynId: string, kitaplarId: string, izinli: 
 // Task 6.K6b: a file to the trash must sit right in the open topic's folder, or in that topic's Uebungen / Oedevler
 // (pure). dosya / alt: as Drive gives them (alt: the file's parent when it is not the topic's folder).
 interface DosyaOgesi { name: string; mimeType?: string; parents?: string[] }
-const ALT_ADLAR = new Set(['uebungen', 'oedevler']);
+const ALT_ADLAR = new Set(['uebungen', 'oedevler', 'ozetler']);
 
 export function dosyaEbeveyniGecerliMi(dosya: DosyaOgesi, beklenenAd: string, konuId: string, alt: (DosyaOgesi & { id: string }) | null): boolean {
   if (dosya.mimeType === FOLDER_MIME || dosya.name !== beklenenAd || !/\.pdf$/i.test(dosya.name)) return false;

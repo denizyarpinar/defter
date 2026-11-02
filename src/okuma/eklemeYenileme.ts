@@ -1,6 +1,6 @@
 import type { DriveFile } from '../drive/drive';
 import type { DosyaEklendi, DosyaHedefi } from '../defter/konuyaDosyaEkle';
-import { MATERIAL_KINDS, type Material, type MaterialKind, type TopicMaterials } from './konuKesfi';
+import { MATERIAL_KINDS, secimliTur, type Material, type MaterialKind, type TopicMaterials } from './konuKesfi';
 
 // Task 5.8g: photos were added to a topic (konuyaEkle.ts). What the open reader does then, without DOM or Drive:
 // - its page list grows (the file on screen got the pages), or
@@ -83,7 +83,7 @@ export const gosterIndeksi = (pages: readonly SayfaBilgisi[], g: GosterHedefi): 
 export interface EklenenDosya { kind: MaterialKind | null; fileId: string; ad: string; cozumOf: string | null }
 
 export function eklenenMateryal(hedef: DosyaHedefi, r: Pick<DosyaEklendi, 'fileId' | 'ad'>, m: TopicMaterials): EklenenDosya {
-  if (typeof hedef !== 'object') return { kind: hedef, fileId: r.fileId, ad: r.ad, cozumOf: null };
+  if (typeof hedef !== 'object') return { kind: hedef === 'yeniOzet' ? 'ozet' : hedef, fileId: r.fileId, ad: r.ad, cozumOf: null };
   if ('ozetSonu' in hedef) return { kind: 'ozet', fileId: r.fileId, ad: r.ad, cozumOf: null };   // task 6.S-3
   const x = hedef.cozumOf.id;
   const kind = MATERIAL_KINDS.find(k => m[k].some(it => it.file.id === x)) ?? null;
@@ -123,6 +123,6 @@ export function dosyaGosterHedefi(e: EklenenDosya, m: TopicMaterials): DosyaGost
     ? list.findIndex(it => it.file.id === e.cozumOf && it.cozum?.id === e.fileId)
     : list.findIndex(it => it.file.id === e.fileId);
   if (i < 0) return null;
-  const tekli = e.kind === 'uebungen' || e.kind === 'oedevler';
+  const tekli = secimliTur(e.kind, m);
   return { kind: e.kind, fileIndex: tekli ? i : 0, solution: !!e.cozumOf };
 }

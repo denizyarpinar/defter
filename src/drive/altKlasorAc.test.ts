@@ -172,3 +172,19 @@ describe('altKlasorAc', () => {
     await expect(altKlasorAc(b.drive, istek(), ACIK)).rejects.toThrow(AltKlasorAcilamadi);
   });
 });
+
+
+describe('6.6-2: Ozetler folder', () => {
+  it('creates canonical name and reuses it on retry', async () => {
+    const d = sahte();
+    const request = istek({ klasor: 'Ozetler' });
+    const id = await altKlasorAc(d.drive, request, ACIK);
+    expect(await altKlasorAc(d.drive, request, ACIK)).toBe(id);
+    expect(d.olusturmalar()).toEqual(['olustur:C/Ozetler']);
+  });
+  it('umlaut equivalent gives a name warning without creating another folder', async () => {
+    const d = sahte({ OS: { name: 'Özetler', parent: 'C', mimeType: FOLDER_MIME } });
+    await expect(altKlasorAc(d.drive, istek({ klasor: 'Ozetler' }), ACIK)).rejects.toThrow(AltKlasorAdiFarkli);
+    expect(d.olusturmalar()).toEqual([]);
+  });
+});

@@ -211,3 +211,20 @@ describe('konuyaFotografEkle', () => {
     expect(d.olaylar).toEqual([]);
   });
 });
+
+
+describe('6.6-2: photo append into Ozetler', () => {
+  it('decision includes Ozetler PDFs, excluding additions, solutions and trashed files', () => {
+    expect(ozetKarari([f('ozet.pdf')], [f('Notes.pdf'), f('ozet-ek.pdf'), f('Notes_cozum.pdf'), f('gone.pdf', { trashed: true })]).dosyalar.map(x => x.name)).toEqual(['ozet.pdf', 'Notes.pdf']);
+  });
+  it('photos append only to the selected nested summary', async () => {
+    const d = await fakeDrive({ 'ozet.pdf': 1, 'Notes.pdf': 2 });
+    d.items.set('OS', { name: 'Ozetler', parent: 'C', mimeType: FOLDER_MIME, n: 1 });
+    d.items.get('Notes.pdf')!.parent = 'OS';
+    const before = d.items.get('ozet.pdf')!.bytes;
+    const result = await konuyaFotografEkle('C', [dik], d.ortam, { ...HIZLI, hedefFileId: 'Notes.pdf', islemId: 'nested' });
+    expect(result).toMatchObject({ tur: 'eklendi', fileId: 'Notes.pdf', eskiSayfa: 2, yeniSayfa: 3 });
+    expect(d.items.get('ozet.pdf')!.bytes).toBe(before);
+    expect(d.log.filter(x => x.startsWith('PATCH:'))).toEqual(['PATCH:Notes.pdf']);
+  });
+});

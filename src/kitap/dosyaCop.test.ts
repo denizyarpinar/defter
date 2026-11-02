@@ -137,3 +137,11 @@ describe('dosyaEbeveyniGecerliMi', () => {
     expect(dosyaEbeveyniGecerliMi({ ...pdf('a.pdf', 'k'), parents: ['k', 'x'] }, 'a.pdf', 'k', null)).toBe(false);
   });
 });
+
+
+it('6.6-2: Ozetler is a valid parent only inside the current topic', () => {
+  const pdf = { name: 'Notes.pdf', mimeType: 'application/pdf', parents: ['OS'] };
+  const folder = { id: 'OS', name: 'Ozetler', mimeType: FOLDER_MIME, parents: ['C'] };
+  expect(dosyaEbeveyniGecerliMi(pdf, 'Notes.pdf', 'C', folder)).toBe(true);
+  expect(dosyaEbeveyniGecerliMi(pdf, 'Notes.pdf', 'OTHER', folder)).toBe(false);
+});

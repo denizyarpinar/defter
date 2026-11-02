@@ -4,7 +4,7 @@ import { AyniIsimVar } from '../drive/pdfOlustur';
 import { emptyMaterials, type Material, type TopicMaterials } from '../okuma/konuKesfi';
 import {
   adDurumu, AYNI_AD_METIN, cozumAdaylari, dosyaHedefi, eklendiMetni, ekleDurumu, hataMetni, hedefSecenekleri, islemAnahtari,
-  kaynakEtiketi, KLASOR_ACILIR_METIN, ofisBilgi, ORNEK_METIN, ozetHedefi, ozetSecimiGerekli, sayfaYazi, sonaEklendiMetni, tekDosyaYolu,
+  kaynakEtiketi, KLASOR_ACILIR_METIN, ofisBilgi, ORNEK_METIN, ozetHedefi, ozetSonuEtiketi, ozetSecimiGerekli, sayfaYazi, sonaEklendiMetni, tekDosyaYolu,
   varsayilanHedef, HEDEF_ETIKETI, type AdDurumu, type Secenek
 } from './dosyaPanelDurumu';
 const HEDEF_ETIKETI_OZET = () => HEDEF_ETIKETI.ozet;
@@ -304,5 +304,34 @@ describe('ekleDurumu while converting (6.1c)', () => {
     const secenek: Secenek = { hedef: 'uebungen', etiket: 'Übungen', secilebilir: true, neden: null };
     expect(ekleDurumu({ ornek: false, secenek, ad, ekleniyor: false, hataVar: false, hazirDegil: true }).aktif).toBe(false);
     expect(ekleDurumu({ ornek: false, secenek, ad, ekleniyor: false, hataVar: false, hazirDegil: false }).aktif).toBe(true);
+  });
+});
+
+
+describe('6.6-2: separate summary panel', () => {
+  const m = konu({ ozet: [mat('ozet.pdf'), mat('Notes.pdf')] });
+  it('lock off: identical rows, labels, name state and append target', () => {
+    const rows = hedefSecenekleri(m, null, true, f('ozet.pdf'), false);
+    expect(rows).toEqual(hedefSecenekleri(m, null, true, f('ozet.pdf')));
+    expect(rows.map(x => x.hedef)).toEqual(['uebungen', 'oedevler', 'cozum', 'orijinal', 'ozet']);
+    expect(sec(rows, 'ozet').etiket).toBe(ozetSonuEtiketi(f('ozet.pdf').name));
+    expect(adDurumu(m, 'ozet', 'New', null, f('ozet.pdf'))).toMatchObject({ gizli: true, duzenlenebilir: false });
+    expect(dosyaHedefi('ozet', null, m, f('ozet.pdf'), false)).toEqual({ ozetSonu: f('ozet.pdf') });
+    expect(dosyaHedefi('yeniOzet', null, m, null, false)).toBeNull();
+  });
+  it('lock on: two summary options, separate summary default with editable name', () => {
+    const rows = hedefSecenekleri(m, null, true, f('ozet.pdf'), true);
+    expect(rows.slice(-2).map(x => x.hedef)).toEqual(['yeniOzet', 'ozet']);
+    expect(varsayilanHedef(rows, 'ozet')).toBe('yeniOzet');
+    expect(adDurumu(m, 'yeniOzet', 'Fresh', null)).toEqual({ duzenlenebilir: true, ad: 'Fresh.pdf', hata: null });
+    expect(dosyaHedefi('yeniOzet', null, m, null, true)).toBe('yeniOzet');
+    expect(hedefSecenekleri(emptyMaterials(), null, true, null, true).map(x => x.hedef)).not.toContain('yeniOzet');
+  });
+  it('rejects duplicate names across all summaries, additions and solution names', () => {
+    for (const name of ['OZET.PDF', 'notes', 'ozet-ek 2', '_cozum-1', 'Test_cozum.pdf']) {
+      expect(adDurumu(m, 'yeniOzet', name, null).hata).toBeTruthy();
+    }
+    expect(islemAnahtari('yeniOzet', 'A.pdf', null)).toBe(islemAnahtari('yeniOzet', 'a.PDF', null));
+    expect(islemAnahtari('yeniOzet', 'A.pdf', null)).not.toBe(islemAnahtari('ozet', 'A.pdf', null, f('ozet.pdf')));
   });
 });

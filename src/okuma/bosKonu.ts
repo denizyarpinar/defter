@@ -1,6 +1,6 @@
 import { t } from '../dil';
 import type { PageMark } from '../model/types';
-import type { MaterialKind, TopicMaterials } from './konuKesfi';
+import { secimliTur, type MaterialKind, type TopicMaterials } from './konuKesfi';
 
 // Task 6.K6a: a topic without materials (kind null) in the reader — the pure part (tested).
 // The bar shows "Fotoğraf ekle" and "Dosya ekle"; pen, search and Kitap/PDF stay hidden (CSS: o-materyalsiz).
@@ -32,9 +32,9 @@ export function konuKurdelesi(kurdeleler: Record<string, PageMark> | undefined, 
 // No material: no mark.
 export function kurdeleSecimi(m: TopicMaterials, kind: MaterialKind | null, mark: PageMark): { mark: PageMark | null; fileIndex?: number; solution?: boolean } {
   if (kind === null) return { mark: null };
-  const list = kind === 'uebungen' || kind === 'oedevler' ? m[kind] : null;
+  const list = secimliTur(kind, m) || kind === 'ozet' ? m[kind] : null;
   if (!list) return { mark };
   const i = list.findIndex(x => x.file.name === mark.dosya || x.cozum?.name === mark.dosya);
-  if (i < 0) return { mark: null };
+  if (i < 0) return kind === 'ozet' ? { mark: null, fileIndex: 0, solution: false } : { mark: null };
   return { mark, fileIndex: i, solution: list[i].cozum?.name === mark.dosya };
 }

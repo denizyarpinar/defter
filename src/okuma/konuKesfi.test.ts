@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { FOLDER_MIME, listChildren, type DriveFile } from '../drive/drive';
 import { SourceResolver } from './kaynakCoz';
-import { availableKinds, classifyTopic, defaultKind, discoverTopic, ekleriAl, emptyMaterials, gercekOzet, ozetEkleri, ozetEkMi } from './konuKesfi';
+import { availableKinds, secimliTur, classifyTopic, defaultKind, discoverTopic, ekleriAl, emptyMaterials, gercekOzet, ozetEkleri, ozetEkMi } from './konuKesfi';
 
 vi.mock('../drive/drive', async importOriginal => ({
   ...await importOriginal<typeof import('../drive/drive')>(),
@@ -150,5 +150,45 @@ describe('discoverTopic', () => {
     const m = await discoverTopic(new SourceResolver('book'), '');
     expect(m && availableKinds(m)).toEqual([]);
     expect(mock).not.toHaveBeenCalled();
+  });
+});
+
+
+describe('6.6-2: separate summaries', () => {
+  it('Ozetler absent: legacy classification stays exactly the same', () => {
+    const root = [pdf('sorular.pdf'), pdf('brifing.pdf'), pdf('orijinal.pdf'), pdf('ozet-ek.pdf')];
+    const ue = [pdf('B.pdf'), pdf('A.pdf'), pdf('A_cozum.pdf')];
+    const expected = { orijinal: [{ file: root[2], cozum: null }], ozet: [{ file: root[1], cozum: null }, { file: root[0], cozum: null }],
+      uebungen: [{ file: ue[1], cozum: ue[2] }, { file: ue[0], cozum: null }], oedevler: [] };
+    expect(classifyTopic(root, ue, [])).toEqual(expected);
+    expect(classifyTopic(root, ue, [], [])).toEqual(expected);
+  });
+  it('root summary first, then sorted Ozetler PDFs; no solutions or additions', () => {
+    const m = classifyTopic([pdf('ozet.pdf')], [], [], [pdf('Not 10.pdf'), pdf('ozet-ek.pdf'), pdf('Not 2.pdf'), pdf('Not 2_cozum.pdf'), folder('Folder.pdf'), pdf('x.txt')]);
+    expect(names(m.ozet)).toEqual([['ozet.pdf', null], ['Not 2.pdf', null], ['Not 10.pdf', null]]);
+    expect(names(classifyTopic([], [], [], [pdf('New.pdf')]).ozet)).toEqual([['New.pdf', null]]);
+  });
+  it('selects summaries only when multiple; exercises always; original never', () => {
+    const m = emptyMaterials();
+    expect(secimliTur('ozet', m)).toBe(false);
+    m.ozet = [{ file: pdf('ozet.pdf'), cozum: null }];
+    expect(secimliTur('ozet', m)).toBe(false);
+    m.ozet.push({ file: pdf('new.pdf'), cozum: null });
+    expect(secimliTur('ozet', m)).toBe(true);
+    expect(secimliTur('uebungen', m)).toBe(true);
+    expect(secimliTur('oedevler', m)).toBe(true);
+    expect(secimliTur('orijinal', m)).toBe(false);
+    expect(secimliTur(null, m)).toBe(false);
+  });
+  it('discovers Ozetler in parallel and makes no extra listing when absent', async () => {
+    vi.mocked(listChildren).mockReset();
+    const root = folder('topic'), summaries = folder('OzEtLeR'), one = pdf('ozet.pdf'), two = pdf('New.pdf');
+    vi.mocked(listChildren).mockImplementation(async id => id === root.id ? [one, summaries] : id === summaries.id ? [two] : []);
+    const resolver = { resolveFolder: async () => root.id } as unknown as SourceResolver;
+    expect((await discoverTopic(resolver, 'topic'))?.ozet.map(m => m.file.id)).toEqual([one.id, two.id]);
+    expect(vi.mocked(listChildren).mock.calls.map(c => c[0])).toEqual([root.id, summaries.id]);
+    vi.mocked(listChildren).mockReset().mockResolvedValue([one]);
+    expect(await discoverTopic(resolver, 'topic')).toEqual(classifyTopic([one], [], []));
+    expect(listChildren).toHaveBeenCalledTimes(1);
   });
 });

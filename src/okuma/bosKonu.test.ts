@@ -41,6 +41,20 @@ describe('nothing of the reading state for a topic without materials', () => {
     expect(kurdeleSecimi(m, 'uebungen', { dosya: 'B_cozum.pdf', sayfa: 2 })).toEqual({ mark: { dosya: 'B_cozum.pdf', sayfa: 2 }, fileIndex: 1, solution: true });
     expect(kurdeleSecimi(m, 'uebungen', { dosya: 'A.pdf', sayfa: 1 })).toEqual({ mark: { dosya: 'A.pdf', sayfa: 1 }, fileIndex: 0, solution: false });
     expect(kurdeleSecimi(m, 'uebungen', { dosya: 'gone.pdf', sayfa: 1 })).toEqual({ mark: null });
-    expect(kurdeleSecimi(m, 'ozet', { dosya: 'ozet.pdf', sayfa: 4 })).toEqual({ mark: { dosya: 'ozet.pdf', sayfa: 4 } });
+    expect(kurdeleSecimi(m, 'ozet', { dosya: 'ozet.pdf', sayfa: 4 })).toEqual({ mark: null, fileIndex: 0, solution: false });
+  });
+});
+
+
+describe('6.6-2: summary ribbon', () => {
+  const m = { ...emptyMaterials(), ozet: [{ file: f('ozet.pdf'), cozum: null }, { file: f('New.pdf'), cozum: null }] };
+  it('restores the chosen summary and page', () => {
+    const mark = { dosya: 'New.pdf', sayfa: 7 };
+    expect(kurdeleSecimi(m, 'ozet', mark)).toEqual({ mark, fileIndex: 1, solution: false });
+  });
+  it('missing ribbon file falls back to first summary without an error, also with only one remaining', () => {
+    for (const materials of [m, { ...m, ozet: m.ozet.slice(0, 1) }]) {
+      expect(kurdeleSecimi(materials, 'ozet', { dosya: 'gone.pdf', sayfa: 100 })).toEqual({ mark: null, fileIndex: 0, solution: false });
+    }
   });
 });

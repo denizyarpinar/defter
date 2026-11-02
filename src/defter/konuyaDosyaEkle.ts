@@ -5,7 +5,7 @@ import { PdfSampleNoWrite, type YuklemeDinleyici } from '../drive/pdfYazici';
 import { PdfYazilamaz, SAVE_OPTIONS, yazilabilirAc } from '../kalem/pdfNotlari';
 import { isSampleId } from '../okuma/ornekKaynak';
 import { dosyaTuru, ILK_BAYT_SAYISI } from './dosyaTuru';
-import { HedefOzetDegil, ozetKarari } from './konuyaEkle';
+import { HedefOzetDegil, ozetKarari, ozetDurumu } from './konuyaEkle';
 import type { EklenenSayfalar } from './ozeteEkle';
 import { mb, olc, zamanliDrive, type Olcum } from './sureOlcum';
 import { t } from '../dil';
@@ -23,11 +23,15 @@ import { t } from '../dil';
 //   (the pen's queue, /DefterEkId with islemId: a retry adds no page twice). An encrypted / broken / empty
 //   extra PDF → EkPdfYazilamaz, nothing written (a signed one is fine: only its pages are copied).
 
-export type DosyaHedefi = 'orijinal' | 'ozet' | 'uebungen' | 'oedevler' | { cozumOf: DriveFile } | { ozetSonu: DriveFile };
+export const COKLU_OZET = false;
+export const cokluOzetAcik = (search = typeof location === 'undefined' ? '' : location.search): boolean =>
+  COKLU_OZET || new URLSearchParams(search).get('cokluOzet') === '1';
+
+export type DosyaHedefi = 'orijinal' | 'ozet' | 'yeniOzet' | 'uebungen' | 'oedevler' | { cozumOf: DriveFile } | { ozetSonu: DriveFile };
 
 // The Drive file an object target is about (the solution's X, or the summary file)
 export const hedefDosyasi = (h: Exclude<DosyaHedefi, string>): DriveFile => 'cozumOf' in h ? h.cozumOf : h.ozetSonu;
-export type AltKlasor = 'Uebungen' | 'Oedevler';
+export type AltKlasor = 'Uebungen' | 'Oedevler' | 'Ozetler';
 
 const key = (name: string) => name.trim().toLowerCase();   // as konuKesfi.ts
 const COZUM = '_cozum.pdf';
@@ -40,6 +44,10 @@ export class AdGecersiz extends Error {
 
 export class AdCozumGibi extends Error {
   constructor(ad: string) { super(t('ekHata.adCozumGibi', { ad })); }
+}
+
+export class AdOzetGibi extends Error {
+  constructor() { super(t('dosya.ozetAdiAyrilmis')); }
 }
 
 export class KlasorYok extends Error {
@@ -103,7 +111,8 @@ export function hedefYeri(hedef: Exclude<DosyaHedefi, object>, ad: string, kok: 
     return { klasor: 'kok', ad: 'ozet.pdf' };
   }
   if (key(ad).endsWith(COZUM)) throw new AdCozumGibi(ad);
-  return { klasor: hedef === 'uebungen' ? 'Uebungen' : 'Oedevler', ad };
+  if (hedef === 'yeniOzet' && (key(ad).startsWith('_cozum') || key(ad).startsWith('ozet-ek'))) throw new AdOzetGibi();
+  return { klasor: hedef === 'yeniOzet' ? 'Ozetler' : hedef === 'uebungen' ? 'Uebungen' : 'Oedevler', ad };
 }
 
 export const cozumAdi = (x: DriveFile) => x.name.trim().slice(0, -'.pdf'.length) + COZUM;
@@ -176,8 +185,10 @@ export async function konuyaDosyaEkle(
   const yer = o.yer;
   if (!yer) throw new DosyaYazmaYok();
   // the name first: a wrong one costs no request
-  const altAd = hedef === 'uebungen' || hedef === 'oedevler' ? dosyaAdiHazirla(istek.ad) : '';
+  const altAd = hedef === 'uebungen' || hedef === 'oedevler' || hedef === 'yeniOzet' ? dosyaAdiHazirla(istek.ad) : '';
   if (key(altAd).endsWith(COZUM)) throw new AdCozumGibi(altAd);
+  if (hedef === 'yeniOzet' && (key(altAd).startsWith('_cozum') || key(altAd).startsWith('ozet-ek'))) throw new AdOzetGibi();
+  if (hedef === 'yeniOzet' && !cokluOzetAcik()) throw new DosyaYazmaYok();
 
   // one adding per target at a time (5.10c-ek): the same-name check of two calls could both see "no file"
   const kilit = kilitAnahtari(konu, hedef, altAd);
@@ -211,8 +222,8 @@ async function sonaEkle(istek: DosyaEkleIstek, x: DriveFile, o: DosyaEklemeOrtam
   const ozeteEkle = o.ozeteEkle;
   if (!ozeteEkle) throw new DosyaYazmaYok();
   const hazir = await olc(om, 'pdfHazirla (PDF kontrolü)', () => pdfHazirla(istek.ad, istek.bytes), { grup: 'pdf', ek: h => ({ boyut: mb(h.bytes.byteLength) }) });   // dil-kontrol: yoksay
-  const kok = await olc(om, 'drive klasör listesi', () => (o.liste ?? listChildren)(istek.konu), { grup: 'istek' });   // dil-kontrol: yoksay
-  if (!ozetKarari(kok).dosyalar.some(f => f.id === x.id)) throw new HedefOzetDegil();
+  const summaries = await olc(om, 'drive klasör listesi', () => ozetDurumu(istek.konu, o.liste ?? listChildren), { grup: 'istek' });   // dil-kontrol: yoksay
+  if (!summaries.dosyalar.some(f => f.id === x.id)) throw new HedefOzetDegil();
   const s = await ozeteEkle(x.id, hazir.bytes, istek.islemId, secenek.yukleme);
   return { kind: 'sonaEklendi', fileId: x.id, ad: x.name, bytes: s.bytes, eskiSayfa: s.eskiSayfa, yeniSayfa: s.yeniSayfa };
 }
@@ -226,6 +237,12 @@ async function ekle(
   const hazir = await olc(om, 'pdfHazirla (PDF kontrolü)', () => pdfHazirla(istek.ad, istek.bytes), { grup: 'pdf', ek: h => ({ boyut: mb(h.bytes.byteLength) }) });   // dil-kontrol: yoksay
 
   const kok = await liste(konu);
+  if (hedef === 'yeniOzet') {
+    const folder = altKlasorBul(kok, 'Ozetler');
+    const summaries = ozetKarari(kok, folder ? await liste(folder.id) : []).dosyalar;
+    const same = summaries.find(f => key(f.name) === key(altAd));
+    if (same && !await bizimMi(o.olusturDrive, same.id, islemId, hazir.bytes)) throw new AyniIsimVar(same.name, same.id);
+  }
   let parentId: string, ad: string;
   if (typeof hedef === 'object' && 'cozumOf' in hedef) {
     // the solution goes next to X: the topic folder, Uebungen or Oedevler

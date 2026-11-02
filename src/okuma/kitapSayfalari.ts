@@ -1,7 +1,7 @@
 import { SessionExpired, type DriveFile } from '../drive/drive';
 import type { Book, SourceType } from '../model/types';
 import { SourceResolver } from './kaynakCoz';
-import type { MaterialKind, TopicMaterials } from './konuKesfi';
+import { secimliTur, type MaterialKind, type TopicMaterials } from './konuKesfi';
 import { closePdf, openPdf } from './pdf';
 import { getPdf } from './pdfOnbellek';
 import { parsePageRange } from './sayfaAraligi';
@@ -63,10 +63,10 @@ async function pdfPages(found: BookPage, sayfalar?: string | number): Promise<Bo
   return numbers.map(pdfSayfa => ({ ...found, pdfSayfa }));
 }
 
-// surum 2: Orijinal / Özet → all their files in order; Übungen / Ödevler → the chosen file only.
+// surum 2: selectable materials open only the chosen file (including multiple summaries).
 // Solutions are not included (buildSolutionPages, when "Çözümü göster" is on).
 export function buildTopicPages(m: TopicMaterials, kind: MaterialKind, fileIndex = 0): Promise<BookPage[]> {
-  const items = kind === 'uebungen' || kind === 'oedevler' ? m[kind].slice(fileIndex, fileIndex + 1) : m[kind];
+  const items = secimliTur(kind, m) ? m[kind].slice(fileIndex, fileIndex + 1) : m[kind];
   return filesToPages(items.map(i => i.file));
 }
 

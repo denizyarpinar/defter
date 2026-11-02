@@ -11,7 +11,12 @@ const m = (file: DriveFile) => ({ file, cozum: null });
 
 describe('buildTopicPages: klasorId', () => {
   it('known folder → on every page; unknown → not there', async () => {
-    const p = await buildTopicPages({ orijinal: [], ozet: [m(f('brifing', 'KONU')), m(f('sorular'))], uebungen: [], oedevler: [] }, 'ozet');
+    const materials = { orijinal: [], ozet: [m(f('brifing', 'KONU')), m(f('sorular'))], uebungen: [], oedevler: [] };
+    const first = await buildTopicPages(materials, 'ozet');
+    const second = await buildTopicPages(materials, 'ozet', 1);
+    expect(first).toHaveLength(2);
+    expect(second).toHaveLength(2);
+    const p = [...first, ...second];
     expect(p.map(x => [x.dosyaId, x.pdfSayfa, x.klasorId])).toEqual([
       ['brifing', 1, 'KONU'], ['brifing', 2, 'KONU'], ['sorular', 1, undefined], ['sorular', 2, undefined],
     ]);

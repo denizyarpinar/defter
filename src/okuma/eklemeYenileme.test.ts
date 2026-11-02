@@ -174,3 +174,13 @@ describe('dosyaGosterHedefi', () => {
     expect(dosyaGosterHedefi({ kind: null, fileId: 'N', ad: 'n.pdf', cozumOf: 'X' }, m)).toBeNull();
   });
 });
+
+
+it('6.6-2: new summary Show selects the created file instead of the first summary', () => {
+  const m: TopicMaterials = { orijinal: [], uebungen: [], oedevler: [], ozet: [
+    { file: { id: 'old', name: 'ozet.pdf', mimeType: 'application/pdf', modifiedTime: 't' }, cozum: null },
+    { file: { id: 'new', name: 'Notes.pdf', mimeType: 'application/pdf', modifiedTime: 't' }, cozum: null }
+  ] };
+  const added = eklenenMateryal('yeniOzet', { fileId: 'new', ad: 'Notes.pdf' }, m);
+  expect(dosyaGosterHedefi(added, m)).toEqual({ kind: 'ozet', fileIndex: 1, solution: false });
+});

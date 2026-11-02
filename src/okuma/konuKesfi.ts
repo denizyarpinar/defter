@@ -60,19 +60,24 @@ export const gercekOzet = (m: TopicMaterials): Material[] => m.ozet.filter(x => 
 
 // root: the topic folder's children; uebungen / oedevler: the children of those folders ([] if missing).
 // Task 6.EK-1: no ozet.pdf, brifing.pdf or sorular.pdf → the first summary addition is shown as the summary.
-export function classifyTopic(root: DriveFile[], uebungen: DriveFile[], oedevler: DriveFile[]): TopicMaterials {
+export function classifyTopic(root: DriveFile[], uebungen: DriveFile[], oedevler: DriveFile[], ozetler: DriveFile[] = []): TopicMaterials {
   const top = pairSolutions(root);
   const named = (name: string) => top.find(m => key(m.file.name) === name);
   const one = (m: Material | undefined) => m ? [m] : [];
   const ozet = named('ozet.pdf');
   const asil = ozet ? [ozet] : [named('brifing.pdf'), named('sorular.pdf')].filter((m): m is Material => !!m);
+  const additional = pairSolutions(ozetler).filter(m => !ozetEkMi(m.file.name))
+    .map(m => ({ file: m.file, cozum: null })).sort(byName);
   return {
     orijinal: one(named('orijinal.pdf')),
-    ozet: asil.length ? asil : ekler(top).slice(0, 1),
+    ozet: [...(asil.length ? asil : ekler(top).slice(0, 1)), ...additional],
     uebungen: pairSolutions(uebungen).sort(byName),
     oedevler: pairSolutions(oedevler).sort(byName)
   };
 }
+
+export const secimliTur = (kind: MaterialKind | null, m: TopicMaterials): boolean =>
+  kind === 'uebungen' || kind === 'oedevler' || (kind === 'ozet' && m.ozet.length > 1);
 
 export const emptyMaterials = (): TopicMaterials => ({ orijinal: [], ozet: [], uebungen: [], oedevler: [] });
 
@@ -93,7 +98,7 @@ export function defaultKind(m: TopicMaterials): MaterialKind | null {
   return availableKinds(m)[0] ?? null;
 }
 
-// 1 listing for the topic folder + at most 2 for Uebungen / Oedevler (the path itself is cached by the resolver).
+// One topic listing, then existing Uebungen / Oedevler / Ozetler folders in parallel.
 // null: the folder in kitap.json doesn't exist. An empty klasor means "no materials yet".
 export async function discoverTopic(resolver: SourceResolver, klasor: string): Promise<TopicMaterials | null> {
   if (!klasor.trim()) return emptyMaterials();
@@ -104,8 +109,8 @@ export async function discoverTopic(resolver: SourceResolver, klasor: string): P
     const folder = root.find(f => f.mimeType === FOLDER_MIME && key(f.name) === name);
     return folder ? listChildren(folder.id) : Promise.resolve([]);
   };
-  const [uebungen, oedevler] = await Promise.all([sub('uebungen'), sub('oedevler')]);
-  const m = classifyTopic(root, uebungen, oedevler);
+  const [uebungen, oedevler, ozetler] = await Promise.all([sub('uebungen'), sub('oedevler'), sub('ozetler')]);
+  const m = classifyTopic(root, uebungen, oedevler, ozetler);
   ekBellek.set(m, ozetEkleri(root));
   return m;
 }

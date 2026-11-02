@@ -1,66 +1,59 @@
-# TASK – 6.6-6: 1 saat sonra oturum düşmesin (sessiz yenileme + "dokun, devam et" bandı)
+# TASK – 6.6-2: Bir konuya birden çok özet (Übungen gibi seçici)
 
-Onaylı plan (planlayıcı: Claude, 1 Kasım 2026). Kaynak: `FAZ6_6_PLAN.md` 6.6-6, Deniz kararı S5 = A. Önceki adım: 6.6-5b (token bellekte + bu sekmenin sessionStorage'ı, `?olcum=1` günlüğü).
+Onaylı plan (planlayıcı: Claude, 2 Kasım 2026). Kaynak: `FAZ6_6_PLAN.md` 6.6-2. Deniz kararı S2 = A (Übungen'deki gibi seçici; 2. özet eklenince sayfa sayısı uzamasın). Başlangıç: main = faz-6 = d7a6746 (6.6-6 canlı).
 
 ## Goal
-Defter 70 dk açık kalınca giriş kartına düşmesin. Süre bitmeden token yenilensin; tarayıcı yenilemeye izin vermezse oturum kapanmasın, üstte küçük bir "Devam etmek için dokun" bandı çıksın, tek dokunuşla devam edilsin. Bekleyen Drive istekleri ve kayıtlar kaybolmasın.
+Bir konuya ikinci, üçüncü özet ayrı PDF olarak eklenebilsin. Özet sekmesinde Übungen'deki gibi dosya seçici çıksın, seçilen özet tek başına açılsın. Eski kitaplar aynen çalışsın (ozet.pdf yerinde kalır, taşıma yok).
 
 ## Context (kod okundu)
-- GIS token'ı ~1 saat (`expires_in` ≈ 3599), yenileme anahtarı yok. Yeni token = `requestAccessToken` = açılır pencere (prompt '' olsa da).
-- Bugün: `drive.ts authorized()` → `currentToken()` null (son 1 dk) → `freshToken()` → `signIn({hint, neden:'freshToken'})` **kullanıcı dokunuşu olmadan** → tarayıcı pencereyi engeller (`popup_failed_to_open`) → `dropToken` + `onExpired` → `main.ts setSessionExpiredHandler` → `oturumDoldu` → giriş kartı. 401 yolu da aynı yere çıkıyor.
-- `signIn` yeni çağrıda önceki `pending`'i reddediyor: aynı anda iki `freshToken` birbirini düşürüyor.
-- 6.6-5b: açılışta `oturumGeriYukle()` token'ı geri yükler (süresi en az 1 dk kalmışsa).
+- `okuma/konuKesfi.ts classifyTopic`: özet = kökte `ozet.pdf` (yoksa brifing.pdf + sorular.pdf, o da yoksa ilk ozet-ek). Uebungen/Oedevler alt klasörden `pairSolutions` ile.
+- `Okuyucu.ts showMaterial`: Übungen/Ödevler `fileIndex` ile tek dosya; özet ise `t.materials.ozet` dosyalarının HEPSİNİ tek akışta birleştiriyor. Seçici `#oFiles/#oFile` yalnız uebungen/oedevler için (`showSelectedTab`).
+- `defter/konuyaDosyaEkle.ts`: özet varsa "Özet" hedefi = `{ ozetSonu }` (sayfalar sona, 6.S-3); yoksa yeni `ozet.pdf`. Alt klasör `drive/altKlasorAc.ts` (`AltKlasor = 'Uebungen' | 'Oedevler'`).
+- `defter/konuyaEkle.ts ozetKarari(kok)` yalnız kök listesine bakıyor; foto ekleme ve `sonaEkle` hedef kontrolü bunu kullanıyor.
+- `defter/dosyaPanelDurumu.ts` + `ui/dosyaPanel.ts`: hedef satırları, "Hangi özet" seçimi zaten var.
 
 ## Teknik kararlar (planlayıcı)
-- D1 Tek yenileme kapısı: `auth.ts`'de (ya da yeni saf `src/drive/yenileme.ts` + ince bağlayıcı) `tokenYenile(neden)`. Aynı anda gelen tüm istekler **aynı Promise**'i bekler. Neden: `pending` yarışı (biri diğerini düşürüyor) bir daha olmasın.
-- D2 Zamanlayıcı: token alınınca **ve** geri yüklenince, `expiresAt − önce` anında bir kez sessiz deneme (`signIn({ hint, neden: 'zamanlayici' })`, prompt ''). `önce = min(5 dk, ömür/3)`. Sekme gizliyse beklenir; `visibilitychange` (görünür) ve `focus`'ta süre yeniden kontrol edilir (uyku/arka plan sonrası geç kalan zamanlayıcı). Her token için en fazla bir sessiz deneme. Neden: süre dolmadan, kullanıcı işinin ortasındayken değil önceden davranmak.
-- D3 Sessiz deneme olmazsa (`popup-blocked`, `unknown`, 15 sn içinde cevap yok) **oturum kapanmaz**: bant gösterilir. Bant düğmesine dokunmak bir kullanıcı hareketidir → `signIn({ hint, neden: 'bant' })` aynı tıklamada çağrılır (await'ten önce, pencere engellenmesin). Başarı → bant kalkar, bekleyenler devam eder. Pencere kapatılır/izin verilmezse bant kalır, metni "Tekrar dene" olur.
-- D4 `drive.ts`: oturum bu sayfada bir kez açıldıysa (giriş ya da geri yükleme) `freshToken` ve ilk 401 artık `dropToken + onExpired` yapmaz; D1 kapısını bekler (önce sessiz deneme — bu token için yapılmadıysa — olmazsa bant ve dokunuş). Bekleyen istek hata atmaz, bekler. `onExpired` yalnız: hiç oturum açılmamışken token istenirse (bugünkü yol) ve yeni token'la gelen **ikinci 401**'de (gerçek yetki sorunu, bugünkü yol).
-- D5 Kayıtlar: IDB'deki kalem/fotoğraf kuyruğu ve kaydedici mantığına dokunulmaz; bekleyen yazma isteği token gelince devam eder. Kullanıcı çıkış yaparsa (`signOut`) bekleyen yenileme `AuthError`/`SessionExpired` ile biter, bant kalkar, zamanlayıcı iptal.
-- D6 Geri alma: `auth.ts`'de `const SESSIZ_YENILE = true;` false iken ya da URL'de `?yenile=0` varken davranış **tamamen bugünkü gibi** (zamanlayıcı yok, bant yok, eski freshToken yolu).
-- D7 Deneme kancası: `?tokenSure=N` (saniye, 120–3600) GIS'ten gelen süreyi `min(gerçek, N)` yapar; yalnız kısaltır, önizlemede de çalışır (zararsız). Saklanan `expiresAt` de buna göre.
-- D8 Günlük (`authGunlugu.ts`, yalnız `?olcum=1`): `yenile.plan` (`kalanSn`), `yenile.sessiz` (`sonuc`: 'basarili' | 'engellendi' | 'zamanAsimi' | 'hata'), `bant.goster`, `bant.dokun` (`sonuc`), `yenile.bekle` (`istek`: sayı). Token değeri, e-posta, dosya adı asla.
-- D9 Bant görünümü: üstte ince, ortalanmış şerit; mevcut toast/üst çubuk renk, font, köşe ve gölgesi (yeni stil icat etme). Okuyucu/kitap açıkken de üstte görünür. `role="status"`, `aria-live="polite"`, düğme klavyeyle odaklanır. Metinler iki dilde `src/dil`'e:
-  - TR: "Oturumu yenilemek için dokun" / düğme "Devam et" / hata sonrası "Yenilenemedi. Tekrar dene"
-  - EN: "Tap to refresh your session" / "Continue" / "Couldn't refresh. Try again"
+- D1 Yer: yeni özetler `Ozetler/<ad>.pdf` (konu klasörünün alt klasörü, Uebungen ile aynı desen). İlk özet `ozet.pdf` olarak kalır. Neden: altKlasorAc/pairSolutions yeniden kullanılır, eski veri taşınmaz. kitap.json DEĞİŞMEZ.
+- D2 Keşif: `discoverTopic` `ozetler` alt klasörünü de listeler (Uebungen/Oedevler ile paralel, +1 istek yalnız klasör varsa). `classifyTopic(root, uebungen, oedevler, ozetler = [])`: özet listesi = bugünkü asıl özet(ler) + Ozetler PDF'leri (ada göre, `byName`). `_cozum.pdf` ve `ozet-ek*` Ozetler içinde özet sayılmaz.
+- D3 Okuyucu: `topic.materials.ozet.length > 1` iken özet de `fileIndex` ile TEK dosya açar ve `#oFiles` seçicisi görünür (Übungen'deki aynı select, dosya adı .pdf'siz). 1 dosyada seçici gizli (bugünkü görünüm). Not: eski brifing + sorular konuları da artık seçiciyle iki ayrı dosya olur (bilinçli, tutarlı). Saf yardımcı ör. `secimliTur(kind, m)`: uebungen/oedevler her zaman, ozet yalnız >1.
+- D4 Kurdele: Übungen gibi tür başına tek kurdele (`kurdeleler.ozet = { dosya, sayfa }`); `dosya` hangi özet dosyasının açılacağını seçer (`kurdeleSecimi` özet için de fileIndex döndürür). Dosyası yoksa ilk özet. Neden: veri biçimi aynı kalır.
+- D5 Dosya ekle paneli, konuda özet VARKEN iki satır: **"Yeni özet (ayrı dosya)"** varsayılan, ad kutusu Übungen gibi (aynı ad kontrolü tüm özet dosyalarına karşı; `_cozum` ve `ozet-ek` ile başlayan ad reddedilir) → `Ozetler/<ad>.pdf`, klasör yoksa `altKlasorAc` ile açılır (`AltKlasor`a `'Ozetler'`, umlaut eşdeğeri `özetler`). **"Mevcut özetin sonuna"** ikinci satır = bugünkü `ozetSonu` yolu (6.S-3, değişmeden; çok özette "Hangi özet" seçimi aynı). Konuda özet YOKKEN bugünkü gibi yeni `ozet.pdf`.
+- D6 Hedef kontrolleri: `ozetKarari`/`ozetDurumu` Ozetler alt klasörünü de sayar (async yolda Ozetler varsa listelenir). Böylece foto ekleme ve `sonaEkle` Ozetler dosyalarına da yazabilir (yoksa `HedefOzetDegil`).
+- D7 Fotoğraf paneli: değişmez; sayfalar ekrandaki/seçilen özetin sonuna gider (bugünkü `hedefFileId`).
+- D8 6.EK ek bandı yalnız asıl özet (fileIndex 0, kökteki dosya) açıkken; Ozetler dosyalarında bant yok.
+- D9 Eklendikten sonra "Göster": yeni özet → Özet sekmesi + o dosya seçili (`dosyaGosterHedefi` Ozetler'i tanır). `showAdded` (sayfalar sona) `fileIndex = 0` yerine hedef dosyanın indeksini kullanır.
+- D10 Kilit (DECISIONS D13): `const COKLU_OZET = false` + adreste `?cokluOzet=1`. Kilit kapalıyken panel bugünkü gibidir (yalnız "sonuna"); OKUMA (keşif, seçici, kurdele) kilitten bağımsız hep açık. Deniz denemesinden sonra main çıkışında `true` yapılır.
 
 ## Relevant Files
-- `src/drive/auth.ts` (zamanlayıcı, kapı, `SESSIZ_YENILE`, `?tokenSure`)
-- `src/drive/drive.ts` (`freshToken`, `authorized` 401 yolu)
-- `src/main.ts` (bandı bağlama; `setSessionExpiredHandler` aynı kalır)
-- `src/drive/authGunlugu.ts` (yeni olay kelimeleri)
-- `src/dil/*` (yeni anahtarlar, EN + TR)
-- Bant için küçük yeni dosya (ör. `src/ui/oturumBandi.ts`) ve mevcut stil dosyası
-- Testler: yeni `src/drive/yenileme.test.ts` (sahte saat + sahte GIS)
+`src/okuma/konuKesfi.ts`, `src/okuma/Okuyucu.ts` (showMaterial, showSelectedTab, buildTopicPages, pageCache, showAdded, showAddedFile, ek bandı), `src/okuma/bosKonu.ts` (kurdeleSecimi), `src/defter/konuyaDosyaEkle.ts`, `src/defter/konuyaEkle.ts`, `src/defter/dosyaPanelDurumu.ts`, `src/ui/dosyaPanel.ts`, `src/drive/altKlasorAc.ts`, `src/kitap/dosyaCop.ts` (Ozetler dosyası çöpe: Übungen dosyası gibi), `src/arama/*` (arama sonucu Ozetler dosyasını doğru sekme + dosyayla açsın, gerekiyorsa), `src/dil/tr.ts` + `en.ts`. Testler mevcut yanlarına.
 
 ## Requirements
-1. Saf parça (enjekte saat/zamanlayıcı/signIn): `yenilemeZamani(expiresAt, alinma)`, tek Promise kapısı, sessiz deneme sonucu → bant kararı.
-2. Token alınınca/geri yüklenince zamanlayıcı kurulur; yeni token gelince eskisi iptal; `signOut`/`dropToken` iptal eder.
-3. Sessiz deneme başarılıysa hiçbir şey görünmez (bant yok, toast yok); `token.store` bugünkü gibi sessionStorage'ı günceller.
-4. Bant dokunuşu `signIn`'i senkron başlatır (pencere engellenmesin); aynı anda tek bant.
-5. Süre dolmuş ve bant açıkken yapılan Drive istekleri hata atmaz, dokunuştan sonra sırayla devam eder.
-6. `SESSIZ_YENILE=false` / `?yenile=0` → eski davranış birebir (mevcut testler bunu korur).
-7. Testler: zamanlama (5 dk önce; kısa ömürde ömür/3), gizli sekmede bekleme + görünür olunca deneme, eşzamanlı 3 istek tek `signIn`, sessiz başarı → bant yok, engellendi → bant + istekler bekler + dokunuş → devam, pencere kapatıldı → bant "Tekrar dene", ikinci 401 → onExpired, signOut → bekleyenler biter, `?tokenSure=120`, `?yenile=0` eski yol. Mevcut tüm testler geçer.
+1. Keşif + sınıflama (D2), eski konular birebir aynı sonuç (mevcut testler geçer).
+2. Okuyucu seçici, tek dosya açma, sayfa önbelleği anahtarı yalnız açık dosya (D3); kitap modu, kalem, Temiz yazı, OCR, sayfa ekle/sil, arama açık dosyada bugünkü gibi çalışır.
+3. Kurdele (D4); kaldığı yer dil dönüşü ve yeniden açılışta doğru dosya + sayfa.
+4. Panel iki seçenek + ad kutusu + Ozetler klasörü açma (D5, D6, D10). Aynı islemId ile tekrar deneme ikinci klasör/dosya yapmaz (mevcut desen).
+5. Metinler iki dilde: TR "Yeni özet (ayrı dosya)", "Mevcut özetin sonuna"; EN "New summary (separate file)", "Add to the end of a summary". 6.5 dar ekran kuralları geçerli.
+6. Testler: classifyTopic (Ozetler, cozum/ek hariç, sıralama, eski konu aynı); secimliTur; kurdeleSecimi özet dosyası; hedefSecenekleri/adDurumu/dosyaHedefi/islemAnahtari yeni satırla (kilit açık/kapalı); konuyaDosyaEkle → Ozetler/<ad>.pdf, klasör yokken açar, aynı ad → AyniIsimVar, tekrar deneme; ozetKarari Ozetler dosyasını hedef kabul eder; foto ekleme Ozetler dosyasının sonuna; altKlasorAc 'Ozetler' + 'Özetler' adı farklı uyarısı. Tüm mevcut testler geçer.
 
 ## Do Not
-- Token'ı localStorage/IndexedDB/çerez/URL/log'a yazma (6.6-5b kuralı aynı).
-- Sunucu tarafı giriş, yenileme anahtarı, yeni API (B yolu) YOK.
-- IDB kuyruğu, kaydedici, `driveTercih.ts`, Drive dosya adları/JSON anahtarları, `kitaplikDurumu.ts` geçiş tablosu değişmez.
-- Bant dışında yeni arayüz yok; giriş kartı tasarımına dokunma.
+- `ozet.pdf`'i taşıma/bölme/yeniden adlandırma; mevcut uzun özetleri bölme YOK.
+- kitap.json biçimi, Drive klasör adları (Uebungen, Oedevler, Unite-NN, Konu-NN, orijinal.pdf, ozet.pdf), JSON anahtarları değişmez. `files.delete` yok.
+- Fotoğraf panelinin akışı, kalem kuyruğu, kaydedici, auth değişmez.
+- Yeni stil icat etme: seçici Übungen'deki `#oFiles` ile aynı.
 - `git checkout` (dal değiştirme), `reset`, `stash`, force push. main'e push etme. Commit atma (Deniz söyleyince).
 
 ## Definition of Done
-- `?tokenSure=120` ile: laptop Chrome ve iPad Safari'de 3 dk açık kalınca giriş kartı çıkmaz; ya sessizce yenilenir ya da bant çıkar, tek dokunuşla devam edilir.
-- Bant açıkken kalemle yazılan çizgi dokunuştan sonra Drive'a kaydedilir (kayıp yok).
-- Çıkış → yenile → giriş kartı (bugünkü gibi). `?yenile=0` → eski davranış.
+- `?cokluOzet=1` ile: özeti olan konuya "Yeni özet" → Drive'da `Ozetler/<ad>.pdf`, Özet sekmesinde seçici, iki dosya ayrı açılır, ilk özetin sayfa sayısı değişmez.
+- "Mevcut özetin sonuna" bugünkü gibi çalışır. Kilit kapalıyken panel bugünkü gibi.
+- Laptop + iPad: seçiciyle geçiş, kurdele, kalemle yazma ve fotoğraf ekleme Ozetler dosyasında kaydolur.
 - Testler, typecheck, build, `npm run dil` (0) geçer.
 
 ## Verification
-- `npm test`, `npm run typecheck`, `npm run build`, `npm run dil`.
-- Derlenmiş uygulamada sahte GIS ile: sessiz başarı, engellenme → bant → dokunuş, 3 eşzamanlı istek.
-- Bant için 390×844 ve 1180×820 ekran görüntüsü (EN + TR), taşma yok.
-- Sonunda göster: değişen dosyalar, test sayısı, `git status`, laptop + iPad deneme adımları (`?tokenSure=120&olcum=1`).
+- `npm test`, `npm run typecheck`, `npm run build`, `npm run dil`, `npm run dil:ekran` (Özet sekmesinde seçici, 390×844 ve 1180×820, EN + TR, taşma 0).
+- Derlenmiş uygulamada sahte Drive ile: yeni özet ekle → seçici → geçiş → kurdele.
+- Sonunda göster: değişen dosyalar, test sayısı, `git status`, laptop + iPad deneme adımları (`?cokluOzet=1`).
 
-## Ek kontrol + geri alma (auth değişikliği)
-- Kontrol: Claude diff'i okur (onExpired yalnız iki yolda, kapı tek Promise, token saklama kuralı aynı). Deniz önizlemede laptop + iPad `?tokenSure=120&olcum=1`, sonra gerçek 70 dk bir kez.
-- Geri alma: `SESSIZ_YENILE = false` (tek satır) ya da commit'i `git revert`. Acil: `?yenile=0`.
+## Ek kontrol + geri alma (Drive yapısı değişikliği)
+- Kontrol: Claude diff'i okur (eski konu sınıflaması aynı, yazma yalnız Ozetler altında ve kilitli, ozetKarari değişikliği foto yolunu bozmuyor). Deniz önizlemede gerçek bir konuda dener.
+- Geri alma: `COKLU_OZET = false` (yeni yazma durur, okuma kalır) ya da commit'i `git revert` (Ozetler dosyaları Drive'da kalır, kaybolmaz; yalnız okuyucuda görünmez).
+- Main çıkışında `docs/ai/DECISIONS.md` sonuna ekle: `D30 – Birden çok özet (6.6-2, 2 Kasım 2026): ilk özet konu klasöründe ozet.pdf; sonrakiler Ozetler/<ad>.pdf, okuyucuda seçiciyle ayrı açılır. Neden: özet uzamasın, Uebungen deseni yeniden kullanılsın.`

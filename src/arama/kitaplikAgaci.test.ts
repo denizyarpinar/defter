@@ -188,3 +188,12 @@ describe('agacAl (memory)', () => {
     expect(agacBellekte(o)).toBe(false);
   });
 });
+
+
+it('6.6-2: nested summary search maps to its topic and summary tab', () => {
+  const nested = 'summary-folder';
+  const folders = [...klasorler, { id: nested, name: 'Ozetler', parents: [aussage] }];
+  const files = [...dosyalar, { id: 'summary-new', name: 'Notes.pdf', mimeType: 'application/pdf', modifiedTime: 't', parents: [nested] }];
+  const result = agacCikar(klasorHaritasi(folders, bookFolderIds), files, { bookFolderIds, books, library });
+  expect(result.dosyalar.find(f => f.id === 'summary-new')).toMatchObject({ materyal: 'ozet', cozumMu: false });
+});

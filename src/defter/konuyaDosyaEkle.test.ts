@@ -6,7 +6,7 @@ import { AyniIsimVar, DosyaOlusturAgHatasi, DosyaYazmaYok, IdZatenVar, PdfDegil,
 import { PdfSampleNoWrite, RESUMABLE_LIMIT } from '../drive/pdfYazici';
 import { AltKlasorAdiFarkli, altKlasorAc, altKlasorBelleginiSifirla, type AltKlasorDrive } from '../drive/altKlasorAc';
 import {
-  AdCozumGibi, AdGecersiz, dosyaAdiHazirla, EklemeSuruyor, HedefBulunamadi, KlasorYok, konuyaDosyaEkle, OzetZatenVar, PdfHazirlanamadi,
+  AdCozumGibi, AdGecersiz, cokluOzetAcik, dosyaAdiHazirla, EklemeSuruyor, HedefBulunamadi, KlasorYok, konuyaDosyaEkle, OzetZatenVar, PdfHazirlanamadi,
   type DosyaEklemeOrtami, type DosyaHedefi
 } from './konuyaDosyaEkle';
 import { HedefOzetDegil } from './konuyaEkle';
@@ -385,6 +385,20 @@ describe('konuyaDosyaEkle: task 6.K6a, Uebungen / Oedevler made with the first f
     expect(d.olaylar.filter(o => o === 'konuDegisti').length).toBeGreaterThanOrEqual(3);
   });
 
+  it('6.6-2: creates Ozetler once and retries the same file without duplication', async () => {
+    vi.stubGlobal('location', { search: '?cokluOzet=1' });
+    try {
+      const d = fakeDrive();
+      d.ayar.kayip = 1;
+      await expect(ekleAc(d, 'yeniOzet', 'Notes.pdf', 'same')).rejects.toThrow(DosyaOlusturAgHatasi);
+      d.ayar.agYok = false;
+      expect(await ekleAc(d, 'yeniOzet', 'Notes.pdf', 'same')).toMatchObject({ kind: 'zatenVardi', ad: 'Notes.pdf' });
+      expect(klasorler(d).map(k => k.name)).toEqual(['Ozetler']);
+      expect(d.yazmalar()).toHaveLength(1);
+      expect(d.log.filter(l => l.startsWith('klasor:'))).toEqual(['klasor:C2/Ozetler']);
+    } finally { vi.unstubAllGlobals(); }
+  });
+
   it('locked: KlasorYok as before, no folder request, nothing written', async () => {
     const d = fakeDrive();
     await expect(ekleAc(d, 'uebungen', 'Blatt 1.pdf', 'is-1', false)).rejects.toThrow(KlasorYok);
@@ -510,4 +524,46 @@ describe('task 6.S-3: { ozetSonu } → the pages at the end of the summary', () 
     expect([...await ekIsaretleri(ozet)]).toEqual([islemId]);
     expect(d.yazmalar()).toEqual([]);   // the addition itself: never written to
   });
+});
+
+
+describe('6.6-2: summary write boundaries', () => {
+  it('URL gate off rejects new summary before requests; exact URL flag enables it', async () => {
+    expect(cokluOzetAcik('')).toBe(false);
+    expect(cokluOzetAcik('?cokluOzet=0')).toBe(false);
+    expect(cokluOzetAcik('?cokluOzet=1')).toBe(true);
+    const d = fakeDrive();
+    await expect(ekle(d, 'yeniOzet', 'Notes.pdf')).rejects.toThrow(DosyaYazmaYok);
+    expect(d.log).toEqual([]);
+  });
+  it('duplicate names in root or Ozetler rejected; existing root PDF remains untouched', async () => {
+    vi.stubGlobal('location', { search: '?cokluOzet=1' });
+    try {
+      const d = fakeDrive({ 'C/ozet.pdf': 'Z', 'OS/Notes.pdf': 'N' });
+      d.items.set('OS', { name: 'Ozetler', parent: 'C', mimeType: FOLDER_MIME });
+      for (const name of ['OZET.PDF', 'notes.pdf']) await expect(ekle(d, 'yeniOzet', name)).rejects.toThrow(AyniIsimVar);
+      await expect(ekle(d, 'yeniOzet', 'Fresh.pdf')).resolves.toMatchObject({ kind: 'yeni' });
+      expect(d.yazmalar()).toEqual(['multipart:OS/Fresh.pdf']);
+      expect(d.items.get('Z')?.bytes).toBe(pdf);
+    } finally { vi.unstubAllGlobals(); }
+  });
+  it('append accepts a selected Ozetler file and ignores additions/solutions', async () => {
+    const d = fakeDrive({ 'OS/Notes.pdf': 'N', 'OS/ozet-ek.pdf': 'E', 'OS/Notes_cozum.pdf': 'S' });
+    d.items.set('OS', { name: 'Ozetler', parent: 'C', mimeType: FOLDER_MIME });
+    const append = vi.fn(async () => ({ bytes: pdf, eskiSayfa: 2, yeniSayfa: 4 } as EklenenSayfalar));
+    d.ortam.ozeteEkle = append;
+    expect(await ekle(d, { ozetSonu: d.file('N') })).toMatchObject({ kind: 'sonaEklendi', fileId: 'N' });
+    for (const id of ['E', 'S']) await expect(ekle(d, { ozetSonu: d.file(id) })).rejects.toThrow(HedefOzetDegil);
+    expect(append).toHaveBeenCalledTimes(1);
+  });
+});
+
+
+it('6.6-2: reserved summary names are rejected before any Drive request', async () => {
+  vi.stubGlobal('location', { search: '?cokluOzet=1' });
+  try {
+    const d = fakeDrive();
+    for (const name of ['ozet-ek.pdf', '_cozum-test.pdf', 'Notes_cozum.pdf']) await expect(ekle(d, 'yeniOzet', name)).rejects.toThrow();
+    expect(d.log).toEqual([]);
+  } finally { vi.unstubAllGlobals(); }
 });

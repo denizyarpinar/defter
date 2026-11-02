@@ -719,6 +719,9 @@ export const tr = {
   'kose.gocuk': 'Dörtgen içe göçük. Köşeleri sayfanın köşelerine taşı.',
   'kose.acilamadi': '{ad} açılamadı. Tekrar dene.',
   // 6.5-4a: Dosya ekle
+  'dosya.ozetAdiAyrilmis': 'Bu ad özet eki veya çözüm için ayrılmış. Başka bir ad yaz.',
+  'dosya.yeniOzet': 'Yeni özet (ayrı dosya)',
+  'dosya.mevcutOzetSonu': 'Mevcut özetin sonuna',
   'dosya.ofisEklenemez': '{adi} dosyaları eklenemiyor. Dosyayı PDF olarak kaydedip ekle.',
   'dosya.desteklenmiyor': 'Bu dosya türü desteklenmiyor. PDF ya da görsel (JPEG, PNG) seç.',
   'dosya.bos': 'Dosya boş. Başka bir dosya seç.',

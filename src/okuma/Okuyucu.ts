@@ -69,7 +69,7 @@ import {
 import { visiblePages, yenidenDuzenGerekir } from './kitapDuzen';
 import { BookView } from './kitapModu';
 import { buildBookPages, buildSolutionPages, buildTopicPages, type BookPage } from './kitapSayfalari';
-import { MATERIAL_LABEL, availableKinds, defaultKind, discoverTopic, ekleriAl, emptyMaterials, gercekOzet, type MaterialKind, type TopicMaterials } from './konuKesfi';
+import { MATERIAL_LABEL, availableKinds, defaultKind, secimliTur, discoverTopic, ekleriAl, emptyMaterials, gercekOzet, type MaterialKind, type TopicMaterials } from './konuKesfi';
 import type { EkSahte } from './ekSahte';
 import { discoverSampleTopic, isSampleId } from './ornekKaynak';
 import { autoTopicStatus, cycleStatus, markChapterPage, markTopicPage, type Resume } from './okumaDurumu';
@@ -1080,7 +1080,7 @@ async function showMaterial(start?: PageMark | null, kitapTaraf?: Taraf): Promis
   renderBar();
   setMessage(dilT('okuyucu.sayfalarHazirlaniyor'));
 
-  const material = t.kind === 'uebungen' || t.kind === 'oedevler' ? t.materials[t.kind][t.fileIndex] : null;
+  const material = t.kind !== null && secimliTur(t.kind, t.materials) ? t.materials[t.kind][t.fileIndex] : null;
   const files = material ? [material.file] : t.materials[kind].map(m => m.file);
   const cozum = t.solution ? material?.cozum ?? null : null;
   const key = (list: { id: string; modifiedTime: string }[]) => list.map(f => `${f.id}@${f.modifiedTime}`).join(',');
@@ -1305,7 +1305,7 @@ function renderBar(): void {
     kilitAcik: !!dosyaCop?.acik(), drive: !isSampleId(folder) && !!driveLocation(),
     surum2: !!book && usesUnits(book) && book.hasJson && book.surum >= 2, materyal: t.kind !== null, kalem: penOn
   });
-  const list = t.kind === 'uebungen' || t.kind === 'oedevler' ? t.materials[t.kind] : null;
+  const list = t.kind !== null && secimliTur(t.kind, t.materials) ? t.materials[t.kind] : null;
   $('#oFiles').hidden = !list;
   if (!list) return;
   const select = $<HTMLSelectElement>('#oFile');
@@ -1576,7 +1576,9 @@ function ilkSayfaCizildi(): void {
 // summary's bytes come from the cache (the list on screen has them).
 async function ekBandi(t: OpenTopic): Promise<void> {
   const s = ekSahteAktif;
-  const gecerli = () => open && topic === t && t.kind === 'ozet';
+  const gecerli = () => open && topic === t && t.kind === 'ozet' && t.fileIndex === 0
+    && /^(ozet|brifing|sorular)\.pdf$/i.test(t.materials.ozet[0]?.file.name ?? '')
+    && pages.some(p => p.dosyaId === t.materials.ozet[0]?.file.id);
   const ozet = gercekOzet(t.materials).map(m => m.file);
   const ekler = s ? s.ekler : ekleriAl(t.materials);
   const drive = !!s || (!isSampleId(folder) && !!driveLocation());
@@ -1752,7 +1754,7 @@ function refreshList(t: OpenTopic, fileId: string, total: number): Promise<void>
     const g = sayfaListesiniGenislet(pages, fileId, total, make);
     if (!g || g.ekYeri !== plan.ekYeri || g.eklenen !== extra.length) return;   // the list changed meanwhile
     applyGrowth(g.pages, g.ekYeri, extra, g.sonaMi);
-    if (!t.solution && t.kind === 'ozet') pageCache.set(t.materials.ozet.map(m => `${m.file.id}@${m.file.modifiedTime}`).join(','), { pages: [...pages], ratios: [...ratios] });
+    if (!t.solution && t.kind === 'ozet') pageCache.set(t.materials.ozet.slice(t.fileIndex, t.fileIndex + 1).map(m => `${m.file.id}@${m.file.modifiedTime}`).join(','), { pages: [...pages], ratios: [...ratios] });
   });
 }
 
@@ -1797,7 +1799,7 @@ async function refreshTopic(t: OpenTopic): Promise<void> {
   topicCache.delete(`${folder}|${t.klasor}`);
   const m = await discover(folder, t.klasor);
   if (!m || !open || topic !== t) return;
-  const list = (x: TopicMaterials) => t.kind === 'uebungen' || t.kind === 'oedevler' ? x[t.kind] : null;
+  const list = (x: TopicMaterials) => t.kind !== null && (secimliTur(t.kind, x) || t.kind === 'ozet') ? x[t.kind] : null;
   const next = konuBirlestir(t.materials, m);
   const old = list(t.materials), now = list(next);
   if (old && now) t.fileIndex = acikIndeks(old, now, t.fileIndex);
@@ -1822,7 +1824,7 @@ function showAdded(t: OpenTopic, g: GosterHedefi): void {
   // the file's newest version (its bytes are in the cache)
   const mt = latestVersion.get(g.fileId);
   if (mt) for (const m of t.materials.ozet) if (m.file.id === g.fileId) m.file.modifiedTime = mt;
-  t.kind = 'ozet'; t.fileIndex = 0; t.solution = false;
+  t.kind = 'ozet'; t.fileIndex = t.materials.ozet.findIndex(m => m.file.id === g.fileId); t.solution = false;
   void showMaterial({ dosya: g.ad, sayfa: g.sayfa });
 }
 

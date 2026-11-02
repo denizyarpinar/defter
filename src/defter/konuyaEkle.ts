@@ -24,14 +24,16 @@ export interface OzetDurumu { durum: 'yok' | 'var'; dosyalar: DriveFile[] }
 // The same rule as the reader (classifyTopic): ozet.pdf, else brifing.pdf and sorular.pdf; any case.
 // Folders and files in the trash don't count. Task 6.EK-1: nor do summary additions (ozet-ek*.pdf, never written
 // to): a topic with only an addition has no summary (photos make a new ozet.pdf).
-export function ozetKarari(dosyalar: readonly (DriveFile & { trashed?: boolean })[]): OzetDurumu {
+export function ozetKarari(dosyalar: readonly (DriveFile & { trashed?: boolean })[], ozetler: readonly (DriveFile & { trashed?: boolean })[] = []): OzetDurumu {
   const gecerli = dosyalar.filter(f => !f.trashed && f.mimeType !== FOLDER_MIME && !ozetEkMi(f.name));
-  const ozet = classifyTopic(gecerli, [], []).ozet.map(m => m.file);
+  const ozet = classifyTopic(gecerli, [], [], ozetler.filter(f => !f.trashed)).ozet.map(m => m.file);
   return { durum: ozet.length ? 'var' : 'yok', dosyalar: ozet };
 }
 
 export async function ozetDurumu(konuKlasorId: string, liste: (id: string) => Promise<DriveFile[]> = listChildren): Promise<OzetDurumu> {
-  return ozetKarari(await liste(konuKlasorId));
+  const root = await liste(konuKlasorId);
+  const folder = root.find(f => f.mimeType === FOLDER_MIME && f.name.trim().toLowerCase() === 'ozetler');
+  return ozetKarari(root, folder ? await liste(folder.id) : []);
 }
 
 // ---- errors ----

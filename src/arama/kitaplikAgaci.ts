@@ -169,7 +169,7 @@ export function agacCikar(
       if (klasorId && !konuKlasoru.has(klasorId)) {
         konuKlasoru.set(klasorId, konu);
         const icinde = (ad: string) => { const k = altKlasor(klasorId, ad); return k ? klasorde.get(k) ?? [] : []; };
-        const m = classifyTopic(klasorde.get(klasorId) ?? [], icinde('Uebungen'), icinde('Oedevler'));
+        const m = classifyTopic(klasorde.get(klasorId) ?? [], icinde('Uebungen'), icinde('Oedevler'), icinde('Ozetler'));
         for (const kind of MATERIAL_KINDS) for (const it of m[kind]) {
           bilgi.set(it.file.id, { konu, materyal: kind, cozumMu: false });
           if (it.cozum) bilgi.set(it.cozum.id, { konu, materyal: kind, cozumMu: true });
