@@ -29,7 +29,7 @@
 
 - Fotoğraf ekle / Dosya ekle panelleri, köşe düzenleyici, yükleme şeridi ve hata kartı, bekleyen foto toast'ı (EN'de Türkçe çıkıyordu, düzeldi), ekleme/çeviri/alt klasör hata sınıfları, El yazısını oku paneli, okuma kaydı (.ocr.json) hataları, Google giriş hataları sözlükte (280 yeni anahtar, toplam 879). Sınıf adları, `instanceof`, Drive adları, JSON anahtarları, `/Defter…` işaretleri ve yapay zekâ istemi aynı; `.ocr.json`'a hiçbir metin yazılmıyor.
 - `api/oku`: her hata yanıtı `hata` (Türkçe metin, eski sayfalar için aynen) + sabit `kod` (+ gerekirse `sinir`/`kenar`/`durum`/`eksik`); istemci `kod` → kendi dilinde metin, bilinmeyen kod → sunucu metni, kod yok → HTTP durumu (`claudeMotor.ts` `hataMetni`).
-- Kalan Türkçe dize 446 → 0. `// dil-kontrol: yoksay` 55 → 163 (ölçüm/günlük 44, harf tablosu 31, programcı hatası/dev testi 28, Drive adı/arama metni 5 yeni). Dev dosyaları adıyla, gerekçesiyle ayrı (6 dosya, 85 dize: ocr-ai.html sayfası ve `import.meta.env.DEV` araçları).
+- Kalan Türkçe dize 446 → 0. `// dil-kontrol: yoksay` 55 → 163 (ölçüm/günlük 44, harf tablosu 31, programcı hatası/dev testi 28, Drive adı/arama metni 5 yeni). Dev dosyaları adıyla, gerekçesiyle ayrı (6 dosya, 85 dize: dev/ocr-ai.html sayfası ve `import.meta.env.DEV` araçları).
 - `npm run dil`: kalan dize > 0 ya da tr/en anahtar farkı → çıkış kodu 1. `dil-kontrol.mjs --ekleme` (e): ekleme ekranları EN/TR × 390/820/1280 (foto paneli, dosya paneli, Word reddi, OCR paneli, bekleyen foto toast'ı sahte Drive ile); yeni taşma yok.
 - Commit 8adbd22; faz-6 önizlemesi.
 - iPad hatası (27 Ekim, Deniz): dosya/fotoğraf seçince "The file couldn't be read. Reload the page and try again." (laptop sorunsuz; Chrome ve WebKit'te örnek kitaplıkla üretilemedi). 90dc51a: modül yüklenirken `t()` çağıran 16 sabit fonksiyona çevrildi (`const X = (): string => t(...)`), `npm run dil` bunu da yakalıyor (ERKEN t()); `?olcum=1` ile okuyucunun dört "okunamadı / açılamadı / hazırlanamadı" mesajına gerçek hata eklenir. Sonra iPad'de dosya ve fotoğraf ekleme TR ve EN'de çalıştı (Deniz, 27 Ekim). Mekanizma tam kanıtlanmadı (iPad Safari modül değerlendirme sırası tahmini).
@@ -153,11 +153,11 @@ Amaç: okunan metni (6.4c) arkadaşımızın gerçek el yazısıyla göstermek. 
 - Paket (`uret.py paket`, `paket.py`) → `atlas\4-paket\`: `el-yazisi-atlas.png` (8 bit gri, 2043×389, 250 örnek, 4 px boşluk) + `el-yazisi-atlas.json` (biçim: `tools/atlas/README.md` 8. adım). Kaynak foto adı ve bileşen numarası yok. Boyut: PNG 223 KB + JSON 13 KB = 0.23 MB.
 - Nicemleme: doğrusalda basım farkı tükenmez 11, yumuşak 3 (/255). Karekökte 5 / 2. Üs 3–4 de 5, tavanı kırpmak daha kötü (37–86). Deniz kararı: karekök (`kodlama: "karekok"`), sınır tükenmez ≤ 5, yumuşak ≤ 2. Diskten geri okununca da 5 / 2.
 - Uygulama (çizim yok): `src/elYazisi/atlasSema.ts` (şema; `AtlasBozuk` / `AtlasYeniSurum`; PNG başlığı 8 bit gri + boyut). `atlasDrive.ts`: `<kök>/_sistem/el-yazisi/`; yoksa oluşturur, varsa aynı id'ye yazar, çiftte en eskisi, işaretsiz aynı ad → `AtlasAdDolu`, sonra geri okuma + SHA-256.
-- Dev sayfası `atlas-yukle.html` + `src/elYazisi/atlasYukle.ts` (build girişi değil; `dist/`'te iz yok).
+- Dev sayfası `dev/atlas-yukle.html` + `src/elYazisi/atlasYukle.ts` (build girişi değil; `dist/`'te iz yok).
 - Kitaplık: `kitaplar/` altındaki `_…` klasörleri kitap değil (`src/model/gizliKlasor.ts`; driveLibrary + arama ağacı).
 - CLAUDE.md: 6.4d-3 istisnası (dar: sadece `_sistem/el-yazisi/` + iki dosya, düğmeyle).
 - Kontroller: `test_atlas.py` 23/23, `test_murekkep.py` 5/5; typecheck, build, 124 dosyada 1467/1467 test (gerçek paket kontrolü `scripts/atlas-paket.test.ts` dahil).
-- Drive'a gerçek yükleme Deniz'de (`vercel dev --listen 5173` → `/atlas-yukle.html`).
+- Drive'a gerçek yükleme Deniz'de (`vercel dev --listen 5173` → `/dev/atlas-yukle.html`).
 
 **Son güncelleyen (6.4d-3):** Claude Code, 25 Ekim 2026 · commit yok, Deniz'in denemesi bekleniyor.
 
@@ -166,7 +166,7 @@ Amaç: okunan metni (6.4c) arkadaşımızın gerçek el yazısıyla göstermek. 
 ## 6.4e – Temiz yazı (25 Ekim 2026, Claude Code)
 
 ### 6.4e-1 — Çekirdek (728d658)
-- Atlas Drive'dan salt okunur (`atlasOkuDrive.ts`), PNG çözme (`atlasCoz.ts`), basıcı (`basici.ts`, Python ile eşdeğer), dizgi (`dizgi.ts`), sayfa çizimi (`temizSayfa.ts`); dev sayfası `temiz-yazi.html` (build'e girmez). Okuyucuda değil.
+- Atlas Drive'dan salt okunur (`atlasOkuDrive.ts`), PNG çözme (`atlasCoz.ts`), basıcı (`basici.ts`, Python ile eşdeğer), dizgi (`dizgi.ts`), sayfa çizimi (`temizSayfa.ts`); dev sayfası `dev/temiz-yazi.html` (build'e girmez). Okuyucuda değil.
 
 ### 6.4e-2 — Okuyucuda "Temiz yazı ↔ Orijinal" (e6e103b)
 - Okunmuş fotoğraf sayfası temiz yazıyla önde; düğme "Temiz yazı (3/8)" (≤ 1024 px "3/8") + ▾ stil balonu (Tükenmez / Yumuşak). Tercih localStorage'da (açık + tükenmez varsayılan). PDF'e/Drive'a yazma yok.
@@ -243,11 +243,11 @@ Kalıcı çözüm (Vercel panelinde dal adresinin ayarı ya da destek) ayrıca i
 
 ## 6.4c-1 — El yazısı okuma kaydı: şema + Drive kayıt modülü, arayüz yok (24 Ekim 2026, Claude Code)
 
-- Deniz kararları: okunan metin materyalin klasöründe `<pdf adı>.ocr.json` yan dosyasında (ör. `ozet.ocr.json`); okuma sadece kullanıcı isteyince; fotoğraf PDF'te kalır. Renklerde `kursun` kalır. Birleştirme anahtarı sadece parmak izi (aynı sayfa numarasında farklı parmak izli eski kayıt silinmez, `eslestir` "eski" der). Dev yardımcısı ocr-ai.html'den kurulur (main.ts değişmedi).
+- Deniz kararları: okunan metin materyalin klasöründe `<pdf adı>.ocr.json` yan dosyasında (ör. `ozet.ocr.json`); okuma sadece kullanıcı isteyince; fotoğraf PDF'te kalır. Renklerde `kursun` kalır. Birleştirme anahtarı sadece parmak izi (aynı sayfa numarasında farklı parmak izli eski kayıt silinmez, `eslestir` "eski" der). Dev yardımcısı dev/ocr-ai.html'den kurulur (main.ts değişmedi).
 - `src/ocr/kayit/`: `sema.ts` (surum 1 tipleri, `kayitOku` doğrulama, bilinmeyen alanlar korunur, `OcrKayitBozuk`/`OcrKayitYeniSurum`, `hamMetin`/`duzeltilmisMetin` parçalardan), `birlestir.ts`, `eslestir.ts`, `parmakIzi.ts` (tek görsel → `g:` + görselin ham baytlarının SHA-256'sı; yoksa `i:` + içerik akışları ve XObject'ler; /Annots okunmaz), `kayitDrive.ts` (`sayfaYaz`, `kayitOkuDrive`; navigator.locks, yerKontrol, oluştur + tekrar ara, en eski createdTime asıl, kopyalar silinmez/yazılmaz ama birleştirilir, durum (modifiedTime + headRevisionId) ile 3 deneme), `kayitDene.ts` (DEV).
-- `api/oku.ts`: model çıktısı satır içi parçalar (`anyOf`: parçalı satır | çizim satırı), `duzeltme` ayrı alan, `hamMetin` kalktı; yanıt kayıt şemasına normalleştirilir. Production 404, tokeninfo, sahip kontrolü, sınırlar aynı. ocr-ai.html parçaları kendi renginde gösterir.
+- `api/oku.ts`: model çıktısı satır içi parçalar (`anyOf`: parçalı satır | çizim satırı), `duzeltme` ayrı alan, `hamMetin` kalktı; yanıt kayıt şemasına normalleştirilir. Production 404, tokeninfo, sahip kontrolü, sınırlar aynı. dev/ocr-ai.html parçaları kendi renginde gösterir.
 - Kontroller: typecheck, build, 114 dosyada 1374/1374 test; `dist/`'te defterOcrKayitDene / ocrAi / ocr-ai / defterOcr izi 0; `node scripts/ocr-ai-kontrol.mjs http://localhost:5173` (sahte GIS/api) laptop 1365×900 + iPad 820×1180 geçti (ilk satırda iki renk, düzeltme, dev yardımcısı kurulu).
-- Gerçek Drive denemesi Deniz'de: `vercel dev --listen 5173` → `/ocr-ai.html` → giriş → konsolda `await defterOcrKayitDene()` (6.4c-1b: varsayılan = ozet.pdf'li ilk gerçek, örnek olmayan konu; adında "test" geçen önce; gerçek kitapta onay sorar). Bulunamazsa adım yazılır (`[adım 1/4 kitaplık]` … `[adım 4/4 ozet.pdf]`) ve kitap id'leri + ozet.pdf'li konu yolları listelenir; konsolda e-posta ve Drive id yok. İkinci çağrıda aynı dosya güncellenmeli, yeni dosya oluşmamalı.
+- Gerçek Drive denemesi Deniz'de: `vercel dev --listen 5173` → `/dev/ocr-ai.html` → giriş → konsolda `await defterOcrKayitDene()` (6.4c-1b: varsayılan = ozet.pdf'li ilk gerçek, örnek olmayan konu; adında "test" geçen önce; gerçek kitapta onay sorar). Bulunamazsa adım yazılır (`[adım 1/4 kitaplık]` … `[adım 4/4 ozet.pdf]`) ve kitap id'leri + ozet.pdf'li konu yolları listelenir; konsolda e-posta ve Drive id yok. İkinci çağrıda aynı dosya güncellenmeli, yeni dosya oluşmamalı.
 - Açık: `application/json` dosyanın Drive `fullText` ile dizinlenmesi 6.4c-3'te ölçülecek. Panel/arama/görünüm sonraki adımlar.
 
 **Son güncelleyen (6.4c-1):** Claude Code, 24 Ekim 2026 · kod + testler hazır, commit/push yok; gerçek Drive denemesi bekliyor.
@@ -269,7 +269,7 @@ Kalıcı çözüm (Vercel panelinde dal adresinin ayarı ya da destek) ayrıca i
 
 - Amaç: görsel-dil modelinin (Claude) kötü el yazısını okuma ölçümü. Kalıcı kayıt, arama bağlantısı, font görünümü yok. Deniz kararları: api/oku **sadece sahip**; env `.env.development.local`'a çekilir (.env.local'a dokunulmaz); Vercel CLI global; `ANTHROPIC_API_KEY` **sadece development** (Preview'a eklenmedi, iPad denemesinde ayrıca karar).
 - `api/oku.ts` (Vercel fonksiyonu, ham `fetch`, yeni paket yok): production → 404; Google token tokeninfo ile doğrulanır (aud = `VITE_GOOGLE_CLIENT_ID` değilse 401); e-posta tokeninfo'da yoksa aynı token'la Drive `about` (salt okuma) → `VITE_SAHIP_EPOSTA` ile karşılaştırma (iki taraf trim + tırnaksız + küçük harf); 403'te değer içermeyen neden kodu (`email-yok` | `email-dogrulanmamis` | `sahip-degil`) ve uzunluk ipucu. E-posta başına 10 istek/dk (fonksiyon örneği başına); gövde ≤ 4 MB, JPEG ≤ 3 MB, uzun kenar ≤ 2000 (413), JPEG değil 415; model sadece `claude-haiku-5-5` | `claude-sonnet-5-5`. Yapılandırılmış çıktı (json_schema): `{ satirlar: [{ metin, renk, girinti, tur, ustuCizili }], hamMetin }`. Thinking/effort gönderilmez (model varsayılanı), fallback yok. Anahtar ve token yanıta/loga girmez.
-- Deneme sayfası `ocr-ai.html` + `src/ocrAi/` (deneme, gorsel, maliyet). Giriş her seferinde hesap seçtirir (`select_account`); girilen hesabın e-postası Drive about'tan yalnız sayfanın DOM'unda gösterilir. Build girişi değil: `dist/`'te ocr-ai/ocrAi/anthropic/tokeninfo izi 0. Fiyatlar tek yerde (`maliyet.ts`). Hedef puanı Codex'in `scoreKnownTargets`'ı (değiştirilmedi). `tsconfig.json` include'a `api` eklendi; testler `src/ocrAi/` altında (api/ altındaki her dosya fonksiyon olur).
+- Deneme sayfası `dev/ocr-ai.html` + `src/ocrAi/` (deneme, gorsel, maliyet). Giriş her seferinde hesap seçtirir (`select_account`); girilen hesabın e-postası Drive about'tan yalnız sayfanın DOM'unda gösterilir. Build girişi değil: `dist/`'te ocr-ai/ocrAi/anthropic/tokeninfo izi 0. Fiyatlar tek yerde (`maliyet.ts`). Hedef puanı Codex'in `scoreKnownTargets`'ı (değiştirilmedi). `tsconfig.json` include'a `api` eklendi; testler `src/ocrAi/` altında (api/ altındaki her dosya fonksiyon olur).
 - Kontroller: typecheck ve build geçti; `src/ocrAi` 26 test; `node scripts/ocr-ai-kontrol.mjs` (sahte GIS/Drive/api, uydurma satırlar) laptop 1365×900 ve iPad boyutu 820×1180 geçti; görüntüler iCloud'daki `Claude outputs/ocr-ai-6.4b/` klasöründe (ham metin yok).
 
 **Gerçek deneme (laptop, Deniz, 24 Ekim 2026)** — hedef kelime puanı, tüm sayfa doğruluğu değil:

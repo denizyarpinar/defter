@@ -3,7 +3,7 @@ import { getUser } from '../drive/drive';
 import { ATLAS_JSON, ATLAS_PNG, EL_YAZISI_KLASORU, SISTEM_KLASORU, atlasYukle, driveAtlasApi, type AtlasYuklemeSonucu } from './atlasDrive';
 import { atlasJsonOku, pngKontrol, type ElYazisiAtlas } from './atlasSema';
 
-// 6.4d-3 upload page (atlas-yukle.html, dev only; not a build input, so it never ships).
+// 6.4d-3 upload page (dev/atlas-yukle.html, dev only; not a build input, so it never ships).
 // Sign in → pick el-yazisi-atlas.png + .json (tools/atlas `uret.py paket`) → shape check → upload into
 // <library root>/_sistem/el-yazisi/ (atlasDrive.ts) → read back, size + SHA-256 → the result table.
 // Nothing is stored in the browser; the token stays in memory (auth.ts).

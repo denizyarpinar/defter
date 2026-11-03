@@ -105,7 +105,7 @@ Testler (pytest yok): `tools/atlas/.venv/Scripts/python tools/atlas/test_murekke
    - Doğrulama: paket hem bellekten hem diskten geri okunur, aynı satırlar (5 renk, iki stil) 3-atlas ile
      basılır, en büyük piksel farkı yazılır. Boyutlar da yazılır.
    - Uygulamada şema `src/elYazisi/atlasSema.ts`. Drive yeri `<kitaplık kökü>/_sistem/el-yazisi/`. Yükleme
-     dev sayfası `atlas-yukle.html` ile yapılır (`src/elYazisi/atlasYukle.ts`, `atlasDrive.ts`; build'e girmez).
+     dev sayfası `dev/atlas-yukle.html` ile yapılır (`src/elYazisi/atlasYukle.ts`, `atlasDrive.ts`; build'e girmez).
      Gerçek paket kontrolü: `npx vitest run scripts/atlas-paket.test.ts` (paket yoksa atlanır).
 
 9. **Referans** (`... uret.py referans`, `referans.py`) → `atlas\5-referans\` (6.4e-1): 4-paket'ten okunan atlasla

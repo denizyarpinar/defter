@@ -52,7 +52,7 @@ const TR_HARF = /[çğıöşüÇĞİÖŞÜ]/;
 const HARIC = [/\.test\.ts$/, /^src[\\/]dil[\\/]/, /olcum/i, /Dene\.ts$/, /Sahte\.ts$/, /atlas/i, /Test\.ts$/];
 // Task 6.5-4a: dev files by name, each with why it never reaches the app's screen (counted apart, never fails)
 const DEV_DOSYALARI = {
-  'src/ocrAi/deneme.ts': 'only ocr-ai.html (dev page, not a build input: vite builds index.html only)',
+  'src/ocrAi/deneme.ts': 'only dev/ocr-ai.html (dev page, not a build input: vite builds index.html only)',
   'src/ocrAi/gorsel.ts': 'only ocrAi/deneme.ts',
   'src/ocr/score.ts': 'only ocrAi/deneme.ts',
   'src/ocr/kayit/kayitDeneSec.ts': 'only ocr/kayit/kayitDene.ts, loaded by ocrAi/deneme.ts',

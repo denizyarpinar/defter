@@ -5,7 +5,7 @@ import { UPLOAD } from '../drive/pdfYazici';
 
 // Task 6.4d-3: the handwriting atlas in Drive: <library root>/_sistem/el-yazisi/ (el-yazisi-atlas.png + .json).
 // Rules (CLAUDE.md → Değişmez kurallar, the 6.4d-3 exception):
-// - Only when the user taps (the dev page atlas-yukle.html). Under the library root kokBul finds; no root → no request.
+// - Only when the user taps (the dev page dev/atlas-yukle.html). Under the library root kokBul finds; no root → no request.
 // - Missing folder / file → created, marked appProperties { defter: "1", defterSistem: "1" }.
 //   An existing file → its content is updated (PATCH on the same id), never a second file.
 // - Two or more with the same name → the oldest (createdTime, then id); the others are not touched (a warning).

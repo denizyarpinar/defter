@@ -65,7 +65,7 @@ try {
     });
     const page = await context.newPage(); const hatalar = [];
     page.on('pageerror', e => hatalar.push(e.message));
-    await page.goto(origin + '/ocr-ai.html');
+    await page.goto(origin + '/dev/ocr-ai.html');
     await page.locator('#okuIkisi').waitFor();
     assert.equal(await page.locator('#okuIkisi').isDisabled(), true, 'görsel yokken Oku kapalı');
     if (cihaz === 'laptop') await page.screenshot({ path: join(out, 'laptop-1-bos.png'), fullPage: true });

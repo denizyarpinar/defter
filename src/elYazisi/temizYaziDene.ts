@@ -8,7 +8,7 @@ import { STILLER, type Stil } from './basici';
 import { KAGITLAR, VARSAYILAN_KAGIT, type Kagit } from './dizgi';
 import { temizSayfa, temizYaziciKur, type TemizYazici } from './temizSayfa';
 
-// 6.4e-1 try-out page (temiz-yazi.html, dev only; not a build input, so it never ships).
+// 6.4e-1 try-out page (dev/temiz-yazi.html, dev only; not a build input, so it never ships).
 // Sign in → the atlas from Drive (read only, atlasOkuDrive.ts) → (a) type text, pick colour / style / paper,
 // see it printed; (b) pick a read PDF (its .ocr.json) and a page → clean page next to the original.
 // Every Drive request is a GET (saltOkunurFetch). Timings in ms. The token stays in memory (auth.ts).
@@ -113,7 +113,7 @@ function kur(): void {
       girisDurum.textContent = `Girişli: ${eposta} · kapsam ${aktifKapsam() ?? '?'}`;
       atlasDurum.textContent = 'Atlas okunuyor…';
       const okunan = await atlasOkuBellekli();
-      if (!okunan) { atlasDurum.textContent = 'Drive\'da atlas yok (kök/_sistem/el-yazisi/). Önce atlas-yukle.html ile yükle.'; return; }
+      if (!okunan) { atlasDurum.textContent = 'Drive\'da atlas yok (kök/_sistem/el-yazisi/). Önce dev/atlas-yukle.html ile yükle.'; return; }
       yazici = await temizYaziciKur(okunan.atlas, new Blob([okunan.png as Uint8Array<ArrayBuffer>], { type: 'image/png' }));
       const a = okunan.atlas;
       renkSec.replaceChildren(...Object.keys(a.renkler).map(r => el('option', { value: r }, r)));

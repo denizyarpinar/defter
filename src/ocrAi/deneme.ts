@@ -5,7 +5,7 @@ import { scoreKnownTargets } from '../ocr/score';
 import { FIYATLAR, MALIYET_NOTU, MODELLER, dolarYaz, maliyet, type OkuModel } from './maliyet';
 import { jpegHazirla, kaynakAc, pdfMi, type Donus, type Hazir, type Kaynak } from './gorsel';
 
-// 6.4b-AI measurement page (ocr-ai.html, dev only; not a build input). The image goes to
+// 6.4b-AI measurement page (dev/ocr-ai.html, dev only; not a build input). The image goes to
 // /api/oku → Anthropic. Transcripts stay in this tab's DOM: no storage, no Drive request.
 // 6.4c-1: lines are parts, each in its own colour (the record's shape, src/ocr/kayit/sema.ts); the plain
 // text is built from the parts. The console helper window.defterOcrKayitDene is installed here (dev only).

@@ -19,7 +19,7 @@ Bu dosya AGENTS.md "Değişmez kurallar" ile çelişirse mimari konuda bu dosya 
 ## Drive izinleri ve sınırlar
 - D09 – İzin modu C: herkes `drive.file`; sahip hesabı tam `drive` (eski "Kitaplık" aynen çalışır). Neden: Google doğrulaması kolay, yabancı kullanıcı için güvenli.
 - D10 – Kurulum: "Defter Library" kökü (appProperties `defterKok=1`) + `kitaplar/` + `kitaplik.json` (5 raf). Klasör/JSON yalnız kendi kökünde ve yalnız kullanıcı düğmeye basınca; hepsinde `defter=1` + `defterIslem`; önce "var mı", çift yok. İlk girişte otomatik kurulum ürün hedefidir, onaylı karar değildir.
-- D11 – Oluşturulabilenler (başka dosya yok): yeni PDF yalnız `kitaplar/<kitap>/` altında; `kitaplik.json` yoksa bir kez; kurulum ve sihirbaz öğeleri (D10); `<pdf adı>.ocr.json`; `_sistem/el-yazisi/` içinde yalnız atlas png + json (yalnız `atlas-yukle.html` düğmesiyle).
+- D11 – Oluşturulabilenler (başka dosya yok): yeni PDF yalnız `kitaplar/<kitap>/` altında; `kitaplik.json` yoksa bir kez; kurulum ve sihirbaz öğeleri (D10); `<pdf adı>.ocr.json`; `_sistem/el-yazisi/` içinde yalnız atlas png + json (yalnız `dev/atlas-yukle.html` düğmesiyle).
 - D12 – Silme: `files.delete` asla; kopyalama yok; taşıma yalnız D31. Yalnız `trashed=true` + Geri al: konu, ünite, kitap, açık dosya (6.K5b/6.K6b) ve Word/PPT çevirisinin geçici Google dosyası (6.1b). Kök, `kitaplar/`, `kitaplik.json` asla çöpe gitmez.
 - D13 – Riskli yeni yazma kodu önce adres kilidiyle (`?…=1`) gelir, gerçek testten sonra kilit kalkar.
 

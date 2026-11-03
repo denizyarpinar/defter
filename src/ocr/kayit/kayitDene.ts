@@ -8,7 +8,7 @@ import { driveOcrApi, kayitOkuDrive, sayfaYaz, type OcrKaynakDosya } from './kay
 import { sayfaParmakIzleri } from './parmakIzi';
 import { hamMetin, ocrDosyaAdi, type OcrSayfa } from './sema';
 
-// Task 6.4c-1, development only (installed by ocr-ai.html, never in the build):
+// Task 6.4c-1, development only (installed by dev/ocr-ai.html, never in the build):
 // window.defterOcrKayitDene(kitap?, konu?, sayfa = 1) writes a fake reading (model "deneme") of that page of
 // the topic's ozet.pdf into ozet.ocr.json, then reads the record back and shows it.
 // 6.4c-1b: no book given → the first real (not sample) topic with an ozet.pdf (a "test" topic first,
