@@ -1,3 +1,4 @@
+import { olay as sayacOlay } from '../sayac';
 import { tasiKilitli } from '../kitap/konuTasiKilit';
 import { FOLDER_MIME, listChildren, type DriveFile } from '../drive/drive';
 import type { DriveLocation } from '../drive/driveLibrary';
@@ -288,6 +289,7 @@ async function ekle(
   const y = yeni;
   try { await olc(om, 'önbelleğe yaz', async () => { await o.yeniDosya?.({ id: y.id, modifiedTime: y.modifiedTime, bytes: hazir.bytes }); }, { grup: 'cihaz' }); } catch (e) { console.warn('Yeni PDF önbelleğe yazılamadı.', e); }
   o.konuDegisti?.();
+  if (hedef === 'ozet' || hedef === 'yeniOzet') sayacOlay('ozet');
   return { kind: 'yeni', fileId: yeni.id, ad, bytes: hazir.bytes, ...(hazir.uyari && { uyari: hazir.uyari }) };
 }
 

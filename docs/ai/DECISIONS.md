@@ -6,7 +6,7 @@ Bu dosya AGENTS.md "Değişmez kurallar" ile çelişirse mimari konuda bu dosya 
 
 ## Temel
 - D01 – Yapı: Vite + TypeScript, düz DOM, UI framework yok; 3D three.js. Neden: küçük paket, iPad'de hız, öğrenmesi kolay.
-- D02 – Sunucu yok; tek istisna Vercel fonksiyonu `api/oku.ts` (OCR). Google girişi GIS token client, client secret yok; token bellekte + yalnız bu sekmenin sessionStorage'ında, süresine kadar (6.6-5b); localStorage'a asla yazılmaz. Neden: kullanıcı verisi sunucuya uğramasın; dil yenilemesinde oturum korunsun.
+- D02 – Sunucu yok; ilk istisna Vercel fonksiyonu `api/oku.ts` (OCR); kimliksiz sayaç/panel için D33 genişlemesi geçerlidir. Google girişi GIS token client, client secret yok; token bellekte + yalnız bu sekmenin sessionStorage'ında, süresine kadar (6.6-5b); localStorage'a asla yazılmaz. Neden: kullanıcı verisi sunucuya uğramasın; dil yenilemesinde oturum korunsun.
 - D03 – Veri kullanıcının Drive'ında; uygulama katalog + okuyucu. Kendi veritabanı yok. Neden: dosyalar kullanıcının kalır, uygulama laptopa bağımlı olmaz.
 - D04 – Görünüm kaynağı `referans/prototip.html`; değiştirilmez, davranış oradan alınır.
 
@@ -56,3 +56,5 @@ Bu dosya AGENTS.md "Değişmez kurallar" ile çelişirse mimari konuda bu dosya 
 - D30 – Birden çok özet (6.6-2, 2 Kasım 2026): ilk özet konu klasöründe ozet.pdf; sonrakiler Ozetler/<ad>.pdf, okuyucuda seçiciyle ayrı açılır. Neden: özet uzamasın, Uebungen deseni yeniden kullanılsın.
 - D31 – Konu taşıma (6.6-3b, 2 Kasım 2026): konu başka üniteye yalnız klasörün ebeveyni değiştirilerek (addParents/removeParents) taşınır, klasör adı (Konu-NN) değişmez; sonra kitap.json yolu güncellenir. Neden: Konu-NN kitap boyunca benzersiz, yeniden adlandırma ek risk.
 - D32 – Panel (3 Kasım 2026): Panel = Vercel Web Analytics, çerezsiz, URL yalnız path; kullanıcı listesi/DB tutulmaz. Neden: hesap ve belge verisi toplamadan toplu ziyaret sayılarını görmek.
+
+- D33 – Kimliksiz günlük sayaç/panel (3 Kasım 2026): D02 genişlemesi: sunucu istisnaları sahibe özel OCR + kimliksiz günlük sayaç/paneldir; başka sunucu işi yeni karar ister. Upstash Redis REST (yeni paket yok), yalnız UTC gün × sabit yedi olay türünün toplamı, 400 gün; kimlik/e-posta/IP/cihaz kimliği/belge bilgisi saklanmaz. IP yalnız bellek içi 30 istek/60 sn sınırı içindir; Origin yalnız https://mydefter.app. Sayaç yalnız üretim alanında, ?sayac=0 veya ?analiz=0 kapatır; panel ?panel=1 ve sunucuda sahip doğrulamasıyla açılır. Fotoğraf işlem başına bir; özet yalnız kullanıcının yeni PDF’i; kitaplık yalnız doğrulanmış yeni kök; otomatik örnek kitap sayılmaz. Neden: hesap veya belge verisi toplamadan kullanımın yaklaşık günlük dağılımını görmek.

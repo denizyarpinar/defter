@@ -1,3 +1,5 @@
+import { olay as sayacOlay } from './sayac';
+import { kullanimPaneliGuncelle } from './ui/kullanimPaneli';
 import { analizBaslat } from './analiz';
 import { konuTasiBagla } from './ui/konuTasiAkisi';
 import { kitaptaTasi, konuTasiAcik, yolCevir } from './kitap/konuTasi';
@@ -156,6 +158,7 @@ function olay(o: KitaplikOlayi): void {
 }
 
 function showState(): void {
+  kullanimPaneliGuncelle();
   const v = gorunum(durum);
   if (v.kart === 'giris') { showLogin(v.girisHata ?? undefined); setLoginBusy(v.girisMesgul); }
   else hideLogin();
@@ -242,6 +245,7 @@ async function kitapOlusturDugmesi(islem: KitapIslemi, ilerleme: (i: number, n: 
     kilitAcik: sihirbazKilidi() === 'acik', kokKaynagi: kokKaynagi(), kokId: loc.rootId,
     yazabilir: () => isSignedIn() && durum.tur === 'drive', ilerleme, yapayHata
   });
+  sayacOlay('kitap');
   const baslik = String(islem.plan.kitapJson.baslik);
   try {
     await kitaplikYenile();
@@ -503,6 +507,7 @@ function kitaplikKurDugmesi(): void {
     dil: adresteLangVar() ? undefined : dil() })   // task 6.5-2b: a shared link's ?lang is not written
     .then(async r => {
       kurulum.bitti();
+      if (r.yeniOlusturuldu) sayacOlay('kitaplik');
       if (r.uyari) uyar(r.uyari);
       if (r.ornekHata) console.warn('Örnek kitap eklenemedi:', r.ornekHata);
       olay({ tur: 'kurulumBitti' });
@@ -536,7 +541,10 @@ async function useSample(): Promise<void> {
   olay({ tur: 'demoSecildi' });
   if (durum.tur !== 'demo') return;
   updateUserBox({ kind: 'sample' });
-  try { if (await useData(await loadLocalLibrary(), null, null)) donusUygula('demo'); } catch { olay({ tur: 'demoHata', mesaj: t('kitaplik.ornekYuklenemedi') }); }
+  try { if (await useData(await loadLocalLibrary(), null, null)) {
+    if (!isSignedIn()) sayacOlay('demo');
+    donusUygula('demo');
+  } } catch { olay({ tur: 'demoHata', mesaj: t('kitaplik.ornekYuklenemedi') }); }
 }
 
 initKurulum({ onSetup: kitaplikKurDugmesi, onSignIn: () => void googleSignIn(), onSample: () => void useSample() });
@@ -585,9 +593,11 @@ async function girisSonrasi(restored = false): Promise<void> {
   girisEposta = user.email;
   const sahip = sahipMi(user.email, SAHIP_EPOSTA, SAHIP_YOK);
   setSahip(sahip);
+  kullanimPaneliGuncelle();
   ownerName = user.name;
   updateUserBox({ kind: 'user', name: user.name });
   if (!restored) {
+    sayacOlay('giris');
     olay({ tur: 'girisBasarili' });
     toast(t('giris.hosgeldin', { ad: user.name }));
   }
@@ -870,6 +880,7 @@ function readerTextures(): void {
 let ready: Promise<void>;
 
 async function boot(): Promise<void> {
+  sayacOlay('cihaz');
   // task 5.1: the sample library only with ?demo; otherwise empty shelves until the visitor chooses
   try {
     data = startWithSample ? await loadLocalLibrary() : emptyLibrary();
@@ -943,7 +954,10 @@ async function boot(): Promise<void> {
 
   loading.hidden = true;
   // task 6.5-1: back from a language change — the sample library again (also without ?demo)
-  if (startWithSample) donusUygula('demo');
+  if (startWithSample) {
+    if (!isSignedIn()) sayacOlay('demo');
+    donusUygula('demo');
+  }
   else if (donus?.kaynak === 'demo') void useSample();
 }
 

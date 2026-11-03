@@ -1090,3 +1090,23 @@ body.auth-log-login :is(#olcum, #olcumKalem, #olcumSon) { display: none }
 #oturumBandi button:disabled { opacity: .65 }
 
 .ie-unite.ie-hedef { outline: 1px solid var(--accent); outline-offset: -1px; }
+
+/* Anonymous daily usage panel: table scrolls independently on narrow screens. */
+#kullanimPaneli { z-index: 90 }
+#kullanimPaneli .usage-card { width: min(1120px, 100%); min-height: 0 }
+.usage-card button { align-self: flex-start; min-height: 44px; padding: 8px 16px; border: 1px solid rgba(255,255,255,.3); border-radius: 8px; background: #463a2f; color: #f5ecdf; cursor: pointer }
+.usage-card p { margin: 0 }
+.usage-totals { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px }
+.usage-totals section { padding: 12px; border-radius: 10px; background: rgba(255,255,255,.06) }
+.usage-totals h3 { margin: 0 0 8px }
+.usage-totals dl { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; margin: 0 }
+.usage-totals dd { margin: 0; font-variant-numeric: tabular-nums }
+.usage-table { overflow-x: auto; max-width: 100% }
+.usage-table table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums }
+.usage-table caption { text-align: left; margin-bottom: 8px }
+.usage-table th, .usage-table td { padding: 10px 8px; border-bottom: 1px solid rgba(255,255,255,.12); text-align: right; min-width: 80px }
+.usage-table th:first-child { white-space: nowrap; text-align: left }
+.usage-table td { position: relative }
+.usage-table td > span:first-child { position: relative; z-index: 1 }
+.usage-bar { position: absolute; bottom: 2px; left: 0; height: 4px; background: var(--accent); border-radius: 2px }
+@media (max-width: 540px) { .usage-totals { grid-template-columns: 1fr } }

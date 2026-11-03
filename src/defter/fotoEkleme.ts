@@ -1,3 +1,4 @@
+import { olay as sayacOlay } from '../sayac';
 import type { BekleyenFotoDepo } from './bekleyenFoto';
 import { yeniKayit, yuklemeBasla, yuklemeHata, type BekleyenFoto, type YeniKayitGirdisi } from './bekleyenFotoKayit';
 import { basariMetni, kartMetni, kisaNeden } from './fotoEklemeMetin';
@@ -134,6 +135,7 @@ export class FotoEkleyici {
         ui.hata(k, kartMetni(neden));   // the record is NOT removed
         return;
       }
+      if (!r.zatenVardi) sayacOlay('foto');
       // a failing removal only leaves the record: the next try finds the pages there (zatenVardi)
       try { await olc(o, 'cihaz: kaydı sil', () => depo.sil(id), { grup: 'cihaz' }); } catch (e) { console.warn('Eklenen fotoğrafların kaydı silinemedi.', e); }
       if (o) { o.bilgi.sayfa = `${r.eskiSayfa}→${r.yeniSayfa}`; if (r.zatenVardi) o.bilgi.zatenVardi = true; }

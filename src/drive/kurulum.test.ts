@@ -75,10 +75,17 @@ const sec = (o: Partial<KitaplikKurSecenek> = {}): KitaplikKurSecenek => ({ isle
 const bul = (items: Map<string, Item>, name: string) => [...items].filter(([, i]) => i.name === name);
 
 describe('kitaplikKur', () => {
+  it('a previously created root found by operation id is not counted as new', async () => {
+    const f = fakeDrive({ items: { D: { name: KOK_ADI, parent: 'root', appProperties: { defterKok: '1', defterIslem: 'islem-1' } } } });
+    f.drive.defterKokAra = async () => []; // root listing lagged behind the operation lookup
+    const result = await kitaplikKur(f.drive, sec());
+    expect(result.yeniOlusturuldu).toBe(false);
+    expect(f.olusturmalar()).not.toContain(`olustur:${KOK_ADI}`);
+  });
   it('empty Drive: root → kitaplar → kitaplik.json, in this order, all marked', async () => {
     const f = fakeDrive();
     const r = await kitaplikKur(f.drive, sec());
-    expect(r).toMatchObject({ kaynak: 'defterKok', zatenVardi: false, olusturulan: [KOK_ADI, 'kitaplar', 'kitaplik.json'] });
+    expect(r).toMatchObject({ kaynak: 'defterKok', yeniOlusturuldu: true, zatenVardi: false, olusturulan: [KOK_ADI, 'kitaplar', 'kitaplik.json'] });
     expect(f.olusturmalar()).toEqual([`olustur:${KOK_ADI}`, 'olustur:kitaplar', 'olustur:kitaplik.json']);
     const [[kokId, kok]] = bul(f.items, KOK_ADI);
     expect(r.kokId).toBe(kokId);
@@ -104,8 +111,8 @@ describe('kitaplikKur', () => {
     const f = fakeDrive();
     await kitaplikKur(f.drive, sec());
     const once = f.olusturmalar().length;
-    expect(await kitaplikKur(f.drive, sec())).toMatchObject({ zatenVardi: true, olusturulan: [] });
-    expect(await kitaplikKur(f.drive, sec({ islemId: 'islem-2' }))).toMatchObject({ zatenVardi: true, olusturulan: [] });
+    expect(await kitaplikKur(f.drive, sec())).toMatchObject({ yeniOlusturuldu: false, zatenVardi: true, olusturulan: [] });
+    expect(await kitaplikKur(f.drive, sec({ islemId: 'islem-2' }))).toMatchObject({ yeniOlusturuldu: false, zatenVardi: true, olusturulan: [] });
     expect(f.olusturmalar().length).toBe(once);
     expect(f.items.size).toBe(3);
   });
@@ -116,7 +123,7 @@ describe('kitaplikKur', () => {
       K: { name: 'kitaplar', parent: 'D' }
     } });
     const r = await kitaplikKur(f.drive, sec());
-    expect(r).toMatchObject({ kokId: 'D', zatenVardi: false, olusturulan: ['kitaplik.json'] });
+    expect(r).toMatchObject({ kokId: 'D', yeniOlusturuldu: false, zatenVardi: false, olusturulan: ['kitaplik.json'] });
     expect(f.olusturmalar()).toEqual(['olustur:kitaplik.json']);
   });
 
@@ -145,7 +152,7 @@ describe('kitaplikKur', () => {
     it.each([true, false])('whole=%s: no writing at all, zatenVardi + kaynak ad', async tamMi => {
       const f = fakeDrive({ items: eskiItems(tamMi) });
       const once = f.items.size;
-      expect(await kitaplikKur(f.drive, sec({ mod: 'tam' }))).toEqual({ kokId: 'L', kaynak: 'ad', zatenVardi: true, olusturulan: [] });
+      expect(await kitaplikKur(f.drive, sec({ mod: 'tam' }))).toEqual({ kokId: 'L', yeniOlusturuldu: false, kaynak: 'ad', zatenVardi: true, olusturulan: [] });
       expect(f.calls.filter(c => /^(olustur|yeniId|islemleAra|ogeBilgisi)/.test(c))).toEqual([]);
       expect(f.items.size).toBe(once);
       expect(f.items.get('L')!.appProperties).toEqual({});   // not marked

@@ -171,7 +171,7 @@ async function oncekiOge(drive: KurulumDrive, o: OgeIstegi): Promise<string | un
   return undefined;
 }
 
-async function olusturOge(drive: KurulumDrive, o: OgeIstegi, s: KurulumSecenek): Promise<string> {
+async function olusturOge(drive: KurulumDrive, o: OgeIstegi, s: KurulumSecenek, created?: () => void): Promise<string> {
   // an earlier try with this islemId may have arrived (its answer lost)
   const onceki = await oncekiOge(drive, o);
   if (onceki) return onceki;
@@ -187,7 +187,9 @@ async function olusturOge(drive: KurulumDrive, o: OgeIstegi, s: KurulumSecenek):
   const max = s.deneme ?? 3;
   for (let deneme = 1; ; deneme++) {
     try {
-      return (await drive.olustur(meta, o.icerik)).id;
+      const result = await drive.olustur(meta, o.icerik);
+      created?.();
+      return result.id;
     } catch (e) {
       if (e instanceof IdZatenVar && id) return await bizimMi(drive, id, o);
       if (!tekrarlanabilir(e)) throw e;
@@ -342,6 +344,7 @@ export interface KitaplikKurSecenek extends KurulumSecenek {
 
 export interface KurulumSonucu {
   kokId: string;
+  yeniOlusturuldu: boolean;    // root creation confirmed in this call, never a repair or an existing root
   kaynak: KokKaynagi;
   zatenVardi: boolean;          // nothing was created
   olusturulan: string[];        // in order: KOK_ADI, 'kitaplar', 'kitaplik.json'
@@ -362,14 +365,15 @@ export async function kitaplikKur(drive: KurulumDrive, s: KitaplikKurSecenek): P
   try {
     const kok = await kokBul(drive, s.mod);
     // the owner's old "Kitaplık" (whole or not): no writing, no second root
-    if (kok.tur !== 'yok' && kok.tur !== 'cokKok' && kok.kaynak === 'ad') return { kokId: kok.kok.id, kaynak: 'ad', zatenVardi: true, olusturulan: [] };
+    if (kok.tur !== 'yok' && kok.tur !== 'cokKok' && kok.kaynak === 'ad') return { kokId: kok.kok.id, yeniOlusturuldu: false, kaynak: 'ad', zatenVardi: true, olusturulan: [] };
 
     const uyari = kok.tur !== 'yok' ? kok.uyari : undefined;
     const eksik: KokEksik[] = kok.tur === 'yok' ? ['kitaplar', 'kitaplik.json'] : kok.tur === 'bulundu' ? [] : kok.eksik;
     const olusturulan: string[] = [];
+    let yeniOlusturuldu = false;
     let kokId: string;
     if (kok.tur === 'yok') {
-      kokId = await olusturOge(drive, { ad: KOK_ADI, ebeveynId: 'root', mimeType: FOLDER_MIME, appProps: { defterKok: '1' }, islemId: s.islemId }, s);
+      kokId = await olusturOge(drive, { ad: KOK_ADI, ebeveynId: 'root', mimeType: FOLDER_MIME, appProps: { defterKok: '1' }, islemId: s.islemId }, s, () => { yeniOlusturuldu = true; });
       olusturulan.push(KOK_ADI);
     } else {
       kokId = kok.kok.id;
@@ -400,7 +404,7 @@ export async function kitaplikKur(drive: KurulumDrive, s: KitaplikKurSecenek): P
       olusturulan.push('kitaplik.json');
     }
     return {
-      kokId, kaynak: 'defterKok', zatenVardi: !olusturulan.length && ornek !== 'eklendi', olusturulan,
+      kokId, yeniOlusturuldu, kaynak: 'defterKok', zatenVardi: !olusturulan.length && ornek !== 'eklendi', olusturulan,
       ...(uyari ? { uyari } : {}), ...(ornek ? { ornek } : {}), ...(ornekHata !== undefined ? { ornekHata } : {})
     };
   } catch (e) {

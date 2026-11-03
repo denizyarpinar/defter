@@ -42,13 +42,14 @@
 
         <h3>3. Processing and service providers</h3>
         <ul>
-          <li><strong>Your browser:</strong> renders PDFs, prepares photos and images, and edits pen annotations. The app communicates directly with Google APIs. Defter has no developer-operated backend or document database.</li>
+          <li><strong>Your browser:</strong> renders PDFs, prepares photos and images, and edits pen annotations. The app communicates directly with Google APIs. Defter has no document database; its only developer-operated storage is the anonymous daily counter described below.</li>
           <li><strong>Google:</strong> provides sign-in and Drive storage. Searching document text across your library sends the search words to Drive. Word/PowerPoint conversion uploads the selected source as a temporary Google document or presentation, then downloads the exported PDF. This conversion is processed by Google, rather than only on your device.</li>
           <li><strong>Vercel:</strong> hosts the website and serves its code and public assets. Website requests can expose technical information such as your IP address, requested URL and browser information to the hosting provider. The app’s document-reading and upload requests go directly to Google rather than to a Defter backend.</li>
           <li><strong>Vercel Web Analytics:</strong> counts page views without cookies; records page path (without query or hash), referrer, country, browser, OS and device type in aggregate. No account details, Google user data or document information is sent.</li>
+          <li>Anonymous usage counter: the app sends the type of a few actions (app opened, sample library opened, sign-in, library created, book added, summary saved, photo uploaded). Only daily totals per action type are stored, in a Redis database (Upstash) hosted for Defter, for up to 400 days. No account details, identifiers, IP addresses, Google user data or document information are stored.</li>
           <li><strong>Google Fonts:</strong> the main app loads fonts from Google, which receives the associated network requests. These privacy and terms pages use system fonts.</li>
         </ul>
-        <p>These providers process information under their own policies: <a href="https://policies.google.com/privacy">Google Privacy Policy</a> and <a href="https://vercel.com/legal/privacy-notice">Vercel Privacy Notice</a>. Defter shows no advertising and uses no cross-site tracking; it uses only the cookieless Vercel Web Analytics described above. Defter does not send documents to an AI service or use Google user data to train AI models.</p>
+        <p>These providers process information under their own policies: <a href="https://policies.google.com/privacy">Google Privacy Policy</a> and <a href="https://vercel.com/legal/privacy-notice">Vercel Privacy Notice</a>. Defter shows no advertising and uses no cross-site tracking; it uses the cookieless Vercel Web Analytics and anonymous daily counter described above. Defter does not send documents to an AI service or use Google user data to train AI models.</p>
 
         <h3>4. Storage and retention</h3>
         <ul>
@@ -93,13 +94,14 @@
 
         <h3>3. İşleme ve hizmet sağlayıcılar</h3>
         <ul>
-          <li><strong>Tarayıcın:</strong> PDF’leri gösterir, fotoğraf ve görselleri hazırlar, kalem notlarını düzenler. Uygulama Google API’leriyle doğrudan iletişim kurar. Defter’in geliştirici tarafından işletilen bir uygulama sunucusu veya belge veritabanı yoktur.</li>
+          <li><strong>Tarayıcın:</strong> PDF’leri gösterir, fotoğraf ve görselleri hazırlar, kalem notlarını düzenler. Uygulama Google API’leriyle doğrudan iletişim kurar. Defter’in belge veritabanı yoktur; geliştirici tarafından işletilen tek depolama, aşağıda açıklanan kimliksiz günlük sayaçtır.</li>
           <li><strong>Google:</strong> giriş ve Drive depolama hizmetini sağlar. Kitaplığın belge metinlerinde arama yapılırken aranan kelimeler Drive’a gönderilir. Word/PowerPoint dönüşümünde seçtiğin kaynak, geçici bir Google dokümanı veya sunusu olarak yüklenir; dışa aktarılan PDF indirilir. Bu dönüşüm yalnız cihazında değil, Google tarafından işlenir.</li>
           <li><strong>Vercel:</strong> web sitesini barındırır, kodunu ve herkese açık dosyalarını sunar. Site istekleri IP adresi, istenen adres ve tarayıcı bilgisi gibi teknik bilgileri barındırma sağlayıcısına iletebilir. Uygulamanın belge okuma ve yükleme istekleri bir Defter sunucusu yerine doğrudan Google’a gider.</li>
           <li><strong>Vercel Web Analytics:</strong> sayfa görüntülemelerini çerez kullanmadan sayar; sayfa yolunu (sorgu parametreleri ve # sonrası olmadan), yönlendiren sayfayı, ülkeyi, tarayıcıyı, işletim sistemini ve cihaz türünü toplu olarak kaydeder. Hesap bilgileri, Google kullanıcı verileri veya belge bilgileri gönderilmez.</li>
+          <li>Kimliksiz kullanım sayacı: uygulama bazı eylemlerin türünü gönderir (uygulama açıldı, örnek kitaplık açıldı, giriş yapıldı, kitaplık oluşturuldu, kitap eklendi, özet kaydedildi, fotoğraf yüklendi). Yalnız eylem türü başına günlük toplamlar, Defter için barındırılan bir Redis veritabanında (Upstash) en fazla 400 gün saklanır. Hesap bilgileri, tanımlayıcılar, IP adresleri, Google kullanıcı verileri veya belge bilgileri saklanmaz.</li>
           <li><strong>Google Fonts:</strong> ana uygulama yazı tiplerini Google’dan yükler; Google bu ağ isteklerini alır. Bu gizlilik ve şartlar sayfaları cihazın sistem yazı tiplerini kullanır.</li>
         </ul>
-        <p>Bu sağlayıcılar bilgileri kendi politikalarına göre işler: <a href="https://policies.google.com/privacy?hl=tr">Google Gizlilik Politikası</a> ve <a href="https://vercel.com/legal/privacy-notice">Vercel Gizlilik Bildirimi</a>. Defter reklam göstermez, siteler arası takip yapmaz; yalnız yukarıda açıklanan çerezsiz Vercel Web Analytics'i kullanır. Belgeler bir yapay zekâ hizmetine gönderilmez, Google kullanıcı verileri yapay zekâ modeli eğitmek için kullanılmaz.</p>
+        <p>Bu sağlayıcılar bilgileri kendi politikalarına göre işler: <a href="https://policies.google.com/privacy?hl=tr">Google Gizlilik Politikası</a> ve <a href="https://vercel.com/legal/privacy-notice">Vercel Gizlilik Bildirimi</a>. Defter reklam göstermez, siteler arası takip yapmaz; yukarıda açıklanan çerezsiz Vercel Web Analytics ve kimliksiz günlük sayacı kullanır. Belgeler bir yapay zekâ hizmetine gönderilmez, Google kullanıcı verileri yapay zekâ modeli eğitmek için kullanılmaz.</p>
 
         <h3>4. Saklama ve saklanma süreleri</h3>
         <ul>
