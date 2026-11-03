@@ -33,7 +33,7 @@ import { bekleyenFotoDepo } from '../defter/bekleyenFoto';
 import type { BekleyenFoto, BekleyenJpeg } from '../defter/bekleyenFotoKayit';
 import { FotoEkleyici } from '../defter/fotoEkleme';
 import { hazirlikAl, hazirlikEkle, mb, olcumAcik, olcumAl, olcumBaslat, olcumBitir, type Olcum } from '../defter/sureOlcum';
-import { bantKarari, ekSaltOkunur, pdfLibYuklensinMi, siradakiEk, type EkKarari } from '../defter/ozetEkBandi';
+import { bantKarari, ekAyriAcik, ekOzetAdi, ekSaltOkunur, siradakiEk, type EkKarari } from '../defter/ozetEkBandi';
 import { seritDurumu } from '../defter/fotoEklemeMetin';
 import { DOSYA_ACCEPT, dosyaTuru, ILK_BAYT_SAYISI, type DosyaTuruSonucu } from '../defter/dosyaTuru';
 import type { HazirDosya } from '../defter/dosyaHazirla';
@@ -1588,7 +1588,7 @@ async function photoStrip(t: OpenTopic): Promise<void> {
 
 const ekEklendi = new Set<string>();   // islemIds added this session
 const ekSonra = new Set<string>();     // "Sonra" while this topic is open (asked again when it opens again)
-let ekDurum: { t: OpenTopic; islemId: string; yuzde: number | null; hata: string | null; calisiyor: boolean } | null = null;
+let ekDurum: { t: OpenTopic; islemId: string; yuzde: number | null; hata: string | null; calisiyor: boolean; ayri: boolean } | null = null;
 let ekSahteAktif: EkSahte | null = null;   // dev only (ekSahte.ts)
 let ekBakilanOturum = -1;                 // the list (session) the band was checked for
 
@@ -1610,31 +1610,33 @@ function ilkSayfaCizildi(): void {
 async function ekBandi(t: OpenTopic): Promise<void> {
   const s = ekSahteAktif;
   const gecerli = () => open && topic === t && t.kind === 'ozet' && t.fileIndex === 0
-    && /^(ozet|brifing|sorular)\.pdf$/i.test(t.materials.ozet[0]?.file.name ?? '')
+    && (/^(ozet|brifing|sorular)\.pdf$/i.test(t.materials.ozet[0]?.file.name ?? '')
+      || (ekAyriAcik() && (!!s || ekSaltOkunur(t.materials.ozet[0]?.file.name))))
     && pages.some(p => p.dosyaId === t.materials.ozet[0]?.file.id);
-  const ozet = gercekOzet(t.materials).map(m => m.file);
+  const ozet = s?.ozetVarMi === false ? [] : gercekOzet(t.materials).map(m => m.file);
   const ekler = s ? s.ekler : ekleriAl(t.materials);
   const drive = !!s || (!isSampleId(folder) && !!driveLocation());
-  if (!gecerli() || !pdfLibYuklensinMi({ ekVar: ekler.length > 0, ozetVarMi: ozet.length > 0, drive, ozetIlkSayfaCizildi: true })) {
+  if (!gecerli() || !(ekler.length > 0 && drive && (ozet.length > 0 || ekAyriAcik()))) {
     if (topic === t) photoBox.ekSeritGoster(null);
     return;
   }
   try {
     const { ozetHedefi } = await import('../defter/dosyaPanelDurumu');
-    const hedef = ozetHedefi(t.materials, pages[focusPage()]?.dosyaId ?? null, null);
+    const hedef = ozetHedefi(t.materials, pages[focusPage()]?.dosyaId ?? null, null) ?? (ekAyriAcik() ? ekler[0] : null);
     if (!hedef) { photoBox.ekSeritGoster(null); return; }
     let isaretler: Set<string> | 'yazilamaz', neden: string | null = null;
     try {
-      isaretler = s ? s.isaretler() : await ozetIsaretleri(ozet, hedef);
+      isaretler = !ozet.length ? new Set() : s ? s.isaretler() : await ozetIsaretleri(ozet, hedef);
     } catch (e) {
       if (!(e instanceof PdfYazilamaz)) throw e;
       isaretler = 'yazilamaz';
       neden = e.message;
     }
     if (s && isaretler === 'yazilamaz') neden = s.yazilamazNeden;
+    const dosyalar = ekAyriAcik() ? s ? s.dosyalar : await ekKayitDosyalari(t) : [];
     if (!gecerli()) return;
     const k = siradakiEk(bantKarari({
-      ekler, ozetVarMi: ozet.length > 0, yazmaVar: drive, ornek: !s && isSampleId(folder), isaretler,
+      ayri: ekAyriAcik(), dosyalar, ekler, ozetVarMi: ozet.length > 0, yazmaVar: drive, ornek: !s && isSampleId(folder), isaretler,
       sonraDenilenler: new Set([...ekSonra, ...ekEklendi]),
     }));
     if (k) ekSeridiCiz(t, k, hedef, neden);
@@ -1644,6 +1646,14 @@ async function ekBandi(t: OpenTopic): Promise<void> {
     console.warn('Özet ekleri: özetin işaretlerine bakılamadı.', e);
     if (topic === t) photoBox.ekSeritGoster(null);
   }
+}
+
+// Read fresh root and additional summaries: properties survive across devices.
+async function ekKayitDosyalari(t: OpenTopic): Promise<DriveFile[]> {
+  const root = await listChildren(await topicFolderId(t));
+  const { altKlasorBul } = await import('../defter/konuyaDosyaEkle');
+  const summaries = altKlasorBul(root, 'Ozetler');
+  return [...root, ...(summaries ? await listChildren(summaries.id) : [])];
 }
 
 // The marks of all the topic's summary files (brifing + sorular: an addition put into either counts). The target
@@ -1668,7 +1678,9 @@ function ekSeridiCiz(t: OpenTopic, k: EkKarari, hedef: DriveFile, neden: string 
     neden: k.durum === 'yazilamaz' ? neden : null,
     hata: d?.hata ?? null,
     ekleniyor: d?.calisiyor ? (d.yuzde != null ? dilT('dosya.ekleniyorYuzde', { yuzde: d.yuzde }) : dilT('dosya.ekleniyor')) : null,
-    ekle: k.durum === 'yazilamaz' ? null : () => { void ekEkle(t, k, hedef, neden); },
+    ekleMetni: d?.hata ? dilT('genel.tekrarDene') : ekAyriAcik() && k.durum !== 'ozetYok' ? dilT('ek.ayniEkle') : dilT('ek.ekle'),
+    ayri: ekAyriAcik() && k.durum !== 'ozetYok' && !d?.hata ? () => { void ekEkle(t, k, hedef, neden, true); } : null,
+    ekle: k.durum === 'yazilamaz' && !(d?.hata && d.ayri) ? null : () => { void ekEkle(t, k, hedef, neden, d?.hata ? d.ayri : false); },
     sonra: () => {
       ekSonra.add(k.islemId);
       if (ekDurum?.islemId === k.islemId) ekDurum = null;
@@ -1680,9 +1692,9 @@ function ekSeridiCiz(t: OpenTopic, k: EkKarari, hedef: DriveFile, neden: string 
 // "Ekle": the addition's pages at the end of the summary ("Dosya ekle" → Özet's way, the same ortam). Done → the band
 // goes on to the next addition and the reader follows (afterFileAdded); an error stays on the band with "Tekrar dene"
 // (the same islemId: no page twice).
-async function ekEkle(t: OpenTopic, k: EkKarari, hedef: DriveFile, neden: string | null): Promise<void> {
+async function ekEkle(t: OpenTopic, k: EkKarari, hedef: DriveFile, neden: string | null, ayri = false): Promise<void> {
   if (ekDurum?.calisiyor) return;
-  const d: NonNullable<typeof ekDurum> = { t, islemId: k.islemId, yuzde: null, hata: null, calisiyor: true };
+  const d: NonNullable<typeof ekDurum> = { t, islemId: k.islemId, yuzde: null, hata: null, calisiyor: true, ayri };
   ekDurum = d;
   const ciz = () => { if (ekDurum === d && open && topic === t && t.kind === 'ozet') ekSeridiCiz(t, k, hedef, neden); };
   ciz();
@@ -1690,14 +1702,18 @@ async function ekEkle(t: OpenTopic, k: EkKarari, hedef: DriveFile, neden: string
   const s = ekSahteAktif;
   try {
     let r: DosyaEklendi | null = null;
+    const target: DosyaHedefi = k.durum === 'ozetYok' ? 'ozet' : ayri ? 'yeniOzet' : { ozetSonu: hedef };
     if (s) await s.ekle(k.islemId, yukleme);
     else {
       const [{ konuyaDosyaEkle }, konu, bytes] = await Promise.all([import('../defter/konuyaDosyaEkle'), topicFolderId(t), getPdf(k.file.id, k.file.modifiedTime)]);
-      r = await konuyaDosyaEkle({ konu, hedef: { ozetSonu: hedef }, ad: k.file.name, bytes: new Uint8Array(bytes), islemId: k.islemId }, dosyaEklemeOrtami(t), { yukleme });
+      const files = ayri ? await ekKayitDosyalari(t) : [];
+      const ad = ayri ? files.find(f => f.appProperties?.defterIslem === k.islemId)?.name
+        ?? ekOzetAdi(k.file.name, files.filter(f => f.klasorId !== konu && /\.pdf$/i.test(f.name)).map(f => f.name)) : k.file.name;
+      r = await konuyaDosyaEkle({ konu, hedef: target, ad, bytes: new Uint8Array(bytes), islemId: k.islemId }, dosyaEklemeOrtami(t), { yukleme });
     }
     ekEklendi.add(k.islemId);
     if (ekDurum === d) ekDurum = null;
-    if (r) { agacGecersiz(); await afterFileAdded(t, { ozetSonu: hedef }, r); }
+    if (r) { agacGecersiz(); await afterFileAdded(t, target, r, target === 'yeniOzet' || target === 'ozet'); }
     else toast((await import('../defter/dosyaPanelDurumu')).eklendiMetni(k.file.name));   // the fake: no pages, no refresh
     if (open && topic === t) void ekBandi(t);
   } catch (e) {
@@ -2379,7 +2395,7 @@ async function sayfaIsleriniSurdur(): Promise<void> {
 
 // The file was added: toast (+ "Göster"); the open topic's tabs and lists follow at once.
 // Reader closed / another topic open: only the toast.
-async function afterFileAdded(t: OpenTopic, hedef: DosyaHedefi, r: DosyaEklendi): Promise<void> {
+async function afterFileAdded(t: OpenTopic, hedef: DosyaHedefi, r: DosyaEklendi, autoOpen = false): Promise<void> {
   if (r.kind === 'sonaEklendi') { await afterPagesAdded(t, r); return; }
   let metin = `Eklendi: ${r.ad}`;
   try { metin = (await import('../defter/dosyaPanelDurumu')).eklendiMetni(r.ad, r.uyari); } catch (e) { console.warn(e); }
@@ -2396,7 +2412,7 @@ async function afterFileAdded(t: OpenTopic, hedef: DosyaHedefi, r: DosyaEklendi)
   if (olcumId) measureToast(olcumId, ready);
   if (!karar.goster || bosKonu) { toast(metin); return; }
   const go = () => { void ready.then(() => showAddedFile(t, e)); };
-  if (GOSTER_OTOMATIK) { toast(metin); go(); } else toast(metin, { etiket: dilT('okuyucu.goster'), calistir: go });
+  if (GOSTER_OTOMATIK || autoOpen) { toast(metin); go(); } else toast(metin, { etiket: dilT('okuyucu.goster'), calistir: go });
 }
 
 // Task 6.S-3: a file's pages went at the end of a summary: the photos' refresh (pagesShown)

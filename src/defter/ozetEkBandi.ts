@@ -1,15 +1,20 @@
 import type { DriveFile } from '../drive/drive';
 import { ozetEkMi } from '../okuma/konuKesfi';
+import { dosyaAdiHazirla } from './konuyaDosyaEkle';
+
+export const EK_AYRI = true;
+export const ekAyriAcik = (search = typeof location === 'undefined' ? '' : location.search): boolean =>
+  EK_AYRI && new URLSearchParams(search).get('ekAyri') !== '0';
 
 // Task 6.EK-1: the pure part of the "Yeni ek var · Ekle" band (UI: 6.EK-2). Another tool puts ozet-ek*.pdf into the
 // topic folder (konuKesfi.ozetEkleri); "Ekle" puts its pages at the end of the summary (6.S-3's way: konuyaDosyaEkle
 // { ozetSonu }, /DefterEkId = ekIslemId). The addition itself is never written to.
-// - "Added?" is read from the summary's /DefterEkId marks (ozeteEkle.ekIsaretleri): every device sees it, nothing
-//   is kept elsewhere.
+// - "Added?" comes from /DefterEkId marks or the created summary's appProperties.defterIslem.
+//   Every device sees it; no separate record is created.
 // - The id carries the content's checksum: new content = a new addition. A mark of the same Drive file with
 //   another checksum → 'guncellendi' (the band says the addition changed).
 
-export type EkDurumu = 'goster' | 'guncellendi' | 'gizli' | 'yazilamaz';
+export type EkDurumu = 'goster' | 'guncellendi' | 'gizli' | 'yazilamaz' | 'ozetYok';
 
 const ONEK = 'ozet-ek-';
 // what follows "ozet-ek-<id>-": an md5 (32 hex) or a modifiedTime (ISO). Checked so that an id that starts with
@@ -28,6 +33,8 @@ function eskiSurumVar(isaretler: ReadonlySet<string>, f: DriveFile): boolean {
 }
 
 export interface BantGirdisi {
+  ayri?: boolean;                     // caller opts into EK-3; omitted preserves the legacy pure API
+  dosyalar?: readonly DriveFile[];      // root and Ozetler listings
   ekler: readonly DriveFile[];          // konuKesfi.ozetEkleri / ekleriAl
   ozetVarMi: boolean;                   // a summary Defter may write to (konuKesfi.gercekOzet)
   yazmaVar: boolean;                    // the Drive library with a write context (driveLocation())
@@ -39,8 +46,8 @@ export interface BantGirdisi {
 
 export interface EkKarari { file: DriveFile; islemId: string; durum: EkDurumu }
 
-// One decision per addition, in the given order. Sample library / no writing / no summary (K3: the addition is
-// shown as the summary) / marks not read yet → all hidden.
+// One decision per addition, in the given order. EK-3 permits creating the first writable summary;
+// the legacy API keeps the no-summary case hidden.
 export function bantKarari(g: BantGirdisi): EkKarari[] {
   return g.ekler.map(file => {
     const islemId = ekIslemId(file);
@@ -50,10 +57,16 @@ export function bantKarari(g: BantGirdisi): EkKarari[] {
 
 function ekDurumu(g: BantGirdisi, file: DriveFile, islemId: string): EkDurumu {
   const { isaretler } = g;
-  if (g.ornek || !g.yazmaVar || !g.ozetVarMi || isaretler === null || g.sonraDenilenler.has(islemId)) return 'gizli';
+  if (g.ornek || !g.yazmaVar || g.sonraDenilenler.has(islemId)) return 'gizli';
+  const marks = new Set(isaretler && isaretler !== 'yazilamaz' ? isaretler : []);
+  if (g.ayri) for (const f of g.dosyalar ?? []) {
+    if (f.appProperties?.defterIslem) marks.add(f.appProperties.defterIslem);
+  }
+  if (marks.has(islemId)) return 'gizli';
+  if (!g.ozetVarMi) return g.ayri ? 'ozetYok' : 'gizli';
+  if (isaretler === null) return 'gizli';
   if (isaretler === 'yazilamaz') return 'yazilamaz';
-  if (isaretler.has(islemId)) return 'gizli';
-  return eskiSurumVar(isaretler, file) ? 'guncellendi' : 'goster';
+  return eskiSurumVar(marks, file) ? 'guncellendi' : 'goster';
 }
 
 // K1: pdf-lib (reading the marks) only for a topic with an addition and a summary to check, in the Drive library
@@ -68,3 +81,16 @@ export const siradakiEk = (kararlar: readonly EkKarari[]): EkKarari | null => ka
 // Task 6.EK-2: a file shown in the reader that is an addition (K3: no summary, the addition is in the Özet tab) is read
 // only: no pen, no blank page, no paste, no page deleted. Reading, search and handwriting reading stay.
 export const ekSaltOkunur = (ad: string | undefined): boolean => !!ad && ozetEkMi(ad);
+
+
+// Strip the addition prefix and optional sequence number, then reserve a unique safe PDF name.
+export function ekOzetAdi(ad: string, mevcut: readonly string[]): string {
+  const stem = ad.trim().replace(/\.pdf$/i, '').replace(/^ozet-ek[-_]?/i, '').replace(/^\d+(?:[-_]+|$)/, '');
+  let name = dosyaAdiHazirla(stem || `ozet-${mevcut.length + 2}`);
+  // These prefixes are reserved by the existing new-summary writer.
+  if (/^(ozet-ek|_cozum)/i.test(name) || /_cozum\.pdf$/i.test(name)) name = `ozet-${mevcut.length + 2}.pdf`;
+  const used = new Set(mevcut.map(x => x.toLowerCase()));
+  const base = name.slice(0, -4);
+  for (let n = 2; used.has(name.toLowerCase()); n++) name = `${base}-${n}.pdf`;
+  return name;
+}

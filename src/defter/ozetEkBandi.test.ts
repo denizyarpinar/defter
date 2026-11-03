@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { DriveFile } from '../drive/drive';
-import { bantKarari, ekIslemId, ekSaltOkunur, pdfLibYuklensinMi, siradakiEk, type BantGirdisi } from './ozetEkBandi';
+import { bantKarari, ekOzetAdi, ekAyriAcik, ekIslemId, ekSaltOkunur, pdfLibYuklensinMi, siradakiEk, type BantGirdisi } from './ozetEkBandi';
 
 // Task 6.EK-1: the pure part of the summary addition band.
 
@@ -90,5 +90,32 @@ describe('task 6.EK-2: ekSaltOkunur (the reader never writes to an addition)', (
   it('additions only', () => {
     expect(['ozet-ek.pdf', 'OZET-EK-2.PDF', 'ozet-ek_x.pdf'].map(ekSaltOkunur)).toEqual([true, true, true]);
     expect(['ozet.pdf', 'brifing.pdf', 'ozet-ek_cozum.pdf', undefined, ''].map(ekSaltOkunur)).toEqual([false, false, false, false, false]);
+  });
+});
+
+
+describe('EK-3 separate summary', () => {
+  it('shows a missing summary without reading PDF marks', () => {
+    expect(durumlar(girdi({ ayri: true, ozetVarMi: false, isaretler: null }))).toEqual(['ozetYok']);
+    expect(durumlar(girdi({ ayri: false, ozetVarMi: false, isaretler: null }))).toEqual(['gizli']);
+  });
+  it('uses cross-device file properties, including older versions', () => {
+    const dosyalar = [{ ...ek('new'), appProperties: { defterIslem: ekIslemId(ek('A')) } }];
+    expect(durumlar(girdi({ ayri: true, dosyalar }))).toEqual(['gizli']);
+    expect(durumlar(girdi({ ayri: true, dosyalar, ekler: [ek('A', MD5_YENI)] }))).toEqual(['guncellendi']);
+    expect(durumlar(girdi({ ayri: false, dosyalar }))).toEqual(['goster']);
+    expect(durumlar(girdi({ ayri: true, dosyalar, ozetVarMi: false, isaretler: null }))).toEqual(['gizli']);
+  });
+  it('supports rollback', () => {
+    expect(ekAyriAcik('')).toBe(true);
+    expect(ekAyriAcik('?ekAyri=0')).toBe(false);
+  });
+  it('derives safe names and avoids case-insensitive collisions', () => {
+    expect(ekOzetAdi('ozet-ek-2-relationen.pdf', [])).toBe('relationen.pdf');
+    expect(ekOzetAdi('ozet-ek_x.pdf', [])).toBe('x.pdf');
+    expect(ekOzetAdi('ozet-ek.pdf', [])).toBe('ozet-2.pdf');
+    expect(ekOzetAdi('ozet-ek-3.pdf', ['a.pdf'])).toBe('ozet-3.pdf');
+    expect(ekOzetAdi('ozet-ek-x.pdf', ['X.PDF', 'x-2.pdf'])).toBe('x-3.pdf');
+    expect(ekOzetAdi('ozet-ek-a/b.pdf', ['ab.pdf'])).toBe('ab-2.pdf');
   });
 });

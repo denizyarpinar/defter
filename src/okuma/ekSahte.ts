@@ -9,6 +9,8 @@ import { MESAJLAR } from '../defter/sayfaEkle';
 // Nothing is read from or written to Drive.
 
 export interface EkSahteSecenek {
+  ozetVarMi?: boolean;
+  dosyalar?: DriveFile[];
   ekler: { ad: string; id?: string; md5?: string }[];
   isaretler?: string[] | 'yazilamaz';     // the summary's /DefterEkId marks; 'yazilamaz': encrypted / signed
   sonuc?: 'basari' | 'hata' | 'suruyor';  // what "Ekle" does (default basari)
@@ -18,6 +20,8 @@ export interface EkSahteSecenek {
 export interface EkSahteDurum { eklenen: string[]; isaretler: string[] | 'yazilamaz' }
 
 export interface EkSahte {
+  ozetVarMi: boolean;
+  dosyalar: DriveFile[];
   ekler: DriveFile[];
   isaretler(): Set<string> | 'yazilamaz';
   yazilamazNeden: string;
@@ -32,6 +36,7 @@ export function ekSahte(o: EkSahteSecenek): EkSahte {
     md5Checksum: e.md5 ?? `${'0'.repeat(31)}${i + 1}`
   }));
   return {
+    ozetVarMi: o.ozetVarMi ?? true, dosyalar: o.dosyalar ?? [],
     ekler, durum, yazilamazNeden: MESAJLAR.sifreli,
     isaretler: () => durum.isaretler === 'yazilamaz' ? 'yazilamaz' : new Set(durum.isaretler),
     async ekle(islemId, y) {

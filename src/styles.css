@@ -1110,3 +1110,8 @@ body.auth-log-login :is(#olcum, #olcumKalem, #olcumSon) { display: none }
 .usage-table td > span:first-child { position: relative; z-index: 1 }
 .usage-bar { position: absolute; bottom: 2px; left: 0; height: 4px; background: var(--accent); border-radius: 2px }
 @media (max-width: 540px) { .usage-totals { grid-template-columns: 1fr } }
+
+@media (max-width: 600px) {
+  .fd-ek .fd-metin { flex-basis: 100% }
+  .fd-ek button { max-width: 100%; padding: 6px 10px; overflow-wrap: anywhere }
+}

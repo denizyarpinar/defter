@@ -24,6 +24,8 @@ export interface EkSerit {
   hata?: string | null;          // the last try failed
   ekleniyor?: string | null;     // "Ekleniyor… %42"
   ekle: (() => void) | null;     // null: grey
+  ekleMetni?: string;
+  ayri?: (() => void) | null;
   sonra: () => void;
 }
 
@@ -88,13 +90,15 @@ export class FotoDurumKutusu {
   ekSeritGoster(s: EkSerit | null): void {
     this.ekSerit.hidden = !s;
     if (!s) { this.ekSerit.replaceChildren(); this.yenile(); return; }
-    const ekle = dugme('fd-ana', s.ekleniyor ?? t(s.hata ? 'genel.tekrarDene' : 'ekleme.ekle'), () => s.ekle?.());
+    const ekle = dugme('fd-ana', s.ekleniyor ?? s.ekleMetni ?? t(s.hata ? 'genel.tekrarDene' : 'ek.ekle'), () => s.ekle?.());
     const sonra = dugme('fd-ikinci', t('foto.sonra'), s.sonra);
     ekle.disabled = !s.ekle || !!s.ekleniyor;
     sonra.disabled = !!s.ekleniyor;
     const metin = el('p', 'fd-metin', s.metin);
     for (const [cls, m] of [['fd-neden', s.neden], ['fd-hata', s.hata]] as const) if (m) metin.append(el('span', cls, m));
-    this.ekSerit.replaceChildren(metin, ekle, sonra);
+    const ayri = s.ayri ? dugme('fd-ana', t('ek.ayriEkle'), s.ayri) : null;
+    if (ayri) ayri.disabled = !!s.ekleniyor;
+    this.ekSerit.replaceChildren(metin, ...(ayri ? [ayri] : []), ekle, sonra);
     this.ekSerit.setAttribute('aria-live', 'polite');
     this.yenile();
   }
