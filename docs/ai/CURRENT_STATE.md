@@ -1,12 +1,13 @@
 # CURRENT_STATE
 
-Son güncelleyen: Codex, 3 Kasım 2026 · EK-3b yerel düzeltme; push yok
+Son güncelleyen: Codex, 3 Kasım 2026 · K-1; yalnız faz-6 push onaylı
 ## Git ve yayın
 - main = production https://mydefter.app; faz-6 = önizleme.
 - Z-1 canlıda: iPad bayat dokunma onarımı; main ve faz-6 aynı Z-1 commit'inde.
 - 6.6-3b + 6.6-3c canlıda; KONU_TASI=true, taşıma için adres parametresi gerekmiyor.
 - Geri alma: KONU_TASI=false (parametresiz taşıma kapanır; ?konuTasi=1 geliştirme açılışı kalır), ?konuAra=0 (arama kapanır).
 ## Bitenler (özet)
+- K-1 (D35): tahmin yalnız kalemde; fare/touchpad/parmak getPredictedEvents okumaz. 2189/2189 test, typecheck/build/dil geçti; geri alma ?tahmin=1.
 - EK-3b: bant seçilen her gerçek özette çıkar; Aynı hedefi açık dosyadır, çoklu özette adı gösterilir. Yeni ozet.pdf aynı seçici sırasına geldiğinde sayfa kimliği de denetlenir; başarıda bant kapanır. ?ekAyri=0 eski davranışı korur.
 - EK-3: ek bandında Ayrı/Aynı; özetsiz konuda Ekle → ozet.pdf. Ayrı ek Ozetler'de açılır; sabit defterIslem ile cihazlar arası tekrar engellenir, eski sürüm tanınır. Ad çakışmaları numaralanır; ?ekAyri=0 eski banda döner. Kaynak ek değiştirilmez.
 - E-1: Pencil görülmüşse Parmakla yaz düğmesi; tercih cihazda saklanır, Pencil değince kapanır ve o çizgi normal başlar. ?elModu=0 geri alır; Z-1 korunur. Önce kırmızı testler; son doğrulama aşağıda.
@@ -29,6 +30,7 @@ Son güncelleyen: Codex, 3 Kasım 2026 · EK-3b yerel düzeltme; push yok
 - E-1: 2170/2170 test (170 dosya), typecheck/build/dil geçti (927 TR/EN anahtar, 0 dil hatası); Playwright 390×844 / 1180×820 / 1920×1080 × EN/TR: 58 px tek satır, dış taşma yok; yenileme/Pencil dönüşü testli. Gerçek iPad bekliyor.
 - Sahte Drive + Playwright 390×844 / 1180×820 × EN/TR: taşıma, boş ünite, Geri al, Tekrar dene, Vazgeç, toparlama geçti; dil:ekran 160 ekran, taşma 0.
 ## Sıradaki
+0. K-1: faz-6 önizlemesinde Deniz'in fare/touchpad ve kalem denemesi; main push edilmez.
 0. EK-3b: gerçek iPad/Drive ile ikinci özete ekleme ve özetsiz konuda Ekle denemesi; push/yayın yapılmadı.
 0. E-1: faz-6 önizlemesinde Deniz'in iPad denemesi; main'e gönderim ayrıca onay ister. TASK.md görev başında değişikti, dokunulmadı.
 0. Z-1: canlıda gerçek iPad denemesi; ?olcum=1 temizlik günlüğü, ?bayat=0 geri alma.

@@ -8,6 +8,7 @@ import { EventOrder, minStep, pushLastPoint, pushPoint, roundPt, screenToViewpor
 import { eraserRadius, type Pt } from './silgi';
 import { dokunmaIptal } from '../ui/dokunmaIz';
 import { logStaleTouch, staleTouchEnabled, startsTouchSequence, watchTouchRecovery } from '../okuma/bayatDokunma';
+import { tahminKullan, tahminSadeceKalem } from './tahmin';
 
 // Pen mode (task 4.6): live drawing on the reader's pages. The stroke being drawn is an SVG
 // <path> over its page (no canvas: the canvas budget is not touched), updated once per frame.
@@ -57,6 +58,7 @@ export interface PenHost {
 interface Live {
   id: number;
   pen: boolean;
+  tahmin: boolean;
   box: HTMLElement;
   page: PenPage;
   style: ReturnType<PenHost['style']>;
@@ -300,7 +302,8 @@ export class PenInput {
     box.append(svg);
     const pen = e.pointerType === 'pen';
     this.live = {
-      id: e.pointerId, pen, box, page, style, svg, path, pdf: [], basinc: pen && style.arac === 'kalem' ? [] : null,
+      id: e.pointerId, pen, tahmin: tahminKullan(e.pointerType, tahminSadeceKalem(location.search)),
+      box, page, style, svg, path, pdf: [], basinc: pen && style.arac === 'kalem' ? [] : null,
       step: minStep(box.getBoundingClientRect().width, page.viewport.width), order: new EventOrder(), lastMove: null,
       predicted: [], predTimer: 0, raf: 0
     };
@@ -339,8 +342,8 @@ export class PenInput {
     l.lastMove = e;
     let changed = false;
     for (const ev of evs.length ? evs : [e]) changed = this.addPoint(ev) || changed;
-    // where the pen is about to be (Chrome / Edge; not in Safari): drawn ahead, replaced on every move
-    const pred = typeof e.getPredictedEvents === 'function' ? e.getPredictedEvents() : [];
+    // Only predict pen strokes: mouse / touchpad guesses can jump ahead at direction changes.
+    const pred = l.tahmin && typeof e.getPredictedEvents === 'function' ? e.getPredictedEvents() : [];
     kalemOlcer?.hareket(e, evs, pred.length);
     if (pred.length || l.predicted.length) {
       l.predicted = [];

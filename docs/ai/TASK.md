@@ -1,43 +1,38 @@
-# TASK – EK-3b: ek bandı her özette + "Ekleniyor…" takılması
-
-Başlangıç: main = 100efda (EK-3 canlıda). Deniz'in gerçek Drive denemesi, 3 Kasım 2026 (Mathe 1 > Konu-05-Deneme).
+# TASK – K-1: fare/touchpad ile yazarken savrulan ve kaybolan çizgiler
 
 ## Goal
-EK-3 canlıda çalışıyor (Ekle → ozet.pdf, Ayrı → Ozetler/ayri.pdf doğrulandı). İki sorun kaldı:
-1. **Bant yalnız ilk özette çıkıyor.** Okuyucu seçicide `Ozetler/<ad>.pdf` (ikinci, üçüncü özet) açıkken bant hiç çıkmıyor. Deniz yeni eki o açık özete de eklemek isteyebilir.
-2. **"Ekle" (özet yokken) sonrası bant "Ekleniyor…"da kalıyor.** `ozet.pdf` Drive'da doğru oluşuyor ama okuyucu yenilenmiyor, bant sonsuza kadar "Ekleniyor…" gösteriyor; F5 düzeltiyor. ("Ayrı" ve "Aynı" sonrası takılma görülmedi.)
+Bilgisayarda fare ya da touchpad ile kalem modunda yazarken çizginin ucundan anlık düz "kuyruklar" fırlıyor ve ~50 ms sonra kayboluyor (Deniz videosu, 3 Kasım). Fare/touchpad'de bu kuyruklar hiç çizilmesin; kalem (Pencil, Windows kalemi) davranışı değişmesin.
 
 ## Context
-- `src/okuma/Okuyucu.ts` `ekBandi()`: `gecerli()` → `t.fileIndex === 0` ve ad `ozet|brifing|sorular.pdf` (ya da EK-3'ün salt okunur ek durumu). Bu yüzden Ozetler dosyalarında bant yok.
-- `ozetHedefi(m, odakDosyaId, secilenId)` (dosyaPanelDurumu.ts): bugün yalnız `brifing+sorular` seçimini çözüyor; `gercekOzet(m)` Ozetler dosyalarını da içeriyor.
-- `ozetIsaretleri(ozet, hedef)`: tüm özet dosyalarının /DefterEkId işaretlerini topluyor (iyi: bir ek hangi özete eklendiyse eklenmiş sayılır).
-- `ekEkle(...)` → `konuyaDosyaEkle` → `afterFileAdded(t, hedef, r)`; EK-3'te özet yokken hedef `'ozet'`.
-- `ilkSayfaCizildi()` her liste (session) için bir kez.
+- Neden (Claude, videodan kare kare): `src/kalem/kalemModu.ts` `move()` içinde `e.getPredictedEvents()` (yalnız Chrome/Edge) tahmini noktaları canlı çizgiye ekliyor; `paint()` bunları `l.pdf`'in sonuna ekliyor, 50 ms'lik `predTimer` siliyor. Faredeki tahmin, yön değişiminde çizgiyi ileri fırlatıyor (savrulma), sonra siliniyor (kaybolma). Kaydedilen çizgi etkilenmiyor (tahmin `l.pdf`'e girmiyor).
+- iPad Safari'de `getPredictedEvents` yok; Pencil zaten etkilenmiyor.
+- Touchpad, tarayıcıda `pointerType === 'mouse'` gelir.
 
 ## Kararlar (Claude)
-- K1 Bant, okuyucuda **hangi gerçek özet dosyası açıksa** onda çıkar (`gercekOzet(t.materials)` içindeki herhangi bir dosya; `fileIndex` şartı kalkar). Ek dosyasının kendisi (salt okunur) açıkken EK-3 davranışı aynen.
-- K2 "Aynı özete ekle" hedefi = **ekranda açık özet dosyası** (`t.materials.ozet[t.fileIndex]`, ya da odak sayfanın `dosyaId`'si). Bant metni hedefi gösterir: TR `Yeni ek var: {ad} · açık özet: {hedef}` / EN `New addition: {ad} · open summary: {hedef}` (yalnız konuda 2+ özet varsa hedef kısmı gösterilir; tek özette bugünkü metin).
-- K3 Özet sekmesinde başka özet dosyasına geçilince (seçici) bant yeniden değerlendirilir (yeni dosyanın ilk sayfası çizilince; `ekBakilanOturum` dosya değişiminde de sıfırlanır). Aynı ek için "Sonra" denmişse oturum boyunca gizli kalır (bugünkü gibi).
-- K4 "Eklendi mi?" kuralı değişmez: işaretler tüm özetlerden + appProperties.defterIslem (EK-3 K2).
-- K5 Takılma: önce `?ekSahte` ile özet yok → Ekle akışında kırmızı test yaz (bant `ekleniyor` kalıyor mu, `afterFileAdded` ne bekliyor). Nedeni bul (olası: okuyucu ek dosyasından yeni ozet.pdf'e geçerken `topic`/`session` değişiyor, `ekDurum` temizlenmiyor ya da `afterFileAdded` 'ozet' hedefi için konu yenilemesini beklerken bitmiyor). Düzeltme: ekleme başarılı olunca bant her durumda kapanır/sıradakine geçer; okuyucu yeni `ozet.pdf`'i açar.
-- K6 Kilit: EK-3'ün `?ekAyri=0` geri dönüşü bu iki değişikliği de kapatır.
+- K1 Tahmini noktalar yalnız `pointerType === 'pen'` çizgisinde kullanılır. Fare (touchpad dahil) ve parmak (`touch`) çizgisinde `getPredictedEvents` hiç okunmaz, `l.predicted` hep boş kalır. Neden: tahmin hızlı/kesik fare hareketinde güvenilmez; kalemde gecikmeyi azaltma faydası korunur.
+- K2 Karar saf bir fonksiyonda: `tahminKullan(pointerType: string, acik = TAHMIN_SADECE_KALEM): boolean` (ör. `src/kalem/tahmin.ts`), testli.
+- K3 Geri alma: sabit `TAHMIN_SADECE_KALEM = true`; `?tahmin=1` adres parametresi eski davranışa döner (tüm türlerde tahmin). Kalıcı karar DECISIONS.md'ye D35 olarak tek satır.
+- K4 `kalemOlcer?.hareket(e, evs, pred.length)` aynı kalır (fare için pred 0 yazılır; ölçüm kuyrukların artık gelmediğini gösterir).
 
 ## Relevant Files
-- src/okuma/Okuyucu.ts (ek bandı bölümü, afterFileAdded çağrısı)
-- src/defter/dosyaPanelDurumu.ts (gerekirse ozetHedefi'ne açık dosya)
-- src/defter/ozetEkBandi.ts (+ test), src/okuma/ekSahte.ts
-- src/dil/tr.ts, src/dil/en.ts
+- src/kalem/kalemModu.ts (move, Live.pen zaten var)
+- yeni src/kalem/tahmin.ts + tahmin.test.ts
+- docs/ai/DECISIONS.md, docs/ai/CURRENT_STATE.md
 
 ## Requirements
-1. K1–K6.
-2. Testler (önce kırmızı): Ozetler dosyası açıkken bant kararı `goster`; hedef = açık dosya; ozet.pdf'e eklenmiş ek Ozetler dosyasında da gizli; özet yok → Ekle → bant `ekleniyor`da kalmaz.
-3. `npm run dil` 0.
+1. K1–K4.
+2. Önce kırmızı test: `tahminKullan('mouse') === false`, `tahminKullan('touch') === false`, `tahminKullan('pen') === true`, `?tahmin=1` ile üçü de true.
+3. kalemModu'da `move()`: `const pred = l.tahmin && typeof e.getPredictedEvents === 'function' ? e.getPredictedEvents() : [];` (Live'a `tahmin: boolean` eklenir, `down()`'da bir kez hesaplanır).
+4. Mevcut tüm testler geçer.
 
 ## Do Not
-- "Dosya ekle" paneli, `{ ozetSonu }` yazma yolu, /DefterEkId biçimi, Drive adları değişmez; ek dosyalarına yazılmaz.
-- `git checkout`/`reset`/`stash`, push yok.
+- cizgiSekli.ts, koordinat.ts, girdi.ts, silgi akışı, kayıt biçimi, Pencil/parmak yönlendirmesi (E-1, Z-1) değişmez.
+- `git checkout`/`reset`/`stash` yok; push yok.
+
+## Definition of Done
+Fare/touchpad çizgisinde tahmin noktası çizilmez; kalem çizgisinde eskisi gibi; testler, typecheck, build, dil geçer; commit "K-1: fare/touchpad tahmin kuyruğu kaldırıldı".
 
 ## Verification
 - `npm test`, `npm run typecheck`, `npm run build`, `npm run dil`.
-- Playwright `?ekSahte` 1180×820 + 390×844 × EN/TR: ikinci özet açıkken bant, hedef metni taşmıyor.
-- Sonunda göster: neden (takılma), değişen dosyalar, test sayısı, git status, deneme adımları. Commit: "EK-3b: …".
+- Playwright (Chromium, 1280×800, ornek kitap, kalem modu): fareyle hızlı zikzak; her `requestAnimationFrame`'de canlı `<path>` noktalarının son tutulan noktadan ileri gitmediğini (ör. `.o-cizim.canli path` `d`'sinin sınır kutusu, o ana kadarki fare konumlarının kutusunu 3 px'ten fazla aşmıyor) kontrol et. Mümkün değilse nedenini yaz.
+- Sonunda göster: değişen dosyalar, test sayısı, git status, `git diff --stat`.
