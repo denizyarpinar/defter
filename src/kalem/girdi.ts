@@ -70,4 +70,9 @@ export class InputRouter {
   get touchCount(): number {
     return this.touches.size;
   }
+
+  clearTouches(): void {
+    this.touches.clear();
+    this.ignored.clear();
+  }
 }

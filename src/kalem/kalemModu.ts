@@ -5,6 +5,7 @@ import { kalemOlcer } from './kalemOlcum';
 import { EventOrder, minStep, pushLastPoint, pushPoint, roundPt, screenToViewport, toPdf, type PenViewport } from './koordinat';
 import { eraserRadius, type Pt } from './silgi';
 import { dokunmaIptal } from '../ui/dokunmaIz';
+import { logStaleTouch, staleTouchEnabled, startsTouchSequence, watchTouchRecovery } from '../okuma/bayatDokunma';
 
 // Pen mode (task 4.6): live drawing on the reader's pages. The stroke being drawn is an SVG
 // <path> over its page (no canvas: the canvas budget is not touched), updated once per frame.
@@ -125,6 +126,10 @@ export class PenInput {
       // Fingers keep their touch-action (pan); pointer events still come.
       const block = (e: TouchEvent) => {
         if (!this.active) return;
+        if (staleTouchEnabled() && e.type === 'touchstart' && e.touches.length === e.changedTouches.length) {
+          logStaleTouch('pen-touchstart', this.ignoredTouches.size + this.touchPointers.size);
+          this.ignoredTouches.clear(); this.touchPointers.clear();
+        }
         const stylus = [...e.changedTouches].some(t => (t as Touch & { touchType?: string }).touchType === 'stylus');
         if (stylus && e.type === 'touchstart') kalemOlcer?.touchstart(e.cancelable);
         for (const touch of e.changedTouches) {
@@ -153,6 +158,33 @@ export class PenInput {
       a.addEventListener('touchend', end, { passive: true });
       a.addEventListener('touchcancel', end, { passive: true });
     }
+    watchTouchRecovery(areas, e => {
+      logStaleTouch('pen-window-end', Number(this.fingers.has(e.pointerId)) + Number(this.ignored.has(e.pointerId)));
+      this.up(e, false);
+    }, source => {
+      this.clearTouches(source);
+      this.cancel();
+    });
+    for (const type of ['touchend', 'touchcancel']) {
+      window.addEventListener(type, event => {
+        if (!staleTouchEnabled() || event.composedPath().some(node => areas.includes(node as HTMLElement))) return;
+        let removed = 0;
+        for (const t of (event as TouchEvent).changedTouches) {
+          removed += Number(this.ignoredTouches.has(t.identifier)) + Number(this.touchPointers.has(t.identifier));
+          this.ignoredTouches.delete(t.identifier); this.touchPointers.delete(t.identifier);
+        }
+        logStaleTouch('pen-window-touchend', removed);
+      }, { capture: true, passive: true });
+    }
+  }
+
+  private clearTouches(source: string): void {
+    logStaleTouch(`pen-${source}`, this.fingers.size + this.ignored.size + this.ignoredTouches.size + this.touchPointers.size);
+    if ((this.live && !this.live.pen && this.fingers.has(this.live.id))
+      || (this.rub && !this.rub.pen && this.fingers.has(this.rub.id))) this.cancel();
+    this.fingers.clear(); this.ignored.clear();
+    this.ignoredTouches.clear(); this.touchPointers.clear();
+    this.router.clearTouches();
   }
 
   get penSeen(): boolean { return this.router.penSeen; }
@@ -197,6 +229,7 @@ export class PenInput {
   }
 
   private down(e: PointerEvent): void {
+    if (staleTouchEnabled() && startsTouchSequence(e.pointerType, e.isPrimary)) this.clearTouches('primary');
     this.ignored.delete(e.pointerId);
     const seen = this.router.penSeen;
     const d = this.router.down(e.pointerType, e.pointerId, e.button, !!this.live?.pen || !!this.rub?.pen,

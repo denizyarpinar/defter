@@ -10,6 +10,11 @@ class Surface {
   classList = { toggle: vi.fn() };
   scrollLeft = 0;
   scrollTop = 0;
+  offsetWidth = 600;
+  offsetHeight = 800;
+  clientWidth = 600;
+  clientHeight = 800;
+  setPointerCapture(): void {}
   scrollBy = vi.fn((x: number, y: number) => { this.scrollLeft += x; this.scrollTop += y; });
   private listeners = new Map<string, { capture: boolean; fn: (e: Event) => void }[]>();
   addEventListener(type: string, fn: (e: Event) => void, options?: boolean | AddEventListenerOptions): void {
@@ -18,7 +23,7 @@ class Surface {
     this.listeners.set(type, list);
   }
   closest(): null { return null; }
-  getBoundingClientRect() { return { left: 0, top: 0 }; }
+  getBoundingClientRect() { return { left: 0, top: 0, width: 600, height: 800 }; }
   emit(type: string, props: Record<string, unknown>): Event {
     const event = new Event(type, { cancelable: true });
     Object.defineProperties(event, { target: { value: this }, currentTarget: { value: this } });
@@ -35,11 +40,14 @@ function flushFrames(): void { const pending = [...frames.values()]; frames.clea
 
 beforeEach(() => {
   frames = new Map(); let id = 0;
+  vi.spyOn(performance, 'now').mockReturnValue(1000);
   vi.stubGlobal('requestAnimationFrame', (fn: FrameRequestCallback) => { frames.set(++id, fn); return id; });
   vi.stubGlobal('cancelAnimationFrame', (id: number) => frames.delete(id));
-  vi.stubGlobal('window', { setTimeout: () => 1 });
+  vi.stubGlobal('window', Object.assign(new Surface(), { setTimeout: () => 1 }));
+  vi.stubGlobal('document', Object.assign(new Surface(), { hidden: false }));
+  vi.stubGlobal('location', { search: '' });
 });
-afterEach(() => { vi.unstubAllGlobals(); });
+afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 function setup(known: boolean, mode: 'pdf' | 'kitap' = 'pdf', storageFails = false) {
   const storage = { getItem: vi.fn(() => { if (storageFails) throw Error('storage'); return known ? '1' : null; }),
@@ -59,8 +67,8 @@ function setup(known: boolean, mode: 'pdf' | 'kitap' = 'pdf', storageFails = fal
     penSeen() {}, fingerPan: () => mode === 'pdf', scroller: scroller.element() };
   pen = new PenInput([scroller.element(), book.element()], host); pen.active = true;
   const area = mode === 'pdf' ? scroller : book;
-  const pointer = (type: string, id: number, x: number, y = 0, width = 63, pointerType = 'touch', time = 1000) =>
-    area.emit(type, { pointerId: id, pointerType, button: 0, clientX: x, clientY: y, width, timeStamp: time });
+  const pointer = (type: string, id: number, x: number, y = 0, width = 63, pointerType = 'touch', time = 1000, isPrimary = false) =>
+    area.emit(type, { pointerId: id, pointerType, button: 0, clientX: x, clientY: y, width, timeStamp: time, isPrimary });
   const touch = (type: string, id: number, radius: number, x = 0, remaining = 1) => {
     const contact = { identifier: id, radiusX: radius, clientX: x, clientY: 0 };
     return area.emit(type, { changedTouches: [contact], touches: Array.from({ length: remaining }, () => contact), timeStamp: 1000 });
@@ -69,6 +77,130 @@ function setup(known: boolean, mode: 'pdf' | 'kitap' = 'pdf', storageFails = fal
 }
 
 describe('pen and zoom event coordination', () => {
+  it('removes the old point at 1500 ms without requiring a new primary touch (K4)', () => {
+    const s = setup(true);
+    s.pointer('pointerdown', 99, 500);
+    vi.mocked(performance.now).mockReturnValue(2000);
+    s.pointer('pointerdown', 1, 0); s.pointer('pointerdown', 2, 200);
+    vi.mocked(performance.now).mockReturnValue(2500);
+    s.pointer('pointermove', 1, 0); // only 99 is now idle for 1500 ms
+    s.pointer('pointermove', 2, 240); flushFrames();
+    expect(s.pages.style.transform).toBe('scale(1.2)');
+  });
+
+  it('keeps ghost contacts and the old blocked behavior with ?bayat=0', () => {
+    vi.stubGlobal('location', { search: '?bayat=0' });
+    const s = setup(true);
+    s.pointer('pointerdown', 99, 500);
+    s.pointer('pointerdown', 1, 0, 0, 63, 'touch', 1000, true);
+    s.pointer('pointerdown', 2, 200);
+    vi.mocked(performance.now).mockReturnValue(5000);
+    s.pointer('pointermove', 2, 240); flushFrames();
+    expect(s.pages.style.transform).toBe('');
+    expect((s.zoom as unknown as { pts: Map<number, unknown> }).pts.size).toBe(3);
+    (window as unknown as Surface).emit('blur', {});
+    expect((s.zoom as unknown as { pts: Map<number, unknown> }).pts.size).toBe(3);
+  });
+
+  it('ends the waiting gesture when timeout recovery leaves only one fresh finger', () => {
+    const s = setup(true);
+    s.pointer('pointerdown', 98, 300); s.pointer('pointerdown', 99, 500);
+    vi.mocked(performance.now).mockReturnValue(2500);
+    s.pointer('pointerdown', 1, 0);
+    expect([...(s.zoom as unknown as { pts: Map<number, unknown> }).pts.keys()]).toEqual([1]);
+    expect((s.zoom as unknown as { busy: boolean }).busy).toBe(false);
+    s.pointer('pointermove', 1, -100); flushFrames();
+    expect(s.pages.style.transform).toBe('');
+  });
+
+  it.each(['blur', 'pagehide', 'visibilitychange'])('clears a stale Safari preview and palm state on %s', type => {
+    const s = setup(true);
+    s.root.emit('gesturestart', { scale: 1, clientX: 0, clientY: 0 });
+    s.root.emit('gesturechange', { scale: 1.5 });
+    s.pointer('pointerdown', 99, 500, 0, 104);
+    s.touch('touchstart', 199, 52, 500);
+    if (type === 'visibilitychange') {
+      Object.assign(document, { hidden: true });
+      (document as unknown as Surface).emit(type, {});
+    } else (window as unknown as Surface).emit(type, {});
+    expect(s.zoom.z).toBe(1.5);
+    expect(s.pages.style.transform).toBe('');
+    expect(s.pen.blocksGestures()).toBe(false);
+    expect((s.zoom as unknown as { busy: boolean }).busy).toBe(false);
+  });
+
+  it('cleans a window release without triggering a tap or swipe', () => {
+    const s = setup(true, 'kitap');
+    s.pointer('pointerdown', 99, 100);
+    (window as unknown as Surface).emit('pointerup', { pointerId: 99, pointerType: 'touch', clientX: 0, clientY: 0, timeStamp: 1000 });
+    expect(s.swipe).not.toHaveBeenCalled(); expect(s.tap).not.toHaveBeenCalled();
+    expect((s.zoom as unknown as { pts: Map<number, unknown> }).pts.size).toBe(0);
+  });
+
+  it('clears stale touch rejection on a fresh touchstart, including when pointerdown was missed', () => {
+    const s = setup(true);
+    s.touch('touchstart', 199, 52);
+    expect(s.pen.blocksGestures()).toBe(true);
+    expect(s.touch('touchstart', 200, 20).defaultPrevented).toBe(false);
+    expect(s.pen.blocksGestures()).toBe(false);
+  });
+
+  it('keeps double tap zoom and zoomed book dragging', () => {
+    const s = setup(true, 'kitap');
+    s.pointer('pointerdown', 1, 100); s.pointer('pointerup', 1, 100);
+    vi.mocked(performance.now).mockReturnValue(1100);
+    s.pointer('pointerdown', 2, 100, 0, 63, 'touch', 1100, true); s.pointer('pointerup', 2, 100);
+    expect(s.zoom.zoomed).toBe(true);
+    s.pointer('pointerdown', 3, 100, 0, 63, 'touch', 1100, true);
+    s.pointer('pointermove', 3, 120); s.pointer('pointerup', 3, 120);
+    expect(s.swipe).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])('cancels only stale finger drawing on primary touch (pen=%s)', pen => {
+    const s = setup(true);
+    s.pointer('pointerdown', 99, 500);
+    const svg = { remove: vi.fn() };
+    const live = { id: 99, pen, svg, pdf: [], raf: 0, box: { releasePointerCapture() {} } };
+    const state = s.pen as unknown as { live: unknown };
+    state.live = live;
+    s.pointer('pointerdown', 1, 0, 0, 63, 'touch', 1000, true);
+    expect(state.live).toBe(pen ? live : null);
+    expect(svg.remove).toHaveBeenCalledTimes(pen ? 0 : 1);
+  });
+
+  it('does not consume a normal release in window capture', () => {
+    const s = setup(true, 'kitap');
+    s.pointer('pointerdown', 1, 100);
+    (window as unknown as Surface).emit('pointerup', { pointerId: 1, pointerType: 'touch',
+      composedPath: () => [s.scroller, window] });
+    expect((s.zoom as unknown as { pts: Map<number, unknown> }).pts.size).toBe(1);
+    s.pointer('pointerup', 1, 100);
+    expect(s.tap).toHaveBeenCalledTimes(1);
+  });
+
+  it('H1: recovers two-finger pinch after a lost release and a new primary touch', () => {
+    const s = setup(true);
+    s.pointer('pointerdown', 99, 500); // detached target: no release reaches the reader
+    s.pointer('pointerdown', 1, 0, 0, 63, 'touch', 1000, true);
+    expect([...(s.zoom as unknown as { pts: Map<number, unknown> }).pts.keys()]).toEqual([1]);
+    s.pointer('pointerdown', 2, 200);
+    s.pointer('pointermove', 2, 240); flushFrames();
+    expect(s.pages.style.transform).toBe('scale(1.2)');
+    s.pointer('pointerup', 2, 240);
+    expect(s.zoom.z).toBe(1.2);
+  });
+
+  it('H2: a new single finger never pinches against a ghost contact', () => {
+    const s = setup(true);
+    s.pointer('pointerdown', 99, 500);
+    s.pointer('pointerdown', 1, 0, 0, 63, 'touch', 1000, true);
+    s.pointer('pointermove', 1, -100); flushFrames();
+    expect(s.pages.style.transform).toBe('');
+    s.pointer('pointerup', 1, -100);
+    expect(s.zoom.z).toBe(1);
+    expect(s.pdfZoom).not.toHaveBeenCalled();
+  });
+
   it('keeps the old two-finger list pan when a pen has never been seen', () => {
     const s = setup(false);
     s.pointer('pointerdown', 1, 0); s.pointer('pointerdown', 2, 200);

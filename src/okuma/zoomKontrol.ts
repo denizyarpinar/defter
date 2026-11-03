@@ -1,4 +1,5 @@
 import { Debouncer } from './cizimKuyrugu';
+import { logStaleTouch, staleTouchEnabled, staleTouchIds, startsTouchSequence, watchTouchRecovery } from './bayatDokunma';
 import { decideFingerGesture, fingerFrame, startFingerGesture, type FingerGesture } from './ikiParmak';
 import {
   TAP_ZOOM, clampPan, clampZoom, isDoubleTap, isZoomed, zoomAround, type Pt
@@ -34,7 +35,7 @@ const WHEEL_COMMIT_MS = 160;
 export class ZoomController {
   z = 1;
   private pan: Pt = { x: 0, y: 0 };
-  private pts = new Map<number, Pt>();            // touch points on the page area
+  private pts = new Map<number, Pt & { last: number }>(); // touch points and last movement time
   private pinch: { d: number; mx: number; my: number } | null = null;
   private pinched = false;                        // this touch had two fingers: no tap / swipe at the end
   private down: { id: number; x: number; y: number; t: number } | null = null;
@@ -69,6 +70,10 @@ export class ZoomController {
     root.addEventListener('gesturestart', e => this.onGesture(e as GestureLike, 'start'));
     root.addEventListener('gesturechange', e => this.onGesture(e as GestureLike, 'change'));
     root.addEventListener('gestureend', e => this.onGesture(e as GestureLike, 'end'));
+    watchTouchRecovery([kitap, scroller], e => {
+      logStaleTouch('zoom-window-end', Number(this.pts.has(e.pointerId)));
+      this.onUp(e, false);
+    }, source => this.clearTouches(source));
   }
 
   get zoomed(): boolean { return isZoomed(this.z); }
@@ -95,25 +100,54 @@ export class ZoomController {
 
   // ---- pointers ----
 
+  private clearTouches(source: string): void {
+    const removed = this.pts.size + Number(this.gesture !== null);
+    this.pts.clear();
+    this.fingers = null;
+    cancelAnimationFrame(this.fingerRaf); this.fingerRaf = 0;
+    this.pinch = null; this.down = null; this.drag = null;
+    this.pinched = false; this.gesture = null; this.pointerGesture = false;
+    this.commitPreview(); this.settleSoon();
+    logStaleTouch(`zoom-${source}`, removed);
+  }
+
+  private pruneTouches(): void {
+    if (!staleTouchEnabled()) return;
+    const ids = staleTouchIds(this.pts, performance.now(), !!this.pinch || (!!this.fingers && this.fingers.mode !== 'waiting'));
+    for (const id of ids) {
+      this.pts.delete(id);
+      if (this.down?.id === id) this.down = null;
+      if (this.drag?.id === id) this.drag = null;
+    }
+    logStaleTouch('zoom-timeout', ids.length);
+    if (ids.length && this.pts.size < 2) this.pinched = false;
+    if (ids.length) {
+      if (this.fingers) this.endFingers();
+      this.startTwoFingers();
+    }
+  }
+
+  private startTwoFingers(): boolean {
+    if (this.pts.size !== 2) return false;
+    const [a, b] = [...this.pts.values()];
+    if (this.host.fingerPan?.()) this.fingers = startFingerGesture(fingerFrame(a, b));
+    else {
+      if (this.host.mode() === 'pdf' && hasGestures) return false;
+      this.pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 };
+      if (this.host.mode() === 'pdf') this.startPreview(this.pinch.mx, this.pinch.my);
+    }
+    this.pinched = true; this.down = null; this.drag = null;
+    return true;
+  }
+
   private onDown(e: PointerEvent): void {
+    if (staleTouchEnabled() && startsTouchSequence(e.pointerType, e.isPrimary)) this.clearTouches('primary');
     if (!this.host.hasPages() || (e.target as HTMLElement).closest('a, button, select')) return;
     if (this.host.penIgnores?.(e.pointerId)) return;
     const pdf = this.host.mode() === 'pdf';
-    if (e.pointerType === 'touch') this.pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (e.pointerType === 'touch' && this.pts.size === 2 && this.host.fingerPan?.()) {
-      const [a, b] = [...this.pts.values()];
-      this.fingers = startFingerGesture(fingerFrame(a, b));
-      this.pinched = true; this.down = null; this.drag = null;
-      return;
-    }
-    if (this.pts.size === 2 && !(pdf && hasGestures)) {
-      const [a, b] = [...this.pts.values()];
-      this.pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 };
-      this.pinched = true;
-      this.down = null; this.drag = null;
-      if (pdf) this.startPreview(this.pinch.mx, this.pinch.my);
-      return;
-    }
+    if (e.pointerType === 'touch') this.pts.set(e.pointerId, { x: e.clientX, y: e.clientY, last: performance.now() });
+    this.pruneTouches();
+    if (this.startTwoFingers()) return;
     if (this.pts.size >= 2) { this.pinched = true; this.down = null; return; }
     if (this.host.penOwns?.(e.pointerId)) return;   // drawing: no tap, swipe or drag
     this.down = { id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now() };
@@ -125,7 +159,8 @@ export class ZoomController {
 
   private onMove(e: PointerEvent): void {
     if (this.host.penIgnores?.(e.pointerId)) { this.rejectPointer(e.pointerId); return; }
-    if (this.pts.has(e.pointerId)) this.pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (this.pts.has(e.pointerId)) this.pts.set(e.pointerId, { x: e.clientX, y: e.clientY, last: performance.now() });
+    this.pruneTouches();
     if (this.fingers) {
       if (!this.fingerRaf) this.fingerRaf = requestAnimationFrame(() => { this.fingerRaf = 0; this.moveFingers(); });
       return;
@@ -152,7 +187,7 @@ export class ZoomController {
     if (this.host.penIgnores?.(e.pointerId)) { this.rejectPointer(e.pointerId); return; }
     // Apply the last queued frame before removing a contact and committing the preview.
     if (this.fingers && this.pts.has(e.pointerId)) {
-      if (up) this.pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (up) this.pts.set(e.pointerId, { x: e.clientX, y: e.clientY, last: performance.now() });
       this.moveFingers();
     }
     this.pts.delete(e.pointerId);
