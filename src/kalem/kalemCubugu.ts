@@ -79,9 +79,10 @@ export function strokeStyle(p: PenPrefs): { arac: StrokeTool; renk: string; kali
 export interface SaveView { kilit: 'acik' | 'ornek'; durum: UploadStatus }
 
 // onDevice (task 4.8a): the unsaved strokes are kept on the device (IndexedDB works)
-export interface ToolbarState { preparing: boolean; dirty: boolean; onDevice: boolean; canUndo: boolean; canRedo: boolean; kayit: SaveView }
+export interface ToolbarState { elModu: boolean | null; preparing: boolean; dirty: boolean; onDevice: boolean; canUndo: boolean; canRedo: boolean; kayit: SaveView }
 
 export interface ToolbarActions {
+  elModu(): void;
   close(): void;
   undo(): void;
   redo(): void;
@@ -92,7 +93,7 @@ export interface ToolbarActions {
 export class PenToolbar {
   prefs = loadPrefs();
   eraser = false;
-  private state: ToolbarState = { preparing: false, dirty: false, onDevice: true, canUndo: false, canRedo: false, kayit: { kilit: 'acik', durum: { tur: 'bos' } } };
+  private state: ToolbarState = { elModu: null, preparing: false, dirty: false, onDevice: true, canUndo: false, canRedo: false, kayit: { kilit: 'acik', durum: { tur: 'bos' } } };
   // Task 6.H1b: up to 1024 px the colours / widths are one button each; they open in a small popover under the
   // bar. It lives next to the bar (the bar's left part scrolls, it would cut the popover off). Under it a
   // see-through cover over the pages: the first tap outside only closes it, it never starts a stroke.
@@ -119,6 +120,7 @@ export class PenToolbar {
     const b = (e.target as HTMLElement).closest<HTMLButtonElement>('button');
     if (!b || b.disabled) return;
     const act = this.act;
+    if (b.dataset.elmodu !== undefined) { this.closePopover(); act.elModu(); return; }
     if (b.dataset.kapat !== undefined) { this.closePopover(); act.close(); return; }
     if (b.dataset.geri !== undefined) { act.undo(); return; }
     if (b.dataset.ileri !== undefined) { act.redo(); return; }
@@ -191,6 +193,7 @@ export class PenToolbar {
     const on = (yes: boolean) => yes ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"';
     const tool = (k: PenTool, label: string) => `<button type="button" data-arac="${k}"${on(cur === k)} title="${label}" aria-label="${label}">${ICONS[k]}<span>${label}</span></button>`;
     const st = this.state;
+    const finger = st.elModu === null ? '' : `<button type="button" data-elmodu${on(st.elModu)} title="${t('kalem.elModu')}" aria-label="${t('kalem.elModu')}">${ICONS.el}<span>${t('kalem.elModu')}</span></button>`;
     const geri = t('kalem.geriAl'), ileri = t('kalem.yinele');
     const history = `<button type="button" data-geri title="${geri} (Ctrl+Z)" aria-label="${geri}"${st.canUndo ? '' : ' disabled'}>${ICONS.geri}<span>${geri}</span></button>`
       + `<button type="button" data-ileri title="${ileri} (Ctrl+Shift+Z)" aria-label="${ileri}"${st.canRedo ? '' : ' disabled'}>${ICONS.ileri}<span>${ileri}</span></button>`;
@@ -206,7 +209,7 @@ export class PenToolbar {
       + `<span class="o-tipucu">${t('kalem.silgiIpucu')}</span></div>`;
     // Task 6.H1b: two parts. The left one may scroll sideways (phone); the right one [Kaydet][status][Kalemi kapat]
     // never moves and sits on the bar's own background.
-    this.el.innerHTML = `<div class="o-kaydir"><div class="o-tgrp">${tool('kalem', t('okuyucu.kalem'))}${tool('fosforlu', t('kalem.fosforlu'))}${tool('silgi', t('kalem.silgi'))}</div>`
+    this.el.innerHTML = `<div class="o-kaydir"><div class="o-tgrp">${tool('kalem', t('okuyucu.kalem'))}${tool('fosforlu', t('kalem.fosforlu'))}${tool('silgi', t('kalem.silgi'))}${finger}</div>`
       + `<span class="sep"></span>${options}`
       + `<span class="sep"></span><div class="o-tgrp">${history}</div></div>`
       + `<div class="o-sag">${saveButton(st)}${statusSlot(st)}`
@@ -227,6 +230,7 @@ function sizeSample(t: StrokeTool, i: number): string {
 // Pen and highlighter: the shapes of the pen-mode cursors (styles.css). Kalemi kapat: the pen, struck through.
 const svg = (d: string) => `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
 const ICONS = {
+  el: svg('<path d="M9 12V4a1.5 1.5 0 0 1 3 0v6l5 1.5a3 3 0 0 1 2 3.5l-1 4a3 3 0 0 1-3 2H11a4 4 0 0 1-3-1.5L4 14a1.5 1.5 0 0 1 2-2l3 2"/>'),
   kalem: svg('<path d="M3 21l1.5-5L16 4.5 19.5 8 8 19.5z"/><path d="M14 6.5l3.5 3.5"/>'),
   fosforlu: svg('<path d="M2.5 21.5l1.5-6.5L15 4l5 5-11 11z"/><path d="M4 15l5 5"/>'),
   silgi: svg('<path d="M4.6 14.6l9-9a1.8 1.8 0 0 1 2.6 0l3.2 3.2a1.8 1.8 0 0 1 0 2.6L12 19H9z"/><path d="M8.5 10.7l5.8 5.8M9 19h11"/>'),

@@ -1,4 +1,28 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { PenToolbar } from './kalemCubugu';
+
+afterEach(() => vi.unstubAllGlobals());
+describe('E-1 toolbar', () => {
+  function setup(elModu: boolean | null) {
+    const events = new Map<string, (e: unknown) => void>();
+    const element = () => ({ innerHTML: '', hidden: false, setAttribute() {}, after() {}, querySelectorAll: () => [],
+      addEventListener: (name: string, fn: (e: unknown) => void) => events.set(name, fn) });
+    vi.stubGlobal('document', { createElement: element }); vi.stubGlobal('addEventListener', vi.fn());
+    const el = element(), act = { close() {}, undo() {}, redo() {}, toolChanged() {}, save() {}, elModu: vi.fn() };
+    const bar = new PenToolbar(el as unknown as HTMLElement, act);
+    bar.set({ elModu, preparing: false, dirty: false, onDevice: true, canUndo: false, canRedo: false, kayit: { kilit: 'ornek', durum: { tur: 'bos' } } });
+    return { el, act, click: () => events.get('click')!({ target: { closest: () => ({ dataset: { elmodu: '' } }) } }) };
+  }
+  it('hides the button when no Pencil has been seen', () => {
+    expect(setup(null).el.innerHTML).not.toContain('data-elmodu');
+  });
+  it.each([false, true])('shows the pressed state %s and calls the action', on => {
+    const s = setup(on);
+    expect(s.el.innerHTML).toMatch(new RegExp(`data-elmodu[^>]*aria-pressed="${on}"`));
+    expect(s.el.innerHTML).toContain('Parmakla yaz');
+    s.click(); expect(s.act.elModu).toHaveBeenCalledTimes(1);
+  });
+});
 import { validateStroke } from './cizgi';
 import { COLORS, DEFAULT_PREFS, HL_OPACITY, SIZES, parsePrefs, saveButton, saveStatus, strokeStyle, type SaveView, type ToolbarState } from './kalemCubugu';
 
@@ -77,7 +101,7 @@ describe('the new palette (task 4.7b)', () => {
 // Task 4.8b: saving to Drive in the tool bar
 describe('saveStatus / saveButton', () => {
   const st = (over: Partial<ToolbarState> = {}, kayit: Partial<SaveView> = {}): ToolbarState => ({
-    preparing: false, dirty: true, onDevice: true, canUndo: true, canRedo: false,
+    elModu: null, preparing: false, dirty: true, onDevice: true, canUndo: true, canRedo: false,
     ...over, kayit: { kilit: 'acik', durum: { tur: 'bos' }, ...kayit }
   });
   const disabled = (html: string) => html.includes(' disabled');

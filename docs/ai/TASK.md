@@ -1,59 +1,65 @@
-# TASK – iPad PDF: iki parmak yakınlaştırma takılması (Z-1)
+# TASK – Kalem modunda "Parmakla yaz" düğmesi (E-1)
 
-Başlangıç: main (Panel 2 sonrası). Hata kaydı: Deniz, 3 Kasım 2026, iPad videosu (PDF modu, kalem açık, sayfa yakınlaştırılmış).
+Başlangıç: main (Z-1 sonrası, main = faz-6). Hata kaydı: Deniz, 3 Kasım 2026.
 
 ## Goal
-iPad'de PDF modunda günde 1–2 kez görülen iki hata kalksın:
-- **H1:** Kalem ve tek parmak kaydırma çalışıyor ama iki parmakla yakınlaştırma/uzaklaştırma hiçbir şey yapmıyor (sayfa yenilenene kadar).
-- **H2:** Ekran "donuyor"; tek parmakla kaydırmak isteyince kaydırma yerine yakınlaştırma/uzaklaştırma oluyor.
+Apple Pencil bir kez görülünce parmak bir daha yazamıyor (`defter-kalem-var` localStorage kalıcı). Kalemin şarjı bitince ya da kişi elle yazmak isteyince yazamıyor, yalnız kaydırabiliyor. Kalem çubuğuna bir **"Parmakla yaz"** düğmesi gelsin:
+- Açıkken: tek parmak yazar/siler (kalem hiç görülmemiş gibi). İki parmak kaydırır/yakınlaştırır, ikinci parmak süren çizgiyi iptal eder (bugünkü "kalem görülmedi" yolu).
+- Pencil ekrana değince düğme **kendiliğinden kapanır**, kalem modu (avuç koruması, parmak kaydırır) geri gelir. Pencil'ın o çizgisi normal çizilir.
+- Düğmeyle elle de kapatılabilir.
 
-## Context (Claude teşhisi)
-İkisinin ortak kökü: **kapanmamış (bayat) dokunma kaydı**.
-- `ZoomController.pts` (`src/okuma/zoomKontrol.ts`) dokunmaları `pointerdown`'da ekler, yalnız `#oKitap`/scroller üzerindeki `pointerup`/`pointercancel` ile siler.
-- iPad Safari'de bir dokunmanın olayları, dokunmanın başladığı öğeye gider. Bu öğe (sayfa canvas'ı, net çizim canvas'ı, kalem SVG katmanı) parmak ekrandayken DOM'dan kaldırılırsa (`freeCanvas`, `dropLayer`, `release`, yakınlaştırma sonrası yeniden yerleşim `replaceChildren`) `pointerup`/`pointercancel` kopmuş ağaçta kalır, scroller'a hiç ulaşmaz. Uygulama değiştirme / Denetim Merkezi / çok parmak sistem hareketi de iptali yutabilir.
-- Sonuç: `pts` içinde hayalet bir kayıt kalır.
-  - Hayalet 1 + gerçek 2 parmak → `pts.size === 3` → `size === 2` dalı hiç çalışmaz, `size >= 2` dalı yalnız `pinched = true` yapar → **H1**.
-  - Hayalet 1 + gerçek 1 parmak → `pts.size === 2` → iki parmak (fingerPan/pinch) yolu hayalet nokta ile tek parmağı "iki parmak" sanar; parmak hareket edince uzaklık değişir → yakınlaştırma → **H2**.
-- Aynı risk `PenInput` (`src/kalem/kalemModu.ts`) içindeki `fingers`, `ignored`, `ignoredTouches`, `touchPointers` için de var (`ignoredTouches` bayat kalırsa `blocksGestures()` hep true olur, her dokunma iptal edilir). Ayrıca `ZoomController.gesture` (Safari `gestureend` kaçarsa) `busy`'yi hep true tutar → net çizim hiç gelmez.
+## Context
+- `src/kalem/girdi.ts` `InputRouter`: `penSeen` true olunca dokunma `gezin`/`yoksay` olur, avuç (≥100/120 px) ve kalem sonrası 300 ms yoksayılır.
+- `src/kalem/kalemModu.ts` `PenInput`: `penSeen` getter'ı; `block()` içinde `twoFingerPdf`, `move()` içinde iki parmak kaydırma bu getter'a bakar.
+- `src/okuma/Okuyucu.ts`: `swipe` (`!penOn || pen.penSeen`), Zoom `fingerPan` (`penOn && pen.penSeen && mode === 'pdf'`), `setPen` içinde `kalem-parmak` sınıfı (`on && !pen.penSeen`), PenInput host `penSeen: () => classList.remove('kalem-parmak')`.
+- `styles.css`: `#okuyucu.kalem-parmak .o-scroll { touch-action: none }` (parmak yazarken liste kaymasın).
+- Z-1 (D34) bayat dokunma temizliği aynı dosyalarda: ona dokunma, yalnız üstüne kur.
 
 ## Kararlar (Claude)
-- K1 Kendini onarma, tahmin değil: **tarayıcıya göre ekranda başka parmak yokken** gelen dokunma (`e.pointerType === 'touch' && e.isPrimary`) yeni bir hareketin başıdır. O anda `ZoomController` tüm dokunma durumunu sıfırlar: `pts`, `fingers` (+ rAF), `pinch` (önizleme varsa `commitPreview` + `settleSoon`), `down`, `drag`, `pinched`, `gesture`, `pointerGesture`. Sonra normal akış devam eder. Neden: kaybolan olayın nereye gittiğinden bağımsız, her türlü bayat kaydı ilk yeni dokunuşta temizler.
-- K2 Aynı kural `PenInput.down` içinde: birincil dokunmada dokunma kayıtları (`fingers`, `ignored`) temizlenir; kalemin (`pen`) süren çizimi etkilenmez. `touchstart`'ta `e.touches.length === e.changedTouches.length` (ekrandaki tüm parmaklar yeni) ise `ignoredTouches` ve `touchPointers` temizlenir. Çizim (`live`/`rub`) bir dokunmaya aitse ve o dokunma bayatsa `cancel()`.
-- K3 Ek güvenlik: `window`'a capture aşamasında `pointerup`/`pointercancel` dinleyicisi (pasif) – ulaşabilen olaylar için aynı silme yolu (`onUp(e, false)` benzeri, ama tap/swipe tetiklemeden). `document` `visibilitychange` (gizlenince) ve `window` `blur`/`pagehide` → K1 sıfırlaması ve `PenInput` dokunma kayıtlarının temizlenmesi (`cancel()` dahil).
-- K4 Kalıcı iki parmak kilidi yok: `size >= 2` ama iki parmak yolu başlamamışsa (3+ kayıt) ve `pts` içinde son 1500 ms'de hiç `pointermove` görmemiş kayıt varsa o kayıt silinir ve iki parmak yolu yeniden denenir. (Kayıt başına `son` zaman damgası tut.) Neden: birincil dokunma gelmeden de (bir parmak hep ekrandayken) takılma çözülsün.
-- K5 Ölçüm: `?olcum=1` açıkken her bayat temizlik bir satır yazar (`dokunmaIptal` ile aynı günlüğe ya da `console.info('zoom-bayat', {kaynak, silinen})`). Normal kullanımda sessiz.
-- K6 Geri alma bayrağı: `zoomKontrol.ts` başında `const BAYAT_TEMIZLE = true;` ve `?bayat=0` kapatır (K1–K4 devre dışı, eski davranış). PenInput tarafı da aynı bayrağa bakar (paylaşılan küçük modül, ör. `src/okuma/bayatDokunma.ts`).
+- K1 Tek kavram "etkin kalem modu": `InputRouter`'a `elModu` alanı eklenir; `get penMode() { return this.penSeen && !this.elModu; }`. Yönlendirmedeki tüm `penSeen` kullanımları (`ignoreTouch`, `move`, `down` içindeki dokunma dalı) `penMode` olur. `penSeen` yalnız "Pencil bu cihazda var mı" bilgisi olarak kalır. Neden: el modu = kalem hiç görülmemiş gibi davranmak; yeni bir yol yazmak yerine eski, denenmiş yol kullanılır.
+- K2 `down('pen', …)` geldiğinde `elModu` true ise false yapılır ve kurucuya verilen yeni `onElModuBitti` geri çağrısı bir kez çağrılır (`rememberPen` gibi). Pencil'ın çizgisi normal başlar.
+- K3 `PenInput`: `get penMode()` (router'dan), `get elModu()`, `setElModu(on: boolean)` eklenir. `block()` ve `move()` içindeki `this.penSeen` → `this.penMode`. `setElModu` değişince süren parmak çizgisi yoksa bir şey iptal edilmez; süren Pencil çizgisi etkilenmez. Host'a `elModuDegisti(on: boolean)` eklenir (hem düğmeyle hem Pencil'la değişince çağrılır).
+- K4 `Okuyucu.ts`: `swipe`, Zoom `fingerPan`, `setPen` içindeki `kalem-parmak` ve host `penSeen` artık `pen.penMode`'a bakar. Ortak küçük fonksiyon: `parmakSinifi()` → `#okuyucu.kalem-parmak` = `penOn && !pen.penMode`; `setPen`, `penSeen`, `elModuDegisti` bunu çağırır. `elModuDegisti` ayrıca araç çubuğunu yeniden çizer (`renderTools()`).
+- K5 Düğme (`kalemCubugu.ts`): ilk araç grubunun sonunda (silgiden sonra) `data-elmodu`, `aria-pressed`, el ikonu (24×24 çizgi SVG, diğer ikonlarla aynı stil), etiket TR "Parmakla yaz" / EN "Write with finger". **Yalnız `penSeen` true iken** görünür (Pencil yoksa parmak zaten yazar). `ToolbarState`'e `elModu: boolean | null` (null = gizli) eklenir; tıklama `act.elModu()` çağırır. Çubuğun tek satır sabit yüksekliği (6.H1) bozulmaz; ≤1024 px yalnız ikon.
+- K6 Hatırlama: localStorage `defter-el-modu` = '1' (açıkken), kapanınca silinir (Pencil değince de). Sayfa yenilense de el modu sürer. Neden: şarj bitmişse her yenilemede yeniden açmak gerekmesin. try/catch, gizli pencerede sadece bellekte.
+- K7 Bildirim (toast, mevcut `toast()`): açılınca TR "Parmakla yazma açık. Kalem değince kapanır." / EN "Finger writing on. Touching the pen turns it off."; Pencil kapatınca TR "Kalem algılandı: parmak yeniden kaydırır." / EN "Pen detected: fingers scroll again.". Düğmeyle kapatınca bildirim yok.
+- K8 El modunda avuç koruması yoktur (bilinçli; düğme açıklaması bunu söylemez, Pencil dönüşü korumayı geri getirir).
+- K9 Kilit: `girdi.ts` başında `export const EL_MODU = true;`, `?elModu=0` düğmeyi gizler ve el modunu her zaman kapalı sayar (eski davranış). Neden: canlıda sorun olursa adresle geri alma.
+- K10 `?olcum=1` açıkken el modu değişimi günlüğe tek satır (`kalemOlcer` veya `console.info('el-modu', {on, kaynak: 'dugme'|'kalem'})`).
 
 ## Relevant Files
-- src/okuma/zoomKontrol.ts (ana değişiklik)
-- src/kalem/kalemModu.ts (`PenInput`: down, block, end)
-- src/okuma/ikiParmak.ts (değişmesi beklenmez)
-- src/okuma/Okuyucu.ts (yalnız gerekiyorsa bağlama; ~520 ve ~600. satırlardaki ZoomController kurulumları)
-- Yeni: src/okuma/bayatDokunma.ts (+ test)
+- src/kalem/girdi.ts, src/kalem/girdi.test.ts
+- src/kalem/kalemModu.ts
+- src/kalem/kalemCubugu.ts, src/kalem/kalemCubugu.test.ts
+- src/kalem/kalemGezinme.test.ts (PenInput davranış testleri buradaysa)
+- src/okuma/Okuyucu.ts (yalnız K4 satırları + düğme bağlama)
+- src/dil/tr.ts, src/dil/en.ts (yeni anahtarlar)
+- src/styles.css (gerekirse düğme ikonu; yeni kural az)
 
 ## Requirements
-1. K1–K6'yı uygula. Saf mantığı (hangi kayıt bayat, ne zaman sıfırlanır) DOM'suz bir fonksiyona ayır ve test et.
-2. Testler (vitest):
-   - Hayalet kayıt + yeni birincil dokunma → `pts` yalnız yeni parmağı içerir; sonra ikinci parmak → pinch/fingerPan yolu başlar (H1 senaryosu).
-   - Hayalet kayıt + tek parmak sürükleme → yakınlaştırma OLMAZ (H2 senaryosu).
-   - Hayalet kayıt varken birincil olmayan dokunma + 1500 ms hareketsiz kayıt → K4 ile silinir.
-   - `?bayat=0` → eski davranış (hayalet kalır).
-   - Normal iki parmak pinch, çift dokunma yakınlaştırma, kitap modu kaydırma/çevirme testleri değişmeden geçer.
-3. Mevcut bütün testler, typecheck, build, dil kontrolü geçer.
-4. DECISIONS.md'ye kısa D34 (bayat dokunma onarımı, bayrak), CURRENT_STATE'e bir satır.
+1. K1–K10'u uygula.
+2. Testler (önce yaz, kırmızı gör, sonra yeşil):
+   - Router: penSeen + elModu → tek parmak `ciz`; ikinci parmak `gezin` + `cancel`; 104 px dokunma yoksayılmaz; kalem sonrası 300 ms yoksaymaz.
+   - Router: elModu açıkken `down('pen')` → `ciz`, elModu false, geri çağrı bir kez.
+   - Router: elModu kapalıyken mevcut tüm testler değişmeden geçer.
+   - Router/PenInput: `?elModu=0` (EL_MODU kapalı) → `setElModu(true)` etkisiz.
+   - Çubuk: penSeen false → düğme yok; true → düğme var, `aria-pressed` doğru; tıklama `act.elModu` çağırır.
+   - PenInput: el modunda Pencil `pointerdown` → `elModuDegisti(false)` çağrılır.
+   - localStorage `defter-el-modu` okunur/yazılır/silinir.
+3. TR/EN anahtarları ekle; `npm run dil` 0.
 
 ## Do Not
-- Yakınlaştırma eşiklerini (PAN/PINCH_THRESHOLD), avuç eşiklerini, `touch-action` değerlerini, `sayfaZoom.ts` tarayıcı zoom korumasını değiştirme.
-- Canvas/SVG oluşturma–silme düzenini değiştirme (bu adımda yalnız durumu onarıyoruz).
-- main'e push/merge yok. faz-6'ya gönderim yalnız Deniz onayıyla.
-- Yeni paket ekleme.
+- Z-1 bayat dokunma mantığını, avuç eşiklerini (100/120 px), 300 ms süresini değiştirme.
+- `defter-kalem-var` kaydını silme ya da anlamını değiştirme.
+- Yeni paket ekleme. Drive/PDF yazma koduna dokunma.
+- `git checkout`/`reset`/`stash`, commit, push yapma.
 
 ## Definition of Done
-- H1 ve H2 senaryoları testte kırmızıdan yeşile döner (önce testi yaz, kırmızı olduğunu göster).
-- Tüm testler + typecheck + build geçer; `git diff --stat` ve tam diff gösterilir.
-- Commit YAPMA; diff'i göster, Claude incelesin.
+- Pencil görülmüş cihazda düğmeyle tek parmak yazar, iki parmak kaydırır; Pencil değince kalem moduna döner; yenilemede el modu korunur.
+- Pencil görülmemiş cihazda hiçbir şey değişmez (düğme yok).
+- Tüm testler + typecheck + build + `npm run dil` geçer.
 
 ## Verification
-- `npm test`, `npm run typecheck`, `npm run build` (repo'daki gerçek komut adlarıyla) çıktılarının özeti.
-- Değişen dosyaların tam diff'i.
-- İncelemeden sonra: faz-6 önizlemede iPad denemesi – yakınlaştırılmış PDF'te kalemle yaz, hızlı kaydır, iki parmakla yakınlaştır/uzaklaştır; ?olcum=1 ile bayat temizlik satırı görülürse kök neden doğrulanmış olur.
+- `npm test`, `npm run typecheck`, `npm run build`, `npm run dil`.
+- Playwright: kalem çubuğu 390×844, 1180×820, 1920×1080 × EN/TR (localStorage `defter-kalem-var=1` ile düğme görünür): tek satır, taşma yok. Ekran görüntülerini `C:\Users\yarpi\Projeler\defter-test-dosyalari\el-modu\` altına koy.
+- Sonunda göster: değişen dosyalar, test sayısı, typecheck/build/dil, `git status`, iPad deneme adımları.

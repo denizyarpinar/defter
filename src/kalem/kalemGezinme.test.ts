@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PenInput, type PenHost } from './kalemModu';
 import { ZoomController } from '../okuma/zoomKontrol';
+import { toast } from '../ui/toast';
 
 vi.mock('./kalemOlcum', () => ({ kalemOlcer: null }));
+vi.mock('../ui/toast', () => ({ toast: vi.fn() }));
 
 // Minimal event surfaces: capture listeners run before bubble listeners, as on the actual scroller.
 class Surface {
@@ -39,6 +41,7 @@ let frames: Map<number, FrameRequestCallback>;
 function flushFrames(): void { const pending = [...frames.values()]; frames.clear(); for (const fn of pending) fn(0); }
 
 beforeEach(() => {
+  vi.mocked(toast).mockClear();
   frames = new Map(); let id = 0;
   vi.spyOn(performance, 'now').mockReturnValue(1000);
   vi.stubGlobal('requestAnimationFrame', (fn: FrameRequestCallback) => { frames.set(++id, fn); return id; });
@@ -50,21 +53,23 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 function setup(known: boolean, mode: 'pdf' | 'kitap' = 'pdf', storageFails = false) {
-  const storage = { getItem: vi.fn(() => { if (storageFails) throw Error('storage'); return known ? '1' : null; }),
-    setItem: vi.fn(() => { if (storageFails) throw Error('storage'); }) };
+  const values = new Map<string, string>(known ? [['defter-kalem-var', '1']] : []);
+  const storage = { getItem: vi.fn((key: string) => { if (storageFails) throw Error('storage'); return values.get(key) ?? null; }),
+    setItem: vi.fn((key: string, value: string) => { if (storageFails) throw Error('storage'); values.set(key, value); }),
+    removeItem: vi.fn((key: string) => { if (storageFails) throw Error('storage'); values.delete(key); }) };
   vi.stubGlobal('localStorage', storage);
   const root = new Surface(), scroller = new Surface(), book = new Surface(), pages = new Surface();
   let pen: PenInput;
   const swipe = vi.fn(), tap = vi.fn(() => false), pdfZoom = vi.fn();
   const zoom = new ZoomController(root.element(), book.element(), new Surface().element(), scroller.element(), pages.element(), {
     mode: () => mode, hasPages: () => true, pdfZoom, settled() {}, tap,
-    swipe: dir => { if (!pen.active || pen.penSeen) swipe(dir); },
+    swipe: dir => { if (!pen.active || pen.penMode) swipe(dir); },
     penOwns: id => pen.owns(id), penIgnores: id => pen.ignores(id),
-    penBlocksGestures: () => pen.blocksGestures(), fingerPan: () => pen.active && pen.penSeen && mode === 'pdf',
+    penBlocksGestures: () => pen.blocksGestures(), fingerPan: () => pen.active && pen.penMode && mode === 'pdf',
   });
   const host: PenHost = { pageAt: () => null, pageAtPoint: () => null, tool: () => 'kalem',
     style: () => ({ arac: 'kalem', renk: '#000', kalinlik: 1, opaklik: 1 }), add() {}, erase() {}, eraseEnd() {}, eraseCancel() {},
-    penSeen() {}, fingerPan: () => mode === 'pdf', scroller: scroller.element() };
+    penSeen() {}, elModuDegisti: vi.fn(), fingerPan: () => mode === 'pdf', scroller: scroller.element() };
   pen = new PenInput([scroller.element(), book.element()], host); pen.active = true;
   const area = mode === 'pdf' ? scroller : book;
   const pointer = (type: string, id: number, x: number, y = 0, width = 63, pointerType = 'touch', time = 1000, isPrimary = false) =>
@@ -73,8 +78,71 @@ function setup(known: boolean, mode: 'pdf' | 'kitap' = 'pdf', storageFails = fal
     const contact = { identifier: id, radiusX: radius, clientX: x, clientY: 0 };
     return area.emit(type, { changedTouches: [contact], touches: Array.from({ length: remaining }, () => contact), timeStamp: 1000 });
   };
-  return { pen, zoom, scroller, pages, root, pointer, touch, swipe, tap, pdfZoom, storage };
+  return { pen, zoom, scroller, pages, root, pointer, touch, swipe, tap, pdfZoom, storage, host };
 }
+
+describe('E-1 PenInput', () => {
+  it('remembers, restores and removes the finger preference', () => {
+    const s = setup(true); s.pen.setElModu(true);
+    expect(s.storage.setItem).toHaveBeenCalledWith('defter-el-modu', '1');
+    const restored = new PenInput([], s.host); expect(restored.elModu).toBe(true);
+    restored.setElModu(false);
+    expect(s.storage.removeItem).toHaveBeenCalledWith('defter-el-modu');
+    expect(s.pen.penSeen).toBe(true);
+  });
+  it('notifies once when Pencil ends finger mode', () => {
+    const s = setup(true); s.pen.setElModu(true); vi.mocked(s.host.elModuDegisti).mockClear();
+    s.pointer('pointerdown', 1, 0, 0, 1, 'pen');
+    expect(s.pen.elModu).toBe(false);
+    expect(s.host.elModuDegisti).toHaveBeenCalledExactlyOnceWith(false);
+    expect(s.storage.removeItem).toHaveBeenCalledWith('defter-el-modu');
+  });
+  it('uses the old two finger pan and does not block broad touches in finger mode', () => {
+    const s = setup(true); s.pen.setElModu(true);
+    s.pointer('pointerdown', 1, 0, 0, 104); s.touch('touchstart', 101, 52);
+    expect(s.pen.blocksGestures()).toBe(false);
+    s.pointer('pointerdown', 2, 200); s.pointer('pointermove', 1, 20); s.pointer('pointermove', 2, 220);
+    expect(s.scroller.scrollBy.mock.calls).toEqual([[-10, 0], [-10, 0]]);
+  });
+  it('ignores stored and requested finger mode under the rollback switch', () => {
+    const s = setup(true); s.pen.setElModu(true);
+    vi.stubGlobal('location', { search: '?elModu=0' });
+    const restored = new PenInput([], s.host); restored.setElModu(true);
+    expect(restored.elModu).toBe(false); expect(restored.penMode).toBe(true);
+  });
+  it('works in memory when storage is unavailable', () => {
+    const s = setup(true, 'pdf', true);
+    expect(() => s.pen.setElModu(true)).not.toThrow(); expect(s.pen.elModu).toBe(true);
+    expect(() => s.pen.setElModu(false)).not.toThrow(); expect(s.pen.elModu).toBe(false);
+  });
+  it.each(['touch', 'pen', 'mouse'])('only cancels an ongoing finger stroke when toggled (%s)', type => {
+    const s = setup(true); const svg = { remove: vi.fn() };
+    const live = { id: 99, pen: type === 'pen', svg, pdf: [], raf: 0, box: { releasePointerCapture() {} } };
+    const state = s.pen as unknown as { live: unknown; fingers: Map<number, { x: number; y: number }> }; state.live = live;
+    if (type === 'touch') state.fingers.set(99, { x: 0, y: 0 });
+    s.pen.setElModu(true);
+    expect(state.live).toBe(type === 'touch' ? null : live);
+  });
+  it('shows the opening toast once, stays silent on manual off, and reports Pencil return', () => {
+    const s = setup(true);
+    s.pen.setElModu(true); s.pen.setElModu(true);
+    expect(toast).toHaveBeenCalledExactlyOnceWith('Parmakla yazma açık. Kalem değince kapanır.');
+    s.pen.setElModu(false); expect(toast).toHaveBeenCalledTimes(1);
+    s.pen.setElModu(true); s.pointer('pointerdown', 1, 0, 0, 1, 'pen');
+    expect(toast).toHaveBeenLastCalledWith('Kalem algılandı: parmak yeniden kaydırır.');
+  });
+  it('logs changes once per transition only with ?olcum=1', () => {
+    const log = vi.spyOn(console, 'info').mockImplementation(() => {});
+    const s = setup(true); s.pen.setElModu(true); expect(log).not.toHaveBeenCalled();
+    vi.stubGlobal('location', { search: '?olcum=1' });
+    s.pen.setElModu(false); s.pen.setElModu(true); s.pen.setElModu(true);
+    s.pointer('pointerdown', 1, 0, 0, 1, 'pen');
+    expect(log.mock.calls).toEqual([
+      ['el-modu', { on: false, kaynak: 'dugme' }], ['el-modu', { on: true, kaynak: 'dugme' }],
+      ['el-modu', { on: false, kaynak: 'kalem' }],
+    ]);
+  });
+});
 
 describe('pen and zoom event coordination', () => {
   it('removes the old point at 1500 ms without requiring a new primary touch (K4)', () => {

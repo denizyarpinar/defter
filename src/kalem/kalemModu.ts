@@ -2,6 +2,8 @@ import { roundPressure, type Stroke } from './cizgi';
 import { curveToSvg, strokeCurve } from './cizgiSekli';
 import { InputRouter } from './girdi';
 import { kalemOlcer } from './kalemOlcum';
+import { t } from '../dil';
+import { toast } from '../ui/toast';
 import { EventOrder, minStep, pushLastPoint, pushPoint, roundPt, screenToViewport, toPdf, type PenViewport } from './koordinat';
 import { eraserRadius, type Pt } from './silgi';
 import { dokunmaIptal } from '../ui/dokunmaIz';
@@ -47,6 +49,7 @@ export interface PenHost {
   eraseEnd(): void;                // the drag ended: one operation
   eraseCancel(): void;             // the drag was cancelled: what it erased comes back
   penSeen(): void;                 // the first Apple Pencil: fingers stop drawing
+  elModuDegisti(on: boolean): void;
   fingerPan(): boolean;            // two fingers should scroll the list (PDF mode, fingers draw)
   scroller: HTMLElement;
 }
@@ -103,7 +106,7 @@ function rememberPen(): void {
 
 export class PenInput {
   active = false;
-  private router = new InputRouter(rememberedPen(), rememberPen);
+  private router = new InputRouter(rememberedPen(), rememberPen, () => this.fingerModeChanged(false, 'kalem'));
   private live: Live | null = null;
   private rub: Rub | null = null;
   private cursor: Cursor | null = null;
@@ -113,6 +116,7 @@ export class PenInput {
   private touchPointers = new Map<number, number>();
 
   constructor(areas: HTMLElement[], private host: PenHost) {
+    try { this.router.setElModu(localStorage.getItem('defter-el-modu') === '1'); } catch { /* storage is optional */ }
     for (const a of areas) {
       if (bound.has(a)) { console.warn('Kalem dinleyicileri bu alana zaten bağlı; ikinci kez bağlanmadı.', a); continue; }
       bound.add(a);
@@ -145,7 +149,7 @@ export class PenInput {
         }
         // Cancel the second touchstart before Safari takes the pointer stream for native scrolling.
         // The pen-known PDF path then pans / pinches in ZoomController; one finger keeps native pan.
-        const twoFingerPdf = this.penSeen && this.host.fingerPan() && e.touches.length >= 2;
+        const twoFingerPdf = this.penMode && this.host.fingerPan() && e.touches.length >= 2;
         if (stylus || this.live?.pen || this.rub?.pen || this.ignoredTouches.size || twoFingerPdf) {
           dokunmaIptal('kalemModu', e); e.preventDefault();
         }
@@ -188,12 +192,34 @@ export class PenInput {
   }
 
   get penSeen(): boolean { return this.router.penSeen; }
+  get penMode(): boolean { return this.router.penMode; }
+  get elModu(): boolean { return this.router.elModu; }
+  setElModu(on: boolean): void {
+    const previous = this.elModu;
+    this.router.setElModu(on);
+    if (previous !== this.elModu) this.fingerModeChanged(this.elModu, 'dugme');
+  }
+  private fingerModeChanged(on: boolean, source: 'dugme' | 'kalem'): void {
+    // A finger stroke cannot survive a mode switch; an actual Pencil stroke keeps going.
+    if ((this.live && !this.live.pen && this.fingers.has(this.live.id))
+      || (this.rub && !this.rub.pen && this.fingers.has(this.rub.id))) this.cancel();
+    try {
+      if (on) localStorage.setItem('defter-el-modu', '1');
+      else localStorage.removeItem('defter-el-modu');
+    } catch { /* private window: keep the preference in memory */ }
+    if (typeof location !== 'undefined' && new URLSearchParams(location.search).get('olcum') === '1') {
+      console.info('el-modu', { on, kaynak: source });
+    }
+    this.host.elModuDegisti(on);
+    if (on) toast(t('kalem.elModuAcik'));
+    else if (source === 'kalem') toast(t('kalem.elModuKalem'));
+  }
   isDrawing(): boolean { return !!this.live || !!this.rub; }
   owns(id: number): boolean { return this.live?.id === id || this.rub?.id === id; }
   ignores(id: number): boolean { return this.active && this.ignored.has(id); }
   blocksGestures(): boolean {
     return this.active && (!!this.live?.pen || !!this.rub?.pen || this.ignored.size > 0
-      || this.ignoredTouches.size > 0 || this.router.penCooling(performance.now()));
+      || this.ignoredTouches.size > 0 || (this.penMode && this.router.penCooling(performance.now())));
   }
 
   private ignorePointer(id: number): void {
@@ -289,7 +315,7 @@ export class PenInput {
     if (prev) {
       this.fingers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       // fingers draw (no pen seen), PDF mode: two fingers move the list (touch-action is none there)
-      if (this.active && !this.penSeen && !this.live && this.fingers.size === 2 && this.host.fingerPan()) {
+      if (this.active && !this.penMode && !this.live && this.fingers.size === 2 && this.host.fingerPan()) {
         this.host.scroller.scrollBy((prev.x - e.clientX) / 2, (prev.y - e.clientY) / 2);
       }
     }

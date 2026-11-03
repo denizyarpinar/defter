@@ -1,5 +1,35 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { InputRouter } from './girdi';
+
+afterEach(() => vi.unstubAllGlobals());
+describe('E-1 finger writing', () => {
+  it('draws with one finger and cancels with the second despite a remembered pen', () => {
+    const r = new InputRouter(true); r.setElModu(true);
+    expect(r.penSeen).toBe(true); expect(r.penMode).toBe(false);
+    expect(r.down('touch', 1)).toEqual({ route: 'ciz', cancel: false });
+    expect(r.down('touch', 2)).toEqual({ route: 'gezin', cancel: true });
+  });
+  it('accepts a 104 px contact, growth and pen cooldown in finger mode', () => {
+    const r = new InputRouter(true);
+    r.down('pen', 9); r.up(9, 100); r.setElModu(true);
+    expect(r.ignoreTouch(104, 200, true)).toBe(false);
+    expect(r.down('touch', 1, 0, false, 104, 200).route).toBe('ciz');
+    expect(r.move(1, 130)).toBe(null);
+  });
+  it('returns to pen mode once and draws the arriving pen', () => {
+    const ended = vi.fn(); const r = new InputRouter(true, () => {}, ended);
+    r.setElModu(true);
+    expect(r.down('pen', 1)).toEqual({ route: 'ciz', cancel: false });
+    expect(r.elModu).toBe(false); expect(r.penMode).toBe(true);
+    r.down('pen', 2); expect(ended).toHaveBeenCalledTimes(1);
+  });
+  it('ignores the toggle with ?elModu=0', () => {
+    vi.stubGlobal('location', { search: '?elModu=0' });
+    const r = new InputRouter(true); r.setElModu(true);
+    expect(r.elModu).toBe(false); expect(r.penMode).toBe(true);
+    expect(r.down('touch', 1).route).toBe('gezin');
+  });
+});
 
 // Task 4.6: which input draws
 

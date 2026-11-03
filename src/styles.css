@@ -797,9 +797,9 @@ body.auth-log-login :is(#olcum, #olcumKalem, #olcumSon) { display: none }
    the tools, Kaydet and "Kalemi kapat" only icons; the 6 colours and 3 widths one button each (popover) */
 @media (max-width: 1024px) {
   .o-tools, .o-kaydir { gap: 6px }
-  .o-tools [data-arac], .o-tools .o-tkapat, .o-tools .o-kaydet { padding: 0 }
-  .o-tools [data-arac] > svg, .o-tools .o-tkapat > svg, .o-tools .o-kaydet > svg { display: block }
-  .o-tools [data-arac] > span, .o-tools .o-tkapat > span, .o-tools .o-kaydet > span { display: none }
+  .o-tools [data-arac], .o-tools [data-elmodu], .o-tools .o-tkapat, .o-tools .o-kaydet { padding: 0 }
+  .o-tools [data-arac] > svg, .o-tools [data-elmodu] > svg, .o-tools .o-tkapat > svg, .o-tools .o-kaydet > svg { display: block }
+  .o-tools [data-arac] > span, .o-tools [data-elmodu] > span, .o-tools .o-tkapat > span, .o-tools .o-kaydet > span { display: none }
   .o-tools .o-tkapat > svg, .o-tools .o-kaydet > svg { width: 24px; height: 24px }
   .o-tools .o-renkler, .o-tools .o-boylar, .o-tools .o-genis { display: none }
   .o-tools .o-kisasec { display: inline-flex; width: 44px; min-width: 44px }

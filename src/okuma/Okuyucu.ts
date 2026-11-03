@@ -60,6 +60,7 @@ import { installOkuyucuKaydirma } from '../ui/okuyucuKaydirma';
 import { setCanvasStats } from '../ui/tani';
 import { ST } from '../ui/reader';
 import { toast } from '../ui/toast';
+import { elModuEnabled } from '../kalem/girdi';
 import { errorText } from '../ui/hataKutusu';
 import { CanvasBudget, deviceLimits, shareBudget } from './canvasButcesi';
 import { SingleFlight } from './cizimKuyrugu';
@@ -530,15 +531,16 @@ export function initOkuyucu(yer: () => DriveLocation | null): void {
       bookView?.flip(zone === 'next' ? 1 : -1);
       return true;
     },
-    swipe: dir => { if (!penOn || pen.penSeen) bookView?.flip(dir); },
+    swipe: dir => { if (!penOn || pen.penMode) bookView?.flip(dir); },
     penOwns: id => pen.owns(id),
     penIgnores: id => pen.ignores(id),
     penBlocksGestures: () => pen.blocksGestures(),
-    fingerPan: () => penOn && pen.penSeen && mode === 'pdf',
+    fingerPan: () => penOn && pen.penMode && mode === 'pdf',
   });
 
   // Task 4.6: pen button, tool bar, live drawing
   toolbar = new PenToolbar($('#oTools'), {
+    elModu: () => pen.setElModu(!pen.elModu),
     close: () => setPen(false),
     undo: () => undoRedo(false),
     redo: () => undoRedo(true),
@@ -602,7 +604,8 @@ export function initOkuyucu(yer: () => DriveLocation | null): void {
       for (const c of penModel.eraseCancel()) relayer(c.key, c.page);
       renderTools();
     },
-    penSeen: () => $('#okuyucu').classList.remove('kalem-parmak'),
+    penSeen: () => { parmakSinifi(); renderTools(); },
+    elModuDegisti: () => { parmakSinifi(); renderTools(); },
     fingerPan: () => mode === 'pdf',
     scroller,
   });
@@ -3006,6 +3009,10 @@ async function drain(): Promise<void> {
 
 const fileKey = (p: BookPage) => `${p.dosyaId}@${p.modifiedTime}`;
 
+function parmakSinifi(): void {
+  $('#okuyucu').classList.toggle('kalem-parmak', penOn && !pen.penMode);
+}
+
 function setPen(on: boolean): void {
   if (on === penOn) return;
   if (on && !pages.some(p => pageKind(p) === 'pdf')) { toast(dilT('okuyucu.kalemPdfYok')); return; }
@@ -3018,7 +3025,7 @@ function setPen(on: boolean): void {
   const el = $('#okuyucu');
   el.classList.toggle('kalem', on);
   // no Apple Pencil seen yet: one finger draws, so the list must not scroll under it
-  el.classList.toggle('kalem-parmak', on && !pen.penSeen);
+  parmakSinifi();
   showTool();
   const btn = $('#oPenBtn');
   btn.classList.toggle('on', on);
@@ -3042,7 +3049,7 @@ function setPen(on: boolean): void {
 function renderTools(): void {
   const dirty = penModel.dirty;
   const kilit = isSampleId(folder) && !bosSahte ? 'ornek' : 'acik';
-  toolbar?.set({ preparing: penOn && penModel.loading, dirty, onDevice: pendingStore.ok, canUndo: penModel.canUndo(yerGorunumu), canRedo: penModel.canRedo(yerGorunumu), kayit: { kilit, durum: saveState } });
+  toolbar?.set({ elModu: pen?.penSeen && elModuEnabled() ? pen.elModu : null, preparing: penOn && penModel.loading, dirty, onDevice: pendingStore.ok, canUndo: penModel.canUndo(yerGorunumu), canRedo: penModel.canRedo(yerGorunumu), kayit: { kilit, durum: saveState } });
   // reading mode (no tool bar): a dot on the pen button
   const btn = document.querySelector<HTMLButtonElement>('#oPenBtn');
   if (btn) {

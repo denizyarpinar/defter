@@ -346,6 +346,9 @@ export const tr = {
   'hata.drive.klasorListelenirken': 'Klasör listelenirken',
   'hata.drive.bozukJson': "{ne}: dosyanın içi bozuk (geçerli JSON değil). Drive'da dosyayı düzelt; o zamana kadar okuma yerin kaydedilmiyor.",
   // 6.5-3: the pen bar
+  'kalem.elModu': 'Parmakla yaz',
+  'kalem.elModuAcik': 'Parmakla yazma açık. Kalem değince kapanır.',
+  'kalem.elModuKalem': 'Kalem algılandı: parmak yeniden kaydırır.',
   'kalem.renk.siyah': 'Siyah',
   'kalem.renk.mavi': 'Mavi',
   'kalem.renk.kirmizi': 'Kırmızı',
