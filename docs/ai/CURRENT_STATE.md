@@ -1,11 +1,12 @@
 # CURRENT_STATE
 
-Son güncelleyen: Codex, 3 Kasım 2026 · canlı adres mydefter.app olarak güncellendi
+Son güncelleyen: Codex, 3 Kasım 2026 · Vercel Web Analytics hazır; Deniz commit/main yayınına onay verdi
 ## Git ve yayın
 - main = production https://mydefter.app; faz-6 = önizleme.
 - 6.6-3b + 6.6-3c canlıda; KONU_TASI=true, taşıma için adres parametresi gerekmiyor.
 - Geri alma: KONU_TASI=false (parametresiz taşıma kapanır; ?konuTasi=1 geliştirme açılışı kalır), ?konuAra=0 (arama kapanır).
 ## Bitenler (özet)
+- Panel (D32): @vercel/analytics 2.0.1; yalnız üretim mydefter.app, ?analiz=0 kapatır, query/hash silinir; EN/TR gizlilik güncellendi. 2087/2087 test + typecheck/build/dil geçti; tarayıcıda yerel alan adı taklidi geçti, canlı doğrulama bekliyor.
 - Faz 1–5, 6.1–6.3, 6.H/6.K, OCR/Temiz yazı/atlas, sayfa işleri ve EN/TR canlıda.
 - 6.6-0/1a/1b, 5a/5b/6 oturum işleri, 6.6-2 çoklu özet (D30), 6.6-3a sürükle-bırak canlıda.
 - 6.6-3b konuyu başka üniteye taşıma (D31; D12 güncellendi):
@@ -23,6 +24,7 @@ Son güncelleyen: Codex, 3 Kasım 2026 · canlı adres mydefter.app olarak günc
 - Canlıya çıkış: kose-olcum hariç 2078/2078 test (165 dosya), typecheck/build/dil geçti; TR/EN 906 anahtar, dil 0.
 - Sahte Drive + Playwright 390×844 / 1180×820 × EN/TR: taşıma, boş ünite, Geri al, Tekrar dene, Vazgeç, toparlama geçti; dil:ekran 160 ekran, taşma 0.
 ## Sıradaki
+0. Vercel Analytics → Enable ve yayın sonrası canlı ağ/URL doğrulaması.
 1. 6.6-4 OCR sadeleştirme.
 2. Faz 7 (quiz/özet).
 ## Açık riskler

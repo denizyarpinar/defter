@@ -1,29 +1,43 @@
-# TASK – 6.6-3c: Okuyucu konu yolunu bulamazsa Konu-NN'yi kitabın ünitelerinde arasın
+# TASK – Panel: Vercel Web Analytics (çerezsiz ziyaretçi sayacı)
 
-Onaylı plan (keşif 6.6-3c-0, Deniz onayı 2 Kasım 2026). Başlangıç: main = bd3f606 (6.6-3b canlı, KONU_TASI=false). D31: Konu-NN klasör adı kitapta tek ve taşımada değişmez.
+Karar (Claude, 3 Kasım 2026): Defter'de sunucu/veritabanı yok; kullanıcı listesi tutmak gizlilik sayfasını ve Google Limited Use'u zorlar. Bu yüzden panel = Vercel Web Analytics (çerezsiz, toplu sayım) + Google Cloud'un hazır Drive API grafikleri (kod yok). E-posta/ad hiçbir yere gönderilmez.
 
 ## Goal
-Okuyucu bir konunun kitap.json yolunu Drive'da bulamazsa (başka sekme/cihazda eski kitap.json; toparlama-Vazgeç sonrası json eski yolda, klasör yeni ünitede) "Konu klasörü bulunamadı" demeden önce konuyu bulsun ve açsın:
-(a) kitap.json Drive'dan tazelenir; aynı Konu-NN adı başka yolda tekse o yol kullanılır (Drive'a yazma yok, bildirim yok).
-(b) olmazsa tek sorgu: `name = 'Konu-NN-…'` ve ebeveyn ∈ kitabın ünite klasörleri; tam 1 sonuç → bulundu. Gerekirse kitap.json yolu düzeltilir.
+mydefter.app'te ziyaretçi, sayfa görüntüleme, ülke, cihaz/tarayıcı sayıları Vercel panosunda görünsün. Gizlilik sayfası bunu doğru anlatsın.
 
-## Kararlar
-- K1 Yeniden kullanılan: `yenidenYukle` deseni (parseBook) tazeleme için; json düzeltmesi `konuTasiYaz` toparla yolu (klasör zaten hedefte → Drive'da taşıma yok, yalnız `jsonDegistir` + `tasiYerel`), kuyruk üzerinden.
-- K2 `konuBul` bir açılışta en fazla bir kez (döngü yok). Yeniden açmadan önce `topicCache` ve resolver'daki null kayıtları temizlenir. Ağ hatasında bugünkü davranış sürer ve null önbelleğe girmez.
-- K3 json düzeltmesi yalnız `konuTasiAcik()` iken. Kilitliyken ya da eski ünite klasörü Drive'da yoksa json yazılmaz; yol yalnız bellekte değişir, konu açılır, hata gösterilmez.
-- K4 Toast yalnız json düzeltildiyse: "Konu başka ünitede bulundu; içindekiler düzeltildi." / "Topic found in another unit; contents updated." (a) yolunda bildirim yok.
-- K5 `topicFolderId` (foto/dosya ekleme) düzeltilmiş yolu kullanır; testi var.
-- K6 Kilit `KONU_ARA = true`; `?konuAra=0` aramayı tamamen kapatır. KONU_TASI false kalır.
+## Context
+- index.html tek giriş; `src/main.ts` modül. Sunucu tarafı yalnız `api/oku.ts` (sahibe özel OCR), dokunulmaz.
+- public/privacy.html şu an "analytics tracking yok / analiz takibi bulunmaz" diyor (EN + TR, bölüm 3) → değişmeli.
+- Vercel Hobby planı: sayfa görüntüleme ücretsiz; özel olaylar (custom events) Pro ister → özel olay YOK.
+
+## Relevant Files
+- package.json, src/main.ts (veya en erken başlangıç dosyası), public/privacy.html, docs/ai/DECISIONS.md, docs/ai/CURRENT_STATE.md
+
+## Requirements
+1. `npm i @vercel/analytics` (tam sürüm sabitle, `^` yok).
+2. Yeni dosya `src/analiz.ts`: `ANALIZ_ACIK = true` bayrağı; `?analiz=0` o oturumda kapatır.
+   - `inject({ mode: 'auto', beforeSend })` yalnız `import.meta.env.PROD` ve `location.hostname === 'mydefter.app'` iken (önizleme/localhost sayılmaz).
+   - `beforeSend`: URL'den query (`?…`) ve hash (`#…`) silinir; yalnız `origin + pathname` gider. Hiçbir zaman e-posta, ad, dosya adı, Drive kimliği gönderilmez.
+3. `main.ts` başında `analizBaslat()` çağrılır; hata atarsa yutulur (uygulama asla bozulmaz).
+4. privacy.html (EN + TR, iki yerde):
+   - Bölüm 3'e Vercel maddesinin altına: "Vercel Web Analytics: counts page views without cookies; records page path (without query or hash), referrer, country, browser, OS and device type in aggregate. No account details, Google user data or document information is sent." / TR karşılığı.
+   - "Defter’s app code does not include advertising or analytics tracking" → "Defter shows no advertising and uses no cross-site tracking; it uses only the cookieless Vercel Web Analytics described above." TR: "Defter reklam göstermez, siteler arası takip yapmaz; yalnız yukarıda açıklanan çerezsiz Vercel Web Analytics'i kullanır."
+   - "Last updated / Son güncelleme" → 3 November 2026 / 3 Kasım 2026.
+5. Testler (`src/analiz.test.ts`): beforeSend query+hash siler; `?analiz=0` → inject çağrılmaz; localhost/önizleme → çağrılmaz; inject hata atarsa uygulama devam.
+6. DECISIONS'a D32: "Panel = Vercel Web Analytics, çerezsiz, URL yalnız path; kullanıcı listesi/DB tutulmaz." CURRENT_STATE'e bir satır.
 
 ## Do Not
-- Drive'da taşıma, ad değiştirme, delete yok. Yeni Drive dosyası yok.
-- checkout/reset/stash/push yok; commit yok (Deniz denedikten sonra).
-- DECISIONS/AGENTS değişmez.
+- Kullanıcı e-postası/adı/Drive verisi toplama, veritabanı, yeni api/ dosyası yok.
+- Speed Insights, Google Analytics, çerez yok. api/oku.ts'ye dokunma.
+- push yok; commit Deniz onayından sonra.
 
 ## Definition of Done
-- Eski yolla açılan konu açılır (iki sekme senaryosu, toparla-Vazgeç senaryosu).
-- Testler: konuAra saf işlevler + bayrak; konuBul akışı (tazele yeterli, sorgu tek/0/çok, ağ hatası, kilitliyken yazma yok, eski ünite yok → yazma yok, json zaten doğru → yazma yok); okuyucu konuBul tek çağrı; topicFolderId düzeltilmiş yol.
+- Testler + typecheck + build + dil kontrolü geçer.
+- Önizlemede ağ sekmesinde `/_vercel/insights/` isteği YOK; canlıda var ve gönderilen URL'de `?` ve `#` yok.
 
 ## Verification
-- `npm test`, `npm run typecheck`, `npm run build`, dil kontrolü.
-- Laptop: `http://localhost:5173/?kurulum=1&olcum=1&konuTasi=1` – iki sekme; toparla-Vazgeç.
+- `npm test`, `npm run typecheck`, `npm run build`, `npm run dil`.
+- Geri alma: `ANALIZ_ACIK = false` (tek satır) veya Vercel panosunda Analytics → Disable. privacy.html eski metne commit revert ile döner.
+
+## Deniz'in tek tıkı (kod dışı)
+Vercel → defter projesi → Analytics sekmesi → Enable. Canlıya çıkınca sayılar ~30 sn içinde görünür.

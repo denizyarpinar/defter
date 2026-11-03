@@ -1,3 +1,4 @@
+import { analizBaslat } from './analiz';
 import { konuTasiBagla } from './ui/konuTasiAkisi';
 import { kitaptaTasi, konuTasiAcik, yolCevir } from './kitap/konuTasi';
 import type { TasiIsi } from './drive/konuTasiYaz';
@@ -60,6 +61,8 @@ import { dilTercihiYaz, driveDilApi } from './drive/dilTercihi';
 import { htmlDoldur } from './dil/html';
 import { donusAl, donusYaz, type DilDonus } from './dil/donus';
 import { dilDugmeleriGuncelle, dilDugmeleriKur } from './ui/dilDugmesi';
+
+analizBaslat();
 
 // task 6.5-1: index.html's fixed texts in the chosen language, before anything shows them
 htmlDoldur();
