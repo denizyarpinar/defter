@@ -1,8 +1,8 @@
 # CURRENT_STATE
 
-Son güncelleyen: Codex, 2 Kasım 2026 · Deniz onayıyla 6.6-3 canlıya çıkış, taşıma kilidi açık
+Son güncelleyen: Codex, 3 Kasım 2026 · canlı adres mydefter.app olarak güncellendi
 ## Git ve yayın
-- main = production https://defter-jade.vercel.app; faz-6 = önizleme.
+- main = production https://mydefter.app; faz-6 = önizleme.
 - 6.6-3b + 6.6-3c canlıda; KONU_TASI=true, taşıma için adres parametresi gerekmiyor.
 - Geri alma: KONU_TASI=false (parametresiz taşıma kapanır; ?konuTasi=1 geliştirme açılışı kalır), ?konuAra=0 (arama kapanır).
 ## Bitenler (özet)

@@ -4,7 +4,7 @@
 
 ![Defter demo](docs/demo.gif)
 
-**[▶ Try the live demo](https://defter-jade.vercel.app/?demo)** — opens a sample library, no sign-in needed.
+**[▶ Try the live demo](https://mydefter.app/?demo)** — opens a sample library, no sign-in needed.
 
 ---
 
@@ -104,7 +104,7 @@ flowchart LR
   Patch -->|offline / 5xx| IDB
 ```
 
-**Try it:** open the [demo](https://defter-jade.vercel.app/?demo), choose *Programlamaya Giriş* → *Değişkenler ve veri tipleri* → the *Özet* tab. The summary already has a few handwritten notes; tap the pen button to add your own. The demo never writes to Drive — your strokes stay in your browser.
+**Try it:** open the [demo](https://mydefter.app/?demo), choose *Programlamaya Giriş* → *Değişkenler ve veri tipleri* → the *Özet* tab. The summary already has a few handwritten notes; tap the pen button to add your own. The demo never writes to Drive — your strokes stay in your browser.
 
 ## Notebook and adding
 

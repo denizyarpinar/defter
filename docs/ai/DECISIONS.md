@@ -51,7 +51,7 @@ Bu dosya AGENTS.md "Değişmez kurallar" ile çelişirse mimari konuda bu dosya 
 - D28 – iPad bütçesi: pixel ratio ≤ 2, gölge haritası ≤ 2048, sahne değişmiyorsa render yok.
 
 ## Dallar ve yayın
-- D29 – main = canlı (defter-jade.vercel.app); faz-6 = önizleme. main'e push yalnız Deniz'in açık onayıyla; force push yok.
+- D29 – main = canlı (mydefter.app); faz-6 = önizleme. main'e push yalnız Deniz'in açık onayıyla; force push yok.
 
 - D30 – Birden çok özet (6.6-2, 2 Kasım 2026): ilk özet konu klasöründe ozet.pdf; sonrakiler Ozetler/<ad>.pdf, okuyucuda seçiciyle ayrı açılır. Neden: özet uzamasın, Uebungen deseni yeniden kullanılsın.
 - D31 – Konu taşıma (6.6-3b, 2 Kasım 2026): konu başka üniteye yalnız klasörün ebeveyni değiştirilerek (addParents/removeParents) taşınır, klasör adı (Konu-NN) değişmez; sonra kitap.json yolu güncellenir. Neden: Konu-NN kitap boyunca benzersiz, yeniden adlandırma ek risk.
