@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { DriveFile } from '../drive/drive';
-import { bantKarari, ekOzetAdi, ekAyriAcik, ekIslemId, ekSaltOkunur, pdfLibYuklensinMi, siradakiEk, type BantGirdisi } from './ozetEkBandi';
+import { bantKarari, ekBantDosyasi, ekOzetAdi, ekAyriAcik, ekIslemId, ekSaltOkunur, pdfLibYuklensinMi, siradakiEk, type BantGirdisi } from './ozetEkBandi';
 
 // Task 6.EK-1: the pure part of the summary addition band.
 
@@ -117,5 +117,27 @@ describe('EK-3 separate summary', () => {
     expect(ekOzetAdi('ozet-ek-3.pdf', ['a.pdf'])).toBe('ozet-3.pdf');
     expect(ekOzetAdi('ozet-ek-x.pdf', ['X.PDF', 'x-2.pdf'])).toBe('x-3.pdf');
     expect(ekOzetAdi('ozet-ek-a/b.pdf', ['ab.pdf'])).toBe('ab-2.pdf');
+  });
+});
+
+
+describe('EK-3b open summary', () => {
+  const first = ek('summary', null, 'ozet.pdf');
+  const second = ek('second', null, 'ikinci.pdf');
+  const m = { orijinal: [], uebungen: [], oedevler: [], ozet: [first, second].map(file => ({ file, cozum: null })) };
+  it('offers additions in the second summary and targets that exact file', () => {
+    expect(ekBantDosyasi(m, 1, true)).toEqual(second);
+    expect(durumlar(girdi({ ayri: true }))).toEqual(['goster']);
+  });
+  it('a mark from the first summary also hides the addition in the second', () => {
+    expect(ekBantDosyasi(m, 1, true)?.id).toBe('second');
+    expect(durumlar(girdi({ ayri: true, isaretler: new Set([ekIslemId(ek('A'))]) }))).toEqual(['gizli']);
+  });
+  it('rollback keeps the first named summary only; additions stay read only', () => {
+    expect(ekBantDosyasi(m, 1, false)).toBeNull();
+    expect(ekBantDosyasi(m, 0, false)).toEqual(first);
+    const additions = { ...m, ozet: [{file: ek('A'), cozum: null}] };
+    expect(ekBantDosyasi(additions, 0, true)?.id).toBe('A');
+    expect(ekBantDosyasi(additions, 0, false)).toBeNull();
   });
 });

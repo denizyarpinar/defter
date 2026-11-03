@@ -1,5 +1,5 @@
 import type { DriveFile } from '../drive/drive';
-import { ozetEkMi } from '../okuma/konuKesfi';
+import { gercekOzet, type TopicMaterials, ozetEkMi } from '../okuma/konuKesfi';
 import { dosyaAdiHazirla } from './konuyaDosyaEkle';
 
 export const EK_AYRI = true;
@@ -93,4 +93,12 @@ export function ekOzetAdi(ad: string, mevcut: readonly string[]): string {
   const base = name.slice(0, -4);
   for (let n = 2; used.has(name.toLowerCase()); n++) name = `${base}-${n}.pdf`;
   return name;
+}
+
+// EK-3b: the selected real summary, or the read-only addition when no summary exists.
+export function ekBantDosyasi(m: TopicMaterials, index: number, ayri: boolean): DriveFile | null {
+  const file = m.ozet[index]?.file;
+  if (!file) return null;
+  if (!ayri) return index === 0 && /^(ozet|brifing|sorular)\.pdf$/i.test(file.name) ? file : null;
+  return gercekOzet(m).some(x => x.file.id === file.id) || ekSaltOkunur(file.name) ? file : null;
 }

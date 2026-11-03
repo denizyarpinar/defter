@@ -699,6 +699,7 @@ export const en: Sozluk = {
   'ek.ayriEkle': 'Add as separate summary',
   'ek.ayniEkle': 'Add to this summary',
   'ek.ekle': 'Add',
+  'ek.acikOzet': ' · open summary: {hedef}',
   'ek.yeni': 'New add-on: {ad}',
   'ek.guncellendi': 'Updated add-on: {ad}',
   'ek.saltOkunur': 'Add-on file is read-only',

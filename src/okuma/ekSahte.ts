@@ -6,10 +6,13 @@ import { MESAJLAR } from '../defter/sayfaEkle';
 // Task 6.EK-2, development only (`npm run dev`, never in the build): window.defterEkSahte(o) gives the open reader
 // made-up summary additions, so the band shows in the sample library (scripts/ozet-ek-kontrol.mjs). The marks are a
 // list in memory, "Ekle" only waits (with progress) and then adds the mark, fails, or says "already going".
+// EK-3b can also replace the summary listing after success to exercise refreshTopic/showAddedFile.
 // Nothing is read from or written to Drive.
 
 export interface EkSahteSecenek {
   ozetVarMi?: boolean;
+  ozetler?: DriveFile[]; // EK-3b: selector fixtures
+  yeniOzet?: DriveFile; // successful creation, used by the real refresh/show path
   dosyalar?: DriveFile[];
   ekler: { ad: string; id?: string; md5?: string }[];
   isaretler?: string[] | 'yazilamaz';     // the summary's /DefterEkId marks; 'yazilamaz': encrypted / signed
@@ -17,9 +20,10 @@ export interface EkSahteSecenek {
   sure?: number;                          // ms the fake upload takes (default 1200)
 }
 
-export interface EkSahteDurum { eklenen: string[]; isaretler: string[] | 'yazilamaz' }
+export interface EkSahteDurum { hedefId?: string; eklenen: string[]; isaretler: string[] | 'yazilamaz' }
 
 export interface EkSahte {
+  yeniOzet?: DriveFile;
   ozetVarMi: boolean;
   dosyalar: DriveFile[];
   ekler: DriveFile[];
@@ -36,6 +40,7 @@ export function ekSahte(o: EkSahteSecenek): EkSahte {
     md5Checksum: e.md5 ?? `${'0'.repeat(31)}${i + 1}`
   }));
   return {
+    yeniOzet: o.yeniOzet,
     ozetVarMi: o.ozetVarMi ?? true, dosyalar: o.dosyalar ?? [],
     ekler, durum, yazilamazNeden: MESAJLAR.sifreli,
     isaretler: () => durum.isaretler === 'yazilamaz' ? 'yazilamaz' : new Set(durum.isaretler),

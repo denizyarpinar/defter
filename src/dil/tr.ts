@@ -728,6 +728,7 @@ export const tr = {
   'ek.ayriEkle': 'Ayrı özet olarak ekle',
   'ek.ayniEkle': 'Aynı özete ekle',
   'ek.ekle': 'Ekle',
+  'ek.acikOzet': ' · açık özet: {hedef}',
   'ek.yeni': 'Yeni ek var: {ad}',
   'ek.guncellendi': 'Güncellenmiş ek: {ad}',
   'ek.saltOkunur': 'Ek dosya salt okunur',

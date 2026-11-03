@@ -33,7 +33,7 @@ import { bekleyenFotoDepo } from '../defter/bekleyenFoto';
 import type { BekleyenFoto, BekleyenJpeg } from '../defter/bekleyenFotoKayit';
 import { FotoEkleyici } from '../defter/fotoEkleme';
 import { hazirlikAl, hazirlikEkle, mb, olcumAcik, olcumAl, olcumBaslat, olcumBitir, type Olcum } from '../defter/sureOlcum';
-import { bantKarari, ekAyriAcik, ekOzetAdi, ekSaltOkunur, siradakiEk, type EkKarari } from '../defter/ozetEkBandi';
+import { bantKarari, ekBantDosyasi, ekAyriAcik, ekOzetAdi, ekSaltOkunur, siradakiEk, type EkKarari } from '../defter/ozetEkBandi';
 import { seritDurumu } from '../defter/fotoEklemeMetin';
 import { DOSYA_ACCEPT, dosyaTuru, ILK_BAYT_SAYISI, type DosyaTuruSonucu } from '../defter/dosyaTuru';
 import type { HazirDosya } from '../defter/dosyaHazirla';
@@ -370,6 +370,10 @@ export function initOkuyucu(yer: () => DriveLocation | null): void {
       if (o !== undefined) {
         ekSahteAktif = o ? m.ekSahte(o) : null;
         ekDurum = null;
+        if (o && o.ozetler && topic) {
+          topic.materials = { ...topic.materials, ozet: o.ozetler.map(file => ({ file, cozum: null })) };
+          renderBar();
+        }
         if (open && topic) void ekBandi(topic);
       }
       return ekSahteAktif?.durum ?? null;
@@ -1102,6 +1106,7 @@ function useMark(t: OpenTopic, mark: PageMark): PageMark | null {
 async function showMaterial(start?: PageMark | null, kitapTaraf?: Taraf): Promise<void> {
   if (!topic || !content || topic.kind === null) return;
   const t = topic, kind = topic.kind, my = ++session;
+  ekBakilanOturum = -1;
   materyalsizMod(null);
   photoBox.ekSeritGoster(null);   // task 6.EK-2: checked again once the list's first page is drawn
   uploadNow();   // task 4.8b: another material / topic
@@ -1609,10 +1614,11 @@ function ilkSayfaCizildi(): void {
 // summary's bytes come from the cache (the list on screen has them).
 async function ekBandi(t: OpenTopic): Promise<void> {
   const s = ekSahteAktif;
-  const gecerli = () => open && topic === t && t.kind === 'ozet' && t.fileIndex === 0
-    && (/^(ozet|brifing|sorular)\.pdf$/i.test(t.materials.ozet[0]?.file.name ?? '')
-      || (ekAyriAcik() && (!!s || ekSaltOkunur(t.materials.ozet[0]?.file.name))))
-    && pages.some(p => p.dosyaId === t.materials.ozet[0]?.file.id);
+  const my = session;
+  const acikDosya = ekBantDosyasi(t.materials, t.fileIndex, ekAyriAcik());
+  const gecerli = () => open && topic === t && session === my && t.kind === 'ozet'
+    && !!acikDosya && t.materials.ozet[t.fileIndex]?.file.id === acikDosya.id
+    && pages.some(p => p.dosyaId === acikDosya.id);
   const ozet = s?.ozetVarMi === false ? [] : gercekOzet(t.materials).map(m => m.file);
   const ekler = s ? s.ekler : ekleriAl(t.materials);
   const drive = !!s || (!isSampleId(folder) && !!driveLocation());
@@ -1622,7 +1628,7 @@ async function ekBandi(t: OpenTopic): Promise<void> {
   }
   try {
     const { ozetHedefi } = await import('../defter/dosyaPanelDurumu');
-    const hedef = ozetHedefi(t.materials, pages[focusPage()]?.dosyaId ?? null, null) ?? (ekAyriAcik() ? ekler[0] : null);
+    const hedef = ozetHedefi(t.materials, ekAyriAcik() ? acikDosya?.id ?? null : pages[focusPage()]?.dosyaId ?? null, null) ?? (ekAyriAcik() ? ekler[0] : null);
     if (!hedef) { photoBox.ekSeritGoster(null); return; }
     let isaretler: Set<string> | 'yazilamaz', neden: string | null = null;
     try {
@@ -1644,7 +1650,7 @@ async function ekBandi(t: OpenTopic): Promise<void> {
   } catch (e) {
     if (e instanceof SessionExpired) return;
     console.warn('Özet ekleri: özetin işaretlerine bakılamadı.', e);
-    if (topic === t) photoBox.ekSeritGoster(null);
+    if (gecerli()) photoBox.ekSeritGoster(null);
   }
 }
 
@@ -1674,7 +1680,8 @@ async function ozetIsaretleri(dosyalar: readonly DriveFile[], hedef: DriveFile):
 function ekSeridiCiz(t: OpenTopic, k: EkKarari, hedef: DriveFile, neden: string | null): void {
   const d = ekDurum?.t === t && ekDurum.islemId === k.islemId ? ekDurum : null;
   photoBox.ekSeritGoster({
-    metin: dilT(k.durum === 'guncellendi' ? 'ek.guncellendi' : 'ek.yeni', { ad: k.file.name }),
+    metin: dilT(k.durum === 'guncellendi' ? 'ek.guncellendi' : 'ek.yeni', { ad: k.file.name })
+      + (ekAyriAcik() && gercekOzet(t.materials).length > 1 ? dilT('ek.acikOzet', { hedef: hedef.name }) : ''),
     neden: k.durum === 'yazilamaz' ? neden : null,
     hata: d?.hata ?? null,
     ekleniyor: d?.calisiyor ? (d.yuzde != null ? dilT('dosya.ekleniyorYuzde', { yuzde: d.yuzde }) : dilT('dosya.ekleniyor')) : null,
@@ -1703,7 +1710,11 @@ async function ekEkle(t: OpenTopic, k: EkKarari, hedef: DriveFile, neden: string
   try {
     let r: DosyaEklendi | null = null;
     const target: DosyaHedefi = k.durum === 'ozetYok' ? 'ozet' : ayri ? 'yeniOzet' : { ozetSonu: hedef };
-    if (s) await s.ekle(k.islemId, yukleme);
+    if (s) {
+      s.durum.hedefId = typeof target === 'object' && 'ozetSonu' in target ? target.ozetSonu.id : undefined;
+      await s.ekle(k.islemId, yukleme);
+      if (s.yeniOzet) r = { kind: 'yeni', fileId: s.yeniOzet.id, ad: s.yeniOzet.name, bytes: new Uint8Array() };
+    }
     else {
       const [{ konuyaDosyaEkle }, konu, bytes] = await Promise.all([import('../defter/konuyaDosyaEkle'), topicFolderId(t), getPdf(k.file.id, k.file.modifiedTime)]);
       const files = ayri ? await ekKayitDosyalari(t) : [];
@@ -1713,6 +1724,7 @@ async function ekEkle(t: OpenTopic, k: EkKarari, hedef: DriveFile, neden: string
     }
     ekEklendi.add(k.islemId);
     if (ekDurum === d) ekDurum = null;
+    if (ekAyriAcik() && open && topic === t) photoBox.ekSeritGoster(null);
     if (r) { agacGecersiz(); await afterFileAdded(t, target, r, target === 'yeniOzet' || target === 'ozet'); }
     else toast((await import('../defter/dosyaPanelDurumu')).eklendiMetni(k.file.name));   // the fake: no pages, no refresh
     if (open && topic === t) void ekBandi(t);
@@ -1846,7 +1858,9 @@ function applyGrowth(next: BookPage[], at: number, extra: number[], atEnd: boole
 // and file lists show it at once. The tab and file on screen stay (by id); the pages on screen stay as they are.
 async function refreshTopic(t: OpenTopic): Promise<void> {
   topicCache.delete(`${folder}|${t.klasor}`);
-  const m = await discover(folder, t.klasor);
+  const m = import.meta.env.DEV && ekSahteAktif?.yeniOzet && ekSahteAktif.durum.eklenen.length
+    ? { ...t.materials, ozet: [{ file: ekSahteAktif.yeniOzet, cozum: null }] }
+    : await discover(folder, t.klasor);
   if (!m || !open || topic !== t) return;
   const list = (x: TopicMaterials) => t.kind !== null && (secimliTur(t.kind, x) || t.kind === 'ozet') ? x[t.kind] : null;
   const next = konuBirlestir(t.materials, m);
@@ -2411,7 +2425,7 @@ async function afterFileAdded(t: OpenTopic, hedef: DosyaHedefi, r: DosyaEklendi,
   });
   if (olcumId) measureToast(olcumId, ready);
   if (!karar.goster || bosKonu) { toast(metin); return; }
-  const go = () => { void ready.then(() => showAddedFile(t, e)); };
+  const go = () => { void ready.then(() => showAddedFile(t, e, autoOpen && ekAyriAcik())); };
   if (GOSTER_OTOMATIK || autoOpen) { toast(metin); go(); } else toast(metin, { etiket: dilT('okuyucu.goster'), calistir: go });
 }
 
@@ -2436,11 +2450,13 @@ function measureToast(islemId: string, ready: Promise<void>): void {
 }
 
 // "Göster": the new file's tab and file (a solution: its X with "Çözümü göster" on, at the solution's first page)
-function showAddedFile(t: OpenTopic, e: EklenenDosya): void {
+function showAddedFile(t: OpenTopic, e: EklenenDosya, checkFile = false): void {
   if (!open || topic !== t) return;
   const h = dosyaGosterHedefi(e, t.materials);
   if (!h) { toast(dilT('okuyucu.eklenenDosyaYok')); return; }
-  if (t.kind === h.kind && t.fileIndex === h.fileIndex && t.solution === h.solution && pages.length) {
+  // EK-3b: refreshTopic can replace index 0's addition with a different PDF.
+  if (t.kind === h.kind && t.fileIndex === h.fileIndex && t.solution === h.solution && pages.length
+    && (!checkFile || pages.some(p => p.dosyaId === e.fileId))) {
     goToPage(h.solution ? mainCount : 0);
     return;
   }
