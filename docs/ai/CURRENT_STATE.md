@@ -1,7 +1,8 @@
 # CURRENT_STATE
 
-Son güncelleyen: Codex, 3 Kasım 2026 · K-1; yalnız faz-6 push onaylı
+Son güncelleyen: Codex, 4 Kasım 2026 · B planı kuralları
 ## Git ve yayın
+- İş bölümü: 4 Kasım 2026'dan beri B planı (ChatGPT planlar/kontrol eder, Codex kodlar). Claude limiti sıfırlanınca A planına dönülür.
 - main = production https://mydefter.app; faz-6 = önizleme.
 - Z-1 canlıda: iPad bayat dokunma onarımı; main ve faz-6 aynı Z-1 commit'inde.
 - 6.6-3b + 6.6-3c canlıda; KONU_TASI=true, taşıma için adres parametresi gerekmiyor.
@@ -16,14 +17,10 @@ Son güncelleyen: Codex, 3 Kasım 2026 · K-1; yalnız faz-6 push onaylı
 - Panel (D32): @vercel/analytics 2.0.1; yalnız üretim mydefter.app, ?analiz=0 kapatır, query/hash silinir; EN/TR gizlilik güncellendi. 2087/2087 test + typecheck/build/dil geçti; tarayıcıda yerel alan adı taklidi geçti, canlı doğrulama bekliyor.
 - Faz 1–5, 6.1–6.3, 6.H/6.K, OCR/Temiz yazı/atlas, sayfa işleri ve EN/TR canlıda.
 - 6.6-0/1a/1b, 5a/5b/6 oturum işleri, 6.6-2 çoklu özet (D30), 6.6-3a sürükle-bırak canlıda.
-- 6.6-3b konuyu başka üniteye taşıma (D31; D12 güncellendi):
-  - Klasör adı/kimliği korunur; tek yeni Drive işlemi PATCH addParents/removeParents; sonra kitap.json yolu.
-  - Aynı kuyrukta Geri al/Tekrar dene/Vazgeç; gerçek ebeveyne göre tekrar; localStorage `defter-konu-tasi` kaydıyla açılışta toparlama.
-  - Toparlama hatası kilit değil: durum satırında hata + Vazgeç (yalnız kayıt silinir, kitap Drive'dan yeniden okunur; Drive'a yazma yok). Klasör hedefte + json yeni yolda → kayıt sessizce silinir.
-  - Engeller (K3): içindekiler kuyruğu, başarısız okuma yazımı, çalışan/yarım sayfa işi, dosya ekleme.
-  - Yerel yollar çevrilir; klasör/materyal/arama önbellekleri geçersiz kılınır; açık PDF/sayfa korunur.
-- 6.6-3c (699677e; ilk inceleme düzeltmeleri 53b5b7c): okuyucu konu yolunu bulamazsa bir kez arar (`okuma/konuAra.ts`, `baglam.konuBul` in `ui/konuTasiAkisi.ts`):
-  - Kilit KONU_ARA=true, ?konuAra=0 kapatır. kose-olcum hariç 2078/2078 test (165 dosya), typecheck/build geçti; TR/EN 906 anahtar.
+- 6.6-3b konuyu başka üniteye taşıma (D31; D12 güncellendi): Klasör adı/kimliği korunur; tek yeni Drive işlemi PATCH addParents/removeParents; sonra kitap.json yolu.
+  - Aynı kuyrukta Geri al/Tekrar dene/Vazgeç; gerçek ebeveyne göre tekrar; localStorage `defter-konu-tasi` kaydıyla açılışta toparlama. Toparlama hatası kilit değil: durum satırında hata + Vazgeç (yalnız kayıt silinir, kitap Drive'dan yeniden okunur; Drive'a yazma yok). Klasör hedefte + json yeni yolda → kayıt sessizce silinir.
+  - Engeller (K3): içindekiler kuyruğu, başarısız okuma yazımı, çalışan/yarım sayfa işi, dosya ekleme. Yerel yollar çevrilir; klasör/materyal/arama önbellekleri geçersiz kılınır; açık PDF/sayfa korunur.
+- 6.6-3c (699677e; ilk inceleme düzeltmeleri 53b5b7c): okuyucu konu yolunu bulamazsa bir kez arar (`okuma/konuAra.ts`, `baglam.konuBul` in `ui/konuTasiAkisi.ts`): Kilit KONU_ARA=true, ?konuAra=0 kapatır. kose-olcum hariç 2078/2078 test (165 dosya), typecheck/build geçti; TR/EN 906 anahtar.
 ## Doğrulama
 - EK-3b: önce 3 birim testi ve özet yok → Ekle tarayıcı kontrolü kırmızı; sonra 2177/2177 test (170 dosya), typecheck/build/dil geçti (931 TR/EN anahtar). Playwright 1180×820 + 390×844 × TR/EN: yeni PDF açılışı, ikinci özet bandı/hedefi, tüm özetlerde işaretle gizleme, Sonra ve taşma kontrolü; 8 yerel ekran görüntüsü alındı. Gerçek iPad/Drive denemesi bekliyor.
 - EK-3: önce 4 yeni test kırmızı, sonra 2174/2174 test (170 dosya), typecheck/build/dil geçti; 930 TR/EN anahtar, 0 dil hatası. Playwright 390×844 / 1180×820 / 1920×1080 × TR/EN geçti: iki/tek düğme, eklenmiş ekin gizlenmesi, hata ve taşma; 24 görüntü defter-test-dosyalari/ek-ayri içinde. Gerçek Drive/iPad bekliyor.

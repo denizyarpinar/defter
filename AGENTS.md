@@ -5,7 +5,7 @@ Kuralların kaynağı bu dosyadır; mimari çelişkilerde `docs/ai/DECISIONS.md`
 Eski belgeler `docs/ai/arsiv/` içindedir; yalnız görev gerektirince ilgili bölümü oku, asla tamamını yükleme. Faz ayrıntıları: `docs/ai/arsiv/CLAUDE_eski.md`.
 
 ## Her görevde
-1. `git status` temiz mi bak; değilse dur ve Deniz'e sor. İstisna: yalnız `docs/ai/TASK.md` değişmişse bu, Claude'un yazdığı yeni görevdir; sormadan devam et ve ona dokunma. Sonra `git pull`.
+1. `git status` temiz mi bak; değilse dur ve Deniz'e sor. İstisna: yalnız `docs/ai/TASK.md` değişmişse bu, planlayıcının (Claude ya da ChatGPT) yazdığı yeni görevdir; sormadan devam et ve ona dokunma. Sonra `git pull`.
 2. `docs/ai/TASK.md` varsa içindeki görev onaylı plandır; Verification geçince commit at. Yoksa önce kısa plan göster (dosyalar + değişiklikler), Deniz onaylayınca uygula.
 3. `.env*` dosyaları ve secret'lar asla yazılmaz, gösterilmez, istenmez; gizli bilgi, API anahtarı veya token repoya konmaz.
 4. main'e birleştirme sadece Deniz'in onayıyla.
@@ -21,6 +21,9 @@ Eski belgeler `docs/ai/arsiv/` içindedir; yalnız görev gerektirince ilgili b�
 - Yalnız `docs/ai/TASK.md`'deki işi yap; ilgisiz refactor/temizlik yapma. Do Not kapsamına veya `docs/ai/DECISIONS.md` ile çelişen hiçbir şeye dokunma.
 - Kapsam dışı sorunları sona "Sonra bakılabilir" diye listele.
 - Son mesaj basit, kısa Türkçe: yapılanlar (3–5 madde), adım adım deneme, bilinen eksikler ve sıradaki iş.
+- TASK.md belirsizse, kodla çelişiyorsa ya da DECISIONS.md'ye aykırıysa tahmin etme: dur, çelişkiyi dosya ve satırıyla göster, sor.
+- Daha iyi ya da daha güvenli bir yol görürsen uygulamadan önce kısaca öner; Deniz seçmeden TASK.md dışına çıkma.
+- Görev sonunda "Plandan sapmalar" başlığıyla TASK.md'den farklı yaptığın her şeyi nedeniyle listele; sapma yoksa "Yok" yaz.
 
 ## Değişmez kurallar
 - Aşağıdaki Drive adları/yolları uzak veriyi tanımlar, yerel repo yolu değildir; faz ayrıntıları arşivin ilgili bölümündedir.
@@ -38,3 +41,9 @@ Eski belgeler `docs/ai/arsiv/` içindedir; yalnız görev gerektirince ilgili b�
 - Bitirmeden önce `docs/ai/TASK.md` Verification kontrollerini çalıştır; ayrıca `npm run typecheck` ve `npm run build` hatasız geçmeli.
 - Verification geçince açık ve Türkçe açıklayıcı mesajla commit at; `docs/ai/TASK.md`'yi anlattığı işle birlikte commit et. TASK yoksa görev bitip Deniz denedikten sonra commit at.
 - Commit öncesinde `git status` ile değişenleri Deniz'e göster; görev sonunda durum belgesini 7. maddeye göre güncelle.
+
+## İş bölümü
+
+- A planı (normal): Claude planlar ve TASK.md yazar; Codex kodlar; kontrolü kodu yazmayan araç yapar.
+- B planı (Claude limiti dolunca): ChatGPT planlar ve kontrol eder; Codex kodlar. ChatGPT repoyu göremez, bu yüzden Deniz isteyince "durum özeti" ve "kontrol paketi" hazırla (tek kod bloğu, kısa ve eksiksiz).
+- Her iki planda: aynı anda tek araç; araç değişmeden checkpoint commit; DB/auth/API/Drive yazma işlerinde geri alma yolu; main'e push yalnız Deniz'in açık onayıyla.
