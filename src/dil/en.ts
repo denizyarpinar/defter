@@ -951,4 +951,13 @@ export const en: Sozluk = {
   'panel.kitap': "New books",
   'panel.ozet': "New summaries",
   'panel.foto': "Photo uploads",
+  'duyuru.baslik': "Add a little magic",
+  'duyuru.baslikVurgu': "to learning.",
+  'duyuru.plan': "On our roadmap",
+  'duyuru.kalem': "Magic Pen",
+  'duyuru.yanYana': "Two PDFs Side by Side",
+  'duyuru.oda': "A Study Room of Your Own",
+  'duyuru.kapat': "Close announcement",
+  'duyuru.gosterme': "Don't show again",
+  'duyuru.don': "Back to studying",
 };

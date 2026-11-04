@@ -980,4 +980,13 @@ export const tr = {
   'panel.kitap': "Yeni kitap",
   'panel.ozet': "Yeni özet",
   'panel.foto': "Fotoğraf yükleme",
+  'duyuru.baslik': "Öğrenmeye biraz",
+  'duyuru.baslikVurgu': "sihir kat.",
+  'duyuru.plan': "Geliştirme planımızda",
+  'duyuru.kalem': "Sihirli Kalem",
+  'duyuru.yanYana': "İki PDF Yan Yana",
+  'duyuru.oda': "Sana Özel Çalışma Odası",
+  'duyuru.kapat': "Duyuruyu kapat",
+  'duyuru.gosterme': "Bir daha gösterme",
+  'duyuru.don': "Çalışmaya dön",
 } as const;

@@ -1,4 +1,5 @@
 import { olay as sayacOlay } from './sayac';
+import { createAnnouncement } from './ui/duyuru';
 import { kullanimPaneliGuncelle } from './ui/kullanimPaneli';
 import { analizBaslat } from './analiz';
 import { konuTasiBagla } from './ui/konuTasiAkisi';
@@ -111,6 +112,16 @@ let ownerName: string | null = null;    // signed-in user (title page: "<ad>'in 
 
 const startWithSample = new URLSearchParams(location.search).has('demo');
 let durum: KitaplikDurumu = ilkDurum(startWithSample);
+// Explicit local preview only; the production demo never opens the announcement.
+const duyuruOnizle = import.meta.env.DEV && new URLSearchParams(location.search).get('duyuruOnizle') === '1';
+
+const duyuru = createAnnouncement({
+  active: () => duyuruOnizle || (isSignedIn() && durum.tur === 'drive' && !durum.oturumDoldu),
+  roomReady: () => !!scene && loading.hidden && document.visibilityState === 'visible' && view === 'room'
+    && !openTitle && !isReaderOpen() && !isOkuyucuOpen()
+    && ![...document.querySelectorAll<HTMLElement>('[role="dialog"], [role="alertdialog"], dialog[open], #panel, #reader')]
+      .some(element => element.getClientRects().length > 0),
+});
 
 // Every write to Drive goes through this: null unless the Drive library is on screen.
 const writer = () => etkinYazici(durum, saver);
@@ -158,6 +169,7 @@ function olay(o: KitaplikOlayi): void {
 }
 
 function showState(): void {
+  duyuru.refresh();
   kullanimPaneliGuncelle();
   const v = gorunum(durum);
   if (v.kart === 'giris') { showLogin(v.girisHata ?? undefined); setLoginBusy(v.girisMesgul); }
@@ -191,6 +203,7 @@ function updateChrome(): void {
   app.dataset.view = view;
   updateCrumb(view, openTitle);
   bosIpucu();
+  duyuru.refresh();
 }
 
 // ---- task 6.K4a: "Yeni kitap" wizard (only in a Drive library, never in the sample one) ----
@@ -332,6 +345,7 @@ async function loadFromDrive(): Promise<void> {
     if (r.warnings.length) uyar(r.warnings[0]);
     remindPendingPhotos();
     donusUygula('drive');
+    duyuru.request();
   } catch (e) {
     if (!current()) return;
     if (!(e instanceof LibraryNotFound)) { olay({ tur: 'driveHata', mesaj: errorText(e) }); return; }
@@ -602,7 +616,7 @@ async function girisSonrasi(restored = false): Promise<void> {
     toast(t('giris.hosgeldin', { ad: user.name }));
   }
   // Signing in after expiry can leave the already loaded Drive library in place.
-  if (!gorunum(durum).yukleniyor) return;
+  if (!gorunum(durum).yukleniyor) { duyuru.request(); return; }
   if (tamErisimDugmesi({ sahip, aktif: aktifKapsam() })) { olay({ tur: 'tamErisimGerekli' }); return; }
   await loadFromDrive();
 }
@@ -953,6 +967,7 @@ async function boot(): Promise<void> {
   new ResizeObserver(resized).observe(stageEl);
 
   loading.hidden = true;
+  if (duyuruOnizle) duyuru.request();
   // task 6.5-1: back from a language change — the sample library again (also without ?demo)
   if (startWithSample) {
     if (!isSignedIn()) sayacOlay('demo');
