@@ -1,6 +1,6 @@
 # CURRENT_STATE
 
-Son güncelleyen: Codex, 4 Kasım 2026 · A1 kod onayı ve gerçek hesapla Windows doğrulaması
+Son güncelleyen: Codex, 4 Kasım 2026 · A1 cihaz doğrulamaları ve canlıya çıkış onayı
 ## Git ve yayın
 - İş bölümü: 4 Kasım 2026'dan beri B planı (ChatGPT planlar/kontrol eder, Codex kodlar). Claude limiti sıfırlanınca A planına dönülür.
 - main = production https://mydefter.app; faz-6 = önizleme.
@@ -9,9 +9,9 @@ Son güncelleyen: Codex, 4 Kasım 2026 · A1 kod onayı ve gerçek hesapla Windo
 - Geri alma: KONU_TASI=false (parametresiz taşıma kapanır; ?konuTasi=1 geliştirme açılışı kalır), ?konuAra=0 (arama kapanır).
 ## Bitenler (özet)
 - A1: giriş açıklaması seçili dilde; demo/Drive örneği ayrımı ve kurulum metinleri sade. Boş Drive kitaplığının mevcut düğmesi kalıcı ilk kitap yönlendirmesi; görünürlük, auth/Drive ve duyuru mantığı değişmedi.
-- A1 doğrulama: aynı tarayıcı test dosyasıyla önce 72 beklenen hata, sonra 0 hata; 24 akış ve TR/EN × 4 boyutta 40 ekran. 2196/2196 test, typecheck/build/dil geçti (942 anahtar); mevcut 22 duyuru senaryosu geçti. Gerçek iPad bekliyor.
+- A1 doğrulama: aynı tarayıcı test dosyasıyla önce 72 beklenen hata, sonra 0 hata; 24 akış ve TR/EN × 4 boyutta 40 ekran. 2196/2196 test, typecheck/build/dil geçti (942 anahtar); mevcut 22 duyuru senaryosu geçti. Windows ve fiziksel iPad Safari doğrulamaları başarılı.
 - A1 ek kontrol: loginSample demo açıklamasına bağlandı; TR/EN × 4 boyutta erişilebilirlik önce 8 hata, sonra 0. Koşullu 4 test yerel atlas/referans/fotoğraf verileri mevcut olduğu için çalışıyor; testleri değişmedi. 2196/2196 ve tüm zorunlu kontroller tekrar geçti.
-- A1 onay ve sıradaki: ChatGPT kod kontrolünü onayladı. Deniz Windows'ta gerçek Google hesabıyla giriş yaptı; mevcut kitaplar açıldı, yeniden kurulum istenmedi; TR/EN giriş ve demo geçti. Onaylı faz-6 önizlemesinde iPad denemesi bekliyor; main korunur.
+- A1 (b1a03da) onay ve sıradaki: ChatGPT kod kontrolü, Windows gerçek Google hesabı ve HTTPS önizleme başarılı; mevcut kitaplar açıldı, yeniden kurulum istenmedi; TR/EN giriş ve demo geçti. Fiziksel iPad Safari 6/6 kontrol başarılı; faz-6 Vercel READY. Deniz 4 Kasım 2026 tarihinde main'e çıkış için açık onay verdi. Sıradaki: main fast-forward/push ve production dağıtım kontrolü.
 - Duyuru: Deniz'in düzeltmesiyle ortada küçük kart (masaüstü ≤560 px, telefon ≤340 px); 6 boyut × TR/EN için 12 ek tarayıcı kontrolü geçti. TR/EN gerçek metin, X/Escape/Çalışmaya dön, cihaz tercihi ve sekmede tek gösterim. Drive/API yazma yok; geri alma ANNOUNCEMENT_ENABLED=false.
 - Duyuru doğrulaması: 2192 test geçti, mevcut 4 test atlandı; typecheck/build/dil geçti (940 TR/EN anahtar). Sahte GIS/Drive ile 22 tarayıcı senaryosu, küçük kart için ek 12 ekran/dil kontrolü; gerçek iPad/hesap bekliyor. Deniz küçük kartı ve main'e gönderimi aynı sohbette onayladı (4 Kasım).
 - K-1 (D35): tahmin yalnız kalemde; fare/touchpad/parmak getPredictedEvents okumaz. 2189/2189 test, typecheck/build/dil geçti; geri alma ?tahmin=1.
