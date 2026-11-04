@@ -6,12 +6,13 @@ import { copOnayAcikMi } from './copOnay';
 import { esc } from './dom';
 import { gorunurAlaniDuzelt } from './gorunurAlan';
 import {
-  agacIslemi, OlusturAkisi, olusturHatasi, satirAraligi, sihirbazDurumu,
+  agacIslemi, OlusturAkisi, olusturHatasi, satirAraligi,
   type AgacIslemi, type OlusturHatasi, type SihirbazDurumu, type SihirbazKilidi
 } from './kitapSihirbaziDurumu';
 import { panelKlavyeTakibi } from './klavyeKaydirma';
 import { COVER_SWATCHES } from './panel';
 import { toast } from './toast';
+import { quickBookEnabled, SharedBookForm } from './hizliKitap';
 
 // Task 6.K4a: "Yeni kitap" — name, shelf, colour and the list of units / topics, one line each, with a live tree.
 // The logic is in kitapSihirbaziDurumu.ts (pure, tested).
@@ -32,6 +33,7 @@ export interface SihirbazBaglam {
   kilit: SihirbazKilidi;
   olustur?: (islem: KitapIslemi, ilerleme: (i: number, n: number) => void) => Promise<void>;
   girisYap?: () => Promise<void>;
+  olustu?: (islem: KitapIslemi, quick: boolean) => void;
   yarimCopeAt?: (ad: string, klasorId: string) => Promise<boolean>;   // 6.K5b: the dialog; true: in the trash now
 }
 
@@ -52,9 +54,9 @@ const dugme = (cls: string, text: string, label?: string) => {
 
 export function kitapSihirbaziAc(b: SihirbazBaglam): void {
   if (document.getElementById(KITAP_SIHIRBAZI_ID)) return;
-  let ad = '';
-  let rafId = b.raflar[0]?.id ?? '';
-  let renk = COVER_SWATCHES[0];
+  const quick = quickBookEnabled();
+  const form = new SharedBookForm(b.raflar[0]?.id ?? '', COVER_SWATCHES[0]);
+  form.detailsUsed = !quick;
   let d: SihirbazDurumu;
   const akis = new OlusturAkisi(() => crypto.randomUUID());
   let ilerleme: { i: number; n: number } | null = null;
@@ -82,7 +84,7 @@ export function kitapSihirbaziAc(b: SihirbazBaglam): void {
   adEt.append(adKutu);
   const rafEt = el('label', 'dp-ad ks-rafalan', t('sihirbaz.raf'));
   const rafSec = el('select', 'fp-sec');
-  for (const r of b.raflar) rafSec.append(new Option(r.ad, r.id, false, r.id === rafId));
+  for (const r of b.raflar) rafSec.append(new Option(r.ad, r.id, false, r.id === form.shelfId));
   rafEt.append(rafSec);
   const renkAlan = el('div', 'ks-renkalan');
   renkAlan.append(el('span', 'ks-etiket', t('sihirbaz.renk')));
@@ -118,6 +120,21 @@ export function kitapSihirbaziAc(b: SihirbazBaglam): void {
   sag.append(agac, uniteArti);
   govde.append(sol, sag);
 
+  const firstLabel = el('label', 'dp-ad ks-first', t('sihirbaz.ilkKonu'));
+  const firstInput = el('input');
+  firstInput.type = 'text';
+  firstInput.autocomplete = 'off';
+  firstInput.spellcheck = false;
+  firstLabel.append(firstInput);
+  const detailsButton = dugme('fp-vazgec ks-details', t('sihirbaz.ayrintilar'));
+  detailsButton.setAttribute('aria-controls', 'ksDetails');
+  const details = el('div', 'ks-details-body');
+  details.id = 'ksDetails';
+  const summary = el('div', 'ks-summary');
+  const summaryTitle = el('strong', '', t('sihirbaz.olusturulacak'));
+  const summaryTree = el('ul');
+  summary.append(summaryTitle, summaryTree);
+
   // 6.K4b-3: the message sits in the sticky bottom row (left of the buttons; phone: above them), so an error is
   // seen without scrolling the card; at most 3 lines, then it scrolls by itself. Never hidden (a live region).
   const neden = el('p', 'fp-not ks-neden');
@@ -135,17 +152,31 @@ export function kitapSihirbaziAc(b: SihirbazBaglam): void {
   yarimCop.hidden = true;
   alt.append(neden, yarimCop, vazgec, olustur);
 
-  kart.append(baslik, ust, govde, olcumKutu, alt);
+  if (quick) {
+    details.append(rafEt, renkAlan, govde);
+    kart.append(baslik, ust, firstLabel, detailsButton, details, summary, olcumKutu, alt);
+    kart.classList.add('ks-quick');
+  } else kart.append(baslik, ust, govde, olcumKutu, alt);
   kok.append(kart);
   document.body.append(kok);
   const klavye = panelKlavyeTakibi(kok);
 
   function ciz(vurgu?: number): void {
-    d = sihirbazDurumu({ ad, rafId, renk, metin: metin.value }, b.mevcutIdler, b.kilit);
-    adUyari.textContent = ad.trim() ? d.plan.engel ?? '' : '';
+    d = form.state(b.mevcutIdler, b.kilit);
+    adUyari.textContent = form.name.trim() ? d.plan.engel ?? '' : '';
+    if (quick) {
+      details.hidden = !form.detailsOpen;
+      detailsButton.setAttribute('aria-expanded', String(form.detailsOpen));
+      firstLabel.hidden = form.detailsOpen || !form.simple || (form.detailsUsed && !form.firstTopic);
+      if (document.activeElement !== firstInput && firstInput.value !== form.firstTopic) firstInput.value = form.firstTopic;
+      summary.hidden = form.detailsOpen;
+      summaryTree.innerHTML = d.liste.uniteler.length ? d.liste.uniteler.map(u =>
+        `<li><b>${esc(u.ad)}</b>${u.konular.length ? `<ul>${u.konular.map(k => `<li>${esc(k)}</li>`).join('')}</ul>` : `<p>${t('masa.konuYok')}</p>`}</li>`
+      ).join('') : `<li>${t('sihirbaz.ilkKonuGerekli')}</li>`;
+    }
     adUyari.hidden = !adUyari.textContent;
     for (const r of renkler.children as HTMLCollectionOf<HTMLElement>) {
-      const on = r.dataset.c === renk;
+      const on = r.dataset.c === form.color;
       r.classList.toggle('on', on);
       r.setAttribute('aria-checked', String(on));
     }
@@ -168,6 +199,7 @@ export function kitapSihirbaziAc(b: SihirbazBaglam): void {
     }).join('') : `<li class="ks-bos">${t('sihirbaz.agacBos')}</li>`;
     // the operation (6.K4b): running, failed, or not started
     const kilitli = akis.alanlarKilitli;
+    firstInput.disabled = detailsButton.disabled = kilitli;
     adKutu.disabled = rafSec.disabled = metin.readOnly = uniteArti.disabled = kilitli;
     for (const x of renkler.children as HTMLCollectionOf<HTMLButtonElement>) x.disabled = kilitli;
     if (kilitli) for (const x of agac.querySelectorAll('button')) x.disabled = true;
@@ -181,7 +213,7 @@ export function kitapSihirbaziAc(b: SihirbazBaglam): void {
       olustur.textContent = hata.girisYap ? t('genel.tekrarGiris') : t('genel.tekrarDene');
     } else {
       olustur.disabled = !d.olusturAcik;
-      olustur.textContent = t('sihirbaz.olustur');
+      olustur.textContent = t(quick ? 'sihirbaz.kitabiOlustur' : 'sihirbaz.olustur');
     }
     const not = hata?.mesaj ?? d.neden;
     if (neden.textContent !== not) neden.textContent = not;   // the same text is not read out again on each key
@@ -212,6 +244,7 @@ export function kitapSihirbaziAc(b: SihirbazBaglam): void {
       await b.olustur(islem, (i, n) => { ilerleme = { i, n }; ciz(); });
       akis.bitti();
       kapat();
+      b.olustu?.(islem, quick);
     } catch (e) {
       akis.bitti();
       hata = olusturHatasi(e, islem);
@@ -241,7 +274,7 @@ export function kitapSihirbaziAc(b: SihirbazBaglam): void {
 
   function uygula(i: AgacIslemi): void {
     const r = agacIslemi(metin.value, i);
-    metin.value = r.metin;
+    form.text = metin.value = r.metin;
     ciz(r.satir);
     if (document.activeElement === metin) metin.setSelectionRange(...satirAraligi(r.metin, r.satir));
     agac.querySelector(`[data-satir="${r.satir}"]`)?.scrollIntoView({ block: 'nearest' });
@@ -253,22 +286,24 @@ export function kitapSihirbaziAc(b: SihirbazBaglam): void {
     metin.setSelectionRange(...satirAraligi(metin.value, satir));
   }
 
-  adKutu.addEventListener('input', () => { ad = adKutu.value; hata = null; ciz(); });
-  adKutu.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); metin.focus({ preventScroll: true }); } });
-  rafSec.onchange = () => { rafId = rafSec.value; ciz(); };
+  adKutu.addEventListener('input', () => { form.name = adKutu.value; hata = null; ciz(); });
+  adKutu.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); (quick && !form.detailsOpen && !firstLabel.hidden ? firstInput : metin).focus({ preventScroll: true }); } });
+  rafSec.onchange = () => { form.shelfId = rafSec.value; ciz(); };
   renkler.onclick = e => {
     const c = (e.target as HTMLElement).closest<HTMLElement>('[data-c]')?.dataset.c;
-    if (c) { renk = c; ciz(); }
+    if (c) { form.color = c; ciz(); }
   };
-  metin.addEventListener('input', () => { hata = null; ciz(); });
-  for (const k of [adKutu, metin]) k.addEventListener('blur', klavye.sifirla);
+  metin.addEventListener('input', () => { form.text = metin.value; hata = null; ciz(); });
+  firstInput.addEventListener('input', () => { form.setFirstTopic(firstInput.value); metin.value = form.text; hata = null; ciz(); });
+  detailsButton.onclick = () => { form.toggleDetails(); ciz(); };
+  for (const k of [adKutu, metin, firstInput]) k.addEventListener('blur', klavye.sifirla);
   kopyala.onclick = () => {
     navigator.clipboard?.writeText(olcumPre.textContent ?? '').then(() => toast(t('sihirbaz.kopyalandi')), () => toast(t('sihirbaz.kopyalanamadi')));
   };
 
   function kapat(): void {
     removeEventListener('keydown', tus, true);
-    for (const k of [adKutu, metin]) k.removeEventListener('blur', klavye.sifirla);
+    for (const k of [adKutu, metin, firstInput]) k.removeEventListener('blur', klavye.sifirla);
     kok.remove();
     klavye.durdur();
     gorunurAlaniDuzelt('kitap sihirbazı kapandı');   // dil-kontrol: yoksay
@@ -280,7 +315,7 @@ export function kitapSihirbaziAc(b: SihirbazBaglam): void {
   }
 
   vazgec.onclick = () => { if (!akis.mesgul) kapat(); };   // an operation not finished is dropped
-  kok.addEventListener('click', e => { if (e.target === kok && !akis.alanlarKilitli && !ad.trim() && !metin.value.trim()) kapat(); });
+  kok.addEventListener('click', e => { if (e.target === kok && !akis.alanlarKilitli && !form.name.trim() && !form.text.trim()) kapat(); });
   addEventListener('keydown', tus, true);
 
   ciz();

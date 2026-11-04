@@ -1037,6 +1037,22 @@ body.auth-log-login :is(#olcum, #olcumKalem, #olcumSon) { display: none }
   #kitapSihirbazi { align-items: flex-start }
 }
 
+/* A2: one form; collapsing details never removes the list. */
+.new-book-shortcut { position: absolute; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); right: 20px; z-index: 16; min-height: 44px }
+@media (max-width: 599px) {
+  .new-book-shortcut { bottom: calc(68px + env(safe-area-inset-bottom, 0px)) }
+}
+.new-book-shortcut[hidden], .o-pdf-start[hidden], .ks-details-body[hidden], .ks-summary[hidden], .ks-first[hidden] { display: none }
+.o-pdf-start { align-self: center; min-height: 44px; margin: 0 auto 12px; background: var(--accent); color: #fff }
+.ks-quick { width: min(1040px, 100%) }
+.ks-details { align-self: flex-start; min-height: 44px; padding: 0 16px; border-radius: 10px; font: 600 14px var(--ui) }
+.ks-details-body { display: flex; flex-direction: column; gap: 12px }
+.ks-details-body > .ks-rafalan, .ks-details-body > .ks-renkalan { flex: none; order: 0 }
+.ks-summary { padding: 10px 12px; border-radius: 10px; background: rgba(255,255,255,.05); overflow-wrap: anywhere }
+.ks-summary ul { margin: 6px 0; padding-left: 20px }
+.ks-summary p { margin: 4px 0; opacity: .8 }
+.ks-quick .ks-renk, .ks-quick .ks-yuvarlak, .ks-quick .ks-uniteekle { min-width: 44px; min-height: 44px }
+
 /* task 6.3e: library search. The button in the top bar (a pill with the magnifier; phone: only the icon);
    hidden while signing in / loading. The panel: a card at the top (12vh), the room dimmed behind it
    (taps don't reach the 3D scene); phone: full width, at the top. Rows at least 44 px. */

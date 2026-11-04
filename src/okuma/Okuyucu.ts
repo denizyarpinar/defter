@@ -35,7 +35,9 @@ import { FotoEkleyici } from '../defter/fotoEkleme';
 import { hazirlikAl, hazirlikEkle, mb, olcumAcik, olcumAl, olcumBaslat, olcumBitir, type Olcum } from '../defter/sureOlcum';
 import { bantKarari, ekBantDosyasi, ekAyriAcik, ekOzetAdi, ekSaltOkunur, siradakiEk, type EkKarari } from '../defter/ozetEkBandi';
 import { seritDurumu } from '../defter/fotoEklemeMetin';
-import { DOSYA_ACCEPT, dosyaTuru, ILK_BAYT_SAYISI, type DosyaTuruSonucu } from '../defter/dosyaTuru';
+import { dosyaTuru, ILK_BAYT_SAYISI, type DosyaTuruSonucu } from '../defter/dosyaTuru';
+import { openFilePicker } from '../ui/dosyaSecici';
+import { quickBookEnabled } from '../ui/hizliKitap';
 import type { HazirDosya } from '../defter/dosyaHazirla';
 import type { DosyaPanelKaynak } from '../ui/dosyaPanel';
 import type { SecimKarari } from '../defter/gorselListesi';
@@ -490,8 +492,10 @@ export function initOkuyucu(yer: () => DriveLocation | null): void {
   // (dosyaHazirla) before the panel: a refused one only gets a toast.
   // Task 5.10g: several files can be chosen; images go to the panel as a list (one PDF).
   const dosyaBtn = $('#oDosya'), dosyaInput = $<HTMLInputElement>('#oDosyaInput');
-  dosyaInput.accept = DOSYA_ACCEPT;
-  dosyaBtn.addEventListener('click', () => { if (topic) dosyaInput.click(); });
+  dosyaBtn.addEventListener('click', () => { if (topic) openFilePicker(dosyaInput, false); });
+  $('#oPdfStart').addEventListener('click', () => {
+    if (quickBookEnabled() && topic && bosDurum?.dosya.aktif && !isSampleId(folder) && driveLocation()) openFilePicker(dosyaInput, true);
+  });
   dosyaInput.addEventListener('change', () => {
     const files = [...(dosyaInput.files ?? [])];
     dosyaInput.value = '';   // the same file can be chosen again
@@ -2570,6 +2574,7 @@ function setMessage(text: string | null): void {
   const m = $('#oMsg');
   m.hidden = text === null;
   m.textContent = text ?? '';
+  $('#oPdfStart').hidden = !(text !== null && quickBookEnabled() && topic && bosDurum?.dosya.aktif && !isSampleId(folder) && driveLocation());
 }
 
 // ---- layout ----

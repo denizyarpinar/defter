@@ -213,6 +213,14 @@ export const tr = {
 
   // 6.5-2a: the book wizard
   'sihirbaz.baslik': 'Yeni kitap',
+  'sihirbaz.ilkKonu': 'İlk konu',
+  'sihirbaz.ilkKonuGerekli': 'Başlamak için ilk konunun adını yaz.',
+  'sihirbaz.ayrintilar': 'Ayrıntılar',
+  'sihirbaz.olusturulacak': 'Oluşturulacak içerik',
+  'sihirbaz.kitabiOlustur': 'Kitabı oluştur',
+  'kitaplik.ilkKonuAcilamadi': 'Kitap oluşturuldu ancak ilk konu açılamadı. Tekrar dene veya kitabı kitaplıktan aç.',
+  'kitaplik.kitabiAc': 'Kitabı aç',
+  'okuyucu.pdfEkle': 'PDF ekle',
   'sihirbaz.kitapAdi': 'Kitap adı',
   'sihirbaz.adOrnek': 'ör. Mathe 1',
   'sihirbaz.raf': 'Raf',

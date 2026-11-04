@@ -20,7 +20,8 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = 4183;
 // 6.5-2a: DIL=en node scripts/kitap-sihirbazi-kontrol.mjs → the English interface (default Turkish)
 const DIL = process.env.DIL === 'en' ? 'en' : 'tr';
-const URL = `http://localhost:${PORT}/?lang=${DIL}`;
+// Keep the original detailed wizard checks; A2's default UI has its own end-to-end script.
+const URL = `http://localhost:${PORT}/?lang=${DIL}&hizliKitap=0`;
 const OUT = process.argv[2] ?? 'C:\\Users\\yarpi\\iCloudDrive\\uni_plan_claude_code\\Claude outputs\\kitap-6.K4b';
 
 const wait = (ms) => new Promise(r => setTimeout(r, ms));

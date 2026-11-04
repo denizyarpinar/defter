@@ -1,5 +1,6 @@
 import { olay as sayacOlay } from './sayac';
 import { createAnnouncement } from './ui/duyuru';
+import { newBookShortcut, PendingBookOpening, quickBookEnabled } from './ui/hizliKitap';
 import { kullanimPaneliGuncelle } from './ui/kullanimPaneli';
 import { analizBaslat } from './analiz';
 import { konuTasiBagla } from './ui/konuTasiAkisi';
@@ -164,6 +165,7 @@ if (import.meta.env.DEV && new URLSearchParams(location.search).get('filtreTest'
 function olay(o: KitaplikOlayi): void {
   const once = durum.tur;
   durum = gecis(durum, o);
+  if (durum.tur !== 'drive') newBookOpening.clear();
   gunlukYaz('state', { tur: o.tur, once, sonra: durum.tur, oturumDoldu: o.tur === 'oturumDoldu' });
   showState();
 }
@@ -207,6 +209,7 @@ function updateChrome(): void {
 }
 
 // ---- task 6.K4a: "Yeni kitap" wizard (only in a Drive library, never in the sample one) ----
+const newBookOpening = new PendingBookOpening();
 // Task 6.K4b: "Oluştur" writes the book (kitapOlustur.ts) — in the app's own root (defterKok), after a user action.
 // Task 6.K4c: also in the owner's "Kitaplık" (with the same root validation).
 
@@ -217,13 +220,48 @@ function yeniKitapAcik(): boolean {
 function yeniKitapAc(): void {
   const d = data;
   if (!yeniKitapAcik() || !d) return;
+  const rootId = driveLoc?.rootId;
+  let created: Book | null = null;
   import('./ui/kitapSihirbazi')
     .then(m => m.kitapSihirbaziAc({
       raflar: d.library.raflar.map(s => ({ id: s.id, ad: s.ad })), mevcutIdler: [...d.books.keys()], olcum: OLCUM,
-      kilit: sihirbazKilidi(), olustur: kitapOlusturDugmesi, girisYap: () => googleSignIn(),
+      kilit: sihirbazKilidi(),
+      olustur: async (islem, ilerleme) => { created = await kitapOlusturDugmesi(islem, ilerleme); },
+      olustu: (islem, quick) => {
+        if (!quick || !rootId || !quickBookEnabled()) return;
+        if (sihirbazKilidi() !== 'acik' || driveLoc?.rootId !== rootId) return;
+        const plan = islem.plan.kitapJson as { uniteler: { konular: { klasor: string }[] }[] };
+        const path = plan.uniteler.flatMap(u => u.konular)[0]?.klasor;
+        if (!path) return;
+        const retry = async () => {
+          if (sihirbazKilidi() !== 'acik' || driveLoc?.rootId !== rootId) return;
+          try {
+            await kitaplikYenile();
+            if (sihirbazKilidi() !== 'acik' || driveLoc?.rootId !== rootId) return;
+            const b = data?.books.get(islem.plan.kitapId);
+            if (b) openCreatedBook(b, path);
+            else toast(t('kitaplik.ilkKonuAcilamadi'));
+          } catch { toast(t('kitaplik.ilkKonuAcilamadi')); }
+        };
+        if (created) openCreatedBook(created, path);
+        else toast(t('kitaplik.ilkKonuAcilamadi'), { etiket: t('genel.tekrarDene'), calistir: () => void retry() });
+      },
+      girisYap: () => googleSignIn(),
       yarimCopeAt: (ad, klasorId) => copAkisi.yarimCopeAt(ad, klasorId)
     }))
     .catch(e => toast(t('kitaplik.sihirbazAcilamadi', { hata: String(e) })));
+}
+
+function openCreatedBook(book: Book, path: string): void {
+  if (sihirbazKilidi() !== 'acik' || data?.books.get(book.id) !== book) return;
+  if (!book.uniteler.some(u => u.konular.some(k => k.klasor === path))) {
+    toast(t('kitaplik.ilkKonuAcilamadi')); return;
+  }
+  newBookOpening.set(book, path);
+  if (!scene?.openBook(book.id)) {
+    newBookOpening.clear();
+    toast(t('kitaplik.ilkKonuAcilamadi'), { etiket: t('kitaplik.kitabiAc'), calistir: () => openCreatedBook(book, path) });
+  }
 }
 
 const OLCUM = new URLSearchParams(location.search).get('olcum') === '1';
@@ -248,7 +286,7 @@ function yapayHata(): number | undefined {
 }
 
 // Errors go back to the wizard (it stays open); success: the library again, then the toast
-async function kitapOlusturDugmesi(islem: KitapIslemi, ilerleme: (i: number, n: number) => void): Promise<void> {
+async function kitapOlusturDugmesi(islem: KitapIslemi, ilerleme: (i: number, n: number) => void): Promise<Book | null> {
   // a shelf change not written yet would write the old shelves over the new entry
   if (saver?.hasUnsaved) throw new Error(t('kitaplik.rafKaydediliyor'));
   const loc = driveLoc;
@@ -260,12 +298,15 @@ async function kitapOlusturDugmesi(islem: KitapIslemi, ilerleme: (i: number, n: 
   });
   sayacOlay('kitap');
   const baslik = String(islem.plan.kitapJson.baslik);
+  if (!isSignedIn() || durum.tur !== 'drive' || driveLoc !== loc) return null;
   try {
     await kitaplikYenile();
     toast(sonuc.kitaplikYok ? t('kitaplik.olusturulduRafsiz', { ad: baslik }) : t('kitaplik.olusturuldu', { ad: baslik }));
+    return durum.tur === 'drive' ? data?.books.get(sonuc.kitapId) ?? null : null;
   } catch (e) {
     console.warn('Kitaplık yenilenemedi.', e);
     toast(t('kitaplik.olusturulduYenilenemedi', { ad: baslik }));
+    return null;
   }
 }
 
@@ -277,9 +318,16 @@ function bosIpucu(): void {
   const v = gorunum(durum);
   const goster = yeniKitapAcik() && data!.books.size === 0 && view === 'room' && openTitle === null && !v.kilitli && v.kart === null;
   btn.hidden = !goster;
+  const shortcut = document.querySelector<HTMLButtonElement>('#newBookShortcut');
+  if (shortcut) shortcut.hidden = !newBookShortcut(durum.tur === 'drive', sihirbazKilidi() === 'acik' && !v.kilitli && v.kart === null && openTitle === null && view !== 'desk', data?.books.size ?? 0, goster, quickBookEnabled());
   if (goster) document.querySelector<HTMLElement>('#hint')!.hidden = true;
 }
 document.querySelector('#bosKitaplik')?.addEventListener('click', yeniKitapAc);
+document.querySelector('#newBookShortcut')?.addEventListener('click', () => {
+  document.querySelector<HTMLElement>('#panel')!.hidden = true;
+  document.querySelector('#custBtn')?.setAttribute('aria-expanded', 'false');
+  yeniKitapAc();
+});
 
 initTopBar({
   onSearch: () => aramaPaneli.ac(),
@@ -302,6 +350,7 @@ let dataSeq = 0;
 // Put new data into the shared holder and rebuild the room.
 // false: a newer call replaced it meanwhile (e.g. signed out while the book flew home), nothing changed.
 async function useData(next: LoadedLibrary, newSaver: DriveSaver | null, loc: DriveLocation | null): Promise<boolean> {
+  newBookOpening.clear();
   const seq = ++dataSeq;
   await ready;
   if (!data || !scene || seq !== dataSeq) return false;
@@ -671,6 +720,7 @@ if (startWithSample) updateUserBox({ kind: 'sample' });
 prepareAuth().catch((e: unknown) => { if (e instanceof AuthError) olay({ tur: 'girisHata', mesaj: e.message }); });
 
 initReader(() => {
+  newBookOpening.clear();
   closeOkuyucu();
   forgetBook();
   deskBook = null;
@@ -933,10 +983,12 @@ async function boot(): Promise<void> {
       openReader(b, { shelfName: shelf >= 0 ? d.library.raflar[shelf].ad : null, daysSinceOpened: daysSinceOpened(b), owner: saver ? ownerName : null });
       if (konuTasiAcik()) void icBaglanti?.baglam.toparla?.(b).catch(e => toast(e instanceof Error ? e.message : t('tasi.depo')));
       markOpened(b);
-      donusOkuyucu(id);
+      const initial = newBookOpening.take(id, b);
+      if (initial && sihirbazKilidi() === 'acik') konuAc(initial.unit, initial.topic);
+      else donusOkuyucu(id);
       setTimeout(() => { if (isReaderOpen()) scene?.setPaused(true); }, 400);
     },
-    onBookClosed: () => { openTitle = null; updateChrome(); },
+    onBookClosed: () => { newBookOpening.clear(); openTitle = null; updateChrome(); },
     onLibraryChanged: () => writer()?.libraryChanged(),
     onToast: toast
   });

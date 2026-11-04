@@ -81,8 +81,9 @@ try {
         assert.deepEqual(writes, [], 'loading an existing library must not write');
         await page.locator('#bosKitaplik').click();
         await page.getByLabel('Kitap adı', { exact: true }).fill('Parametresiz deneme');
+        if (await page.locator('#kitapSihirbazi .ks-details').count()) await page.locator('#kitapSihirbazi .ks-details').click();
         await page.getByLabel('Üniteler ve konular', { exact: true }).fill('# Ünite\nKonu');
-        const create = page.getByRole('button', { name: 'Oluştur', exact: true });
+        const create = page.locator('#kitapSihirbazi .fp-ekle');
         assert.equal(await create.isEnabled(), true);
         assert.deepEqual(writes, [], 'opening/filling the wizard must not write');
         if (OUT) await page.screenshot({ path: join(OUT, `${size}-${root}.png`) });
