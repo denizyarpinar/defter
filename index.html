@@ -67,17 +67,17 @@
       <div id="login" hidden>
         <div class="card" role="dialog" aria-labelledby="loginTitle">
           <div class="brand" id="loginTitle">Defter</div>
-          <p id="loginText" data-t="genel.aciklama">Drive'daki notların, çalışma odandaki kitaplıkta.</p>
+          <p id="loginText" data-t="genel.aciklama">Ders notların için 3D çalışma odan.</p>
           <div class="login-intro">
-            <p>Defter, Google Drive’daki ders belgelerini 3D kitaplıkta gösterir. PDF oku, kalemle not al ve belgelerinde ara. Dosyaların kendi Drive’ında kalır.</p>
-            <p lang="en">Defter displays your Google Drive study documents in a 3D library. Read PDFs, add pen annotations and search your documents. Your files stay in your own Drive.</p>
+            <p data-t="giris.aciklama">PDF oku, kalemle not al ve belgelerinde ara. Dosyaların kendi Google Drive’ında kalır.</p>
           </div>
           <button class="gbtn" id="loginGoogle">
             <svg viewBox="0 0 18 18" aria-hidden="true"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.97 10.72A5.4 5.4 0 0 1 3.68 9c0-.6.1-1.18.29-1.72V4.95H.96A9 9 0 0 0 0 9c0 1.45.35 2.83.96 4.05l3.01-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"/></svg>
             <span data-t="giris.google">Google ile giriş yap</span>
           </button>
           <a href="#" id="loginOther" hidden data-t="giris.baskaHesap">Başka bir hesapla giriş yap</a>
-          <a href="#" id="loginSample" data-t="genel.ornekDene">Örnek kitaplıkla dene</a>
+          <a href="#" id="loginSample" aria-describedby="loginDemoNot" data-t="genel.ornekDene">Demoyu dene</a>
+          <p id="loginDemoNot" data-t="giris.demoNot">Drive’ına dosya eklenmez.</p>
           <nav class="legal-links" aria-label="Gizlilik ve kullanım şartları" data-t-aria="yasal.etiket">
             <a href="/privacy.html" target="_blank" rel="noopener noreferrer" aria-label="Gizlilik / Privacy (yeni sekmede)" data-yasal="privacy" data-t="yasal.gizlilik" data-t-aria="yasal.gizlilikEtiket">Gizlilik / Privacy ↗</a>
             <a href="/terms.html" target="_blank" rel="noopener noreferrer" aria-label="Kullanım şartları / Terms (yeni sekmede)" data-yasal="terms" data-t="yasal.sartlar" data-t-aria="yasal.sartlarEtiket">Şartlar / Terms ↗</a>
@@ -90,7 +90,7 @@
       </div>
 
       <div class="hint" id="hint" data-t="ipucu.oda">Kitaplığa dokun, yakından bak</div>
-      <button class="pill bosipucu" id="bosKitaplik" type="button" hidden data-t="ipucu.bosKitaplik">Kitaplığın boş · ＋ Yeni kitap</button>
+      <button class="pill bosipucu" id="bosKitaplik" type="button" hidden data-t="ipucu.bosKitaplik">İlk kitabını oluştur · ＋ Yeni kitap</button>
 
       <div class="libload" id="libLoading" role="status" hidden><span class="spin" aria-hidden="true"></span><span data-t="yukleme.kitaplik">Kitaplığın yükleniyor…</span></div>
 
@@ -104,10 +104,13 @@
           <b id="kuTitle" data-t="kurulum.baslik">Kitaplığını kur</b>
           <p id="kuText"></p>
           <p class="err" id="kuError" role="alert" hidden></p>
-          <label class="kutu" for="kuOrnek"><input type="checkbox" id="kuOrnek" checked> <span data-t="kurulum.ornekKoy">Örnek bir kitap da koy</span></label>
+          <label class="kutu" for="kuOrnek"><input type="checkbox" id="kuOrnek" checked> <span data-t="kurulum.ornekKoy">Drive’ıma örnek kitap ekle</span></label>
           <div class="row">
             <button class="ibtn solid" id="kuKur" data-t="kurulum.kur">Kitaplığı kur</button>
-            <button class="ibtn" id="kuSample" data-t="kurulum.onceOrnek">Önce örnek kitaplıkla dene</button>
+            <div>
+              <button class="ibtn" id="kuSample" aria-describedby="kuDemoNot" data-t="kurulum.onceOrnek">Demoyu dene</button>
+              <p class="not" id="kuDemoNot" data-t="giris.demoNot">Drive’ına dosya eklenmez.</p>
+            </div>
           </div>
           <p class="not" id="kuKilit" hidden data-t="kurulum.kilit">Kurulum için Google ile giriş yap.</p>
         </div>

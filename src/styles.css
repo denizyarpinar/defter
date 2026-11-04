@@ -215,6 +215,7 @@ body.auth-log-login :is(#olcum, #olcumKalem, #olcumSon) { display: none }
 .overlay .card p { margin: 10px 0 6px }
 .overlay .card ol { margin: 0 0 16px; padding-left: 20px }
 .overlay .row { display: flex; gap: 8px; flex-wrap: wrap }
+#kurulum .row { align-items: flex-start }
 /* task 6.K1: "Tam erişim gerekiyor" card, permission not given */
 .overlay .card .err { font-size: 13px; color: #9b2c1c; background: rgba(178, 58, 42, .1); border-radius: 10px; padding: 8px 10px; margin: 0 0 12px }
 #app[data-mode="night"] .overlay .card .err { color: #f4b4a6; background: rgba(240, 120, 100, .15) }

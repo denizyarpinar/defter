@@ -20,11 +20,11 @@ export const tr = {
   'oturum.bant.metin': 'Oturumu yenilemek için dokun',
   'oturum.bant.devam': 'Devam et',
   'oturum.bant.hata': 'Yenilenemedi. Tekrar dene',
-  'genel.aciklama': "Drive'daki notların, çalışma odandaki kitaplıkta.",
+  'genel.aciklama': 'Ders notların için 3D çalışma odan.',
   'genel.ara': 'Ara',
   'genel.kapat': 'Kapat',
   'genel.tekrarDene': 'Tekrar dene',
-  'genel.ornekDene': 'Örnek kitaplıkla dene',
+  'genel.ornekDene': 'Demoyu dene',
   'genel.sayfaSayisi': { bir: '{n} sayfa', cok: '{n} sayfa' },
 
   // loading
@@ -57,7 +57,9 @@ export const tr = {
   'dil.mesgul': 'Kayıt sürüyor; bitince dil değiştirilebilir.',
 
   // sign-in card
-  'giris.tekrarHosgeldin': "Tekrar hoş geldin. Kitaplığın Drive'dan yüklenecek.",
+  'giris.tekrarHosgeldin': 'Tekrar hoş geldin. Kitaplığını açmak için devam et.',
+  'giris.aciklama': 'PDF oku, kalemle not al ve belgelerinde ara. Dosyaların kendi Google Drive’ında kalır.',
+  'giris.demoNot': 'Drive’ına dosya eklenmez.',
   'giris.google': 'Google ile giriş yap',
   'giris.devamEt': '{ad} olarak devam et',
   'giris.baglaniyor': 'Bağlanıyor…',
@@ -75,13 +77,13 @@ export const tr = {
   'ipucu.oda': 'Kitaplığa dokun, yakından bak',
   'ipucu.raf': 'Kitaba dokun: aç · Sürükle: başka rafa taşı · Boşluğa dokun: odaya dön',
   'ipucu.masa': 'Kitap masaya geliyor…',
-  'ipucu.bosKitaplik': 'Kitaplığın boş · ＋ Yeni kitap',
+  'ipucu.bosKitaplik': 'İlk kitabını oluştur · ＋ Yeni kitap',
 
   // cards (the static texts in index.html; the cards' changing texts follow in a later step)
   'kurulum.baslik': 'Kitaplığını kur',
-  'kurulum.ornekKoy': 'Örnek bir kitap da koy',
+  'kurulum.ornekKoy': 'Drive’ıma örnek kitap ekle',
   'kurulum.kur': 'Kitaplığı kur',
-  'kurulum.onceOrnek': 'Önce örnek kitaplıkla dene',
+  'kurulum.onceOrnek': 'Demoyu dene',
   'kurulum.kilit': 'Kurulum için Google ile giriş yap.',
   'tamErisim.baslik': 'Tam erişim gerekiyor',
   'tamErisim.metin': "Kitaplık klasörünü görebilmem için Drive'ına tam erişim izni gerekiyor. Düğmeye dokun, açılan Google penceresinde Drive iznini onayla.",
@@ -251,8 +253,8 @@ export const tr = {
   // 6.5-2a: save state, the set-up card
   'kayit.kaydediliyor': 'Kaydediliyor…',
   'kayit.kaydedildi': 'Kaydedildi ✓',
-  'kurulum.metinKur': "Drive'ında “Defter Library” adlı bir klasör açılacak. Kitapların orada durur; Drive'ındaki başka dosyalara dokunulmaz.",
-  'kurulum.metinTamamla': '“Defter Library” klasörün var ama kurulum yarım kalmış. Eksik parçalar eklenecek; başka dosyalarına dokunulmaz.',
+  'kurulum.metinKur': 'Kitapların için Drive’ında “Defter Library” klasörü oluşturulur. Diğer dosyalarına dokunulmaz.',
+  'kurulum.metinTamamla': '“Defter Library” kurulumunu tamamla. Yalnız eksik parçalar eklenir; diğer dosyalarına dokunulmaz.',
   'kurulum.kuruluyor': 'Kuruluyor…',
   'kurulum.kuruluyorN': 'Kuruluyor… (örnek kitap {i}/{n})',
   'kurulum.tamamla': 'Kurulumu tamamla',
@@ -263,8 +265,8 @@ export const tr = {
   'kitaplik.olusturulduRafsiz': 'Kitap oluşturuldu: {ad}. kitaplik.json yok; kitap "Yeni gelenler"de.',
   'kitaplik.olusturulduYenilenemedi': 'Kitap oluşturuldu: {ad}. Kitaplık yenilenemedi; sayfayı yenile.',
   'kitaplik.icindekilerKaydediliyor': 'İçindekiler kaydediliyor; bitince tekrar dene.',
-  'kitaplik.hazir': 'Kitaplığın hazır.',
-  'kitaplik.hazirOrneksiz': 'Kitaplığın hazır. Örnek kitap eklenemedi.',
+  'kitaplik.hazir': 'Kitaplığın hazır. Başlamak için kitaplığa dokun veya ＋ Yeni kitap’ı seç.',
+  'kitaplik.hazirOrneksiz': 'Kitaplığın hazır, ancak örnek kitap eklenemedi. ＋ Yeni kitap ile kendi kitabını oluşturabilirsin.',
   'kitaplik.ornekYuklenemedi': 'Örnek kitaplık yüklenemedi. Sayfayı yenile.',
   'kitaplik.oturumDoldu': 'Oturumun süresi doldu. Devam etmek için tekrar Google ile giriş yap.',
   'kitaplik.ornekteDosyaYok': 'Sayfaları görmek için Google ile giriş yap. Örnek kitaplıkta bu kitabın dosyası yok.',
